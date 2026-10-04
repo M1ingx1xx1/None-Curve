@@ -1,11 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import type { FontMetrics } from '../font/model'
-import { sourceGlyphBounds, sourceGlyphSkeleton, sourceGlyphToPath } from '../geometry/sourcePath'
-import type { SourceGlyph } from '../geometry/types'
+import { polygonGlyphToPath, sourceGlyphBounds, sourceGlyphSkeleton, sourceGlyphToPath } from '../geometry/sourcePath'
+import type { PolygonGlyph, SourceGlyph } from '../geometry/types'
 import type { ViewParams } from '../state/types'
 
 interface GlyphViewProps {
   glyph: SourceGlyph
+  /** Final polygon after the whole pipeline, or null when it could not be derived. */
+  polygon: PolygonGlyph | null
+  /** Snapping grid spacing in font units, drawn for reference only; null hides it. */
+  gridSize: number | null
   fontMetrics: FontMetrics
   view: ViewParams
   label: string
@@ -22,6 +26,9 @@ function useElementSize<T extends HTMLElement>() {
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
+    // Measure once now so the first render does not wait for the observer callback.
+    const rect = el.getBoundingClientRect()
+    setSize({ width: rect.width, height: rect.height })
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
       setSize({ width, height })
@@ -33,9 +40,14 @@ function useElementSize<T extends HTMLElement>() {
 }
 
 /** Renders one glyph in font units (y-up) with metric guides and an optional curve skeleton. */
-export default function GlyphView({ glyph, fontMetrics, view, label, onViewChange }: GlyphViewProps) {
+/** Grid lines closer than this on screen are not drawn. */
+const MIN_GRID_PX = 4
+
+export default function GlyphView({ glyph, polygon, gridSize, fontMetrics, view, label, onViewChange }: GlyphViewProps) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
   const path = useMemo(() => sourceGlyphToPath(glyph), [glyph])
+  const polygonPath = useMemo(() => (polygon ? polygonGlyphToPath(polygon) : ''), [polygon])
+  const vertices = useMemo(() => polygon?.contours.flatMap((c) => c.points) ?? [], [polygon])
   const skeleton = useMemo(() => sourceGlyphSkeleton(glyph), [glyph])
   const { advanceWidth } = glyph.metrics
   const { ascender, descender, xHeight, capHeight } = fontMetrics
@@ -144,6 +156,17 @@ export default function GlyphView({ glyph, fontMetrics, view, label, onViewChang
     else guides.push([name, y])
   }
   const r = 3.5 * u
+  const { outline } = view
+
+  // Snapping grid in font units, anchored at the origin. Display only; never part of the polygon.
+  let gridLines: { xs: number[]; ys: number[] } | null = null
+  if (ready && gridSize && gridSize / u >= MIN_GRID_PX) {
+    const xs: number[] = []
+    const ys: number[] = []
+    for (let x = Math.ceil(left / gridSize) * gridSize; x <= right; x += gridSize) xs.push(x)
+    for (let y = Math.ceil(bottom / gridSize) * gridSize; y <= top; y += gridSize) ys.push(y)
+    gridLines = { xs, ys }
+  }
 
   return (
     <div
@@ -160,6 +183,16 @@ export default function GlyphView({ glyph, fontMetrics, view, label, onViewChang
     >
       {ready && (
         <svg viewBox={`${left} ${-top} ${visW} ${visH}`} preserveAspectRatio="none" aria-hidden="true">
+          {gridLines && (
+            <g className="snap-grid">
+              {gridLines.xs.map((x) => (
+                <line key={`x${x}`} x1={x} x2={x} y1={-top} y2={-bottom} vectorEffect="non-scaling-stroke" />
+              ))}
+              {gridLines.ys.map((y) => (
+                <line key={`y${y}`} x1={left} x2={right} y1={-y} y2={-y} vectorEffect="non-scaling-stroke" />
+              ))}
+            </g>
+          )}
           {view.showMetrics && (
             <g className="metric-lines">
               {guides.map(([name, y]) => (
@@ -180,7 +213,26 @@ export default function GlyphView({ glyph, fontMetrics, view, label, onViewChang
           )}
 
           <g transform="scale(1 -1)">
-            {view.showFill && <path className="glyph-fill" d={path} />}
+            {outline === 'source' &&
+              (view.showFill ? (
+                <path className="glyph-fill" d={path} />
+              ) : (
+                <path className="outline-stroke" d={path} vectorEffect="non-scaling-stroke" />
+              ))}
+            {outline === 'flattened' &&
+              polygon &&
+              (view.showFill ? (
+                <path className="glyph-fill" d={polygonPath} />
+              ) : (
+                <path className="outline-stroke" d={polygonPath} vectorEffect="non-scaling-stroke" />
+              ))}
+            {outline === 'compare' && (
+              <g className="compare">
+                {view.showFill && polygon && <path className="glyph-fill compare-fill" d={polygonPath} />}
+                {polygon && <path className="outline-stroke" d={polygonPath} vectorEffect="non-scaling-stroke" />}
+                <path className="compare-source" d={path} vectorEffect="non-scaling-stroke" />
+              </g>
+            )}
             {view.showSkeleton && (
               <g className="skeleton">
                 <path className="skeleton-outline" d={path} vectorEffect="non-scaling-stroke" />
@@ -195,8 +247,20 @@ export default function GlyphView({ glyph, fontMetrics, view, label, onViewChang
                 ))}
               </g>
             )}
+            {view.showVertices && polygon && (
+              <g className="vertices">
+                {vertices.map((p, i) => (
+                  <circle key={i} className="polygon-vertex" cx={p.x} cy={p.y} r={r * 0.7} />
+                ))}
+              </g>
+            )}
           </g>
         </svg>
+      )}
+      {ready && gridSize && (
+        <p className="canvas-grid-note" aria-hidden="true">
+          Snap grid {gridSize} u{gridLines ? '' : ' · too dense to draw at this zoom'}
+        </p>
       )}
     </div>
   )

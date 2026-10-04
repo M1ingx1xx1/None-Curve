@@ -31,9 +31,15 @@ export interface DocumentState {
 
 // ---- Parameter state ----
 
+/** Which outline the canvas draws: original curves, the flattened polygon, or both overlaid. */
+export type OutlineView = 'source' | 'flattened' | 'compare'
+
 export interface ViewParams {
+  outline: OutlineView
   showFill: boolean
   showSkeleton: boolean
+  /** Generated polygon vertices. */
+  showVertices: boolean
   showMetrics: boolean
   /** 1 = glyph fitted to the viewport. */
   zoom: number

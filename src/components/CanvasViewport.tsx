@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState, type DragEvent } from 'react'
+import { useCallback, useState, type DragEvent } from 'react'
 import { formatCodePoint, glyphLabel } from '../font/model'
-import type { SourceGlyph } from '../geometry/types'
-import type { DocumentState, ViewParams } from '../state/types'
+import type { DocumentState, OutlineView, ViewParams } from '../state/types'
+import type { GlyphGeometry } from '../state/useDerivedGeometry'
 import ErrorBoundary from './ErrorBoundary'
 import FileDropTarget from './FileDropTarget'
 import GlyphView, { MAX_ZOOM, MIN_ZOOM } from './GlyphView'
@@ -9,23 +9,33 @@ import GlyphView, { MAX_ZOOM, MIN_ZOOM } from './GlyphView'
 interface CanvasViewportProps {
   document: DocumentState
   view: ViewParams
+  /** Snapping grid spacing to draw, or null when snapping is off. */
+  gridSize: number | null
+  glyphGeometry: GlyphGeometry
   onViewChange: (patch: Partial<ViewParams>) => void
   onResetView: () => void
   onLocalFile: (file: File) => void
   onOpenGoogleFonts: () => void
 }
 
-type GlyphResult = { glyph: SourceGlyph; error: null } | { glyph: null; error: string } | null
+const outlineViews: { value: OutlineView; label: string; description: string }[] = [
+  { value: 'source', label: 'Original', description: 'Original font curves' },
+  { value: 'flattened', label: 'Flattened', description: 'Flattened polygon (straight edges only)' },
+  { value: 'compare', label: 'Compare', description: 'Flattened polygon with the original curves overlaid' },
+]
 
-const toggles: { key: 'showFill' | 'showSkeleton' | 'showMetrics'; label: string }[] = [
+const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'; label: string }[] = [
   { key: 'showFill', label: 'Fill' },
   { key: 'showSkeleton', label: 'Skeleton' },
+  { key: 'showVertices', label: 'Vertices' },
   { key: 'showMetrics', label: 'Metrics' },
 ]
 
 export default function CanvasViewport({
   document,
   view,
+  gridSize,
+  glyphGeometry,
   onViewChange,
   onResetView,
   onLocalFile,
@@ -34,16 +44,9 @@ export default function CanvasViewport({
   const { font, selectedGlyph } = document
   const [dragging, setDragging] = useState(false)
 
-  const result: GlyphResult = useMemo(() => {
-    if (!font || !selectedGlyph) return null
-    try {
-      return { glyph: font.getGlyph(selectedGlyph.index), error: null }
-    } catch (error) {
-      return { glyph: null, error: error instanceof Error ? error.message : String(error) }
-    }
-  }, [font, selectedGlyph])
-
-  const glyph = result?.glyph ?? null
+  const ready = glyphGeometry.kind === 'ready' ? glyphGeometry : null
+  const glyph = ready?.source ?? null
+  const polygon = ready?.geometry?.polygon ?? null
   const interactive = glyph !== null
   const zoomBy = (factor: number) => onViewChange({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor)) })
 
@@ -63,8 +66,12 @@ export default function CanvasViewport({
   let label = ''
   if (selectedGlyph) {
     const code = selectedGlyph.unicode !== null ? ` ${formatCodePoint(selectedGlyph.unicode)}` : ''
-    label = `Glyph ${glyphLabel(selectedGlyph)}${code}`
+    const shown = outlineViews.find((o) => o.value === view.outline)?.description ?? ''
+    label = `Glyph ${glyphLabel(selectedGlyph)}${code}, ${shown}`
   }
+
+  const hasContours = (glyph?.contours.length ?? 0) > 0
+  const showsPolygon = view.outline !== 'source' || view.showVertices
 
   return (
     <section
@@ -77,6 +84,20 @@ export default function CanvasViewport({
       onDrop={onDrop}
     >
       <div className="viewport-toolbar" role="toolbar" aria-label="View">
+        <div className="segmented" role="group" aria-label="Outline">
+          {outlineViews.map(({ value, label, description }) => (
+            <button
+              key={value}
+              type="button"
+              disabled={!interactive}
+              aria-pressed={view.outline === value}
+              title={description}
+              onClick={() => onViewChange({ outline: value })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="segmented" role="group" aria-label="Layers">
           {toggles.map(({ key, label }) => (
             <button
@@ -109,21 +130,56 @@ export default function CanvasViewport({
       <div className="canvas">
         {glyph && font ? (
           <ErrorBoundary resetKey={`${font.id}:${selectedGlyph?.index}`} label="The canvas">
-            <GlyphView glyph={glyph} fontMetrics={font.metrics} view={view} label={label} onViewChange={onViewChange} />
-            {glyph.contours.length === 0 && (
+            <GlyphView
+              glyph={glyph}
+              polygon={polygon}
+              gridSize={gridSize}
+              fontMetrics={font.metrics}
+              view={view}
+              label={label}
+              onViewChange={onViewChange}
+            />
+            <p className="canvas-badge" aria-hidden="true">
+              {outlineViews.find((o) => o.value === view.outline)?.description}
+            </p>
+            {!hasContours && (
               <p className="canvas-note">This glyph has no outline (for example, a space). Metrics are still shown.</p>
             )}
-            {view.showSkeleton && glyph.contours.length > 0 && (
-              <ul className="skeleton-legend" aria-label="Skeleton legend">
-                <li>
-                  <span className="legend-anchor" aria-hidden="true" /> On-curve anchor
-                </li>
-                <li>
-                  <span className="legend-control" aria-hidden="true" /> Off-curve control
-                </li>
-                <li>
-                  <span className="legend-handle" aria-hidden="true" /> Handle
-                </li>
+            {ready?.geometryError && showsPolygon && (
+              <p className="canvas-note canvas-note-error" role="alert">
+                Flattening failed: {ready.geometryError}
+              </p>
+            )}
+            {hasContours && (view.showSkeleton || view.showVertices || view.outline === 'compare') && (
+              <ul className="skeleton-legend" aria-label="Legend">
+                {view.outline === 'compare' && (
+                  <>
+                    <li>
+                      <span className="legend-polygon" aria-hidden="true" /> Flattened
+                    </li>
+                    <li>
+                      <span className="legend-source" aria-hidden="true" /> Original
+                    </li>
+                  </>
+                )}
+                {view.showSkeleton && (
+                  <>
+                    <li>
+                      <span className="legend-anchor" aria-hidden="true" /> On-curve anchor
+                    </li>
+                    <li>
+                      <span className="legend-control" aria-hidden="true" /> Off-curve control
+                    </li>
+                    <li>
+                      <span className="legend-handle" aria-hidden="true" /> Handle
+                    </li>
+                  </>
+                )}
+                {view.showVertices && (
+                  <li>
+                    <span className="legend-vertex" aria-hidden="true" /> Polygon vertex
+                  </li>
+                )}
               </ul>
             )}
           </ErrorBoundary>
@@ -131,9 +187,9 @@ export default function CanvasViewport({
           <div className="canvas-empty">
             {!font && <FileDropTarget onLocalFile={onLocalFile} onOpenGoogleFonts={onOpenGoogleFonts} />}
             {font && !selectedGlyph && <p className="canvas-message">Select a glyph on the left to preview it.</p>}
-            {font && result?.error && (
+            {font && glyphGeometry.kind === 'source-error' && (
               <p className="canvas-message" role="alert">
-                This glyph could not be read: {result.error}
+                This glyph could not be read: {glyphGeometry.message}
               </p>
             )}
           </div>

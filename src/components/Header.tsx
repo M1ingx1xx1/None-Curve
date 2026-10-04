@@ -2,6 +2,7 @@ import type { DocumentState } from '../state/types'
 
 interface HeaderProps {
   document: DocumentState
+  onOpenExport: () => void
 }
 
 function fileStatusLabel(document: DocumentState): string {
@@ -18,7 +19,7 @@ function fileStatusLabel(document: DocumentState): string {
   }
 }
 
-export default function Header({ document }: HeaderProps) {
+export default function Header({ document, onOpenExport }: HeaderProps) {
   return (
     <header className="header">
       <div className="brand">
@@ -30,8 +31,8 @@ export default function Header({ document }: HeaderProps) {
         {fileStatusLabel(document)}
       </p>
       <div className="header-actions">
-        <button type="button" disabled title="Export is not implemented yet">
-          Export<span className="pending">Soon</span>
+        <button type="button" disabled={!document.font} onClick={onOpenExport} title={document.font ? 'Export SVG or a font file' : 'Load a font to export'}>
+          Export…
         </button>
       </div>
     </header>
