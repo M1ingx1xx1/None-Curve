@@ -22,6 +22,8 @@ A key product distinction: “polygon-only” means the exported glyph outlines 
 
 ## 1. Proposed stack
 
+> **As built (implementation status):** Vite instead of Webpack; fontkit for font parsing (TTF / OTF / WOFF / WOFF2); a hand-written pure TypeScript geometry core (`src/geometry/`, no Paper.js) rendered with SVG; a custom SVG serializer (`src/export/svg.ts`); OTF generation written with opentype.js and verified by reading back with fontkit (`src/export/fontFile.ts`). The table below is kept as the original proposal.
+
 | Area | Recommended technology | Responsibility |
 |---|---|---|
 | UI | React | Controls, file handling, application shell |
@@ -325,6 +327,8 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 
 # Phase D: Step-by-Step Implementation Roadmap
 
+> **Implementation status:** Milestones 1–3 are complete, including the specimen, SVG export, and OTF generation with read-back verification (a Web Worker was not needed). Milestone 4's GitHub Pages workflow is in place (Vite `base` instead of a Webpack public path). Phase E (sound → carving) has not started. See “Feature status” in the README.
+
 ## Milestone 1: MVP
 
 **Goal:** Prove the end-to-end polygon workflow for a single font and glyph.
@@ -384,6 +388,8 @@ OTF generation requires more than writing paths: the output needs valid glyph re
 ---
 
 # Phase E: Sound → Carving Logic → Letterform
+
+> **Implementation status:** planned, not implemented.
 
 This is the secondary product track (roughly 30% of planned product focus). Complete the core font editor milestones first; sound carving extends the existing glyph workflow and must remain optional.
 

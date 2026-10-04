@@ -4,8 +4,10 @@ import type { GlyphRef } from '../geometry/types'
 import type { AppState, EditorParams, ExportMeta, ImportOrigin, ViewParams } from './types'
 
 const initialView: ViewParams = {
+  outline: 'flattened',
   showFill: true,
   showSkeleton: false,
+  showVertices: true,
   showMetrics: true,
   zoom: 1,
   panX: 0,
@@ -20,10 +22,10 @@ export const initialState: AppState = {
     export: { format: 'svg', precision: 2, lastExport: null },
   },
   params: {
-    flatten: { mode: 'adaptive', tolerance: 2, segmentsPerCurve: 4 },
+    flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4 },
     anchors: { spacing: 0, simplify: 0 },
-    grid: { snap: false, size: 10, angleLock: false, angleStep: 15 },
-    distortion: { amount: 0, seed: 1 },
+    grid: { snap: false, size: 10, angleLock: false, angleStep: 45 },
+    distortion: { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 },
     view: initialView,
   },
 }

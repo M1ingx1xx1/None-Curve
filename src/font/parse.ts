@@ -44,6 +44,7 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource): Lo
     descender: font.descent,
     xHeight: font.xHeight || null,
     capHeight: font.capHeight || null,
+    lineGap: font.lineGap || 0,
   }
 
   const characters: GlyphRef[] = []
@@ -51,6 +52,12 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource): Lo
     if (isControlCharacter(unicode)) continue
     const glyph = safeGlyph(() => font.glyphForCodePoint(unicode))
     if (glyph && glyph.id !== 0) characters.push({ index: glyph.id, name: glyphName(glyph), unicode })
+  }
+
+  const mappedCodePoints = new Set<number>()
+  for (const cp of font.characterSet) {
+    const glyph = safeGlyph(() => font.glyphForCodePoint(cp))
+    if (glyph && glyph.id !== 0) mappedCodePoints.add(cp)
   }
 
   const firstCodePoint = new Map<number, number>()
@@ -91,6 +98,27 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource): Lo
     characters,
     listAllGlyphs,
     axes,
+    hasCharacter: (cp) => mappedCodePoints.has(cp),
+    hasKerning: safeFeatures(font).includes('kern') || hasTable(font, 'kern'),
+    shapeLine(text) {
+      const run = font.layout(text, NO_LIGATURES)
+      const chars = [...text]
+      // With ligatures off, glyphs map to characters one to one unless shaping composed or
+      // decomposed something; only then fall back to fontkit's (shared) code points.
+      const oneToOne = run.glyphs.length === chars.length
+      return run.glyphs.map((glyph, i) => {
+        const position = run.positions[i]
+        const codePoints = oneToOne ? [chars[i].codePointAt(0)!] : [...glyph.codePoints]
+        return {
+          index: glyph.id,
+          codePoints,
+          xAdvance: position.xAdvance,
+          xOffset: position.xOffset,
+          yOffset: position.yOffset,
+          missing: glyph.id === 0,
+        }
+      })
+    },
     getGlyph(index) {
       let outline = outlineCache.get(index)
       if (!outline) {
@@ -113,6 +141,23 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource): Lo
 /** C0, DEL, and C1 controls have no visible form; they stay reachable under "All glyphs". */
 function isControlCharacter(cp: number): boolean {
   return cp < 0x20 || (cp >= 0x7f && cp < 0xa0)
+}
+
+/** Keeps one glyph per character so the specimen and font export stay character-for-character. */
+const NO_LIGATURES = { liga: false, clig: false, dlig: false, hlig: false, calt: false, rlig: false }
+
+function hasTable(font: Font, tag: string): boolean {
+  // `directory` is part of fontkit's runtime API but missing from @types/fontkit.
+  const directory = (font as Font & { directory?: { tables?: Record<string, unknown> } }).directory
+  return Boolean(directory?.tables?.[tag])
+}
+
+function safeFeatures(font: Font): string[] {
+  try {
+    return font.availableFeatures ?? []
+  } catch {
+    return []
+  }
 }
 
 function safeGlyph(read: () => Glyph): Glyph | null {
@@ -154,7 +199,8 @@ function toSourceGlyph(glyph: Glyph, ref: GlyphRef, fontMetrics: FontMetrics): S
   const bbox = glyph.bbox
   const hasBounds = contours.length > 0 && Number.isFinite(bbox.minX) && Number.isFinite(bbox.maxX)
 
-  return {
+  // Frozen so derived geometry can never modify the cached source outline.
+  return deepFreeze({
     ref,
     contours,
     metrics: {
@@ -165,5 +211,13 @@ function toSourceGlyph(glyph: Glyph, ref: GlyphRef, fontMetrics: FontMetrics): S
       leftSideBearing: hasBounds ? bbox.minX : 0,
       rightSideBearing: hasBounds ? glyph.advanceWidth - bbox.maxX : 0,
     },
+  })
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value)
+    for (const child of Object.values(value)) deepFreeze(child)
   }
+  return value
 }

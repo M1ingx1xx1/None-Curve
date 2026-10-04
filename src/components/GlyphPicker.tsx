@@ -13,6 +13,15 @@ type ListMode = 'characters' | 'all'
 
 const MAX_RESULTS = 400
 
+/** Scrolls only the grid (not the toolbar or page) so the cell is visible. */
+function revealInGrid(grid: HTMLElement, cell: HTMLElement) {
+  const top = cell.offsetTop
+  const bottom = top + cell.offsetHeight
+  if (top < grid.scrollTop || bottom > grid.scrollTop + grid.clientHeight) {
+    grid.scrollTop = top - (grid.clientHeight - cell.offsetHeight) / 2
+  }
+}
+
 function describe(glyph: GlyphRef): string {
   const parts = [glyph.unicode !== null ? `${glyphLabel(glyph)} ${formatCodePoint(glyph.unicode)}` : null]
   if (glyph.name) parts.push(glyph.name)
@@ -71,7 +80,9 @@ export default function GlyphPicker({ font, selected, onSelect }: GlyphPickerPro
   const focusIndex = Math.max(0, shown.findIndex(isSelected))
 
   useEffect(() => {
-    gridRef.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest' })
+    const grid = gridRef.current
+    const cell = grid?.querySelector<HTMLElement>('[aria-pressed="true"]')
+    if (grid && cell) revealInGrid(grid, cell)
   }, [selected, mode, results])
 
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -83,8 +94,8 @@ export default function GlyphPicker({ font, selected, onSelect }: GlyphPickerPro
     if (step === undefined) return
     e.preventDefault()
     const next = cells[Math.min(cells.length - 1, Math.max(0, current + step))]
-    next.focus()
-    next.scrollIntoView({ block: 'nearest' })
+    next.focus({ preventScroll: true })
+    if (gridRef.current) revealInGrid(gridRef.current, next)
   }
 
   let emptyMessage: string | null = null
