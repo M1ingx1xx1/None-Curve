@@ -187,3 +187,60 @@ Update the preview when parameters change. Controls must show their current valu
 - Should “Lines per curve” support per-segment values, or use one global value in the first release?
 - What are the performance targets for batch processing and large font files?
 - What character coverage, font tables, and typesetting features are in scope for the first OTF export?
+
+## 11. Sound-driven carved letterforms (new product direction)
+
+### Concept and scope
+
+Use **Sound → Carving Logic → Letterform**: extract explainable audio features, map them to carving parameters, then modify polygon glyph contours. Each deformation must be traceable to its input. This is an optional extension of the existing polygon workflow. Carving is a design model, not a physical simulation: normalized Depth controls contour expansion and notch amplitude. Two-dimensional SVG and fonts do not contain physical depth; material shading must remain distinguishable from exported geometry.
+
+### Audio features
+
+- First release: local WAV and browser-decodable MP3, playback, timeline, and selection. Microphone input is a later, explicitly activated extension. Decode and analyze locally; expose invalid, empty, silent, and unsupported input states.
+- **Volume:** short-time RMS energy, not calibrated physical sound pressure.
+- **Pitch:** fundamental-frequency estimate in Hz with confidence; unvoiced or low-confidence frames must not trigger high-pitch effects.
+- **Rhythm:** onsets, inter-onset intervals, and events per second; show estimated BPM only when a stable beat can be inferred.
+- **Duration:** selection and continuous-event length in seconds, separate from integrated energy.
+- **Frequency:** relative low/mid/high band energy, distinct from Pitch. Initial boundaries: 20–250 Hz, 250–2000 Hz, and 2000 Hz–Nyquist, clipped to the valid range for the sample rate.
+- **Texture:** spectral flatness, a noise-proportion proxy, and transient variation; describe these as acoustic estimates, not material recognition.
+- Retain raw values, units, normalized values, timestamps, and validity. Record normalization ranges, silence threshold, window, and hop size; handle zero denominators and clamp outliers.
+
+### Default mappings
+
+| Audio input increases | Carving logic | Letterform effect |
+|---|---|---|
+| Volume | Greater Depth and Pressure | Deeper notches, stronger contour expansion, heavier weight |
+| Confident Pitch | Sharper Chisel Angle, lower Stroke Width | Sharper terminals, narrower local strokes |
+| Relative low-band energy | Greater Pressure and Stroke Width | Heavier, horizontally wider forms |
+| Rhythm / onset density | Greater notch density | Denser cuts and fragmented local strokes without disconnecting whole strokes by default |
+| Event Duration | Greater carving extension | Longer designated terminals or local strokes |
+| Texture noise estimate | Greater Edge Roughness and Erosion | Rougher edges and more visible loss of material |
+| Relative high-band energy | Denser, sharper small cuts | Finer edge details, independently of fundamental pitch |
+| Transient strength | Local Pressure peaks | Stronger chisel marks at corresponding event positions |
+
+Define six separate operators: Depth sets notch amplitude; Pressure sets local expansion and influence radius; Stroke Width sets thickness; Edge Roughness sets edge disturbance; Erosion subtracts missing regions; Chisel Angle sets notch angle and orientation. They must not all reduce to the same random vertex displacement. These are editable design defaults, not acoustic laws.
+
+### Mapping and temporal controls
+
+- Each mapping exposes feature, target, input range, output bounds, strength, direction, response curve (linear/ease-in/ease-out), toggle, and reset. Show contributions when multiple features affect one target.
+- Compose as base value + mapping contributions → output clamp → geometry constraints. Zero strength restores base values; disabling the module restores the existing geometry workflow.
+- Default to aggregate features from a selection for a static glyph. Extended modes distribute time across text characters or contour arc length. Label the active mode and define stable contour order/start points, spaces, punctuation, repeated characters, and audio shorter than text.
+- Repeated text characters may have instance-specific outlines. Fonts normally have one glyph per character: export instance variation as specimen SVG and require an explicitly selected static snapshot for font output.
+- Smooth continuous features while retaining onset events. Allow parameter locks and frozen selections/time points, plus source/base polygon/audio-driven comparison.
+- Identical audio, selection, analysis settings, mappings, base geometry, seed, and algorithm version produce identical static geometry. Playback and redraw must not reroll randomness.
+
+### Quality, interaction, and export
+
+- Enable a readability mode by default, with minimum stroke thickness and counter gap, maximum extension, and erosion proportion in em/font units, independent of viewport zoom.
+- Check closure, winding, counters, degenerate edges, and self-intersections. Reduce effects or restore recent valid geometry with a specific explanation; block export of unresolved invalid output.
+- Erosion must change contours with valid hole/fill behavior. Rendered shadows alone do not establish a change in glyph depth.
+- Preserve advances and baseline by default and flag margin overflow. Optional adaptive advances must be explicit and identical in preview and export.
+- Timeline: waveform, selection, onsets, and selected feature curves. Controls: Sound / Carving / Letterform, input validity, contributions, and constrained states. Provide undo/redo, reset, and preset import/export without embedding source audio by default.
+- Prioritize static generation. Show analysis/generation progress; cancellation and changed inputs must prevent stale jobs from overwriting newer results.
+- Export a valid glyph SVG, time-assigned text specimen SVG, and JSON recipe with analysis/mapping settings, selection, seed, and algorithm version. Recipes require relinking audio and checking a content fingerprint. Continue straight-line contour and font validation requirements; do not describe 2D exports as 3D models.
+
+### Acceptance and delivery
+
+Test silence, stable high/low tones, strong/weak amplitudes, dense/sparse onsets, long/short events, and noise independently. Hold other inputs fixed to verify mapping direction; invalid Pitch produces no sharpening. Low-band energy and fundamental pitch must independently affect weight and sharpness. Verify zero/disabled/reversed/clamped mappings, repeatability, preview/export equivalence, and valid readable output on counters, thin strokes, complex Chinese glyphs, and repeated-character specimens.
+
+Delivery order: local audio analysis → static aggregate mappings → distinct carving operators and quality constraints → temporal contour/text assignment → recipe and specimen export. Evaluate live microphone input later.

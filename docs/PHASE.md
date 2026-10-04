@@ -372,3 +372,25 @@ OTF generation requires more than writing paths: the output needs valid glyph re
 - Confirm all file processing and export work without a server.
 
 **Acceptance outcome:** The app deploys to GitHub Pages and supports the documented workflow entirely in the browser.
+
+---
+
+# Phase E: Sound → Carving Logic → Letterform
+
+Follow [PRD section 11](PRD.md#11-sound-driven-carved-letterforms-new-product-direction) while extending the existing geometry engine.
+
+1. **Audio/features:** Add AudioSource, AnalysisConfig, and FeatureFrame (timestamp, raw/normalized values, validity, pitch confidence). Decode browser-supported audio locally; analyze RMS, pitch, onsets, duration, band energy, and texture proxies in background work. Retain input fingerprint and analysis version.
+2. **Mapping:** Add MappingRule and CarvingParameters with bounds, strength, direction, response curve, smoothing, and toggles. Apply the PRD base/contribution/clamp rules and expose contributions and constraint reasons.
+3. **Geometry:** Rebuild base polygons from read-only source glyphs; apply thickness/expansion, terminal extension, notches, roughness, and erosion, then validate closure, counters, winding, and intersections. Version a fixed order and disclose where existing snapping/jitter occur. Define Depth, Pressure, and Width separately to avoid duplicated weight amplification.
+4. **Time assignment:** Deliver aggregate-selection mode first, followed by stable arc-length and text-instance assignment. Font contours do not imply a stroke skeleton; extension needs explicit points/directions or a validated detection strategy.
+5. **State/performance:** Separate source audio, feature cache, mapping configuration, derived geometry, and recipe. Reject stale jobs using task IDs. Key feature caches by audio fingerprint/configuration and geometry caches additionally by glyph, selection, mapping, seed, and algorithm version.
+6. **UI/delivery:** Add audio timeline, feature inspection, carving controls, mapping editor, source/base/result comparison, validity feedback, and JSON recipes. Live microphone mode is later work and is not required for static audio generation.
+
+```text
+Local audio → decode/analyze → raw/normalized features + validity
+                            → aggregate/time assignment → contributions → carving parameters
+Read-only font → flatten/resample → base polygons → carving → quality validation
+                                                           → canonical geometry → preview/SVG/font snapshot
+```
+
+Acceptance: independently verify mapping directions, invalid pitch, silence, determinism, cancellation/stale results, complex counters, extreme-parameter constraints, final preview/export equivalence, and recipe replay. Finish static aggregation before temporal assignment; material rendering does not substitute for geometry completion.
