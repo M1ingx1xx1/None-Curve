@@ -1,6 +1,6 @@
 // Pure helpers that describe source curves for rendering. No React, no DOM.
 
-import type { Point, SourceGlyph } from './types'
+import type { Point, PolygonGlyph, SourceGlyph } from './types'
 
 const fmt = (n: number) => (Math.round(n * 100) / 100).toString()
 const pt = (p: Point) => `${fmt(p.x)} ${fmt(p.y)}`
@@ -80,4 +80,9 @@ export function sourceGlyphBounds(glyph: SourceGlyph): Bounds | null {
     }
   }
   return bounds
+}
+
+/** SVG path data (font units, y-up) for a polygon: only M, L, and Z commands. */
+export function polygonGlyphToPath(polygon: PolygonGlyph): string {
+  return polygon.contours.map((c) => `M${c.points.map(pt).join('L')}Z`).join('')
 }

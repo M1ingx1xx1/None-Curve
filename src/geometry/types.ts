@@ -1,6 +1,11 @@
 // Type boundary for the geometry core. This folder must not depend on React;
 // parsing, flattening, and export in later phases are built around these types.
 
+import type { AnchorStats } from './anchors'
+import type { ConstraintStats } from './constraints'
+import type { DistortionStats } from './distortion'
+import type { FlattenStats } from './flatten'
+
 export interface Point {
   x: number
   y: number
@@ -54,21 +59,29 @@ export interface FlattenParams {
 }
 
 export interface AnchorParams {
-  /** Target anchor spacing (font units); 0 disables resampling. */
+  /** Maximum edge length after subdivision (font units); 0 turns spacing off. */
   spacing: number
-  /** Simplification threshold; 0 disables simplification. */
+  /** RDP distance threshold (font units); 0 turns reduction off. */
   simplify: number
 }
 
 export interface GridParams {
   snap: boolean
+  /** Grid spacing in font units, anchored at the glyph origin; 0 turns snapping off. */
   size: number
   angleLock: boolean
+  /** Allowed edge directions are multiples of this many degrees (90, 45, 30, or 15). */
   angleStep: number
 }
 
 export interface DistortionParams {
+  /** Largest vertex displacement (font units); 0 turns distortion off. */
   amount: number
+  /** Noise features per 1000 font units of outline length. */
+  frequency: number
+  /** 0 = displacement along the outline (tangent), 1 = across it (normal). */
+  normalBias: number
+  /** Integer seed; the same seed always gives the same result. */
   seed: number
 }
 
@@ -95,8 +108,13 @@ export interface PolygonGlyph {
 export interface DerivedGeometry {
   source: SourceGlyph
   polygon: PolygonGlyph
+  /** Vertices in the final polygon, after every pipeline step. */
   vertexCount: number
+  flatten: FlattenStats
+  anchors: AnchorStats
+  constraints: ConstraintStats
+  distortion: DistortionStats
 }
 
-/** Geometry pipeline entry point: source curves + params → canonical polygon. Implemented in Phase B. */
+/** Geometry pipeline entry point: source curves + params → canonical polygon. See pipeline.ts. */
 export type GeometryPipeline = (source: SourceGlyph, params: GeometryParams) => DerivedGeometry

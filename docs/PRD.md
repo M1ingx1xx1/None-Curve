@@ -1,6 +1,6 @@
 # None-Curve Product Requirements Document (PRD)
 
-**Status:** Draft  
+**Status:** Draft (see section 12 for implementation status)  
 **Product:** Browser-based font outline editor  
 **Target users:** Type and graphic designers, creative technologists, frontend developers
 
@@ -276,3 +276,18 @@ Define six separate operators: Depth sets notch amplitude; Pressure sets local e
 Test silence, stable high/low tones, strong/weak amplitudes, dense/sparse onsets, long/short events, and noise independently. Hold other inputs fixed to verify mapping direction; invalid Pitch produces no sharpening. Low-band energy and fundamental pitch must independently affect weight and sharpness. Verify zero/disabled/reversed/clamped mappings, repeatability, preview/export equivalence, and valid readable output on counters, thin strokes, complex Chinese glyphs, and repeated-character specimens.
 
 Delivery order: local audio analysis → static aggregate mappings → distinct carving operators and quality constraints → temporal contour/text assignment → recipe and specimen export. Evaluate live microphone input later.
+
+## 12. Implementation status
+
+| Requirement | Status |
+|---|---|
+| P0 Font loading and glyph preview (including WOFF / WOFF2 and Google Fonts) | Implemented |
+| P0 Source-curve skeleton | Implemented |
+| P0 Curve linearization (adaptive / fixed segments) | Implemented |
+| P0 SVG export (current glyph; specimen SVG as well) | Implemented: `M` / `L` / `Z` only, 0–4 decimal places with contour validation |
+| P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
+| P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
+| P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
+| Section 11 Sound-driven carving | Not implemented |
+
+Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.

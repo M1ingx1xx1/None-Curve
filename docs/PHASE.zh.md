@@ -23,6 +23,8 @@ Vector Poly-Font Editor 是一款纯客户端 Web 应用，用于将字体轮廓
 
 ## 1. 建议的技术栈
 
+> **实际采用（实现状态）：** 构建为 Vite（而非 Webpack）；字体解析用 fontkit（支持 TTF / OTF / WOFF / WOFF2）；几何核心为自写的纯 TypeScript 模块（`src/geometry/`，未使用 Paper.js），画布用 SVG 渲染；SVG 导出为自写序列化器（`src/export/svg.ts`）；OTF 生成用 opentype.js 写入、fontkit 回读校验（`src/export/fontFile.ts`）。下表保留为最初建议。
+
 | 范畴       | 建议技术                       | 职责                                     |
 | ---------- | ------------------------------ | ---------------------------------------- |
 | UI         | React                          | 控件、文件处理、应用外壳                 |
@@ -326,6 +328,8 @@ p' = p + amplitude × noise(seed, vertexIndex, frequency)
 
 # 阶段 D：分步实施路线图
 
+> **实现状态：** 里程碑 1–3 已完成（含样张、SVG 导出、OTF 生成与回读校验，Web Worker 经评估暂不需要）；里程碑 4 的 GitHub Pages 部署工作流已就绪（Vite `base` 代替 Webpack public path）。阶段 E（声音 → 石刻）尚未开始。详见 README 的“功能状态”。
+
 ## 里程碑 1：MVP
 
 **目标：** 验证单个字体、单个字形的完整多边形处理流程。
@@ -385,6 +389,8 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 ---
 
 # 阶段 E：声音 → 石刻逻辑 → 字形
+
+> **实现状态：** 规划中，尚未实现。
 
 这是次要产品路线（约占规划重点的 30%）。先完成核心字体编辑器里程碑，再实现声音石刻；该功能扩展现有字形工作流，并保持可选。
 

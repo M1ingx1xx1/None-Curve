@@ -33,6 +33,24 @@ export interface FontMetrics {
   descender: number
   xHeight: number | null
   capHeight: number | null
+  /** Extra space between lines recommended by the font (hhea lineGap). */
+  lineGap: number
+}
+
+/** One positioned glyph from shaping a line of text. Units are font units. */
+export interface ShapedGlyph {
+  index: number
+  /**
+   * Characters this glyph stands for, taken from the input text (one character per glyph, since
+   * ligatures are off). Not taken from fontkit's glyph objects, which are shared between runs.
+   */
+  codePoints: number[]
+  /** Advance including kerning. */
+  xAdvance: number
+  xOffset: number
+  yOffset: number
+  /** True when the font has no glyph for the character (index 0 / .notdef). */
+  missing: boolean
 }
 
 
@@ -50,6 +68,15 @@ export interface LoadedFont {
   /** Every glyph in the font by glyph index, including unmapped ones. Built on first call. */
   listAllGlyphs(): GlyphRef[]
   axes: VariationAxis[]
+  /** True when the font's character map has a glyph for this code point. */
+  hasCharacter(codePoint: number): boolean
+  /** True when the font has kerning (GPOS kern feature or a legacy kern table). */
+  hasKerning: boolean
+  /**
+   * Shapes one line of text with kerning and mark positioning but without ligatures, so every
+   * character keeps its own glyph.
+   */
+  shapeLine(text: string): ShapedGlyph[]
   /** Reads the outline of a glyph. Throws if the glyph data cannot be decoded. */
   getGlyph(index: number): SourceGlyph
   /** SVG path data (font units, y-up) for small glyph previews. */
