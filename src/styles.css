@@ -1,0 +1,148 @@
+:root {
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --text: #1c1c1a;
+  --muted: #6b6a66;
+  --border: #dddbd5;
+  --accent: #3a5a78;
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --surface: #1f1f1d;
+    --text: #ecebe7;
+    --muted: #9a9993;
+    --border: #34332f;
+    --accent: #8fb3d4;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.header h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.header p {
+  margin: 0;
+  max-width: 60ch;
+}
+
+.zh,
+.muted {
+  color: var(--muted);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.panel,
+.canvas {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.canvas {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  border-style: dashed;
+}
+
+.pipeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+
+.stage {
+  position: relative;
+}
+
+.stage:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -24px;
+  top: 0;
+  color: var(--accent);
+}
+
+.stage .index {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.stage h3 {
+  margin: 4px 0 8px;
+  font-size: 1.1rem;
+}
+
+.stage h3 .zh {
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+.stage ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.canvas > .muted {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .workspace,
+  .pipeline {
+    grid-template-columns: 1fr;
+  }
+
+  .stage:not(:last-child)::after {
+    content: '↓';
+    right: auto;
+    left: 0;
+    top: auto;
+    bottom: -26px;
+  }
+}
