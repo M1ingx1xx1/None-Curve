@@ -1,23 +1,16 @@
 import type { GeometryParams, GlyphRef } from '../geometry/types'
+import type { FontErrorKind } from '../font/errors'
+import type { LoadedFont } from '../font/model'
 
 // ---- Document state ----
 
-export type FontFormat = 'ttf' | 'otf'
-
-export interface FontFileInfo {
-  fileName: string
-  format: FontFormat
-  byteSize: number
-  familyName: string | null
-  unitsPerEm: number | null
-  glyphCount: number | null
-}
+export type ImportOrigin = 'local' | 'google'
 
 export type LoadStatus =
   | { kind: 'empty' }
-  | { kind: 'loading'; fileName: string }
+  | { kind: 'loading'; requestId: number; origin: ImportOrigin; label: string }
   | { kind: 'ready' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; origin: ImportOrigin; errorKind: FontErrorKind; message: string }
 
 export type ExportFormat = 'svg' | 'otf'
 
@@ -30,21 +23,23 @@ export interface ExportMeta {
 
 export interface DocumentState {
   status: LoadStatus
-  font: FontFileInfo | null
+  /** The last successfully parsed font. Kept while a new import loads or fails. */
+  font: LoadedFont | null
   selectedGlyph: GlyphRef | null
   export: ExportMeta
 }
 
 // ---- Parameter state ----
 
-export type ViewMode = 'outline' | 'skeleton' | 'fill'
-
 export interface ViewParams {
-  mode: ViewMode
+  showFill: boolean
+  showSkeleton: boolean
+  showMetrics: boolean
+  /** 1 = glyph fitted to the viewport. */
   zoom: number
+  /** Pan offset in font units. */
   panX: number
   panY: number
-  showMetrics: boolean
 }
 
 export interface EditorParams extends GeometryParams {
