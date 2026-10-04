@@ -170,6 +170,12 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Cover empty, loading, parsing-error, and export-complete states.
 - Support keyboard operation and make focus states easy to see.
 
+### Visual reference for outline transformation
+
+`resources/reference/font_change_sample.png` is the visual reference for the font transformation. It shows a smooth curved glyph becoming polygonal at different levels of detail. Use it to guide the live preview’s transition from source outline to polygon and the visual range of the “Lines per curve / Anchor density” controls. It is not a pixel-perfect target and does not require every font to use the pictured glyph or black-and-white palette.
+
+![Reference showing a curved glyph becoming polygonal at different detail levels](../resources/reference/font_change_sample.png)
+
 ## 7. Data and processing rules
 
 - Preserve the original font outlines and metrics as read-only input.

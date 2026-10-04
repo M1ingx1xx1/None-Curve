@@ -266,6 +266,8 @@ Show:
 
 Direction vectors can be offered as an optional diagnostic overlay. Name and explain them as contour direction indicators unless users can directly edit them; polygon edges themselves have no Bézier handles.
 
+Use `resources/reference/font_change_sample.png` as the visual reference for a smooth source glyph transitioning into polygonal versions at different detail levels. It informs the live canvas and segment-density control; it is not a pixel-perfect reproduction requirement.
+
 ### Fill mode
 
 Show solid filled glyphs for silhouette evaluation. Keep the rendered glyph visible as users edit. Support a single-glyph view and a specimen string view so users can assess rhythm, spacing, counters, and repeated forms. Preserve advances and kerning where the parser and export pipeline support them, and make unsupported font behavior visible.

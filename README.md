@@ -6,6 +6,10 @@ An experimental web app for turning font curves into editable polygon shapes. Lo
 
 一个将字体曲线转换成可编辑多边形的实验性网页工具。载入字体后即可看到字形的实时预览，在左侧调整控制项，画布中的轮廓会随之更新。字体编辑器是核心功能，并提供可选的声音驱动石刻工具；准备好后再手动导出作品。
 
+形态变化参考：下图展示曲线字形向不同细节密度的多边形字形变化。
+
+![字体曲线到多边形的形态变化参考](resources/reference/font_change_sample.png)
+
 ## Sound → Carving Logic → Letterform
 
 Planned extension: map Volume, Pitch, Rhythm, Duration, Frequency distribution, and Texture to Depth, Pressure, Stroke Width, Edge Roughness, Erosion, and Chisel Angle, then generate reproducible polygon letterforms. See the [product requirements](docs/PRD.md) and [implementation plan](docs/PHASE.md).
