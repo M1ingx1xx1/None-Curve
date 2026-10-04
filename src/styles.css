@@ -422,19 +422,6 @@ input[type='range']:disabled {
   outline-offset: -2px;
 }
 
-.planned {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.planned h3 {
-  font-size: 0.85rem;
-}
-
-.planned p {
-  margin-top: 8px;
-}
-
 /* ---- Canvas ---- */
 
 .viewport {
@@ -1204,6 +1191,23 @@ input[type='range']:disabled {
   min-width: 0;
 }
 
+.seed-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-experimental {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+}
+
+.random-anchors > .button-small,
 .distortion > .button-small,
 .grid-controls > .button-small {
   align-self: flex-start;
@@ -1379,10 +1383,6 @@ input[type='range']:disabled {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.export-entry > .button-small {
-  align-self: flex-start;
 }
 
 .export-formats {

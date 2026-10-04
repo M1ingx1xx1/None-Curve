@@ -218,6 +218,22 @@ Moves the points of the outline in a controlled, repeatable way.
 
 Distortion can make text harder to read — use it with care.
 
+### Random anchors (experimental) — a different look every time, but repeatable
+
+At the very bottom of the tools panel. Normally the app places points on the curves at regular spacing. With **Use random anchors** on, it places them at random spots on the letter's original outline instead — the points always sit on the real letter, only *where* they sit is random. The later controls (Squaring, Anchors, Grid & angles, Distortion) still apply on top.
+
+- **Density** — roughly how many points per 1000 font units of outline. Low values (2–6) give rough, chunky letters; high values stay close to the original.
+- **Randomness** — 0 % spaces the points evenly; 100 % lets each point wander within its own small stretch. Points never swap places, so the letter cannot tangle.
+- **Keep sharp corners** — keeps the real corners of the letter (for example the ends of stems and serifs) so they stay crisp. Turn it off for a looser result.
+- **Seed** — the number behind one particular random result.
+  - **Shuffle** picks a new seed and shows it in the box.
+  - **Copy** copies the seed so you can paste it into your notes.
+  - **Previous** lists the seeds you tried before in this session; click one to go back to it.
+  - To get a result again later, load the same font, use the same settings, and type the seed into the box.
+- **Reset random anchors** turns it off and restores the other settings, but keeps your seed.
+
+The seed is also shown in the status line at the bottom and in the export dialog, so it is recorded with what you export.
+
 ---
 
 ## 9. Recipes
@@ -237,6 +253,9 @@ Grid & angles → **Snap to grid** on, **Grid size** around 5 % of the font's Un
 **Carved or worn stone**
 Fixed segments 3 with merging, then Distortion → **Noise amplitude** 10–30, **Noise frequency** 8–15, **Normal bias** 70 %. Try **Next variant** until you like the pattern.
 
+**Random, hand-cut look**
+Random anchors → **Use random anchors** on, **Density** 3–5, **Randomness** 100 %, **Keep sharp corners** on. Press **Shuffle** until you like it, then **Copy** the seed.
+
 **Back to the original**
 Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Squaring, Anchors, Grid & angles, and Distortion (each has a reset button). Or simply choose **Original** in the canvas toolbar to look at the untouched font.
 
@@ -244,7 +263,7 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 ## 10. Saving your work (Export)
 
-Click **Export…** at the top (or at the bottom of the tools area). Nothing is downloaded until you press a download button.
+Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button.
 
 ### As an image (SVG)
 
@@ -279,6 +298,9 @@ Turn on **Merge joined curves** (Fixed segments mode). Without it, each small pi
 
 **Changing Corner angle does nothing.**
 Turn on **Merge through straight lines** (Fixed segments → Merge joined curves). Without it, Corner angle only affects joints between two curves, which are almost always smooth already.
+
+**I liked a random-anchor result. How do I get it back?**
+Write down (or **Copy**) its seed. Later, load the same font, set the same Random anchors settings, and type the seed into the **Seed** box. Within one visit you can also click it under **Previous**.
 
 **Why don't I see the skeleton points or green vertices?**
 They only appear when letters are big enough. Zoom in, or look at the glyph preview.

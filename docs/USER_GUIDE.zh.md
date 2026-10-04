@@ -219,6 +219,22 @@
 
 扰动可能会降低文字的可读性，请适度使用。
 
+### Random anchors（随机锚点，实验性）——每次都不一样，但可以复现
+
+位于工具面板的最底部。平时程序会在曲线上按规则的间距放点。打开 **Use random anchors** 后，点改为放在字母原始轮廓上的随机位置——点始终落在真实的字母上，随机的只是“放在哪里”。后面的控制项（Squaring、Anchors、Grid & angles、Distortion）照常叠加。
+
+- **Density**（密度）——每 1000 字体单位轮廓大约放多少个点。数值小（2–6）字母会变得粗糙、块状；数值大则接近原字形。
+- **Randomness**（随机程度）——0% 时点均匀分布；100% 时每个点可以在自己的一小段范围内随意移动。点与点之间不会互换位置，所以字母不会缠在一起。
+- **Keep sharp corners**（保留尖角）——保留字母真正的尖角（例如竖笔末端和衬线），让它们保持干净利落。关掉后效果更松散。
+- **Seed**（种子）——决定某一个随机结果的数字。
+  - **Shuffle** 随机换一个新种子，并显示在输入框里。
+  - **Copy** 复制种子，方便贴到你的笔记里。
+  - **Previous** 列出你这次打开页面后试过的种子，点一下就能回到那个结果。
+  - 想以后重现某个结果：载入同一个字体，使用相同的设置，把种子输入到框里即可。
+- **Reset random anchors** 关闭随机锚点并恢复其他设置，但保留你的种子。
+
+种子也会显示在底部的状态栏和导出对话框里，所以导出时它会被一起记录下来。
+
 ---
 
 ## 9. 常用配方
@@ -238,6 +254,9 @@ Grid & angles → 打开 **Snap to grid**，**Grid size** 约为字体 Units/em 
 **石刻或风化的质感**
 固定线段数 3 并开启合并，然后 Distortion → **Noise amplitude** 10–30、**Noise frequency** 8–15、**Normal bias** 70%。不断点 **Next variant**，直到找到喜欢的图案。
 
+**随机的手工切割感**
+Random anchors → 打开 **Use random anchors**，**Density** 3–5，**Randomness** 100%，打开 **Keep sharp corners**。不断点 **Shuffle** 直到满意，然后点 **Copy** 记下种子。
+
 **回到原样**
 把 Curve flattening 设为 **Adaptive** 并用较小的 **Tolerance**，再关闭 Squaring、Anchors、Grid & angles 和 Distortion（每组都有复位按钮）。或者直接在画布工具栏选 **Original** 查看未经改动的字体。
 
@@ -245,7 +264,7 @@ Grid & angles → 打开 **Snap to grid**，**Grid size** 约为字体 Units/em 
 
 ## 10. 保存作品（导出）
 
-点顶部（或功能区底部）的 **Export…**。只有点下载按钮时才会下载。
+点右上角的 **Export…**。只有点下载按钮时才会下载。
 
 ### 保存为图像（SVG）
 
@@ -280,6 +299,9 @@ SVG 文件可以用 Illustrator、Figma、Inkscape 或浏览器打开，里面�
 
 **调整 Corner angle 没有任何变化。**
 打开 **Merge through straight lines**（在 Fixed segments → Merge joined curves 下）。不开启时，Corner angle 只影响两段曲线之间的连接点，而这些连接点几乎都已经是平滑的。
+
+**我喜欢某个随机锚点的结果，怎么找回来？**
+记下（或 **Copy**）它的种子。以后载入同一个字体，把 Random anchors 设成相同的设置，再把种子输入到 **Seed** 框里。同一次打开页面时，也可以直接在 **Previous** 里点它。
 
 **为什么看不到骨架点或绿色顶点？**
 字母足够大时才会显示。放大画布，或者在字形预览里查看。

@@ -5,6 +5,7 @@ import type { AnchorStats } from './anchors'
 import type { ConstraintStats } from './constraints'
 import type { BreakRule } from './curveRuns'
 import type { DistortionStats } from './distortion'
+import type { RandomAnchorStats } from './randomAnchors'
 import type { SquaringParams, SquaringStats } from './squaring'
 import type { FlattenStats } from './flatten'
 
@@ -101,8 +102,22 @@ export interface DistortionParams {
   seed: number
 }
 
+/** Experimental: seeded random anchors on the original curves, used instead of Flatten's sampling. */
+export interface RandomAnchorParams {
+  enabled: boolean
+  /** Anchors per 1000 font units of outline length. */
+  density: number
+  /** 0 = evenly spaced along the outline, 1 = each anchor anywhere within its own stretch. */
+  randomness: number
+  /** Keep the source's sharp corners as fixed anchors. */
+  keepCorners: boolean
+  /** Integer seed; the same seed always gives the same anchors. */
+  seed: number
+}
+
 export interface GeometryParams {
   flatten: FlattenParams
+  random: RandomAnchorParams
   squaring: SquaringParams
   anchors: AnchorParams
   grid: GridParams
@@ -128,6 +143,7 @@ export interface DerivedGeometry {
   /** Vertices in the final polygon, after every pipeline step. */
   vertexCount: number
   flatten: FlattenStats
+  random: RandomAnchorStats
   squaring: SquaringStats
   anchors: AnchorStats
   constraints: ConstraintStats
