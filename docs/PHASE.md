@@ -1,4 +1,7 @@
 # Vector Poly-Font Editor
+
+**English** · [中文](PHASE.zh.md)
+
 ## Project Implementation Plan & Technical Architecture
 
 ## Product summary

@@ -1,5 +1,7 @@
 # Vector Poly-Font Editor
 
+[English](PHASE.md) · **中文**
+
 ## 项目实施计划与技术架构
 
 ## 产品概述

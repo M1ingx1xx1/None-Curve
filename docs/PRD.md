@@ -1,5 +1,7 @@
 # None-Curve Product Requirements Document (PRD)
 
+**English** · [中文](PRD.zh.md)
+
 **Status:** Draft (see section 12 for implementation status)  
 **Product:** Browser-based font outline editor  
 **Target users:** Type and graphic designers, creative technologists, frontend developers
