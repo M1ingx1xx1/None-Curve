@@ -18,30 +18,52 @@ Planned extension: map Volume, Pitch, Rhythm, Duration, Frequency distribution, 
 
 ## Development / 开发
 
-Tech stack: Vite + React + TypeScript. App source lives in `src/`. Requires Node.js 20.19+ (22 recommended).
+Tech stack: Vite + React + TypeScript. Requires Node.js 20.19+ (22 recommended).
 
-技术栈：Vite + React + TypeScript，应用源码位于 `src/`。需要 Node.js 20.19 及以上（推荐 22）。
+技术栈：Vite + React + TypeScript。需要 Node.js 20.19 及以上（推荐 22）。
 
 ```bash
 npm install       # 安装依赖
-npm run dev       # 本地开发服务器，默认 http://localhost:5173/
-npm run build     # 类型检查并构建到 dist/
-npm run preview   # 本地预览构建结果，http://localhost:4173/None-Curve/
+npm run dev       # 开发服务器：http://localhost:5173/
+npm run build     # 类型检查 + 生产构建，输出到 dist/
+npm run preview   # 预览生产构建：http://localhost:4173/None-Curve/
 ```
 
-The current app is a scaffold only: font loading, curve processing, audio analysis, carving mapping, and import/export are placeholders.
+### Project structure / 目录结构
 
-当前仅为基础脚手架：字体解析、曲线处理、音频分析、石刻映射与导入导出均为占位状态。
+```text
+src/
+├── main.tsx, App.tsx      应用入口；App 持有状态（useReducer）并组装组件
+├── components/            UI 组件：Header、Workspace、ControlPanel、CanvasViewport、
+│                          GlyphStrip、FileDropTarget、StatusBar
+├── state/                 文档状态 + 参数状态的类型、初始值与 reducer
+├── geometry/              几何核心类型（原始曲线、参数、规范多边形），不依赖 React
+└── styles.css
+```
+
+State is split into three layers (see `docs/PHASE.zh.md` §4): document state and parameter state live in `src/state/`; derived geometry is typed in `src/geometry/` and will be produced by a pipeline in later phases. React components only render state and dispatch actions; geometry algorithms must stay in `src/geometry/`.
+
+状态分三层：文档状态与参数状态在 `src/state/`；派生几何的类型在 `src/geometry/`，由后续阶段的几何流水线生成。React 组件只负责展示和派发操作，几何算法不写进组件。
+
+Conventions (e.g. the UI is English only) are recorded in [docs/BEST_PRACTICE.md](docs/BEST_PRACTICE.md).
+
+约定（例如网页 UI 必须全英文）见 [docs/BEST_PRACTICE.md](docs/BEST_PRACTICE.md)。
+
+Current status: Phase A (architecture) only. Font import, glyph parsing, flattening, geometry editing, audio analysis, carving, and export are UI placeholders and shown as disabled.
+
+当前进度：仅完成阶段 A（架构与基础界面）。字体导入与解析、曲线展平、几何编辑、音频分析、声音映射、石刻效果和导出均为禁用的界面占位。
 
 ## Deploy to GitHub Pages / 部署
 
-The production build uses the base path `/None-Curve/` (see `vite.config.ts`). If the repository is renamed, update `base` to match.
+- **Release branch / 发布分支：** `main`. The workflow `.github/workflows/deploy.yml` runs only on pushes to `main` (or a manual run on `main`). Pushes to `develop` or `feature/*` never deploy.
+  仅 `main` 分支会部署；`develop` 和 `feature/*` 的 push 不会触发发布。
+- **Base path / 资源路径：** production builds use `/None-Curve/` (set in `vite.config.ts`). If the repository is renamed, update `pagesBase`. Assets imported from `src/` get the base automatically; files placed in a `public/` folder must be referenced relative to the base (e.g. `import.meta.env.BASE_URL`).
+  生产构建使用 `/None-Curve/`。仓库改名时需同步修改 `vite.config.ts` 中的 `pagesBase`。
 
-生产构建使用 `/None-Curve/` 作为资源基础路径（见 `vite.config.ts`）；如果仓库改名，需要同步修改 `base`。
+Steps / 步骤：
 
-1. In the GitHub repository, open **Settings → Pages** and set **Source** to **GitHub Actions**.
+1. In the repository, open **Settings → Pages** and set **Source** to **GitHub Actions**.
    在仓库 **Settings → Pages** 中，将 **Source** 设为 **GitHub Actions**。
-2. Push to `main` (or run the **Deploy to GitHub Pages** workflow manually from the **Actions** tab). The workflow in `.github/workflows/deploy.yml` installs dependencies, builds, and publishes `dist/`.
-   推送到 `main`，或在 **Actions** 页面手动运行 **Deploy to GitHub Pages**。工作流会安装依赖、构建并发布 `dist/`。
-3. The site is served at `https://<user>.github.io/None-Curve/`.
-   部署完成后访问 `https://<user>.github.io/None-Curve/`。
+2. Merge into `main` and push (or run **Deploy to GitHub Pages** from the **Actions** tab with `main` selected). The workflow runs `npm ci`, `npm run build`, and publishes `dist/`.
+   合并到 `main` 并推送，或在 **Actions** 页面选择 `main` 手动运行。工作流会执行 `npm ci`、`npm run build` 并发布 `dist/`。
+3. URL format / 访问地址：`https://<owner>.github.io/<repo>/`, i.e. `https://m1ingx1xx1.github.io/None-Curve/`.
