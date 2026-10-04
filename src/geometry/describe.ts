@@ -7,7 +7,7 @@ export function describePipeline(params: GeometryParams): string[] {
     flatten.mode === 'adaptive'
       ? `adaptive, tolerance ${flatten.tolerance} u`
       : flatten.mergeCurves
-        ? `${flatten.segmentsPerCurve} segments/merged curve (break at ${flatten.breakAt === 'extrema' ? 'corners & extremes' : 'corners'}, ${flatten.cornerAngle}°)`
+        ? `${flatten.segmentsPerCurve} segments/merged curve (break at ${flatten.breakAt === 'extrema' ? 'corners & extremes' : 'corners'}, ${flatten.cornerAngle}°${flatten.mergeLines ? ', through lines' : ''})`
         : `${flatten.segmentsPerCurve} segments/curve`,
   ]
   if (squaring.amount > 0) steps.push(`squaring ${Math.round(squaring.amount * 100)}%${squaring.scope === 'all' ? ' (all contours)' : ''}`)

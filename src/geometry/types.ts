@@ -67,6 +67,11 @@ export interface FlattenParams {
   breakAt: BreakRule
   /** A joint that turns by more than this many degrees is a corner and always breaks a merged curve. */
   cornerAngle: number
+  /**
+   * With mergeCurves: straight segments that join smoothly (turn ≤ cornerAngle) are merged into the
+   * neighbouring curve as well, so stems flowing into arches are resampled too.
+   */
+  mergeLines: boolean
 }
 
 export interface AnchorParams {

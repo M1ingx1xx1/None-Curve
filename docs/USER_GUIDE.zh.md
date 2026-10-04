@@ -176,7 +176,8 @@
 - **Break merged curves at**（在哪里断开合并的曲线）——一条合并曲线在哪里结束、下一条从哪里开始：
   - **Corners & extremes**（尖角和极值点，默认）——在尖角处，以及每个圆形最左、最右、最上、最下的点断开。圆形的 “O” 会分成四段四分之一弧，折面均衡对称。
   - **Corners only**（只在尖角）——只在尖角处断开。像 “O” 这样整圈平滑的形状会变成一条曲线，可能得到三角形或非常简化的形状。
-- **Corner angle**（尖角阈值）——拐弯要多急才算尖角（默认 15°）。调大后，较缓的拐弯也会被合并。
+- **Merge through straight lines**（穿过直线合并）——把平滑流进曲线的直线部分也一起合并，比如 n、m、u 的竖笔流进弧线的地方。它们会和曲线一起被重新塑形，得到粗犷得多的“低分辨率”效果。竖笔的端点可能被削掉，所以默认关闭。
+- **Corner angle**（尖角阈值）——拐弯要多急才算尖角（默认 15°），比它平缓的拐弯会被合并。单独调它几乎看不到变化，因为字体内部的曲线几乎总是平滑相接的。**打开 Merge through straight lines 后它才真正起作用：** 把角度调大（试试 45° 和 90°），每个字母会有越来越多的部分合并成几笔大的折线。
 
 ### Squaring（方形化）——让圆形字母变方
 
@@ -224,6 +225,9 @@
 
 **粗犷的折面字（类似“每条曲线 4 / 3 / 2 条线”）**
 Curve flattening → **Fixed segments**，打开 **Merge joined curves**，**Break merged curves at** 选 Corners & extremes，**Segments per curve** 设为 4（含蓄）、3 或 2（强烈）。
+
+**极端的低分辨率字形**
+在上一个配方的基础上，打开 **Merge through straight lines**，把 **Corner angle** 调到 45°–90°。想要最简化的形状，可以把 **Break merged curves at** 改成 Corners only。
 
 **方形的 O 和其他圆形字母**
 Squaring → **Square**，Applies to 选 **Round contours**，再到 Anchors → **Anchor reduction** 设为 2。输入 “OO oo 00”（或 Sample… → Round letters）检查效果。
@@ -273,6 +277,9 @@ SVG 文件可以用 Illustrator、Figma、Inkscape 或浏览器打开，里面�
 
 **线段已经很少了，字母看起来还是很平滑。**
 在 Fixed segments 模式下打开 **Merge joined curves**。不开启时，曲线的每一小段都会各自分到线段。
+
+**调整 Corner angle 没有任何变化。**
+打开 **Merge through straight lines**（在 Fixed segments → Merge joined curves 下）。不开启时，Corner angle 只影响两段曲线之间的连接点，而这些连接点几乎都已经是平滑的。
 
 **为什么看不到骨架点或绿色顶点？**
 字母足够大时才会显示。放大画布，或者在字形预览里查看。

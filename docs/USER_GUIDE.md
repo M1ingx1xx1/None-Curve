@@ -175,7 +175,8 @@ Choose one **Mode**:
 - **Break merged curves at** — where one merged curve ends and the next begins:
   - **Corners & extremes** (default) — at sharp corners and at the leftmost, rightmost, top, and bottom points of each round shape. A round "O" is split into four quarter arcs, which gives balanced, symmetric facets.
   - **Corners only** — only at sharp corners. A smooth loop like "O" becomes a single curve, which can give triangular or very simplified shapes.
-- **Corner angle** — how sharp a bend must be to count as a corner (default 15°). Raise it to merge across softer bends too.
+- **Merge through straight lines** — also merges straight parts that flow smoothly into a curve, such as the stems of n, m, and u running into their arches. They are then reshaped together with the curve, for a much coarser, "low-resolution" look. Stems may lose their ends, so this is off by default.
+- **Corner angle** — how sharp a bend must be to count as a corner (default 15°); gentler bends are merged. On its own it rarely changes anything, because the curves inside a font almost always join smoothly. **Turn on Merge through straight lines to make it matter:** then raising the angle (try 45° and 90°) merges more and more of each letter into a few big strokes.
 
 ### Squaring — make round letters square
 
@@ -223,6 +224,9 @@ Distortion can make text harder to read — use it with care.
 
 **Bold, faceted letters (like "4 / 3 / 2 lines per curve")**
 Curve flattening → **Fixed segments**, **Merge joined curves** on, **Break merged curves at** = Corners & extremes, **Segments per curve** = 4 (subtle), 3, or 2 (bold).
+
+**Extreme low-resolution letters**
+As above, then turn on **Merge through straight lines** and raise **Corner angle** to 45°–90°. Try **Break merged curves at** = Corners only for the most reduced shapes.
 
 **Square O and round letters**
 Squaring → **Square**, Applies to **Round contours**, then Anchors → **Anchor reduction** = 2. Type "OO oo 00" (Sample… → Round letters) to check.
@@ -272,6 +276,9 @@ Good to know:
 
 **My letters still look smooth even with few segments.**
 Turn on **Merge joined curves** (Fixed segments mode). Without it, each small piece of a curve gets its own segments.
+
+**Changing Corner angle does nothing.**
+Turn on **Merge through straight lines** (Fixed segments → Merge joined curves). Without it, Corner angle only affects joints between two curves, which are almost always smooth already.
 
 **Why don't I see the skeleton points or green vertices?**
 They only appear when letters are big enough. Zoom in, or look at the glyph preview.

@@ -1,4 +1,5 @@
 // Curve merging for fixed-segment flattening. Pure functions in font units; no React, no DOM.
+// Optionally, straight segments that join smoothly are merged too ("merge through straight lines").
 //
 // Fonts build one visible curve out of several Bézier segments (TrueType especially: consecutive
 // off-curve points create implied on-curve points). "N lines per curve" then applies to every small
@@ -10,9 +11,11 @@ import type { Point, SourceContour } from './types'
 /** Where a run of joined curves is broken. */
 export type BreakRule = 'extrema' | 'corners'
 
-type Curve = Point[] // 3 points (quadratic) or 4 points (cubic)
+type Curve = Point[] // 2 points (a straight line), 3 (quadratic), or 4 (cubic)
 
-export type ContourItem = { kind: 'line'; to: Point } | { kind: 'run'; pieces: Curve[]; sourceSegments: number }
+export type ContourItem =
+  | { kind: 'line'; to: Point }
+  | { kind: 'run'; pieces: Curve[]; sourceCurves: number; sourceLines: number }
 
 /** Joints whose tangent is within this angle of horizontal or vertical count as extrema. */
 const EXTREMUM_JOINT_DEGREES = 1
@@ -22,54 +25,74 @@ const T_EPSILON = 1e-4
 const SAMPLES_PER_PIECE = 32
 
 /**
- * Splits a contour into straight lines and runs of joined curves. A run breaks at every straight
- * segment, at every joint where the direction turns by more than `cornerAngle` degrees, at the
- * contour start (so the start point is kept), and — with rule 'extrema' — wherever the curve is
- * horizontal or vertical (its leftmost, rightmost, top, and bottom points), including inside a
- * segment.
+ * Splits a contour into straight lines and runs of joined segments. A run breaks at every joint
+ * where the direction turns by more than `cornerAngle` degrees, at the contour start (so the start
+ * point is kept), and — with rule 'extrema' — wherever a curve is horizontal or vertical (its
+ * leftmost, rightmost, top, and bottom points), including inside a segment.
+ *
+ * Straight segments always break a run unless `mergeLines` is on. With `mergeLines`, a straight
+ * segment that meets its neighbour smoothly (turn ≤ cornerAngle) joins the run too, so a stem that
+ * flows into an arch (n, m, u) becomes part of one merged curve. The extrema rule then applies only
+ * where two curves meet or inside a curve: a stem usually meets an arch exactly at the arch's
+ * leftmost or rightmost point, and breaking there would make the option do nothing.
  */
-export function buildCurveRuns(contour: SourceContour, breakAt: BreakRule, cornerAngle: number): ContourItem[] {
-  type Entry = { kind: 'line'; to: Point } | { kind: 'curve'; pts: Curve; forcedBreak: boolean; segmentStart: boolean }
+export function buildCurveRuns(
+  contour: SourceContour,
+  breakAt: BreakRule,
+  cornerAngle: number,
+  mergeLines = false,
+): ContourItem[] {
+  type Piece = { pts: Curve; isLine: boolean; forcedBreak: boolean; segmentStart: boolean }
+  type Entry = { kind: 'line'; to: Point } | ({ kind: 'piece' } & Piece)
   const entries: Entry[] = []
   let prev = contour.start
   for (const seg of contour.segments) {
     if (seg.type === 'line') {
-      entries.push({ kind: 'line', to: seg.to })
+      if (mergeLines) entries.push({ kind: 'piece', pts: [prev, seg.to], isLine: true, forcedBreak: false, segmentStart: true })
+      else entries.push({ kind: 'line', to: seg.to })
     } else {
       const curve: Curve = seg.type === 'quad' ? [prev, seg.control, seg.to] : [prev, seg.control1, seg.control2, seg.to]
       const pieces = breakAt === 'extrema' ? splitAtExtrema(curve) : [curve]
-      pieces.forEach((pts, i) => entries.push({ kind: 'curve', pts, forcedBreak: i > 0, segmentStart: i === 0 }))
+      pieces.forEach((pts, i) =>
+        entries.push({ kind: 'piece', pts, isLine: false, forcedBreak: i > 0, segmentStart: i === 0 }),
+      )
     }
     prev = seg.to
   }
 
   const cornerRad = (Math.max(0, cornerAngle) * Math.PI) / 180
   const items: ContourItem[] = []
-  let run: Curve[] | null = null
-  let runSegments = 0
-  let previous: Entry | null = null
+  let run: Piece[] = []
   const closeRun = () => {
-    if (run) items.push({ kind: 'run', pieces: run, sourceSegments: runSegments })
-    run = null
-    runSegments = 0
+    if (run.length === 0) return
+    // A lone straight segment stays a line instead of being resampled into collinear points.
+    if (run.length === 1 && run[0].isLine) {
+      items.push({ kind: 'line', to: run[0].pts[1] })
+    } else {
+      items.push({
+        kind: 'run',
+        pieces: run.map((p) => p.pts),
+        sourceCurves: run.filter((p) => !p.isLine && p.segmentStart).length,
+        sourceLines: run.filter((p) => p.isLine).length,
+      })
+    }
+    run = []
   }
 
+  let previous: Entry | null = null
   for (const entry of entries) {
     if (entry.kind === 'line') {
       closeRun()
       items.push(entry)
     } else {
       let breakHere = previous === null || previous.kind === 'line' || entry.forcedBreak
-      if (!breakHere && previous?.kind === 'curve') {
-        const out = endTangent(previous.pts)
+      if (!breakHere && previous?.kind === 'piece') {
         const into = startTangent(entry.pts)
-        if (turnAngle(out, into) > cornerRad) breakHere = true
-        else if (breakAt === 'extrema' && isAxisAligned(into)) breakHere = true
+        if (turnAngle(endTangent(previous.pts), into) > cornerRad) breakHere = true
+        else if (breakAt === 'extrema' && !previous.isLine && !entry.isLine && isAxisAligned(into)) breakHere = true
       }
       if (breakHere) closeRun()
-      run ??= []
-      run.push(entry.pts)
-      if (entry.segmentStart) runSegments++
+      run.push(entry)
     }
     previous = entry
   }
@@ -133,6 +156,7 @@ function splitAtExtrema(curve: Curve): Curve[] {
 
 /** Parameters where the derivative of one coordinate is zero. */
 function extremaParams(c: Curve, axis: 'x' | 'y'): number[] {
+  if (c.length < 3) return []
   const v = c.map((p) => p[axis])
   if (c.length === 3) {
     const denom = v[0] - 2 * v[1] + v[2]

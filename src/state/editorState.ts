@@ -22,7 +22,7 @@ export const initialState: AppState = {
     export: { format: 'svg', precision: 2, lastExport: null },
   },
   params: {
-    flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4, mergeCurves: false, breakAt: 'extrema', cornerAngle: 15 },
+    flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4, mergeCurves: false, breakAt: 'extrema', cornerAngle: 15, mergeLines: false },
     squaring: { amount: 0, scope: 'round' },
     anchors: { spacing: 0, simplify: 0 },
     grid: { snap: false, size: 10, angleLock: false, angleStep: 45 },
