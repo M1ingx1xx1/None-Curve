@@ -22,15 +22,15 @@ A key product distinction: “polygon-only” means the exported glyph outlines 
 
 | Area | Recommended technology | Responsibility |
 |---|---|---|
-| Build and deployment | Vite | Development server, bundling, GitHub Pages build |
-| UI | React or Svelte | Controls, file handling, application shell |
+| UI | React | Controls, file handling, application shell |
+| Build and deployment | Webpack | Development server, bundling, GitHub Pages build |
 | Geometry rendering | Paper.js | Path construction, flattening, canvas rendering |
 | Font parsing | opentype.js | Read font metadata, metrics, and glyph outlines |
 | State | UI framework + dedicated geometry store | Keep controls responsive while geometry recomputes |
 | SVG export | Custom serializer or Paper.js export | Emit explicit `M`/`L` contours |
 | OTF generation | Font-generation library or custom pipeline | Assemble glyph outlines, metrics, and tables |
 
-Choose either React or Svelte for the UI; avoid building framework-specific logic into the geometry core. Keep geometry operations in standalone TypeScript modules so they can be tested and reused.
+Use React for the UI; avoid building framework-specific logic into the geometry core. Keep geometry operations in standalone TypeScript modules so they can be tested and reused.
 
 ## 2. Component hierarchy
 
@@ -63,6 +63,10 @@ App
 - **Export Engine:** Serialize the active geometry to SVG or pass a complete set of glyphs to the font builder.
 - **Specimen View:** Preview spacing and kerning behavior across characters and strings.
 
+### Source-curve skeleton view
+
+Keep the parsed source outline alongside the derived polygon geometry. In skeleton mode, render the original curve segments, on-curve anchors, off-curve control points, and the handles connecting them. Distinguish these source points visually from the generated polygon vertices so designers can compare the original construction with the deconstructed result. For quadratic font outlines, a segment has one off-curve control point; cubic segments have two.
+
 ## 3. Data flow
 
 ```text
@@ -75,6 +79,10 @@ File loader ──► opentype.js
                     ▼
              Geometry adapter
                     │
+                    ▼
+          Parsed source curves
+                    │
+                    ├── skeleton overlay (anchors, handles, control points)
                     ▼
           Paper.js Path / contours
                     │
@@ -99,7 +107,7 @@ Treat the **canonical polygon geometry** as the source of truth. The canvas and 
 Separate state into three layers:
 
 1. **Document state:** loaded font, selected glyph, glyph metrics, export metadata.
-2. **Parameter state:** flatten tolerance, target spacing, snapping, jitter, and display options.
+2. **Parameter state:** curve subdivision count or flatten tolerance, target spacing, snapping, jitter, and display options.
 3. **Derived geometry:** processed polygon contours for the selected glyph or specimen.
 
 Keep slider interaction responsive by updating the control state immediately, then scheduling geometry work separately. Use `requestAnimationFrame` to coalesce rapid updates. For larger glyph sets, move recomputation to a Web Worker and send compact typed arrays or serialized contour data.
@@ -122,6 +130,8 @@ Avoid rebuilding unrelated UI components on every geometry update. Cache geometr
 Font outlines commonly use quadratic or cubic Bézier segments. Linearization approximates each curve with connected straight segments.
 
 In Paper.js, `path.flatten(tolerance)` samples curves until the straight-line approximation is within the chosen geometric tolerance. A smaller tolerance generally produces more segments and a closer approximation; a larger tolerance produces fewer segments and more visible faceting.
+
+The editor should also offer a direct **Lines per curve** control for designers who want to set the number of straight segments used for each original curve. For a curve and requested count `N`, sample it at `t = i/N` for `i = 0…N`, then connect consecutive samples with lines. This is an intuitive, predictable control, while tolerance-based flattening is adaptive: it adds segments where the curve bends more and fewer where it is nearly straight. Present these as selectable modes rather than implying that one slider controls both. In fixed-count mode, allow an optional minimum quality check or warning for curves whose approximation error is visibly high.
 
 ```text
 Original curve:       Flattened contour:
@@ -208,6 +218,7 @@ Document the order in the UI or export metadata because these operations are gen
 | Developer term | Designer-facing term | What the control changes |
 |---|---|---|
 | Flatten tolerance | Curve approximation | Maximum deviation between a curve and its polygon approximation |
+| Segments per curve | Lines per curve | Number of straight edges generated from each original curve segment |
 | Subdivision step | Anchor spacing / density | Distance between points added along polygon edges |
 | Simplification epsilon | Anchor reduction | Amount of geometric detail removed |
 | Vertex | Anchor point | Editable point on the glyph contour |
@@ -245,6 +256,7 @@ Show:
 - Bounding box, baseline, x-height, cap-height, and ascender/descender guides when available.
 - A visible grid when snapping is active.
 - Selection state for the current glyph and, later, individual anchors.
+- A **Skeleton** overlay showing original on-curve anchors, off-curve control points, and handles; provide a toggle to compare source construction with generated polygon vertices.
 
 Direction vectors can be offered as an optional diagnostic overlay. Name and explain them as contour direction indicators unless users can directly edit them; polygon edges themselves have no Bézier handles.
 
@@ -258,10 +270,12 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 
 ### Group 1: Deconstruction
 
+- **Flattening mode:** Adaptive curve approximation or fixed lines per curve.
 - **Curve approximation:** Flatten tolerance.
+- **Lines per curve:** Integer count of straight segments generated for each source curve in fixed-count mode.
 - **Anchor spacing:** Target maximum distance between anchors.
 - **Anchor reduction:** Optional simplification threshold.
-- Include a short effect hint such as “Lower values follow curves more closely.”
+- Include concise effect hints, such as “Lower tolerance follows curves more closely” and “More lines per curve create a closer approximation.”
 
 ### Group 2: Geometry & Grid
 
@@ -290,6 +304,7 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 | UI control | Geometry relationship | Typical visual effect |
 |---|---|---|
 | Curve approximation | Curve-to-segment error threshold | Lower = smoother silhouette, more anchors |
+| Lines per curve | Fixed number of line segments per source curve | Higher = closer curve tracing and more vertices |
 | Anchor spacing | Maximum segment length after subdivision | Lower = denser, more regularly spaced anchors |
 | Anchor reduction | RDP distance threshold | Higher = fewer anchors, more simplified silhouette |
 | Grid size | Coordinate quantization interval | Larger = more visibly aligned, more shape change |
@@ -306,7 +321,7 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 
 **Goal:** Prove the end-to-end polygon workflow for a single font and glyph.
 
-- Set up Vite and the chosen UI framework.
+- Set up React, TypeScript, and Webpack.
 - Add local font file loading and basic error handling.
 - Parse a font and select a glyph with opentype.js.
 - Convert the glyph outline into Paper.js geometry.
@@ -320,8 +335,8 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 
 **Goal:** Make the polygon a responsive design surface.
 
-- Add anchor markers and outline/fill display modes.
-- Add anchor spacing and simplification controls.
+- Add polygon anchor markers, source-curve skeleton overlay (on-curve anchors, off-curve controls, and handles), and outline/fill display modes.
+- Add adaptive flatten tolerance and fixed lines-per-curve modes, plus anchor spacing and simplification controls.
 - Add zoom, pan, glyph selection, and specimen preview.
 - Separate UI control state from derived geometry.
 - Coalesce slider updates; use a Web Worker if profiling shows the main thread is blocked.
@@ -352,7 +367,7 @@ OTF generation requires more than writing paths: the output needs valid glyph re
 - Refine typography, spacing, focus states, tooltips, and keyboard access.
 - Add empty, loading, error, and export-progress states.
 - Test representative fonts with complex contours, holes, and large glyph counts.
-- Configure Vite’s base path for the GitHub Pages repository URL.
+- Configure Webpack’s public path for the GitHub Pages repository URL.
 - Add a GitHub Actions workflow to build and publish the static app.
 - Confirm all file processing and export work without a server.
 
