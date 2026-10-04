@@ -3,7 +3,9 @@
 
 import type { AnchorStats } from './anchors'
 import type { ConstraintStats } from './constraints'
+import type { BreakRule } from './curveRuns'
 import type { DistortionStats } from './distortion'
+import type { SquaringParams, SquaringStats } from './squaring'
 import type { FlattenStats } from './flatten'
 
 export interface Point {
@@ -56,6 +58,15 @@ export interface FlattenParams {
   tolerance: number
   /** Number of line segments per curve in fixed mode. */
   segmentsPerCurve: number
+  /**
+   * Fixed mode only: treat consecutive curve segments that join smoothly as one curve, so
+   * segmentsPerCurve applies to the whole visible curve instead of every font segment.
+   */
+  mergeCurves: boolean
+  /** Where merged curves break: at corners and extrema (horizontal / vertical points), or at corners only. */
+  breakAt: BreakRule
+  /** A joint that turns by more than this many degrees is a corner and always breaks a merged curve. */
+  cornerAngle: number
 }
 
 export interface AnchorParams {
@@ -87,6 +98,7 @@ export interface DistortionParams {
 
 export interface GeometryParams {
   flatten: FlattenParams
+  squaring: SquaringParams
   anchors: AnchorParams
   grid: GridParams
   distortion: DistortionParams
@@ -111,6 +123,7 @@ export interface DerivedGeometry {
   /** Vertices in the final polygon, after every pipeline step. */
   vertexCount: number
   flatten: FlattenStats
+  squaring: SquaringStats
   anchors: AnchorStats
   constraints: ConstraintStats
   distortion: DistortionStats

@@ -3,6 +3,8 @@
 // Every call rebuilds the polygon from the original curves, so repeated parameter changes never
 // accumulate error, and the source glyph is never modified.
 
+import { countSelfCrossings } from './anchors'
+import { buildCurveRuns, sampleRun } from './curveRuns'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
 /** Hard limits that keep pathological input (huge or degenerate curves) from running away. */
@@ -20,6 +22,10 @@ export const FLATTEN_LIMITS = {
 export interface FlattenStats {
   /** Quadratic and cubic segments in the source. */
   curveCount: number
+  /** Curves after merging (fixed mode with merging on); null when merging is off. */
+  mergedCurveCount: number | null
+  /** Contours where the merged result was invalid and the unmerged result was used instead. */
+  mergeFallbacks: number
   /** Straight source segments, copied as-is. */
   lineCount: number
   vertexCount: number
@@ -51,6 +57,8 @@ type Bezier = readonly Point[] // 3 points (quadratic) or 4 points (cubic)
 export function flattenGlyph(source: SourceGlyph, params: FlattenParams): FlattenResult {
   const stats: FlattenStats = {
     curveCount: 0,
+    mergedCurveCount: null,
+    mergeFallbacks: 0,
     lineCount: 0,
     vertexCount: 0,
     maxDeviation: 0,
@@ -80,10 +88,14 @@ function normalizeParams(params: FlattenParams): FlattenParams {
   const { minTolerance, maxTolerance, minSegments, maxSegments } = FLATTEN_LIMITS
   const tolerance = Number.isFinite(params.tolerance) ? params.tolerance : 1
   const segments = Number.isFinite(params.segmentsPerCurve) ? Math.round(params.segmentsPerCurve) : 1
+  const cornerAngle = Number.isFinite(params.cornerAngle) ? Math.min(90, Math.max(0, params.cornerAngle)) : 15
   return {
     mode: params.mode,
     tolerance: Math.min(maxTolerance, Math.max(minTolerance, tolerance)),
     segmentsPerCurve: Math.min(maxSegments, Math.max(minSegments, segments)),
+    mergeCurves: Boolean(params.mergeCurves),
+    breakAt: params.breakAt === 'corners' ? 'corners' : 'extrema',
+    cornerAngle,
   }
 }
 
@@ -98,6 +110,30 @@ function flattenContour(contour: SourceContour, params: FlattenParams, stats: Fl
   }
 
   push(contour.start)
+
+  if (params.mode === 'segments' && params.mergeCurves) {
+    const merged = flattenMerged(contour, params, push)
+    const points = closeOut(out)
+    // Merging is coarse by design; reject results that collapse, flip, or add self-crossings and
+    // fall back to the unmerged fixed result for this contour.
+    const unmergedStats = emptyStats()
+    const unmerged = flattenContour(contour, { ...params, mergeCurves: false }, unmergedStats)
+    stats.mergedCurveCount ??= 0
+    if (isValidMerge(points, unmerged)) {
+      stats.curveCount += merged.curves
+      stats.lineCount += merged.lines
+      stats.mergedCurveCount += merged.runs
+      stats.maxDeviation = Math.max(stats.maxDeviation, merged.deviation)
+      return points
+    }
+    stats.mergeFallbacks++
+    stats.curveCount += unmergedStats.curveCount
+    stats.lineCount += unmergedStats.lineCount
+    stats.mergedCurveCount += unmergedStats.curveCount
+    stats.maxDeviation = Math.max(stats.maxDeviation, unmergedStats.maxDeviation)
+    return unmerged
+  }
+
   let prev = contour.start
   for (const seg of contour.segments) {
     if (seg.type === 'line') {
@@ -113,7 +149,53 @@ function flattenContour(contour: SourceContour, params: FlattenParams, stats: Fl
     prev = seg.to
   }
 
-  // The polygon is closed implicitly; drop an explicit closing point that repeats the start.
+  return closeOut(out)
+}
+
+function emptyStats(): FlattenStats {
+  return {
+    curveCount: 0,
+    mergedCurveCount: null,
+    mergeFallbacks: 0,
+    lineCount: 0,
+    vertexCount: 0,
+    maxDeviation: 0,
+    limitedCurves: 0,
+    droppedContours: 0,
+  }
+}
+
+/** Minimum edges for a merged curve that runs all the way around a smooth, corner-free contour. */
+const MIN_LOOP_EDGES = 3
+
+function flattenMerged(contour: SourceContour, params: FlattenParams, push: (p: Point) => void) {
+  const items = buildCurveRuns(contour, params.breakAt, params.cornerAngle)
+  const loop = items.length === 1 && items[0].kind === 'run'
+  const result = { curves: 0, lines: 0, runs: 0, deviation: 0 }
+  for (const item of items) {
+    if (item.kind === 'line') {
+      result.lines++
+      push(item.to)
+    } else {
+      result.curves += item.sourceSegments
+      result.runs++
+      const n = loop ? Math.max(MIN_LOOP_EDGES, params.segmentsPerCurve) : params.segmentsPerCurve
+      result.deviation = Math.max(result.deviation, sampleRun(item.pieces, n, push))
+    }
+  }
+  return result
+}
+
+function isValidMerge(points: Point[], unmerged: Point[]): boolean {
+  if (points.length < 3 || unmerged.length < 3) return points.length >= 3 || unmerged.length < 3
+  const area = signedArea(points)
+  if (Math.abs(area) < 1e-6 || Math.sign(area) !== Math.sign(signedArea(unmerged))) return false
+  const crossings = countSelfCrossings(points)
+  return crossings === 0 || crossings <= countSelfCrossings(unmerged)
+}
+
+/** The polygon is closed implicitly; drop an explicit closing point that repeats the start. */
+function closeOut(out: Point[]): Point[] {
   if (out.length > 1) {
     const first = out[0]
     const last = out[out.length - 1]
