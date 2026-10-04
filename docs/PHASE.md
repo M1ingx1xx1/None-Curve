@@ -1,0 +1,359 @@
+# Vector Poly-Font Editor
+## Project Implementation Plan & Technical Architecture
+
+## Product summary
+
+The Vector Poly-Font Editor is a client-side web app for turning font outlines into editable polygons. Designers load a `.ttf` or `.otf`, inspect and adjust the resulting contours, then export polygon-only SVGs or a generated font file.
+
+The central workflow is:
+
+```text
+Load font → Parse glyph outlines → Flatten curves → Adjust geometry
+          → Inspect in viewport → Export SVG or font
+```
+
+A key product distinction: “polygon-only” means the exported glyph outlines use straight-line segments. SVG can represent that directly with `M` and `L` commands. Font-file generation is a separate engineering challenge: it must convert the edited polygons into valid font glyphs and preserve required font metadata and metrics.
+
+---
+
+# Phase A: Architecture & Technical Stack
+
+## 1. Proposed stack
+
+| Area | Recommended technology | Responsibility |
+|---|---|---|
+| Build and deployment | Vite | Development server, bundling, GitHub Pages build |
+| UI | React or Svelte | Controls, file handling, application shell |
+| Geometry rendering | Paper.js | Path construction, flattening, canvas rendering |
+| Font parsing | opentype.js | Read font metadata, metrics, and glyph outlines |
+| State | UI framework + dedicated geometry store | Keep controls responsive while geometry recomputes |
+| SVG export | Custom serializer or Paper.js export | Emit explicit `M`/`L` contours |
+| OTF generation | Font-generation library or custom pipeline | Assemble glyph outlines, metrics, and tables |
+
+Choose either React or Svelte for the UI; avoid building framework-specific logic into the geometry core. Keep geometry operations in standalone TypeScript modules so they can be tested and reused.
+
+## 2. Component hierarchy
+
+```text
+App
+├── Header
+│   ├── FontName / FileStatus
+│   └── ExportActions
+├── Workspace
+│   ├── CanvasViewport
+│   │   ├── GlyphCanvas
+│   │   ├── ViewModeToolbar
+│   │   └── MetricGuides
+│   └── ControlPanel
+│       ├── DeconstructionControls
+│       ├── GeometryGridControls
+│       ├── DistortionControls
+│       └── ExportControls
+├── GlyphStrip / Specimen
+├── FileDropTarget
+└── StatusBar
+```
+
+### Component responsibilities
+
+- **Canvas Viewport:** Draw the selected glyph or specimen, provide zoom and pan, and display guides and edit overlays.
+- **Control Panel:** Expose named parameters grouped around designer tasks, with units, ranges, and concise visual descriptions.
+- **File I/O:** Validate and parse font files locally; show parse errors and font metadata.
+- **Geometry Engine:** Convert parsed outlines into polygon contours and apply resampling, snapping, and distortion.
+- **Export Engine:** Serialize the active geometry to SVG or pass a complete set of glyphs to the font builder.
+- **Specimen View:** Preview spacing and kerning behavior across characters and strings.
+
+## 3. Data flow
+
+```text
+.ttf / .otf
+    │
+    ▼
+File loader ──► opentype.js
+                    │
+                    │ glyph commands + metrics
+                    ▼
+             Geometry adapter
+                    │
+                    ▼
+          Paper.js Path / contours
+                    │
+                    ├── flatten curves
+                    ├── resample or simplify
+                    ├── snap / angle lock
+                    └── add vertex displacement
+                    │
+                    ▼
+          Canonical polygon geometry
+             │                  │
+             ▼                  ▼
+      Canvas renderer       Export engine
+                          ├── M/L SVG
+                          └── Font generation
+```
+
+Treat the **canonical polygon geometry** as the source of truth. The canvas and exporters should consume it, rather than each independently recalculating paths. Store font metrics alongside outlines so glyph previews and exports can retain advances and side bearings.
+
+## 4. State and live-update strategy
+
+Separate state into three layers:
+
+1. **Document state:** loaded font, selected glyph, glyph metrics, export metadata.
+2. **Parameter state:** flatten tolerance, target spacing, snapping, jitter, and display options.
+3. **Derived geometry:** processed polygon contours for the selected glyph or specimen.
+
+Keep slider interaction responsive by updating the control state immediately, then scheduling geometry work separately. Use `requestAnimationFrame` to coalesce rapid updates. For larger glyph sets, move recomputation to a Web Worker and send compact typed arrays or serialized contour data.
+
+Recommended update path:
+
+```text
+Slider input → update parameter value → schedule recompute
+             → generate derived geometry → update canvas
+```
+
+Avoid rebuilding unrelated UI components on every geometry update. Cache geometry by glyph and parameter set where practical. During dragging, the app can render a lower-cost preview and recompute the final-quality geometry when the control settles.
+
+---
+
+# Phase B: Core Vector Algorithms
+
+## 1. Curve elimination: linearization
+
+Font outlines commonly use quadratic or cubic Bézier segments. Linearization approximates each curve with connected straight segments.
+
+In Paper.js, `path.flatten(tolerance)` samples curves until the straight-line approximation is within the chosen geometric tolerance. A smaller tolerance generally produces more segments and a closer approximation; a larger tolerance produces fewer segments and more visible faceting.
+
+```text
+Original curve:       Flattened contour:
+
+      ╭───╮           •──•──•
+    ╭─╯   ╰─╮          \      \
+   ●         ●          •──────•
+```
+
+The tolerance should be defined in a clear coordinate system. A practical UI can present it as a design-space or preview-space distance, while the geometry engine converts it to font units. Because glyphs are scaled for display, document whether the control is scale-independent.
+
+After flattening, validate that closed contours remain closed and that the output contains only line segments.
+
+## 2. Resampling and anchor control
+
+Flattening controls approximation error, but does not guarantee evenly spaced or designer-selected anchors. Resampling provides a second control over point distribution.
+
+### Subdivision: adding points
+
+For each line segment:
+
+1. Measure its length.
+2. Divide it into intervals no longer than the requested spacing.
+3. Insert points at the interval boundaries.
+
+This increases anchor density while keeping points on the current polygon edges.
+
+```text
+Before:  A────────────B
+After:   A──•──•──•───B
+```
+
+Subdivision adds control points; it does not recover curvature removed by flattening.
+
+### Simplification: reducing points
+
+Ramer-Douglas-Peucker (RDP) reduces a sequence of points while keeping the simplified line within a distance threshold of the original. It preserves the overall silhouette but may remove small corners, narrow details, or intentional facets.
+
+Use it after flattening and consider protecting key features such as extrema, corners, or user-pinned anchors. Avoid treating simplification and flatten tolerance as the same control: tolerance governs curve approximation; simplification governs reduction of an existing point sequence.
+
+## 3. Geometric transformations
+
+### Grid snapping
+
+For grid size `g`, round each coordinate to the nearest grid multiple:
+
+```text
+x' = round(x / g) × g
+y' = round(y / g) × g
+```
+
+Grid snapping can create crisp, aligned geometry, but large grid sizes can distort counters and narrow stems. Let designers toggle snapping independently and provide a visible grid in the viewport.
+
+### Angle locking
+
+Angle locking constrains edge direction to a set of allowed angles, such as 0°, 45°, 90°, and 135°. Given an edge vector, calculate its angle, choose the nearest permitted angle, then reconstruct the endpoint while preserving a chosen constraint such as edge length or endpoint position.
+
+The UI should clarify which anchor is fixed during the operation. Otherwise, users may see unexpected movement.
+
+### Vertex offset and noise
+
+Noise displaces vertices to create controlled irregularity. A basic model applies a deterministic offset per vertex:
+
+```text
+p' = p + amplitude × noise(seed, vertexIndex, frequency)
+```
+
+A **normal bias** controls whether displacement is primarily perpendicular to the contour, along the contour, or a blend. A stable seed makes the shape reproducible across redraws and exports. Without a stable seed, the glyph may appear to change every time the canvas renders.
+
+Apply distortion in a deliberate order. For example:
+
+```text
+Flatten → Resample / Simplify → Snap / Angle Lock → Jitter
+```
+
+Document the order in the UI or export metadata because these operations are generally not interchangeable.
+
+---
+
+# Phase C: Designer-Developer Coordination & UI Specification
+
+## 1. Shared vocabulary
+
+| Developer term | Designer-facing term | What the control changes |
+|---|---|---|
+| Flatten tolerance | Curve approximation | Maximum deviation between a curve and its polygon approximation |
+| Subdivision step | Anchor spacing / density | Distance between points added along polygon edges |
+| Simplification epsilon | Anchor reduction | Amount of geometric detail removed |
+| Vertex | Anchor point | Editable point on the glyph contour |
+| Contour winding | Path direction | Direction used to describe the outline; relevant to hole interpretation |
+| Advance width | Glyph spacing width | Horizontal distance reserved for the glyph in a line of text |
+| Side bearing | Left/right margin | Space between glyph outline and its advance box |
+| Normal vector | Contour perpendicular | Direction perpendicular to a contour edge |
+| Seed | Variation seed | Repeatable starting value for the noise pattern |
+| Coordinate units | Font units / design units | Internal measurement system used for outlines and metrics |
+
+Avoid presenting internal library vocabulary directly in the designer interface unless it is accompanied by an explanation.
+
+## 2. Viewport layout and wireframe logic
+
+```text
+┌───────────────────────────────────────────────────────────┐
+│ Font name · glyph count                 Import  SVG  OTF  │
+├────────────┬──────────────────────────────┬───────────────┤
+│ Glyph list │                              │ Controls      │
+│ A B C ...  │        Canvas viewport       │ Deconstruction│
+│            │                              │ Geometry/Grid │
+│            │   baseline ───────────────── │ Distortion    │
+│            │   cap height ─────────────── │ Export        │
+├────────────┴──────────────────────────────┴───────────────┤
+│ Outline / Fill · zoom · selected glyph · processing status │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Outline mode
+
+Show:
+
+- Polygon contours and anchor points.
+- Optional vertex indices and contour direction.
+- Bounding box, baseline, x-height, cap-height, and ascender/descender guides when available.
+- A visible grid when snapping is active.
+- Selection state for the current glyph and, later, individual anchors.
+
+Direction vectors can be offered as an optional diagnostic overlay. Name and explain them as contour direction indicators unless users can directly edit them; polygon edges themselves have no Bézier handles.
+
+### Fill mode
+
+Show solid filled glyphs for silhouette evaluation. Support a single-glyph view and a specimen string view so users can assess rhythm, spacing, counters, and repeated forms. Preserve advances and kerning where the parser and export pipeline support them, and make unsupported font behavior visible.
+
+## 3. Control panel specification
+
+Use compact, high-contrast controls with visible labels, numeric values, and reset actions. Group controls by design intent rather than implementation module.
+
+### Group 1: Deconstruction
+
+- **Curve approximation:** Flatten tolerance.
+- **Anchor spacing:** Target maximum distance between anchors.
+- **Anchor reduction:** Optional simplification threshold.
+- Include a short effect hint such as “Lower values follow curves more closely.”
+
+### Group 2: Geometry & Grid
+
+- **Grid snapping:** On/off.
+- **Grid size:** Grid interval in design units.
+- **Angle lock:** Off, 45°, or 45° + 90° constraints.
+- **Fixed anchor behavior:** Clarify whether an operation holds the first point, centroid, or a selected anchor in place.
+
+### Group 3: Distortion / Jitter
+
+- **Noise amplitude:** Maximum displacement.
+- **Noise frequency:** How quickly displacement varies across the contour.
+- **Normal bias:** Tangential-to-perpendicular displacement balance.
+- **Seed:** Numeric value or reroll button for reproducible variations.
+- Keep a clear zero-noise state and a quick reset.
+
+### Group 4: Export Options
+
+- **SVG spec:** Units, viewBox behavior, fill rule, and precision.
+- **OTF metadata:** Family name, style, units per em, and naming fields.
+- **Font coverage:** Selected glyph, current character set, or all parsed glyphs.
+- Show a validation summary before download, including missing or unsupported glyph data.
+
+## 4. Slider-to-formula and design effect mapping
+
+| UI control | Geometry relationship | Typical visual effect |
+|---|---|---|
+| Curve approximation | Curve-to-segment error threshold | Lower = smoother silhouette, more anchors |
+| Anchor spacing | Maximum segment length after subdivision | Lower = denser, more regularly spaced anchors |
+| Anchor reduction | RDP distance threshold | Higher = fewer anchors, more simplified silhouette |
+| Grid size | Coordinate quantization interval | Larger = more visibly aligned, more shape change |
+| Angle lock | Nearest allowed edge angle | Stronger constraints = more geometric edges |
+| Noise amplitude | Maximum vertex displacement | Larger = rougher or more irregular outline |
+| Noise frequency | Variation rate along contour | Higher = tighter, more frequent perturbations |
+| Normal bias | Blend of tangent and normal displacement | More normal = greater silhouette variation |
+
+---
+
+# Phase D: Step-by-Step Implementation Roadmap
+
+## Milestone 1: MVP
+
+**Goal:** Prove the end-to-end polygon workflow for a single font and glyph.
+
+- Set up Vite and the chosen UI framework.
+- Add local font file loading and basic error handling.
+- Parse a font and select a glyph with opentype.js.
+- Convert the glyph outline into Paper.js geometry.
+- Flatten curves and render the resulting polygon.
+- Export SVG with explicit `M` and `L` commands only.
+- Verify exports contain no `C` or `Q` commands and preserve closed contours.
+
+**Acceptance outcome:** A user can load a font, see a polygon approximation of a glyph, adjust basic flattening, and download an SVG.
+
+## Milestone 2: Interactive anchor control and parametric sliders
+
+**Goal:** Make the polygon a responsive design surface.
+
+- Add anchor markers and outline/fill display modes.
+- Add anchor spacing and simplification controls.
+- Add zoom, pan, glyph selection, and specimen preview.
+- Separate UI control state from derived geometry.
+- Coalesce slider updates; use a Web Worker if profiling shows the main thread is blocked.
+- Add reset and reproducible parameter presets.
+
+**Acceptance outcome:** Designers can compare geometry variants and understand how controls affect anchor density and silhouette.
+
+## Milestone 3: Advanced geometry constraints and OTF generation
+
+**Goal:** Expand from SVG output to reusable font output.
+
+- Implement grid snapping and angle locking.
+- Add deterministic vertex noise and normal bias.
+- Define font-level metadata and glyph coverage choices.
+- Build or integrate a font writer that supports polygonal outlines and required font tables.
+- Preserve advances, side bearings, contour closure, and hole behavior.
+- Validate generated fonts by reopening them with a parser and previewing representative glyphs.
+
+OTF generation requires more than writing paths: the output needs valid glyph records, metrics, naming, character mapping, and other required tables. Confirm the selected font writer supports the intended outline format and browser-side download workflow before committing to the implementation.
+
+**Acceptance outcome:** Users can export a font file with polygonal outlines and retained basic metrics for the supported glyph set.
+
+## Milestone 4: Polish and GitHub Pages deployment
+
+**Goal:** Deliver a stable, coherent tool that works as a static site.
+
+- Apply the dark brutalist / Swiss minimalist visual system.
+- Refine typography, spacing, focus states, tooltips, and keyboard access.
+- Add empty, loading, error, and export-progress states.
+- Test representative fonts with complex contours, holes, and large glyph counts.
+- Configure Vite’s base path for the GitHub Pages repository URL.
+- Add a GitHub Actions workflow to build and publish the static app.
+- Confirm all file processing and export work without a server.
+
+**Acceptance outcome:** The app deploys to GitHub Pages and supports the documented workflow entirely in the browser.
