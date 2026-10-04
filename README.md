@@ -163,6 +163,13 @@ Two exclusive modes / 两种互斥模式：
   自适应：递归中点细分，直到曲线与弦的最大偏差上界 ≤ 容差。容差越小，越贴近原曲线、顶点越多。设有递归深度与最小长度上限，防止病态输入。
 - **Fixed segments** — each curve is sampled at `t = i/N` and becomes exactly N edges (1–32). Straight source segments are kept as single edges. A warning appears if any edge strays more than 1% of the em from its curve.
   固定线段数：每条曲线按 `t = i/N` 采样为 N 段。
+- **Merge joined curves** (fixed mode, off by default; `src/geometry/curveRuns.ts`) — fonts build one visible curve out of several Bézier segments (TrueType especially, where consecutive off-curve points create implied on-curve points: a Roboto O has 16 curve segments per contour). Without merging, “N per curve” applies to each small segment, so the outline stays smooth even at N = 1–2. Merging joins consecutive curve segments that meet smoothly into one curve and samples the whole merged curve with N edges spaced evenly by arc length — the “4 / 3 / 2 lines per curve” look.
+  合并相连曲线：把平滑相接的多段曲线视为一条曲线，再按弧长均匀分成 N 段，从而得到明显的折面效果。
+  - **Break merged curves at** — **Corners & extremes** (default): breaks at corners, straight segments, and wherever the curve is horizontal or vertical (its leftmost, rightmost, top, and bottom points, found analytically even inside a segment), so a round bowl splits into quarter arcs. **Corners only**: breaks only at corners and straight segments; a fully smooth loop (an O) becomes one curve and uses at least 3 edges.
+    断开规则：默认在尖角与极值点断开（圆弧分成四分之一弧）；也可只在尖角断开。
+  - **Corner angle** (1–90°, default 15°): a joint that turns by more than this is a corner and always breaks. Merged curves also break at the contour start so the start point is kept.
+  - Measured on Roboto `a`: 38 curve segments merge into 12 curves; N = 4 / 3 / 2 / 1 gives 57 / 45 / 33 / 21 vertices (47 without merging even at N = 1).
+  - Safety: a merged contour must keep at least three points, its direction, non-zero area, and no more self-crossings than the unmerged result; otherwise that contour uses the unmerged fixed result and the panel reports it (for example `a` with Corners only at N = 1). The 1 %-of-em deviation warning is suppressed while merging, since the coarse shape is intended.
 
 Contours keep their start point, order, and direction (so counters stay holes), closure is implicit, and advance width and side bearings are copied unchanged. Glyphs without contours (e.g. space) produce an empty polygon; contours that collapse below three points are omitted and reported. The panel shows vertex count, curve count, and the largest deviation measured at each edge's parametric midpoint.
 

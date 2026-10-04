@@ -4,7 +4,11 @@ import type { GeometryParams } from './types'
 export function describePipeline(params: GeometryParams): string[] {
   const { flatten, squaring, anchors, grid, distortion } = params
   const steps = [
-    flatten.mode === 'adaptive' ? `adaptive, tolerance ${flatten.tolerance} u` : `${flatten.segmentsPerCurve} segments/curve`,
+    flatten.mode === 'adaptive'
+      ? `adaptive, tolerance ${flatten.tolerance} u`
+      : flatten.mergeCurves
+        ? `${flatten.segmentsPerCurve} segments/merged curve (break at ${flatten.breakAt === 'extrema' ? 'corners & extremes' : 'corners'}, ${flatten.cornerAngle}°)`
+        : `${flatten.segmentsPerCurve} segments/curve`,
   ]
   if (squaring.amount > 0) steps.push(`squaring ${Math.round(squaring.amount * 100)}%${squaring.scope === 'all' ? ' (all contours)' : ''}`)
   if (anchors.spacing > 0) steps.push(`spacing ${anchors.spacing} u`)

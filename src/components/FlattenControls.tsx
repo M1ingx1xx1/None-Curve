@@ -1,4 +1,5 @@
 import type { Dispatch } from 'react'
+import type { BreakRule } from '../geometry/curveRuns'
 import type { FlattenStats } from '../geometry/flatten'
 import type { FlattenMode, FlattenParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
@@ -11,6 +12,11 @@ interface FlattenControlsProps {
   disabled: boolean
   dispatch: Dispatch<Action>
 }
+
+const breakRules: [BreakRule, string][] = [
+  ['extrema', 'Corners & extremes'],
+  ['corners', 'Corners only'],
+]
 
 const modes: [FlattenMode, string][] = [
   ['adaptive', 'Adaptive'],
@@ -40,8 +46,9 @@ export default function FlattenControls({ params, stats, unitsPerEm, pending, di
   const update = (patch: Partial<FlattenParams>) => dispatch({ type: 'updateParams', group: 'flatten', patch })
   const emPercent = unitsPerEm ? ((params.tolerance / unitsPerEm) * 100).toFixed(2) : null
   const warnLimit = unitsPerEm ? unitsPerEm * WARN_FRACTION : null
+  // Merging is coarse on purpose, so the "too far from the curve" warning only applies without it.
   const showWarning =
-    params.mode === 'segments' && stats && warnLimit !== null && stats.maxDeviation > warnLimit
+    params.mode === 'segments' && !params.mergeCurves && stats && warnLimit !== null && stats.maxDeviation > warnLimit
 
   return (
     <fieldset className="group flatten" disabled={disabled}>
@@ -110,9 +117,84 @@ export default function FlattenControls({ params, stats, unitsPerEm, pending, di
             onChange={(e) => update({ segmentsPerCurve: Number(e.target.value) })}
           />
           <p id="flatten-segments-hint" className="field-hint">
-            Every quadratic or cubic curve becomes this many straight edges, sampled at equal steps of t. More segments
-            give a finer approximation. Straight segments are kept as they are.
+            {params.mergeCurves
+              ? 'Every merged curve becomes this many straight edges, spaced evenly along its length. Fewer edges give a coarser, more faceted outline.'
+              : 'Every quadratic or cubic curve becomes this many straight edges, sampled at equal steps of t. More segments give a finer approximation.'}{' '}
+            Straight segments are kept as they are.
           </p>
+        </div>
+      )}
+
+      {params.mode === 'segments' && (
+        <div className="merge-controls">
+          <div className="field field-toggle">
+            <input
+              id="flatten-merge"
+              type="checkbox"
+              checked={params.mergeCurves}
+              aria-describedby="flatten-merge-hint"
+              onChange={(e) => update({ mergeCurves: e.target.checked })}
+            />
+            <label htmlFor="flatten-merge">Merge joined curves</label>
+          </div>
+          <p id="flatten-merge-hint" className="field-hint">
+            Fonts build one visible curve from several smaller curves, so even 1–2 segments per curve can still look
+            smooth. Merging treats curves that join smoothly as one curve, so the setting above applies to the whole
+            visible curve.
+          </p>
+          {params.mergeCurves && (
+            <>
+              <div className="field">
+                <span className="field-label" id="flatten-break-label">
+                  Break merged curves at
+                </span>
+                <div className="segmented" role="radiogroup" aria-labelledby="flatten-break-label">
+                  {breakRules.map(([rule, label]) => (
+                    <label key={rule} className="segment-option">
+                      <input
+                        type="radio"
+                        name="flatten-break"
+                        value={rule}
+                        checked={params.breakAt === rule}
+                        onChange={() => update({ breakAt: rule })}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="field-hint">
+                  {params.breakAt === 'extrema'
+                    ? 'Breaks at corners and at the leftmost, rightmost, top, and bottom points of each curve, so a round bowl splits into quarter arcs.'
+                    : 'Breaks only at corners and straight segments. Whole smooth loops (like O) become one curve and use at least 3 edges.'}{' '}
+                  Merged curves also break at the contour start, so the start point is kept.
+                </p>
+              </div>
+              <div className="field">
+                <div className="field-head">
+                  <label htmlFor="flatten-corner">Corner angle</label>
+                  <output htmlFor="flatten-corner">
+                    {params.cornerAngle}
+                    <span className="unit">°</span>
+                  </output>
+                </div>
+                <input
+                  id="flatten-corner"
+                  type="range"
+                  min={1}
+                  max={90}
+                  step={1}
+                  value={params.cornerAngle}
+                  aria-valuetext={`${params.cornerAngle} degrees`}
+                  aria-describedby="flatten-corner-hint"
+                  onChange={(e) => update({ cornerAngle: Number(e.target.value) })}
+                />
+                <p id="flatten-corner-hint" className="field-hint">
+                  Joints that turn by more than this are corners and always break. Larger values merge across softer
+                  corners.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -124,7 +206,10 @@ export default function FlattenControls({ params, stats, unitsPerEm, pending, di
           </div>
           <div>
             <dt>Curves</dt>
-            <dd>{stats.curveCount}</dd>
+            <dd>
+              {stats.curveCount}
+              {stats.mergedCurveCount !== null && ` → ${stats.mergedCurveCount}`}
+            </dd>
           </div>
           <div>
             <dt>Max deviation</dt>
@@ -144,6 +229,14 @@ export default function FlattenControls({ params, stats, unitsPerEm, pending, di
       {showWarning && (
         <p className="font-warning">
           Some edges stray more than 1% of the em from the curve. Add segments or switch to Adaptive.
+        </p>
+      )}
+      {stats && stats.mergeFallbacks > 0 && (
+        <p className="font-warning">
+          {stats.mergeFallbacks} contour{stats.mergeFallbacks === 1 ? '' : 's'} would collapse, flip, or cross
+          {stats.mergeFallbacks === 1 ? ' itself' : ' themselves'} when merged, so{' '}
+          {stats.mergeFallbacks === 1 ? 'it uses' : 'they use'} the unmerged result. Try breaking at extrema or adding
+          segments.
         </p>
       )}
       {stats && stats.limitedCurves > 0 && (
