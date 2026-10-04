@@ -169,6 +169,21 @@ export default function FlattenControls({ params, stats, unitsPerEm, pending, di
                   Merged curves also break at the contour start, so the start point is kept.
                 </p>
               </div>
+              <div className="field field-toggle">
+                <input
+                  id="flatten-merge-lines"
+                  type="checkbox"
+                  checked={params.mergeLines}
+                  aria-describedby="flatten-merge-lines-hint"
+                  onChange={(e) => update({ mergeLines: e.target.checked })}
+                />
+                <label htmlFor="flatten-merge-lines">Merge through straight lines</label>
+              </div>
+              <p id="flatten-merge-lines-hint" className="field-hint">
+                Also merges straight segments that flow smoothly into a curve — like the stems of n, m, and u running
+                into their arches, or the straight sides of some O shapes — so they are resampled together. This changes
+                letters a lot: stems can lose their ends and corners can be cut. Off by default.
+              </p>
               <div className="field">
                 <div className="field-head">
                   <label htmlFor="flatten-corner">Corner angle</label>
@@ -189,8 +204,10 @@ export default function FlattenControls({ params, stats, unitsPerEm, pending, di
                   onChange={(e) => update({ cornerAngle: Number(e.target.value) })}
                 />
                 <p id="flatten-corner-hint" className="field-hint">
-                  Joints that turn by more than this are corners and always break. Larger values merge across softer
-                  corners.
+                  Joints that turn by more than this are corners and always break; gentler joints are merged.
+                  {params.mergeLines
+                    ? ' With Merge through straight lines, this decides which line-to-curve and line-to-line joints merge, so larger values give a much coarser, lower-resolution outline.'
+                    : ' Without Merge through straight lines it only affects joints between two curves, which in most fonts are already smooth — so it rarely changes anything. Turn on Merge through straight lines to make it effective.'}
                 </p>
               </div>
             </>

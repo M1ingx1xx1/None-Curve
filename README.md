@@ -16,6 +16,7 @@ An experimental web app for turning font curves into editable polygon shapes. Lo
 | Glyph list, original-curve skeleton, Original / Flattened / Compare views | ✅ Implemented |
 | Curve flattening (adaptive or fixed segments, with optional curve merging) | ✅ Implemented |
 | Squaring (round O → square O), anchor spacing and reduction, grid snapping, angle lock, deterministic distortion | ✅ Implemented |
+| Random anchors on the original curves with a reproducible seed | 🧪 Experimental |
 | Live text preview with advance widths, kerning, multiple lines, and missing-character marks | ✅ Implemented |
 | SVG export of the selected glyph or the text | ✅ Implemented |
 | OpenType font export (CFF, .otf), verified after writing | ✅ Implemented — see [limits](#font-file) |
@@ -117,7 +118,7 @@ The URL is parsed by `src/font/googleUrl.ts` and never fetched itself — only t
 ## Geometry pipeline
 
 ```text
-Original curves (frozen) → Flatten → Squaring → Anchor spacing → Anchor reduction → Grid snapping → Angle lock → Vertex distortion → final polygon
+Original curves (frozen) → Flatten (or experimental Random anchors) → Squaring → Anchor spacing → Anchor reduction → Grid snapping → Angle lock → Vertex distortion → final polygon
 ```
 
 The order is fixed (`src/geometry/pipeline.ts`). Every parameter change reruns the whole pipeline from the original curves, so nothing accumulates, and turning a step off restores exactly the result of the steps before it. All distances are in font units and do not depend on canvas zoom. Distortion runs last, so it moves vertices off the snapping grid and off locked angles.
@@ -132,7 +133,8 @@ Every quadratic and cubic segment is replaced by straight edges (`src/geometry/f
 - **Fixed segments** — each curve is sampled at `t = i/N` and becomes exactly N edges (1–32). Straight segments stay single edges. A warning appears if an edge strays more than 1 % of the em from its curve.
 - **Merge joined curves** (fixed mode, off by default; `src/geometry/curveRuns.ts`) — fonts build one visible curve from several Bézier segments (a Roboto O has 16 per contour), so "N per curve" alone stays smooth even at N = 1–2. Merging joins segments that meet smoothly into one curve and samples it with N edges spaced evenly by arc length.
   - **Break merged curves at:** **Corners & extremes** (default) — corners, straight segments, and the curve's horizontal/vertical extremes (found analytically, even inside a segment), so a round bowl splits into quarter arcs. **Corners only** — a fully smooth loop becomes one curve and uses at least 3 edges.
-  - **Corner angle** (1–90°, default 15°): a joint turning more than this always breaks. Merged curves also break at the contour start.
+  - **Merge through straight lines** (off by default): straight segments that meet a neighbour smoothly also join the merged curve, so stems that flow into arches (n, m, u) or the straight sides of some O shapes are resampled with the curve. With this on, the extremes rule applies only between curves (a stem meets an arch exactly at its extreme). A straight segment left alone stays a line. Letters change a lot — stems can lose their ends.
+  - **Corner angle** (1–90°, default 15°): a joint turning more than this always breaks. Merged curves also break at the contour start. Without merging through lines it only affects curve-to-curve joints, which in most fonts are already smooth (in Roboto 6200 of 6206 turn less than 1°), so it rarely changes anything. With merging through lines it decides which line joints merge: going from 15° to 90° changes 365 of the first 400 Roboto glyphs.
   - Measured on Roboto `a`: 38 segments merge into 12 curves; N = 4 / 3 / 2 / 1 gives 57 / 45 / 33 / 21 vertices (47 without merging at N = 1).
   - If a merged contour fails validation, it uses the unmerged result and the panel reports it. The 1 %-of-em warning is suppressed while merging.
 
@@ -176,9 +178,21 @@ Flattening only approximates curves, so an O stays round. **Squaring** (`src/geo
 
 Crossings are checked within each contour, not between contours, so large values in any step can make a counter touch the outer contour.
 
+### Random anchors (experimental)
+
+`src/geometry/randomAnchors.ts`. The last group in the tools panel, off by default. When on, anchors are placed at random arc-length positions on the **original curves** instead of Flatten's regular sampling; each anchor is evaluated on the source Bézier, so it lies exactly on the glyph outline. The result then goes through Squaring, Anchors, Grid, and Distortion as usual.
+
+- **Density** (1–100): about how many anchors per 1000 font units of outline; every contour keeps at least 3.
+- **Randomness** (0–100 %): stratified sampling. Each anchor has its own stretch of outline; 0 % puts it in the middle, 100 % anywhere inside it. Anchors never change order, so the outline cannot fold back.
+- **Keep sharp corners** (on by default): source joints that turn by more than 30° stay as fixed anchors, and each stretch between two corners is sampled on its own.
+- **Seed** (0–999,999): **Shuffle** picks a new seed (only the button uses the browser's random generator); **Copy** copies it; **Previous** lists the last six seeds of this session so you can go back. The seed also appears in the status bar and the export dialog.
+- Reproducible: the random numbers come from a hash of (seed, glyph index, contour index, attempt), so the same font, settings, and seed always give the same polygon. Repeated letters in the text look identical; different letters get different draws.
+- Validation: a draw that reverses a contour, collapses it, or adds self-crossings is redrawn with a derived seed (up to 4 draws, still deterministic); if none is valid, that contour uses Flatten's result and the panel says so. On the first 400 glyphs of Roboto, Inter, and Andale Mono, no contour needed a redraw.
+- **Reset random anchors** restores the defaults but keeps the current seed.
+
 ## Export
 
-Open **Export…** from the header or the tools panel. Nothing is downloaded until you press a download button. Every export uses the same final polygons as the canvas.
+Open **Export…** from the top-right corner of the header. Nothing is downloaded until you press a download button. Every export uses the same final polygons as the canvas.
 
 ### SVG
 
