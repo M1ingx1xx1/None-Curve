@@ -49,7 +49,7 @@ export default function App() {
       <Workspace
         geometryOpen={geometryOpen}
         tools={<ToolHead document={state.document} importer={importer} onOpenGoogleFonts={openGoogleFonts} />}
-        geometry={<GeometryPanel state={state} dispatch={dispatch} derived={derived} onOpenExport={openExport} />}
+        geometry={<GeometryPanel state={state} dispatch={dispatch} derived={derived} />}
         canvas={
           <CanvasViewport
             document={state.document}

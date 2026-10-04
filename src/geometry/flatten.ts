@@ -94,6 +94,7 @@ function normalizeParams(params: FlattenParams): FlattenParams {
     tolerance: Math.min(maxTolerance, Math.max(minTolerance, tolerance)),
     segmentsPerCurve: Math.min(maxSegments, Math.max(minSegments, segments)),
     mergeCurves: Boolean(params.mergeCurves),
+    mergeLines: Boolean(params.mergeLines),
     breakAt: params.breakAt === 'corners' ? 'corners' : 'extrema',
     cornerAngle,
   }
@@ -169,7 +170,7 @@ function emptyStats(): FlattenStats {
 const MIN_LOOP_EDGES = 3
 
 function flattenMerged(contour: SourceContour, params: FlattenParams, push: (p: Point) => void) {
-  const items = buildCurveRuns(contour, params.breakAt, params.cornerAngle)
+  const items = buildCurveRuns(contour, params.breakAt, params.cornerAngle, params.mergeLines)
   const loop = items.length === 1 && items[0].kind === 'run'
   const result = { curves: 0, lines: 0, runs: 0, deviation: 0 }
   for (const item of items) {
@@ -177,7 +178,8 @@ function flattenMerged(contour: SourceContour, params: FlattenParams, push: (p: 
       result.lines++
       push(item.to)
     } else {
-      result.curves += item.sourceSegments
+      result.curves += item.sourceCurves
+      result.lines += item.sourceLines
       result.runs++
       const n = loop ? Math.max(MIN_LOOP_EDGES, params.segmentsPerCurve) : params.segmentsPerCurve
       result.deviation = Math.max(result.deviation, sampleRun(item.pieces, n, push))
