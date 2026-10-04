@@ -14,7 +14,7 @@ An experimental web app for turning font curves into editable polygon shapes. Lo
 | 字形选择、原始曲线骨架、Original / Flattened / Compare 视图 | ✅ 已实现 |
 | 曲线展平、方形化（圆形 O → 方形 O）、锚点间距 / 简化、网格吸附、角度锁定、确定性顶点扰动 | ✅ 已实现 |
 | Google Fonts URL 粘贴导入（specimen 页面、CSS2 / CSS API 链接） | ✅ 已实现 |
-| 田字形布局：左上功能区（导入、字体信息、参数）、右上结果画布 C、左下文本 B、右下字形预览 A | ✅ 已实现 |
+| 田字形布局：左上功能区（导入、字体信息、参数）、右上结果画布（只显示输入文本）、左下字形列表、右下文本输入 + 字形小预览 | ✅ 已实现 |
 | 样张文本预览（字宽、字偶距、多行、缺字提示） Specimen | ✅ 已实现 |
 | SVG 导出：当前字形、样张文本 | ✅ 已实现 |
 | 字体文件导出：OpenType（CFF，.otf），导出后用 fontkit 与浏览器字体引擎校验 | ✅ 已实现（限制见下文 / see limits） |
@@ -50,8 +50,8 @@ npm run preview   # 预览生产构建：http://localhost:4173/None-Curve/
 src/
 ├── main.tsx, App.tsx      应用入口；App 持有状态（useReducer）并组装组件
 ├── components/            UI 组件：左上 ToolHead（ImportMenu、FontStatus）+ GeometryPanel（参数）、
-│                          右上 CanvasViewport（文本样张 SpecimenView / 单字检查 GlyphView，共用 GlyphLayers
-│                          与 usePanZoom）、左下 TextPanel、右下 GlyphPanel（GlyphPicker）、对话框等
+│                          右上 CanvasViewport（文本 SpecimenView）、左下 GlyphPanel（GlyphPicker）、
+│                          右下 InputPanel（TextPanel + GlyphPreview/GlyphView），共用 GlyphLayers 与 usePanZoom
 ├── font/                  字体加载与解析：本地文件、Google Fonts、Google Fonts URL 解析 googleUrl.ts、
 │                          格式识别、fontkit 适配、排版、字形搜索
 ├── state/                 文档状态 + 参数状态、reducer、导入请求管理（useFontImport）、
@@ -233,34 +233,34 @@ The polygon is derived with `useMemo` from the selected glyph and the flatten, a
 
 ```text
 ┌────────────────────────┬──────────────────────────────────────┐
-│ Tools                  │ C  Result canvas                      │
-│ Import · font info     │    text specimen or one glyph         │
+│ Tools                  │ Result canvas                         │
+│ Import · font info     │ shows only the input text             │
 │ Parameters (scroll)    │                                       │
-├────────────────────────┼──────────────────────────────────────┤
-│ B  Text input          │ A  Glyph preview and selection        │
-└────────────────────────┴──────────────────────────────────────┘
+├────────────────────────┼──────────────────────┬───────────────┤
+│ Glyphs                 │ Text input           │ Glyph preview │
+└────────────────────────┴──────────────────────┴───────────────┘
 ```
 
-- **Top left — tools:** **Import font** and the font information (source, format, glyph count, variable axes) come first, followed by every geometry parameter (flattening, squaring, anchors, grid & angles, distortion, export) in pipeline order. The parameter statistics refer to the selected glyph.
-- **Top right — C:** the only result canvas. It shows the text from B set with the current font and all parameters, or — after choosing a glyph in A, or pressing **Glyph** — a single glyph for inspection. **Text** returns to the specimen; selecting a glyph never clears the text in B. Clicking a glyph in the specimen selects it without leaving the text view. A newly loaded font opens on the text view.
-- **Bottom left — B:** the editable text (multi-line), sample texts, character count, kerning status, and missing characters.
-- **Bottom right — A:** glyph previews only — a searchable grid (characters or all glyphs) with large cells. No import controls live here.
-- Narrow screens stack: import and font info, C (at least 62 % of the viewport height), parameters (collapsed; **Parameters** in the canvas toolbar opens them), B, then A.
+- **Top left — tools:** **Import font** and the font information come first, followed by every geometry parameter (flattening, squaring, anchors, grid & angles, distortion, export) in pipeline order. Parameter statistics refer to the selected glyph.
+- **Top right — result canvas:** shows only the text from the input, set with the current font and all parameters. Its outline and layer controls (Original / Flattened / Compare, Fill, Skeleton, Vertices, Metrics) also drive the glyph preview; zoom and pan apply to the canvas only. Clicking a glyph in the canvas selects it.
+- **Bottom left — glyphs:** the searchable glyph grid (characters or all glyphs). Selecting a glyph shows it in the preview; it never changes the text or the canvas view.
+- **Bottom right — input and preview:** a compact multi-line text input (sample texts in a menu, Clear, character count, kerning status, missing characters) on the left, and a small preview of the selected glyph on the right with its own zoom, pan, and **Fit**.
+- Narrow screens stack: import and font info, the canvas (at least 62 % of the viewport height), parameters (collapsed; **Parameters** in the canvas toolbar opens them), text input, glyph preview, then the glyph list.
 
-田字形布局：左上为功能区（导入、字体信息、全部参数），右上为结果画布 C，左下为文本输入 B，右下只展示字形预览与选择 A。窄屏纵向排列，参数可折叠。
+田字形布局：左上为功能区（导入、字体信息、全部参数）；右上为结果画布，只显示输入的文本；左下为字形列表；右下分为两格——左边文本输入，右边所选字形的小预览（图层设置跟随主画布，缩放独立）。
 
 ### Canvas / 画布
 
 - Outline view: **Original** (font curves), **Flattened** (polygon), **Compare** (polygon fill and solid edges with the original curves overlaid as a dashed line). The current view is shown in the canvas corner and the status bar.
   轮廓视图：原始曲线 / 展平多边形 / 叠加对比。
 - Layers: **Fill** (off = outline stroke), **Skeleton** (original on-curve anchors as squares, off-curve controls as hollow circles, handles), **Vertices** (generated polygon vertices as green dots), and **Metrics**. The skeleton draws on-curve anchors (squares), off-curve control points (circles), and handles. TrueType quadratic curves show the implied on-curve points between consecutive control points as anchors.
-- Zoom with the mouse wheel or `+` / `−`, pan by dragging or with arrow keys (canvas focused), `0` or **Fit** to reset. The same controls work for the text specimen and the single-glyph inspector.
+- Zoom with the mouse wheel or `+` / `−`, pan by dragging or with arrow keys (canvas focused), `0` or **Fit** to reset. The glyph preview (bottom right) has its own zoom and pan with the same gestures.
 - In the text specimen all layers apply to every glyph. Only glyphs inside the visible area are drawn. Skeleton points and vertices appear once an em is at least 48 px on screen; below that the canvas asks you to zoom in, so long texts stay readable. Metric labels are drawn on the first visible line only.
 - Metric guides: ascender, cap height, x-height, baseline, descender, and the advance width.
 
 ## Specimen / 样张
 
-The text from area B is set in canvas C with the final polygons from the shared geometry cache, so the specimen, the single-glyph inspector, and the exports always agree.
+The text from the input (bottom right) is set in the result canvas with the final polygons from the shared geometry cache, so the canvas, the glyph preview, and the exports always agree.
 
 - Spacing: each glyph advances by its advance width, plus kerning when the font has it (GPOS `kern` feature or a legacy `kern` table, applied through fontkit's layout). Ligatures are turned off so every character keeps its own glyph. Fonts without kerning data are labeled as such; nothing is invented.
 - Line height: ascender − descender + the font's line gap. Spaces advance without drawing.

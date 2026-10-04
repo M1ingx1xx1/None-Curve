@@ -6,11 +6,11 @@ import GlyphPicker from './GlyphPicker'
 interface GlyphPanelProps {
   font: LoadedFont | null
   selected: GlyphRef | null
-  /** Selecting a glyph opens it in the canvas inspector; the text input is left untouched. */
+  /** Selecting a glyph shows it in the glyph preview; the text and the canvas are left untouched. */
   onInspectGlyph: (glyph: GlyphRef) => void
 }
 
-/** Bottom right: glyph preview and selection for the loaded font. */
+/** Bottom left: browse and select the glyphs of the loaded font. */
 export default function GlyphPanel({ font, selected, onInspectGlyph }: GlyphPanelProps) {
   return (
     <section className="panel glyph-panel" aria-label="Glyphs">
@@ -21,7 +21,7 @@ export default function GlyphPanel({ font, selected, onInspectGlyph }: GlyphPane
       ) : (
         <>
           <h2 className="section-title">Glyphs</h2>
-          <p className="glyph-empty">Import a font (top left) to preview its glyphs here.</p>
+          <p className="glyph-empty">Import a font (top left) to browse its glyphs here.</p>
         </>
       )}
     </section>

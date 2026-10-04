@@ -16,7 +16,7 @@ const samples: [string, string][] = [
   ['Spacing', 'Hamburgefonstiv\nAVATAR Type, Tolerance'],
 ]
 
-/** Area B: the text set in the result canvas. */
+/** Bottom right, left half: the text shown in the result canvas. */
 export default function TextPanel({ font, text, scene, pending, onTextChange }: TextPanelProps) {
   const id = useId()
   const length = [...text].length
@@ -29,15 +29,28 @@ export default function TextPanel({ font, text, scene, pending, onTextChange }: 
   }
 
   return (
-    <section className="panel text-panel" aria-labelledby={`${id}-title`}>
+    <section className="text-panel" aria-labelledby={`${id}-title`}>
       <div className="section-head">
         <h2 id={`${id}-title`}>Text</h2>
-        <div className="preset-row" role="group" aria-label="Sample texts">
-          {samples.map(([label, sample]) => (
-            <button key={label} type="button" className="button-small" onClick={() => onTextChange(sample)}>
-              {label}
-            </button>
-          ))}
+        <div className="text-actions">
+          <label htmlFor={`${id}-sample`} className="visually-hidden">
+            Sample text
+          </label>
+          <select
+            id={`${id}-sample`}
+            value=""
+            onChange={(e) => {
+              const sample = samples.find(([label]) => label === e.target.value)
+              if (sample) onTextChange(sample[1])
+            }}
+          >
+            <option value="">Sample…</option>
+            {samples.map(([label]) => (
+              <option key={label} value={label}>
+                {label}
+              </option>
+            ))}
+          </select>
           <button type="button" className="button-small" disabled={!text} onClick={() => onTextChange('')}>
             Clear
           </button>

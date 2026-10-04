@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useReducer, useState } from 'react'
-import CanvasViewport, { type CanvasMode } from './components/CanvasViewport'
+import { useCallback, useReducer, useState } from 'react'
+import CanvasViewport from './components/CanvasViewport'
 import ExportDialog from './components/ExportDialog'
 import GeometryPanel from './components/GeometryPanel'
 import GlyphPanel from './components/GlyphPanel'
+import GlyphPreview from './components/GlyphPreview'
 import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
+import InputPanel from './components/InputPanel'
 import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
 import ToolHead from './components/ToolHead'
@@ -25,7 +27,6 @@ export default function App() {
   const [text, setText] = useState(DEFAULT_TEXT)
   const { scene, pending: scenePending } = useSpecimenScene(state.document.font, text, derived.params, derived.paramsKey)
 
-  const [mode, setMode] = useState<CanvasMode>('text')
   // Only used on narrow screens; on desktop the geometry parameters are always shown top left.
   const [geometryOpen, setGeometryOpen] = useState(false)
   const [googleOpen, setGoogleOpen] = useState(false)
@@ -37,23 +38,8 @@ export default function App() {
     (patch: Partial<ViewParams>) => dispatch({ type: 'updateParams', group: 'view', patch }),
     [],
   )
-  const changeMode = useCallback((next: CanvasMode) => {
-    setMode(next)
-    dispatch({ type: 'resetView' })
-  }, [])
-  // Selecting in the glyph list (A) opens that glyph in the inspector; the text (B) is kept.
-  const inspectGlyph = useCallback((glyph: GlyphRef) => {
-    dispatch({ type: 'selectGlyph', glyph })
-    setMode('glyph')
-  }, [])
-  // Clicking a glyph in the text specimen selects it but stays in the text view.
-  const selectFromCanvas = useCallback((glyph: GlyphRef) => dispatch({ type: 'selectGlyph', glyph, keepView: true }), [])
-
-  // A newly loaded font opens on the text specimen.
-  const fontId = state.document.font?.id
-  useEffect(() => {
-    if (fontId) setMode('text')
-  }, [fontId])
+  // Selecting a glyph (in the list or the canvas) shows it in the preview; the canvas view is kept.
+  const selectGlyph = useCallback((glyph: GlyphRef) => dispatch({ type: 'selectGlyph', glyph, keepView: true }), [])
 
   const gridSize = state.params.grid.snap && state.params.grid.size > 0 ? state.params.grid.size : null
 
@@ -68,24 +54,34 @@ export default function App() {
           <CanvasViewport
             document={state.document}
             view={state.params.view}
-            mode={mode}
             scene={scene}
             gridSize={gridSize}
-            glyphGeometry={derived.result}
             geometryPanelOpen={geometryOpen}
             onToggleGeometryPanel={() => setGeometryOpen((open) => !open)}
-            onModeChange={changeMode}
-            onSelectGlyph={selectFromCanvas}
+            onSelectGlyph={selectGlyph}
             onViewChange={onViewChange}
             onResetView={() => dispatch({ type: 'resetView' })}
             onLocalFile={importer.importLocal}
             onOpenGoogleFonts={openGoogleFonts}
           />
         }
-        text={<TextPanel font={state.document.font} text={text} scene={scene} pending={scenePending} onTextChange={setText} />}
-        glyphs={<GlyphPanel font={state.document.font} selected={state.document.selectedGlyph} onInspectGlyph={inspectGlyph} />}
+        glyphs={<GlyphPanel font={state.document.font} selected={state.document.selectedGlyph} onInspectGlyph={selectGlyph} />}
+        input={
+          <InputPanel
+            text={<TextPanel font={state.document.font} text={text} scene={scene} pending={scenePending} onTextChange={setText} />}
+            preview={
+              <GlyphPreview
+                font={state.document.font}
+                selected={state.document.selectedGlyph}
+                glyphGeometry={derived.result}
+                view={state.params.view}
+                gridSize={gridSize}
+              />
+            }
+          />
+        }
       />
-      <StatusBar state={state} glyphGeometry={derived.result} mode={mode} scene={scene} />
+      <StatusBar state={state} glyphGeometry={derived.result} scene={scene} />
       <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importer.importGoogle} />
       <ExportDialog
         open={exportOpen}
