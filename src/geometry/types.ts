@@ -4,6 +4,7 @@
 import type { AnchorStats } from './anchors'
 import type { ConstraintStats } from './constraints'
 import type { DistortionStats } from './distortion'
+import type { SquaringParams, SquaringStats } from './squaring'
 import type { FlattenStats } from './flatten'
 
 export interface Point {
@@ -87,6 +88,7 @@ export interface DistortionParams {
 
 export interface GeometryParams {
   flatten: FlattenParams
+  squaring: SquaringParams
   anchors: AnchorParams
   grid: GridParams
   distortion: DistortionParams
@@ -111,6 +113,7 @@ export interface DerivedGeometry {
   /** Vertices in the final polygon, after every pipeline step. */
   vertexCount: number
   flatten: FlattenStats
+  squaring: SquaringStats
   anchors: AnchorStats
   constraints: ConstraintStats
   distortion: DistortionStats

@@ -35,15 +35,22 @@ export interface DerivedGeometryState {
  */
 export function useDerivedGeometry(state: AppState): DerivedGeometryState {
   const { font, selectedGlyph } = state.document
-  const { flatten, anchors, grid, distortion } = state.params
+  const { flatten, squaring, anchors, grid, distortion } = state.params
   const deferredFlatten = useDeferredValue(flatten)
+  const deferredSquaring = useDeferredValue(squaring)
   const deferredAnchors = useDeferredValue(anchors)
   const deferredGrid = useDeferredValue(grid)
   const deferredDistortion = useDeferredValue(distortion)
 
   const params = useMemo<GeometryParams>(
-    () => ({ flatten: deferredFlatten, anchors: deferredAnchors, grid: deferredGrid, distortion: deferredDistortion }),
-    [deferredFlatten, deferredAnchors, deferredGrid, deferredDistortion],
+    () => ({
+      flatten: deferredFlatten,
+      squaring: deferredSquaring,
+      anchors: deferredAnchors,
+      grid: deferredGrid,
+      distortion: deferredDistortion,
+    }),
+    [deferredFlatten, deferredSquaring, deferredAnchors, deferredGrid, deferredDistortion],
   )
   const key = useMemo(() => paramsKey(params), [params])
 
@@ -67,6 +74,7 @@ export function useDerivedGeometry(state: AppState): DerivedGeometryState {
     paramsKey: key,
     pending:
       deferredFlatten !== flatten ||
+      deferredSquaring !== squaring ||
       deferredAnchors !== anchors ||
       deferredGrid !== grid ||
       deferredDistortion !== distortion,

@@ -8,6 +8,7 @@ import {
   type GoogleFamilyInfo,
   type GoogleFontRequest,
 } from '../font/google'
+import { looksLikeUrl, parseFontInput, type ParsedFontRequest } from '../font/googleUrl'
 
 interface GoogleFontsDialogProps {
   open: boolean
@@ -31,6 +32,10 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
   const [italic, setItalic] = useState(false)
   const [weight, setWeight] = useState(400)
   const [subset, setSubset] = useState('latin')
+  /** What a pasted URL or typed name asked for; null when a curated family was clicked. */
+  const [requested, setRequested] = useState<ParsedFontRequest | null>(null)
+  /** Explains when the requested style could not be loaded as asked. */
+  const [styleNote, setStyleNote] = useState<string | null>(null)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -54,8 +59,23 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
     fetchGoogleFamily(family, controller.signal).then(
       (info) => {
         const hasNormal = info.weights.normal.length > 0
-        setItalic(!hasNormal)
-        setWeight(defaultWeight(hasNormal ? info.weights.normal : info.weights.italic))
+        const wantItalic = requested?.italic ?? false
+        const useItalic = (wantItalic && info.weights.italic.length > 0) || !hasNormal
+        const weights = useItalic ? info.weights.italic : info.weights.normal
+        const fallbackWeight = defaultWeight(weights)
+        // A variable family serves one file for every weight, so a requested weight cannot be applied.
+        const useWeight =
+          !info.variable && requested?.weight && weights.includes(requested.weight) ? requested.weight : fallbackWeight
+        let note: string | null = null
+        if (requested && (requested.weight !== null || requested.italic !== null)) {
+          const asked = `${requested.weight ?? ''}${requested.italic ? ' italic' : ''}`.trim() || 'regular'
+          const actual = info.variable ? `the default instance${useItalic ? ' (italic)' : ''}` : `${useWeight}${useItalic ? ' italic' : ''}`
+          const matched = !info.variable && (requested.weight === null || requested.weight === useWeight) && (requested.italic === null || requested.italic === useItalic)
+          if (!matched) note = `The URL asks for ${asked}${info.variable ? ', but this is a variable font' : ', which this family does not have'}; ${actual} will be loaded.`
+        }
+        setItalic(useItalic)
+        setWeight(useWeight)
+        setStyleNote(note)
         setSubset(defaultSubset(info))
         setFamilyState({ kind: 'ready', info })
       },
@@ -65,14 +85,26 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
       },
     )
     return () => controller.abort()
-  }, [family, attempt])
+  }, [family, attempt, requested])
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
     return q ? curatedFamilies.filter((f) => f.family.toLowerCase().includes(q)) : curatedFamilies
   }, [query])
   const typed = query.trim()
-  const typedIsCurated = curatedFamilies.some((f) => f.family.toLowerCase() === typed.toLowerCase())
+  const typedIsUrl = looksLikeUrl(typed)
+  const parsed = useMemo(() => (typed ? parseFontInput(typed) : null), [typed])
+  const typedIsCurated = !typedIsUrl && curatedFamilies.some((f) => f.family.toLowerCase() === typed.toLowerCase())
+
+  const chooseCurated = (name: string) => {
+    setRequested(null)
+    setStyleNote(null)
+    setFamily(name)
+  }
+  const chooseParsed = (request: ParsedFontRequest) => {
+    setRequested(request)
+    setFamily(request.family)
+  }
 
   const info = familyState.kind === 'ready' ? familyState.info : null
   const styleWeights = info ? (italic ? info.weights.italic : info.weights.normal) : []
@@ -116,8 +148,9 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
 
         <p className="gf-intro">
           Downloads the font file so its real outlines can be edited — a CSS preview alone has no outline data. Browse
-          the curated list or type any family name exactly as it appears on fonts.google.com. The full catalog needs an
-          API key, so it is not searchable here.
+          the curated list, type any family name exactly as it appears on fonts.google.com, or paste a Google Fonts URL
+          (fonts.google.com/specimen/… or fonts.googleapis.com/css2?family=…). The full catalog needs an API key, so it is
+          not searchable here.
         </p>
 
         <div className="gf-columns">
@@ -126,37 +159,70 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
             <input
               id="gf-search"
               type="search"
-              placeholder="Search or type a family name"
+              placeholder="Search, family name, or Google Fonts URL"
               value={query}
               autoComplete="off"
+              spellCheck={false}
               ref={searchRef}
+              aria-describedby="gf-search-hint"
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter on a pasted URL or typed name selects it instead of submitting the form.
+                if (e.key === 'Enter' && typed && !typedIsCurated && parsed?.ok) {
+                  e.preventDefault()
+                  chooseParsed(parsed.request)
+                }
+              }}
             />
+            <p id="gf-search-hint" className="field-hint">
+              Accepts https://fonts.google.com/specimen/Name and https://fonts.googleapis.com/css2?family=… links. Other
+              sites are not contacted.
+            </p>
+            {typedIsUrl && parsed && !parsed.ok && (
+              <p className="font-warning" role="alert">
+                {parsed.error}
+              </p>
+            )}
             <ul className="gf-list" aria-label="Families">
-              {matches.map((f) => (
+              {typedIsUrl && parsed?.ok && (
+                <li>
+                  <button
+                    type="button"
+                    className="gf-family"
+                    aria-pressed={family === parsed.request.family && requested !== null}
+                    onClick={() => chooseParsed(parsed.request)}
+                  >
+                    Use “{parsed.request.family}” from URL<span className="gf-category">URL</span>
+                  </button>
+                </li>
+              )}
+              {!typedIsUrl && matches.map((f) => (
                 <li key={f.family}>
                   <button
                     type="button"
                     className="gf-family"
                     aria-pressed={family === f.family}
-                    onClick={() => setFamily(f.family)}
+                    onClick={() => chooseCurated(f.family)}
                   >
                     {f.family}
                     <span className="gf-category">{f.category}</span>
                   </button>
                 </li>
               ))}
-              {typed && !typedIsCurated && (
+              {typed && !typedIsUrl && !typedIsCurated && parsed?.ok && (
                 <li>
                   <button
                     type="button"
                     className="gf-family"
-                    aria-pressed={family === typed}
-                    onClick={() => setFamily(typed)}
+                    aria-pressed={family === parsed.request.family}
+                    onClick={() => chooseParsed(parsed.request)}
                   >
-                    Use “{typed}”<span className="gf-category">Custom</span>
+                    Use “{parsed.request.family}”<span className="gf-category">Custom</span>
                   </button>
                 </li>
+              )}
+              {typed && !typedIsUrl && parsed && !parsed.ok && (
+                <li className="gf-invalid">{parsed.error}</li>
               )}
             </ul>
           </div>
@@ -184,6 +250,24 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
             {info && (
               <>
                 <p className="gf-selected">{info.family}</p>
+                {requested && requested.source !== 'name' && (
+                  <p className="field-hint">
+                    From {requested.source === 'specimen' ? 'a specimen page' : 'a CSS API'} URL. The font file is still
+                    downloaded and parsed before it can be edited.
+                  </p>
+                )}
+                {requested && requested.unsupportedAxes.length > 0 && (
+                  <p className="font-warning">
+                    The URL sets axes this app cannot apply ({requested.unsupportedAxes.join(', ')}). They are ignored and
+                    the font’s default instance is loaded.
+                  </p>
+                )}
+                {requested?.notes.map((note) => (
+                  <p key={note} className="field-hint">
+                    {note}
+                  </p>
+                ))}
+                {styleNote && <p className="font-warning">{styleNote}</p>}
                 {info.variable && (
                   <p className="font-warning">
                     Variable font: all weights share one file. The outlines show the font's default instance, so
