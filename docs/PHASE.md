@@ -12,6 +12,8 @@ Load font → Parse glyph outlines → Flatten curves → Adjust geometry
           → Inspect in viewport → Export SVG or font
 ```
 
+The font editor is the primary product and receives roughly 70% of product and design focus. Sound-driven carving is a secondary extension, receiving roughly 30%; it operates on the font editor’s polygon geometry and never gates the core font workflow. This is a planning allocation, not a literal screen-area requirement. The default landing workspace remains the font editor.
+
 A key product distinction: “polygon-only” means the exported glyph outlines use straight-line segments. SVG can represent that directly with `M` and `L` commands. Font-file generation is a separate engineering challenge: it must convert the edited polygons into valid font glyphs and preserve required font metadata and metrics.
 
 ---
@@ -376,6 +378,8 @@ OTF generation requires more than writing paths: the output needs valid glyph re
 ---
 
 # Phase E: Sound → Carving Logic → Letterform
+
+This is the secondary product track (roughly 30% of planned product focus). Complete the core font editor milestones first; sound carving extends the existing glyph workflow and must remain optional.
 
 Follow [PRD section 11](PRD.md#11-sound-driven-carved-letterforms-new-product-direction) while extending the existing geometry engine.
 

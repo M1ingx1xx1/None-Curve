@@ -36,6 +36,13 @@ The product is designed for direct, visual exploration. Users should be able to 
 - Export SVGs made of straight-line outlines, with font-file generation as a progressive capability.
 - Perform font loading, editing, and export in the browser.
 
+### Product priority and allocation
+
+- **Font deconstruction and editing is the primary tool, representing about 70% of the overall product focus.** The home and default workspace should prioritize font loading, skeleton inspection, curve linearization, anchor and geometry editing, glyph preview, and export.
+- **Sound-driven carving is a secondary tool, representing about 30% of the overall product focus.** It extends polygon editing with audio analysis, parameter mapping, and carving effects. The core font tool must remain fully usable when the audio module is off.
+- The 70/30 split is a product-planning allocation for feature and design effort. It guides interface hierarchy, implementation order, and scope; it is not a strict screen-pixel or session-time ratio.
+- Deliver font capabilities before audio features. The audio module must not reduce the discoverability, core editing capabilities, or SVG/font export paths of the font tool.
+
 ### Non-goals for the first release
 
 - Replacing a full font drawing or typesetting application.
@@ -139,6 +146,12 @@ Update the preview when parameters change. Controls must show their current valu
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed.
 4. **Export:** SVG settings, font glyph coverage, and font metadata.
 
+### Tool hierarchy
+
+- Open on the font deconstruction workspace by default. Font handling, skeleton inspection, outline editing, and export form the primary navigation and canvas.
+- Offer sound carving as an optional tool or workspace mode for the current glyph. It must not replace the core font editor or require audio input for font editing.
+- When sound is active, retain comparison access to the source glyph, base polygon, and sound-driven result.
+
 ### Visual and interaction principles
 
 - Use a dark, high-contrast, minimal visual language that supports outline inspection and form-making.
@@ -179,6 +192,8 @@ Update the preview when parameters change. Controls must show their current valu
 | 3. Form-making tools | Grid snapping, angle locking, deterministic noise, text specimen |
 | 4. Font generation | Font metadata, glyph selection, OTF generation and validation |
 | 5. Release polish | Interaction details, accessibility, error states, GitHub Pages deployment |
+
+**Planning priority:** Keep roughly 70% of product and design effort focused on the font editor. Build sound-driven carving as the remaining roughly 30%, after the core font workflow is usable, in the separate sound-to-letterform track below.
 
 ## 10. Open questions
 
