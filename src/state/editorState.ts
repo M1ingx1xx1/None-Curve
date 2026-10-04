@@ -22,7 +22,8 @@ export const initialState: AppState = {
     export: { format: 'svg', precision: 2, lastExport: null },
   },
   params: {
-    flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4 },
+    flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4, mergeCurves: false, breakAt: 'extrema', cornerAngle: 15 },
+    squaring: { amount: 0, scope: 'round' },
     anchors: { spacing: 0, simplify: 0 },
     grid: { snap: false, size: 10, angleLock: false, angleStep: 45 },
     distortion: { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 },
@@ -36,7 +37,8 @@ export type Action =
   | { [G in ParamGroup]: { type: 'updateParams'; group: G; patch: Partial<EditorParams[G]> } }[ParamGroup]
   | { type: 'resetView' }
   | { type: 'updateExport'; patch: Partial<ExportMeta> }
-  | { type: 'selectGlyph'; glyph: GlyphRef | null }
+  /** keepView leaves zoom and pan alone (selecting inside the text specimen). */
+  | { type: 'selectGlyph'; glyph: GlyphRef | null; keepView?: boolean }
   | { type: 'importStarted'; requestId: number; origin: ImportOrigin; label: string }
   | { type: 'importSucceeded'; requestId: number; font: LoadedFont }
   | { type: 'importFailed'; requestId: number; origin: ImportOrigin; errorKind: FontErrorKind; message: string }
@@ -67,7 +69,9 @@ export function editorReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         document: { ...state.document, selectedGlyph: action.glyph },
-        params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
+        params: action.keepView
+          ? state.params
+          : { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
       }
     case 'importStarted':
       return {

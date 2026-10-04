@@ -185,26 +185,85 @@ input[type='range']:disabled {
 
 .workspace {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  /* Four quadrants: tools + parameters | canvas over text | glyphs. */
+  grid-template-columns: minmax(300px, 30%) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) clamp(220px, 32vh, 360px);
+  grid-template-areas:
+    'tools canvas'
+    'geometry canvas'
+    'glyphs input';
   min-height: 0;
   overflow: hidden;
 }
 
-.workspace-controls {
+.workspace-tools,
+.workspace-geometry,
+.workspace-input,
+.workspace-glyphs {
   /* Contains absolutely positioned helpers (e.g. .visually-hidden) so they scroll with the panel. */
   position: relative;
-  border-right: 1px solid var(--border);
+  min-width: 0;
+  min-height: 0;
   background: var(--surface);
+}
+
+.workspace-tools {
+  grid-area: tools;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+  max-height: 45vh;
   overflow-y: auto;
 }
 
-.workspace-stage {
+.workspace-geometry {
+  grid-area: geometry;
+  border-right: 1px solid var(--border-strong);
+  overflow-y: auto;
+}
+
+.workspace-canvas {
+  grid-area: canvas;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 16px;
-  padding: 16px;
+  padding: 12px;
   min-width: 0;
   min-height: 0;
+}
+
+.workspace-glyphs {
+  grid-area: glyphs;
+  border-top: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
+  overflow-y: auto;
+}
+
+.workspace-input {
+  grid-area: input;
+  border-top: 1px solid var(--border-strong);
+  overflow: hidden;
+}
+
+/* Bottom right: text input (left) and selected-glyph preview (right). */
+.input-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 38%);
+  height: 100%;
+}
+
+.input-panel-text,
+.input-panel-preview {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.input-panel-preview {
+  border-left: 1px solid var(--border);
+}
+
+/* The parameters toggle only matters on narrow screens. */
+.panel-toggle {
+  display: none;
 }
 
 /* ---- Control panel ---- */
@@ -462,112 +521,128 @@ input[type='range']:disabled {
   margin-bottom: 4px;
 }
 
-/* ---- Glyph strip / specimen ---- */
+/* ---- Text (B), font (A), specimen in the canvas ---- */
 
-.strip {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  padding: 12px 16px;
-}
-
-.strip-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-
-
-
-.strip {
+.text-panel,
+.glyph-preview {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 0;
-  /* Long specimen lines scroll inside .strip-view instead of widening the layout. */
-  min-width: 0;
+  height: 100%;
+  padding: 12px 14px;
 }
 
-.strip-head {
+.text-actions {
   display: flex;
+  gap: 6px;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
-.strip-head .strip-title {
-  margin: 0;
+.text-actions select {
+  padding: 3px 8px;
+  font-size: 0.85rem;
 }
 
-.strip-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
+.glyph-preview .section-head h2 {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.85rem;
 }
 
-.strip-controls input[type='range'] {
-  width: 120px;
+.glyph-preview-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 120px;
+  border: 1px solid var(--border);
+  background-color: var(--canvas);
 }
 
-.strip-fit {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.strip-size {
-  font-family: var(--mono);
-  min-width: 40px;
+.glyph-preview-empty {
+  padding: 12px;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
-.strip-input {
+.text-input {
+  flex: 1;
+  min-height: 4.5em;
   font: inherit;
+  font-size: 1rem;
   color: inherit;
-  background: var(--surface);
+  background: var(--canvas);
   border: 1px solid var(--border-strong);
   border-radius: 4px;
-  padding: 6px 10px;
-  resize: vertical;
-  min-height: 2.6em;
+  padding: 8px 10px;
+  resize: none;
 }
 
-.strip-view {
-  overflow: auto;
-  max-width: 100%;
-  max-height: 28vh;
-  border: 1px solid var(--border);
-  background: var(--canvas);
-  padding: 8px;
+.text-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.strip-view svg {
-  display: block;
-}
-
-.strip-view[data-fit='true'] svg {
-  max-height: calc(28vh - 16px);
-  width: 100%;
-}
-
-.strip-view[aria-busy='true'] {
+.text-notes[aria-busy='true'] {
   opacity: 0.7;
 }
 
-.strip-glyph {
-  fill: var(--text);
+.tool-head {
+  gap: 12px;
+}
+
+.tool-head .font-facts {
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+}
+
+.glyph-panel {
+  height: 100%;
+  gap: 8px;
+}
+
+.glyph-panel .glyph-picker {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Bottom right is the glyph preview: larger cells, filling the quadrant. */
+.glyph-panel .glyph-grid {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+}
+
+.glyph-panel .glyph-cell svg {
+  height: 48px;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-row .button-small[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--surface);
+}
+
+.specimen-glyph {
   cursor: pointer;
 }
 
-.strip-glyph:hover {
+.specimen-glyph:hover .glyph-fill {
   fill: var(--accent);
 }
 
-.strip-glyph-selected {
+.glyph-fill-selected {
   fill: var(--accent);
+}
+
+.gf-invalid {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  color: var(--danger);
 }
 
 .strip-missing {
@@ -575,11 +650,6 @@ input[type='range']:disabled {
   stroke: var(--danger);
   stroke-width: 1.5;
   stroke-dasharray: 4 3;
-}
-
-.strip-message {
-  color: var(--muted);
-  font-size: 0.85rem;
 }
 
 /* ---- Status bar ---- */
@@ -882,10 +952,6 @@ input[type='range']:disabled {
   color: var(--surface);
 }
 
-
-
-
-
 /* ---- Glyph view ---- */
 
 .glyph-view {
@@ -1034,6 +1100,15 @@ input[type='range']:disabled {
 }
 
 /* ---- Flattening ---- */
+
+.merge-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
 
 .flatten-stats {
   display: grid;
@@ -1421,15 +1496,56 @@ input[type='range']:disabled {
     min-height: 100vh;
   }
 
+  /* Stacked: import and font info, the canvas (largest), parameters (collapsible), text, glyphs. */
   .workspace {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas: 'tools' 'canvas' 'geometry' 'input' 'glyphs';
     overflow: visible;
   }
 
-  .workspace-controls {
+  .workspace-tools,
+  .workspace-geometry,
+  .workspace-input,
+  .workspace-glyphs {
     border-right: 0;
-    border-bottom: 1px solid var(--border);
+    max-height: none;
     overflow: visible;
+  }
+
+  .workspace[data-geometry='closed'] .workspace-geometry {
+    display: none;
+  }
+
+  .workspace-geometry {
+    border-top: 1px solid var(--border);
+  }
+
+  .workspace-canvas {
+    min-height: 62vh;
+    padding: 8px;
+  }
+
+  .panel-toggle {
+    display: inline-flex;
+    padding: 4px 10px;
+  }
+
+  .glyph-panel .glyph-grid {
+    max-height: 320px;
+  }
+
+  .input-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .input-panel-preview {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .glyph-preview-canvas {
+    min-height: 240px;
   }
 
   .glyph-grid {
@@ -1446,10 +1562,6 @@ input[type='range']:disabled {
 
   .export-names {
     grid-template-columns: 1fr;
-  }
-
-  .strip-view {
-    max-height: none;
   }
 
   .header-actions {

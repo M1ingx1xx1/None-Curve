@@ -1,11 +1,13 @@
 import { formatCodePoint } from '../font/model'
 import { describePipeline } from '../geometry/describe'
+import type { SpecimenScene } from '../specimen/scene'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
 
 interface StatusBarProps {
   state: AppState
   glyphGeometry: GlyphGeometry
+  scene: SpecimenScene | null
 }
 
 const statusText: Record<AppState['document']['status']['kind'], string> = {
@@ -15,7 +17,7 @@ const statusText: Record<AppState['document']['status']['kind'], string> = {
   error: 'Import failed',
 }
 
-export default function StatusBar({ state, glyphGeometry }: StatusBarProps) {
+export default function StatusBar({ state, glyphGeometry, scene }: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
   let glyphInfo = '—'
@@ -31,9 +33,10 @@ export default function StatusBar({ state, glyphGeometry }: StatusBarProps) {
     const steps = describePipeline(state.params)
     const method = steps.join(' → ')
     const vertices = glyphGeometry.geometry ? `${glyphGeometry.geometry.vertexCount} vertices` : 'flattening failed'
-    if (view.outline === 'source') viewing = 'Original curves'
-    else if (view.outline === 'flattened') viewing = `Flattened polygon (${method}) · ${vertices}`
-    else viewing = `Compare: flattened (${method}) over original · ${vertices}`
+    const target = `text (${scene?.glyphCount ?? 0} glyphs)`
+    if (view.outline === 'source') viewing = `Original curves · ${target}`
+    else if (view.outline === 'flattened') viewing = `Final polygon (${method}) · ${target} · selected glyph ${vertices}`
+    else viewing = `Compare: final polygon (${method}) over original · ${target} · selected glyph ${vertices}`
   }
 
   return (
