@@ -18,9 +18,9 @@ Planned extension: map Volume, Pitch, Rhythm, Duration, Frequency distribution, 
 
 ## Development / 开发
 
-Tech stack: Vite + React + TypeScript. Requires Node.js 20.19+ (22 recommended).
+Tech stack: Vite + React + TypeScript, with [fontkit](https://github.com/foliojs/fontkit) for font parsing (loaded on demand). Requires Node.js 20.19+ (22 recommended).
 
-技术栈：Vite + React + TypeScript。需要 Node.js 20.19 及以上（推荐 22）。
+技术栈：Vite + React + TypeScript，字体解析使用 fontkit（按需加载）。需要 Node.js 20.19 及以上（推荐 22）。
 
 ```bash
 npm install       # 安装依赖
@@ -34,10 +34,11 @@ npm run preview   # 预览生产构建：http://localhost:4173/None-Curve/
 ```text
 src/
 ├── main.tsx, App.tsx      应用入口；App 持有状态（useReducer）并组装组件
-├── components/            UI 组件：Header、Workspace、ControlPanel、CanvasViewport、
-│                          GlyphStrip、FileDropTarget、StatusBar
-├── state/                 文档状态 + 参数状态的类型、初始值与 reducer
-├── geometry/              几何核心类型（原始曲线、参数、规范多边形），不依赖 React
+├── components/            UI 组件：ControlPanel（左侧工具栏：ImportMenu、FontStatus、GlyphPicker、
+│                          UpcomingTools）、CanvasViewport / GlyphView、GoogleFontsDialog 等
+├── font/                  字体加载与解析：本地文件、Google Fonts、格式识别、fontkit 适配、字形搜索
+├── state/                 文档状态 + 参数状态、reducer、导入请求管理（useFontImport）
+├── geometry/              几何核心类型与原始曲线路径工具，不依赖 React
 └── styles.css
 ```
 
@@ -49,9 +50,46 @@ Conventions (e.g. the UI is English only) are recorded in [docs/BEST_PRACTICE.md
 
 约定（例如网页 UI 必须全英文）见 [docs/BEST_PRACTICE.md](docs/BEST_PRACTICE.md)。
 
-Current status: Phase A (architecture) only. Font import, glyph parsing, flattening, geometry editing, audio analysis, carving, and export are UI placeholders and shown as disabled.
+Current status: font import → glyph selection → outline and source-curve skeleton preview works. Flattening, polygon editing, distortion, specimen text, audio analysis, carving, and export are not implemented; their controls are disabled and labeled.
 
-当前进度：仅完成阶段 A（架构与基础界面）。字体导入与解析、曲线展平、几何编辑、音频分析、声音映射、石刻效果和导出均为禁用的界面占位。
+当前进度：已实现“导入字体 → 选择字形 → 查看填充轮廓与原始曲线骨架”。曲线展平、多边形编辑、扰动、样张文本、音频分析、石刻和导出尚未实现，相关控件均为禁用并有标注。
+
+## Fonts / 字体导入
+
+**Import** sits at the top of the left toolbar and offers two sources. Both produce the same font model and glyph preview.
+
+左侧工具栏最上方的 **Import font** 提供两种来源，二者进入同一套字体模型和字形预览。
+
+### Local files / 本地文件
+
+- Formats / 格式：`.ttf`, `.otf` (TrueType and CFF outlines), `.woff`, `.woff2`. The format is detected from the file's bytes, not its extension. Font collections (`.ttc`/`.otc`) are not supported yet.
+- Choose a file from the menu or drop it on the canvas. Files are read in the browser and never uploaded. Limit: 50 MB.
+- Empty, unrecognized, and damaged files show distinct errors with a Retry button; the previously loaded font stays visible.
+
+### Google Fonts
+
+Previewing a family with CSS does not give access to outlines, so the app downloads the actual font file:
+
+CSS 预览字体无法拿到轮廓数据，因此应用会下载真实字体文件再解析：
+
+1. `GET https://fonts.googleapis.com/css2?family=<Family>:ital,wght@0,100;…;1,900` — the official CSS2 API, no API key. It returns only the styles that exist, one `@font-face` per subset. CORS is allowed.
+2. `GET https://fonts.gstatic.com/s/<family>/<version>/<file>.woff2` for the chosen weight, style, and subset.
+3. Parse the WOFF2 with fontkit. Only after this succeeds does the font become selectable in the glyph list.
+
+Limits / 限制：
+
+- **Catalog:** the full searchable catalog needs the Google Fonts Developer API key, which cannot be kept secret in a static Pages build. The dialog offers a curated list of 25 families plus any family name typed exactly as on fonts.google.com (case-sensitive).
+  完整目录需要 Developer API key，静态站点无法保密，因此只提供精选列表 + 手动输入准确的 family 名称。
+- **Subsets:** Google splits families into per-subset files (latin, latin-ext, cyrillic, …). One subset is loaded at a time, so glyphs outside it are missing.
+- **Variable fonts:** detected when several weights share one file. The outlines show the default instance; axis values (e.g. `wght`) are listed but cannot be chosen yet (fontkit cannot instantiate variations from WOFF2). Weight selection is disabled for these families.
+- **Errors:** unknown families come back as HTTP 400 without CORS headers, which looks like a network error to the browser. The app re-checks with a `no-cors` request to tell "Google rejected the name" apart from "network / CORS / content blocker". Download and parsing errors are reported separately, all with Retry.
+- The font version (e.g. `v20`) comes from the gstatic URL and is shown after loading.
+
+### Canvas / 画布
+
+- **Fill**, **Skeleton**, and **Metrics** layers. The skeleton draws on-curve anchors (squares), off-curve control points (circles), and handles. TrueType quadratic curves show the implied on-curve points between consecutive control points as anchors.
+- Zoom with the mouse wheel or `+` / `−`, pan by dragging or with arrow keys (canvas focused), `0` or **Fit** to reset.
+- Metric guides: ascender, cap height, x-height, baseline, descender, and the advance width.
 
 ## Deploy to GitHub Pages / 部署
 

@@ -5,15 +5,16 @@ interface HeaderProps {
 }
 
 function fileStatusLabel(document: DocumentState): string {
-  switch (document.status.kind) {
+  const { status, font } = document
+  switch (status.kind) {
     case 'empty':
       return 'No font loaded'
     case 'loading':
-      return `Reading ${document.status.fileName}`
+      return `${status.label}…`
     case 'error':
-      return `Failed to read: ${document.status.message}`
+      return font ? `Import failed · showing ${font.familyName}` : 'Import failed'
     case 'ready':
-      return document.font?.fileName ?? 'Loaded'
+      return font ? `${font.familyName} ${font.styleName}` : 'Loaded'
   }
 }
 
@@ -29,9 +30,6 @@ export default function Header({ document }: HeaderProps) {
         {fileStatusLabel(document)}
       </p>
       <div className="header-actions">
-        <button type="button" disabled title="Font import is not implemented yet">
-          Import font<span className="pending">Soon</span>
-        </button>
         <button type="button" disabled title="Export is not implemented yet">
           Export<span className="pending">Soon</span>
         </button>

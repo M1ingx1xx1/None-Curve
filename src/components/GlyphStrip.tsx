@@ -6,19 +6,21 @@ interface GlyphStripProps {
 
 const placeholderSample = 'Aa Bb Rr Ss 01'
 
-/** Glyph strip / specimen. Phase A shows the empty state only. */
+/** Specimen strip. Text setting arrives in a later phase. */
 export default function GlyphStrip({ document }: GlyphStripProps) {
-  const glyphCount = document.font?.glyphCount ?? 0
-
   return (
-    <section className="strip" aria-label="Glyph strip and specimen">
-      <h2 className="strip-title">Specimen</h2>
+    <section className="strip" aria-label="Specimen">
+      <h2 className="strip-title">
+        Specimen <span className="pending">Not implemented</span>
+      </h2>
       <div className="strip-body">
         <span className="strip-sample" aria-hidden="true">
           {placeholderSample}
         </span>
         <p className="strip-message">
-          {glyphCount > 0 ? `${glyphCount} glyphs. Specimen preview is not implemented yet.` : 'Load a font to browse glyphs and specimen text here.'}
+          {document.font
+            ? 'Specimen text preview is not implemented yet. Use the glyph list to inspect glyphs.'
+            : 'Load a font to inspect its glyphs.'}
         </p>
       </div>
     </section>
