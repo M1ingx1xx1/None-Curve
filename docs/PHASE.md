@@ -42,15 +42,16 @@ App
 │   ├── FontName / FileStatus
 │   └── ExportActions
 ├── Workspace
-│   ├── CanvasViewport
+│   ├── ControlPanel (left)
+│   │   ├── GlyphSelection
+│   │   ├── DeconstructionControls
+│   │   ├── GeometryGridControls
+│   │   ├── DistortionControls
+│   │   └── ExportControls
+│   └── CanvasViewport (primary area, right)
 │   │   ├── GlyphCanvas
 │   │   ├── ViewModeToolbar
 │   │   └── MetricGuides
-│   └── ControlPanel
-│       ├── DeconstructionControls
-│       ├── GeometryGridControls
-│       ├── DistortionControls
-│       └── ExportControls
 ├── GlyphStrip / Specimen
 ├── FileDropTarget
 └── StatusBar
@@ -113,6 +114,8 @@ Separate state into three layers:
 3. **Derived geometry:** processed polygon contours for the selected glyph or specimen.
 
 Keep slider interaction responsive by updating the control state immediately, then scheduling geometry work separately. Use `requestAnimationFrame` to coalesce rapid updates. For larger glyph sets, move recomputation to a Web Worker and send compact typed arrays or serialized contour data.
+
+The live glyph canvas is the primary feedback surface and remains visible while parameters change. Font loading creates an editable preview; it does not generate an output file. Export is a separate, explicit user action. During expensive recomputation, keep the last valid preview visible and indicate pending work rather than replacing the canvas with an export-only result.
 
 Recommended update path:
 
@@ -237,16 +240,17 @@ Avoid presenting internal library vocabulary directly in the designer interface 
 
 ```text
 ┌───────────────────────────────────────────────────────────┐
-│ Font name · glyph count                 Import  SVG  OTF  │
-├────────────┬──────────────────────────────┬───────────────┤
-│ Glyph list │                              │ Controls      │
-│ A B C ...  │        Canvas viewport       │ Deconstruction│
-│            │                              │ Geometry/Grid │
-│            │   baseline ───────────────── │ Distortion    │
-│            │   cap height ─────────────── │ Export        │
-├────────────┴──────────────────────────────┴───────────────┤
-│ Outline / Fill · zoom · selected glyph · processing status │
-└───────────────────────────────────────────────────────────┘
+│ Font name · glyph count                         Import Export│
+├──────────────────────┬───────────────────────────────────────┤
+│ Control panel (left) │ Live canvas viewport (right)          │
+│ Glyph selection      │ Source skeleton / current polygon     │
+│ Deconstruction       │ Outline / filled rendering            │
+│ Geometry and grid    │ Guides and specimen preview            │
+│ Distortion / carving │ Updates as controls change             │
+│ Export options       │                                       │
+├──────────────────────┴───────────────────────────────────────┤
+│ Preview mode · zoom · selected glyph · processing status      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Outline mode
@@ -264,7 +268,7 @@ Direction vectors can be offered as an optional diagnostic overlay. Name and exp
 
 ### Fill mode
 
-Show solid filled glyphs for silhouette evaluation. Support a single-glyph view and a specimen string view so users can assess rhythm, spacing, counters, and repeated forms. Preserve advances and kerning where the parser and export pipeline support them, and make unsupported font behavior visible.
+Show solid filled glyphs for silhouette evaluation. Keep the rendered glyph visible as users edit. Support a single-glyph view and a specimen string view so users can assess rhythm, spacing, counters, and repeated forms. Preserve advances and kerning where the parser and export pipeline support them, and make unsupported font behavior visible.
 
 ## 3. Control panel specification
 
@@ -331,7 +335,7 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 - Export SVG with explicit `M` and `L` commands only.
 - Verify exports contain no `C` or `Q` commands and preserve closed contours.
 
-**Acceptance outcome:** A user can load a font, see a polygon approximation of a glyph, adjust basic flattening, and download an SVG.
+**Acceptance outcome:** A user can load a font and immediately see a live glyph preview, adjust basic flattening in the left panel and see the right canvas update, then explicitly export an SVG.
 
 ## Milestone 2: Interactive anchor control and parametric sliders
 
@@ -388,7 +392,7 @@ Follow [PRD section 11](PRD.md#11-sound-driven-carved-letterforms-new-product-di
 3. **Geometry:** Rebuild base polygons from read-only source glyphs; apply thickness/expansion, terminal extension, notches, roughness, and erosion, then validate closure, counters, winding, and intersections. Version a fixed order and disclose where existing snapping/jitter occur. Define Depth, Pressure, and Width separately to avoid duplicated weight amplification.
 4. **Time assignment:** Deliver aggregate-selection mode first, followed by stable arc-length and text-instance assignment. Font contours do not imply a stroke skeleton; extension needs explicit points/directions or a validated detection strategy.
 5. **State/performance:** Separate source audio, feature cache, mapping configuration, derived geometry, and recipe. Reject stale jobs using task IDs. Key feature caches by audio fingerprint/configuration and geometry caches additionally by glyph, selection, mapping, seed, and algorithm version.
-6. **UI/delivery:** Add audio timeline, feature inspection, carving controls, mapping editor, source/base/result comparison, validity feedback, and JSON recipes. Live microphone mode is later work and is not required for static audio generation.
+6. **UI/delivery:** Keep carving controls in the left panel and the live glyph canvas visible on the right. Add audio timeline, feature inspection, mapping editor, source/base/result comparison, validity feedback, and JSON recipes. Live microphone mode is later work and is not required for static audio generation.
 
 ```text
 Local audio → decode/analyze → raw/normalized features + validity

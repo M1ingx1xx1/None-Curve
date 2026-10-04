@@ -58,12 +58,12 @@ Load font → Choose glyph → Inspect source skeleton → Set curve-to-line beh
 ```
 
 1. The user drops or selects a `.ttf` / `.otf` file.
-2. The app reads the file locally and displays the font name and available glyphs.
-3. The user selects a glyph and inspects its original curve skeleton and generated polygon in outline view.
-4. The user chooses adaptive flattening or sets the number of straight segments per original curve.
-5. Optionally, the user adjusts anchor density, simplification, grid snapping, angle constraints, and vertex noise.
-6. The user switches to filled preview or a specimen string to inspect shape, counters, and spacing.
-7. The user exports an SVG of the selected glyph or generates a font file within the supported scope.
+2. The app reads the file locally and immediately displays a default glyph and glyph selection.
+3. The left control panel provides glyph selection and editing controls; the main canvas on the right continuously shows the current rendered glyph.
+4. The user inspects the source-curve skeleton and current polygon, then chooses adaptive flattening or sets the number of straight segments per curve.
+5. The user adjusts anchor density, simplification, grid snapping, angle constraints, or vertex noise; the canvas updates live with the new parameters.
+6. The user switches to filled preview or a specimen string to inspect shape, counters, and spacing in real time.
+7. Only when the user explicitly exports does the app generate and download an SVG or supported font file. Loading a font does not trigger export.
 
 ## 5. Functional requirements
 
@@ -74,6 +74,7 @@ Load font → Choose glyph → Inspect source skeleton → Set curve-to-line beh
 - Show the file name, parsing status, and an entry point for glyph selection.
 - Show understandable errors for unreadable or unsupported files.
 - Provide single-glyph outline view with basic zoom and pan.
+- Show a visual glyph preview immediately after loading; loading creates an editable workspace and does not automatically generate or download an output file.
 
 ### P0: Source-curve skeleton
 
@@ -91,6 +92,8 @@ Provide two clearly distinguished modes:
 - **Lines per curve:** Let the user set how many straight segments are generated for each original curve. More segments produce a closer approximation.
 
 Update the preview when parameters change. Controls must show their current values and a short explanation of their effect. In fixed-count mode, warn or provide visual feedback when the approximation error is noticeably high.
+
+Keep the rendered result visible on the main canvas while users drag or adjust controls; users must not have to export a file to inspect the shape.
 
 ### P0: SVG export
 
@@ -127,17 +130,21 @@ Update the preview when parameters change. Controls must show their current valu
 ## 6. Information architecture and interface requirements
 
 ```text
-┌───────────────────────────────────────────────────────────┐
-│ Font / file status                            Import Export│
-├────────────┬──────────────────────────────┬───────────────┤
-│ Glyph      │                              │ Deconstruction│
-│ selection  │        Glyph viewport        │ Geometry/Grid │
-│            │  Skeleton / Polygon / Fill    │ Distortion    │
-│            │                              │ Export options│
-├────────────┴──────────────────────────────┴───────────────┤
-│ Specimen / preview mode / zoom / processing status         │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Font / file status                              Import Export│
+├──────────────────────┬───────────────────────────────────────┤
+│ Left control panel   │ Live glyph canvas                     │
+│ Glyph selection      │ Source skeleton / current polygon / fill│
+│ Deconstruction       │                                       │
+│ Geometry and grid    │ Updates immediately when parameters   │
+│ Distortion / carving │ change                                │
+│ Export options       │                                       │
+├──────────────────────┴───────────────────────────────────────┤
+│ Specimen / preview mode / zoom / processing status           │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+The canvas is the primary feedback area and remains visible during editing. Loading and exporting are separate actions: loading opens a live editing preview; a file is generated only after the user explicitly exports.
 
 ### Control groups
 
@@ -149,6 +156,7 @@ Update the preview when parameters change. Controls must show their current valu
 ### Tool hierarchy
 
 - Open on the font deconstruction workspace by default. Font handling, skeleton inspection, outline editing, and export form the primary navigation and canvas.
+- Place the control panel on the left and the live glyph canvas in the main area on the right. On narrow screens, the left panel may collapse, but an exported file must never replace the live preview.
 - Offer sound carving as an optional tool or workspace mode for the current glyph. It must not replace the core font editor or require audio input for font editing.
 - When sound is active, retain comparison access to the source glyph, base polygon, and sound-driven result.
 
@@ -174,6 +182,8 @@ Update the preview when parameters change. Controls must show their current valu
 ## 8. Acceptance criteria
 
 - Users can load a valid `.ttf` / `.otf` and choose a glyph; invalid files produce a clear message.
+- Users can see a live glyph preview immediately after loading, without exporting.
+- Editing controls are on the left; changing lines per curve or other geometry parameters updates the visible canvas result.
 - Users can show the skeleton and identify original anchors, control points, and handles.
 - Users can adjust the number of straight segments per curve and immediately see the polygon change.
 - Users can switch to adaptive approximation and understand how it differs from fixed segment counts.
@@ -181,6 +191,7 @@ Update the preview when parameters change. Controls must show their current valu
 - Exported SVGs contain only straight-line path commands, have closed contours, and display counters correctly.
 - The same parameters and random seed produce the same geometry.
 - Font loading, preview, and export all run client-side.
+- Loading a font does not automatically create a download; export happens only after an explicit user action.
 - If font export cannot preserve certain features, the app explains this before export.
 
 ## 9. Suggested milestones

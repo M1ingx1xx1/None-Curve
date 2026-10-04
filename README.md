@@ -1,10 +1,10 @@
 # None-Curve
 
-An experimental web app for turning font curves into editable polygon shapes. The font editor is the primary tool; an optional audio-driven carving tool lets you shape glyphs from sound. Inspect a glyph’s original points, explore different levels of detail, and export your results as SVG or a font file.
+An experimental web app for turning font curves into editable polygon shapes. Load a font to see its glyphs rendered live, then adjust the controls on the left and watch the outlines update on the canvas. The font editor is the primary tool; an optional audio-driven carving tool lets you shape glyphs from sound. Export only when you’re ready.
 
 ## 中文
 
-一个将字体曲线转换成可编辑多边形的实验性网页工具，字体编辑器是核心功能，并提供可选的声音驱动石刻工具。你可以查看字形原有的锚点和控制点、调整轮廓细节，也可以用声音塑造字形。作品可导出为 SVG 或字体文件。
+一个将字体曲线转换成可编辑多边形的实验性网页工具。载入字体后即可看到字形的实时预览，在左侧调整控制项，画布中的轮廓会随之更新。字体编辑器是核心功能，并提供可选的声音驱动石刻工具；准备好后再手动导出作品。
 
 ## Sound → Carving Logic → Letterform
 
