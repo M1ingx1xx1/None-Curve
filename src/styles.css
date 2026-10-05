@@ -14,6 +14,11 @@
   --danger: #b42318;
   --control: #c2410c;
   --vertex: #0f8a5f;
+  /* Primary buttons: the same mint in both themes, with dark text for contrast. */
+  --primary: #adfce7;
+  --on-primary: #0b2a22;
+  /* On the light theme the mint nearly matches the white panels, so its edge is drawn darker. */
+  --primary-edge: #3fae8f;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -38,6 +43,7 @@
     --danger: #ff8a7a;
     --control: #ff9a5c;
     --vertex: #3ddc97;
+    --primary-edge: #adfce7;
   }
 }
 
@@ -127,6 +133,8 @@ input[type='range']:disabled {
 .app {
   height: 100vh;
   display: grid;
+  /* The column is the window width; long one-line content (the status bar) must not widen it. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
 }
 
@@ -208,10 +216,10 @@ input[type='range']:disabled {
   min-height: 0;
 }
 
-/* Bottom row: glyphs | text input and preview (with their own handle). */
+/* Bottom row: glyphs | handle | text input and preview (with their own handle). */
 .workspace-bottom {
   display: grid;
-  grid-template-columns: minmax(300px, 30%) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--glyphs-width, 30fr)) 8px minmax(0, var(--input-width, 70fr));
   min-width: 0;
   min-height: 0;
 }
@@ -247,7 +255,6 @@ input[type='range']:disabled {
 }
 
 .workspace-glyphs {
-  border-right: 1px solid var(--border-strong);
   overflow-y: auto;
 }
 
@@ -408,6 +415,13 @@ input[type='range']:disabled {
   padding: 0 0 16px;
   border: 0;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.group-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -656,8 +670,14 @@ input[type='range']:disabled {
   padding: 12px 14px;
 }
 
+/* Narrow text panels (after resizing) wrap the actions below the title instead of clipping them. */
+.text-panel .section-head {
+  flex-wrap: wrap;
+}
+
 .text-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
 }
@@ -754,6 +774,8 @@ input[type='range']:disabled {
 .glyph-panel {
   height: 100%;
   gap: 8px;
+  /* The cells below adapt to this panel's width (set by the resize handle), not the window's. */
+  container: glyph-panel / inline-size;
 }
 
 .glyph-panel .glyph-picker {
@@ -771,6 +793,22 @@ input[type='range']:disabled {
 
 .glyph-panel .glyph-cell svg {
   height: 48px;
+}
+
+/* A narrow glyph list shows only the characters: smaller cells, no code point labels. The code point
+   stays in each cell's tooltip and accessible name. */
+@container glyph-panel (max-width: 280px) {
+  .glyph-panel .glyph-grid {
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  }
+
+  .glyph-panel .glyph-cell svg {
+    height: 36px;
+  }
+
+  .glyph-panel .glyph-cell-label {
+    display: none;
+  }
 }
 
 .preset-row {
@@ -812,9 +850,11 @@ input[type='range']:disabled {
 /* ---- Status bar ---- */
 
 .statusbar {
+  /* One line, always: if the status bar grew when the settings description got longer, the whole
+     workspace above would shrink and move the control being dragged. */
   display: flex;
-  flex-wrap: wrap;
   gap: 4px 20px;
+  white-space: nowrap;
   padding: 6px 16px;
   border-top: 1px solid var(--border-strong);
   background: var(--surface);
@@ -823,17 +863,25 @@ input[type='range']:disabled {
   color: var(--muted);
 }
 
-.statusbar-view {
-  margin-left: auto;
+.statusbar > span {
+  flex: none;
+}
+
+.statusbar > .statusbar-view {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
   color: var(--faint);
 }
 
 /* ---- Buttons ---- */
 
 .button-primary {
-  background: var(--text);
-  color: var(--surface);
-  border-color: var(--text);
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary-edge);
   font-weight: 600;
 }
 
@@ -1318,7 +1366,7 @@ input[type='range']:disabled {
   color: var(--faint);
 }
 
-.anchors > .button-small {
+.anchors .group-body > .button-small {
   align-self: flex-start;
 }
 
@@ -1373,9 +1421,9 @@ input[type='range']:disabled {
   letter-spacing: 0.06em;
 }
 
-.random-anchors > .button-small,
-.distortion > .button-small,
-.grid-controls > .button-small {
+.random-anchors .group-body > .button-small,
+.distortion .group-body > .button-small,
+.grid-controls .group-body > .button-small {
   align-self: flex-start;
 }
 
@@ -1773,7 +1821,14 @@ input[type='range']:disabled {
     min-height: 340px;
   }
 
-  .statusbar-view {
-    margin-left: 0;
+  /* Stacked layout: the page scrolls anyway, so the status bar may wrap. */
+  .statusbar {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .statusbar > .statusbar-view {
+    flex-basis: 100%;
+    text-align: left;
   }
 }
