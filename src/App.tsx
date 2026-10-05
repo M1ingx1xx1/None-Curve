@@ -1,24 +1,25 @@
-import { useCallback, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import CanvasViewport from './components/CanvasViewport'
 import ExportDialog from './components/ExportDialog'
-import GeometryPanel from './components/GeometryPanel'
 import GlyphPanel from './components/GlyphPanel'
 import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
 import InputPanel from './components/InputPanel'
 import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
-import TextPreview, { DEFAULT_PREVIEW_LOOK, type PreviewLook, type PreviewRender } from './components/TextPreview'
+import TextPreview, { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './components/TextPreview'
 import ToolHead from './components/ToolHead'
+import ToolPanel from './components/ToolPanel'
 import Workspace from './components/Workspace'
 import type { GlyphRef } from './geometry/types'
+import { applyTextCase, type ArtboardParams, type TextCase } from './specimen/artboard'
+import { DEFAULT_TEXT } from './specimen/samples'
 import { editorReducer, initialState } from './state/editorState'
 import type { ViewParams } from './state/types'
 import { useDerivedGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
 import { useSpecimenScene } from './state/useSpecimenScene'
 
-const DEFAULT_TEXT = 'Hamburgefonstiv\nOO oo 00 — The quick brown fox.'
 
 export default function App() {
   const [state, dispatch] = useReducer(editorReducer, initialState)
@@ -27,8 +28,23 @@ export default function App() {
   const [text, setText] = useState(DEFAULT_TEXT)
   // The preview's blur and inversion, and its scale, so exports can reproduce the preview look.
   const [previewLook, setPreviewLook] = useState<PreviewLook>(DEFAULT_PREVIEW_LOOK)
-  const [previewRender, setPreviewRender] = useState<PreviewRender>({ scale: 0, ink: '#000', paper: '#fff' })
-  const { scene, pending: scenePending } = useSpecimenScene(state.document.font, text, derived.params, derived.paramsKey)
+  const [previewScale, setPreviewScale] = useState(0)
+  const { typography, palette, artboard } = state.params
+  // The text as shown and exported: the typed text with the letter case applied.
+  const displayText = useMemo(() => applyTextCase(text, typography.textCase), [text, typography.textCase])
+  const {
+    scene,
+    layout,
+    pending: scenePending,
+  } = useSpecimenScene(state.document.font, displayText, derived.params, derived.paramsKey, typography, artboard)
+  const setTextCase = useCallback(
+    (textCase: TextCase) => dispatch({ type: 'updateParams', group: 'typography', patch: { textCase } }),
+    [],
+  )
+  const setArtboard = useCallback(
+    (patch: Partial<ArtboardParams>) => dispatch({ type: 'updateParams', group: 'artboard', patch }),
+    [],
+  )
 
   // Only used on narrow screens; on desktop the geometry parameters are always shown top left.
   const [geometryOpen, setGeometryOpen] = useState(false)
@@ -80,12 +96,16 @@ export default function App() {
       <Workspace
         geometryOpen={geometryOpen}
         tools={<ToolHead document={state.document} importer={importer} onOpenGoogleFonts={openGoogleFonts} />}
-        geometry={<GeometryPanel state={state} dispatch={dispatch} derived={derived} />}
+        geometry={<ToolPanel state={state} dispatch={dispatch} derived={derived} scene={scene} />}
         canvas={
           <CanvasViewport
             document={state.document}
             view={state.params.view}
             scene={scene}
+            layout={layout}
+            palette={palette}
+            artboard={artboard}
+            onArtboardChange={setArtboard}
             gridSize={gridSize}
             geometryPanelOpen={geometryOpen}
             onToggleGeometryPanel={() => setGeometryOpen((open) => !open)}
@@ -108,18 +128,22 @@ export default function App() {
                 onTextChange={setText}
                 inputRef={textRef}
                 onInputFocus={onTextFocus}
+                textCase={typography.textCase}
+                onTextCaseChange={setTextCase}
               />
             }
             preview={
               <TextPreview
                 font={state.document.font}
                 scene={scene}
+                layout={layout}
+                palette={palette}
                 view={state.params.view}
                 gridSize={gridSize}
                 selectedGlyph={state.document.selectedGlyph}
                 look={previewLook}
                 onLookChange={setPreviewLook}
-                onRenderChange={setPreviewRender}
+                onScaleChange={setPreviewScale}
               />
             }
           />
@@ -132,9 +156,12 @@ export default function App() {
         onClose={() => setExportOpen(false)}
         font={state.document.font}
         selectedGlyph={state.document.selectedGlyph}
-        specimenText={text}
+        specimenText={displayText}
+        typography={typography}
+        palette={palette}
+        artboard={artboard}
         previewLook={previewLook}
-        previewRender={previewRender}
+        previewScale={previewScale}
         params={derived.params}
         paramsKey={derived.paramsKey}
         pending={derived.pending}

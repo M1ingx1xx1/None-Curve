@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef } from '../geometry/types'
+import { artboardViewFrame, type ArtboardLayout, type PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import ErrorBoundary from './ErrorBoundary'
@@ -9,6 +10,8 @@ import SpecimenView from './SpecimenView'
 interface TextPreviewProps {
   font: LoadedFont | null
   scene: SpecimenScene | null
+  layout: ArtboardLayout | null
+  palette: PaletteParams
   /** Outline and layer settings of the result canvas; zoom and pan are ignored (always fitted). */
   view: ViewParams
   gridSize: number | null
@@ -16,26 +19,23 @@ interface TextPreviewProps {
   /** Blur and inversion live in App so the export dialog can reproduce this view. */
   look: PreviewLook
   onLookChange: (look: PreviewLook) => void
-  /** Reports how the preview is drawn, so exports can reproduce it. */
-  onRenderChange: (render: PreviewRender) => void
-}
-
-/** What an export needs to look like the preview. */
-export interface PreviewRender {
-  /** Screen pixels per font unit at the preview's current size; 0 when nothing is shown. */
-  scale: number
-  /** The colours actually on screen (theme and Invert applied). */
-  ink: string
-  paper: string
+  /** Reports the preview's scale (screen pixels per font unit), so exports can size the blur alike. */
+  onScaleChange: (pixelsPerUnit: number) => void
 }
 
 export interface PreviewLook {
   /** Blur radius in screen pixels of this preview; 0 is off. */
   blur: number
+  /** Swap the palette's text and background colours. */
   inverted: boolean
 }
 
 export const DEFAULT_PREVIEW_LOOK: PreviewLook = { blur: 0, inverted: false }
+
+/** The preview's colours: the palette, swapped when inverted. */
+export function previewColors(palette: PaletteParams, look: PreviewLook): PaletteParams {
+  return look.inverted ? { ink: palette.paper, paper: palette.ink } : palette
+}
 
 const MAX_BLUR = 12
 const FITTED = { zoom: 1, panX: 0, panY: 0 }
@@ -43,16 +43,28 @@ const ignoreViewChange = () => {}
 const ignoreSelect = () => {}
 
 /**
- * Bottom right, right half: a fitted miniature of the result canvas with its own blur filter, for
- * judging the overall shape of the text the way it reads from a distance. The blur only affects this
- * view; it is not part of the geometry or the export.
+ * Bottom right, right part: the artboard as it will be exported, fitted, with its own blur and colour
+ * inversion, for judging the overall shape of the text the way it reads from a distance. Blur and
+ * inversion only affect this view unless "Export the preview look" is ticked in the export dialog.
  */
-export default function TextPreview({ font, scene, view, gridSize, selectedGlyph, look, onLookChange, onRenderChange }: TextPreviewProps) {
+export default function TextPreview({
+  font,
+  scene,
+  layout,
+  palette,
+  view,
+  gridSize,
+  selectedGlyph,
+  look,
+  onLookChange,
+  onScaleChange,
+}: TextPreviewProps) {
   const id = useId()
   const { blur, inverted } = look
-  const hasText = font !== null && scene !== null && scene.glyphCount > 0
+  const colors = previewColors(palette, look)
+  const hasText = font !== null && scene !== null && layout !== null && scene.glyphCount > 0
 
-  // The same fit as SpecimenView at zoom 1: scene bounds plus a quarter em on every side.
+  // The same fit as SpecimenView at zoom 1, so the export can turn preview pixels into font units.
   const canvasRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   useLayoutEffect(() => {
@@ -64,24 +76,10 @@ export default function TextPreview({ font, scene, view, gridSize, selectedGlyph
   }, [])
   let scale = 0
   if (hasText && size.width > 0 && size.height > 0) {
-    const pad = font.metrics.unitsPerEm * 0.25
-    const { minX, maxX, minY, maxY } = scene.bounds
-    scale = Math.min(size.width / (maxX - minX + pad * 2), size.height / (maxY - minY + pad * 2))
+    const frame = artboardViewFrame(layout)
+    scale = Math.min(size.width / frame.width, size.height / frame.height)
   }
-  // Colours come from the rendered element, so they follow the theme and the Invert swap exactly.
-  const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
-  useEffect(() => {
-    const query = matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => setDark(query.matches)
-    query.addEventListener('change', onChange)
-    return () => query.removeEventListener('change', onChange)
-  }, [])
-  useEffect(() => {
-    const el = canvasRef.current
-    if (!el) return
-    const style = getComputedStyle(el)
-    onRenderChange({ scale, ink: style.getPropertyValue('--text').trim() || '#000', paper: style.backgroundColor || '#fff' })
-  }, [scale, inverted, dark, onRenderChange])
+  useEffect(() => onScaleChange(scale), [scale, onScaleChange])
 
   return (
     <section className="text-preview" aria-labelledby={`${id}-title`}>
@@ -105,23 +103,27 @@ export default function TextPreview({ font, scene, view, gridSize, selectedGlyph
             type="button"
             className="button-small"
             aria-pressed={inverted}
-            title="Swap the glyph and background colours of the preview"
+            title="Swap the text and background colours of the preview"
             onClick={() => onLookChange({ ...look, inverted: !inverted })}
           >
             Invert
           </button>
         </div>
       </div>
-      <div ref={canvasRef} className="text-preview-canvas" data-inverted={inverted}>
+      <div ref={canvasRef} className="text-preview-canvas">
         {hasText ? (
           <ErrorBoundary resetKey={`${font.id}:preview`} label="The preview">
             <SpecimenView
               font={font}
               scene={scene}
+              layout={layout}
+              ink={colors.ink}
+              paper={colors.paper}
+              clip
               view={{ ...view, ...FITTED }}
               gridSize={gridSize}
               selectedGlyph={selectedGlyph}
-              label={`Miniature of the result canvas${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
+              label={`Miniature of the canvas${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
               onViewChange={ignoreViewChange}
               onSelectGlyph={ignoreSelect}
               interactive={false}
@@ -133,8 +135,9 @@ export default function TextPreview({ font, scene, view, gridSize, selectedGlyph
         )}
       </div>
       <p id={`${id}-hint`} className="field-hint">
-        The whole text, fitted, with the canvas layers. Blur softens it like seeing it from far away; Invert swaps the
-        glyph and background colours. Both only affect this view; tick “Export the preview look” in Export to save them.
+        The canvas as it will be exported, cut to its edges. Blur softens it like seeing it from far away; Invert swaps
+        the text and background colours. Both only affect this view; tick “Export the preview look” in Export to save
+        them.
       </p>
     </section>
   )

@@ -1,6 +1,7 @@
 // SVG serialization of the final polygons. Paths use only M, L, and Z. No React, no DOM.
 
 import type { Point } from '../geometry/types'
+import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import { ExportError, quantizePolygon, roundTo } from './quantize'
 
@@ -19,21 +20,16 @@ export interface SvgMeta {
   pipeline: string[]
 }
 
-/**
- * How the specimen is painted. The default is the main view: black outlines, no background. The
- * preview look uses the preview's colours and blur on a solid background.
- */
+/** How the artboard is painted. */
 export interface SvgLook {
-  /** Gaussian blur standard deviation in font units; 0 is none. */
-  blur: number
   /** Glyph colour and background colour (CSS colours). */
   ink: string
   paper: string
-  /** Paint a solid background (a blurred look always has one). */
+  /** Paint the background; off gives a transparent background. */
   background: boolean
+  /** Gaussian blur standard deviation in artboard pixels; 0 is none. */
+  blur: number
 }
-
-export const MAIN_LOOK: SvgLook = { blur: 0, ink: '#000', paper: '#fff', background: false }
 
 /** Removes characters that are not allowed in XML 1.0, then escapes markup characters. */
 export function escapeXml(text: string): string {
@@ -73,41 +69,46 @@ function header(width: number, height: number, decimals: number, meta: SvgMeta):
 }
 
 /**
- * Specimen text: one path per glyph, positioned with the same advances and kerning as the canvas.
- * With a blurred look the canvas grows by three standard deviations on every side, so the blur is not
- * cut off.
+ * The artboard: width × height pixels with the text placed exactly as on the canvas. Each glyph is one
+ * path in its own font units (y up, quantized and validated), positioned by a transform with its
+ * place, slant, and the font-unit-to-pixel scale, so coordinates keep full precision in font units.
  */
-export function specimenToSvg(scene: SpecimenScene, decimals: number, meta: SvgMeta, look: SvgLook = MAIN_LOOK): SvgDocument {
+export function specimenToSvg(
+  scene: SpecimenScene,
+  layout: ArtboardLayout,
+  size: { width: number; height: number },
+  decimals: number,
+  meta: SvgMeta,
+  look: SvgLook,
+): SvgDocument {
   if (scene.glyphCount === 0) throw new ExportError('The specimen is empty. Type some text first.')
-  const blur = Math.max(0, look.blur)
-  const margin = Math.ceil(blur * 3)
-  // Rounded outward so rounded coordinates can never fall outside the view box.
-  const minX = Math.floor(scene.bounds.minX) - margin
-  const minY = Math.floor(scene.bounds.minY) - margin
-  const maxX = Math.ceil(scene.bounds.maxX) + margin
-  const maxY = Math.ceil(scene.bounds.maxY) + margin
-  const width = maxX - minX
-  const height = maxY - minY
+  const { width, height } = size
   const ink = escapeXml(look.ink)
   const paper = escapeXml(look.paper)
+  const blur = Math.max(0, look.blur)
+  const scale = Number((1 / layout.unitsPerPx).toPrecision(8))
+  const skew = scene.slant ? ` skewX(${num(-scene.slant, 4)})` : ''
   const quantized = new Map<number, Point[][]>()
+
   const lines = header(width, height, decimals, meta)
+  lines.push(comment(`Canvas ${width} × ${height} px; ${num(layout.unitsPerPx, 6)} font units per pixel.`))
   if (scene.missingCharacters.length) {
     lines.push(comment(`Missing from the font, left as blank advances: ${scene.missingCharacters.join(' ')}`))
   }
-  if (look.background || blur > 0) lines.push(`  <rect width="${width}" height="${height}" fill="${paper}"/>`)
+  if (look.background) lines.push(`  <rect width="${width}" height="${height}" fill="${paper}"/>`)
   if (blur > 0) {
     lines.push(
       `  <filter id="blur" filterUnits="userSpaceOnUse" x="0" y="0" width="${width}" height="${height}">`,
       `    <feGaussianBlur stdDeviation="${num(blur, 3)}"/>`,
       '  </filter>',
-      '  <g filter="url(#blur)">',
     )
   }
+  // The filter sits on an untransformed group, so its blur is measured in canvas pixels.
+  lines.push(blur > 0 ? '  <g filter="url(#blur)">' : '  <g>')
+  lines.push(`  <g fill="${ink}" fill-rule="nonzero" transform="scale(${scale}) translate(${num(-layout.x, decimals)} ${num(-layout.y, decimals)})">`)
   let paths = 0
   let vertices = 0
   for (const line of scene.lines) {
-    lines.push('  <g>')
     for (const glyph of line.glyphs) {
       if (!glyph.polygon || glyph.polygon.contours.length === 0) continue
       let contours = quantized.get(glyph.index)
@@ -115,14 +116,12 @@ export function specimenToSvg(scene: SpecimenScene, decimals: number, meta: SvgM
         contours = quantizePolygon(glyph.polygon, decimals, `Glyph “${glyph.text}”`)
         quantized.set(glyph.index, contours)
       }
-      const placed = contours.map((c) => c.map((p) => ({ x: glyph.x + p.x - minX, y: glyph.y - p.y - minY })))
-      lines.push(`    <path fill="${ink}" fill-rule="nonzero" d="${pathData(placed, decimals)}"/>`)
+      const place = `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`
+      lines.push(`    <path transform="${place}" d="${pathData(contours, decimals)}"/>`)
       paths++
-      vertices += placed.reduce((n, c) => n + c.length, 0)
+      vertices += contours.reduce((n, c) => n + c.length, 0)
     }
-    lines.push('  </g>')
   }
-  if (blur > 0) lines.push('  </g>')
-  lines.push('</svg>', '')
+  lines.push('  </g>', '  </g>', '</svg>', '')
   return { svg: lines.join('\n'), paths, vertices }
 }

@@ -26,10 +26,3 @@ export async function svgToPng(svg: string, svgWidth: number, svgHeight: number,
     URL.revokeObjectURL(url)
   }
 }
-
-/** Width and height of an exported SVG document, read from its root element. */
-export function svgSize(svg: string): { width: number; height: number } {
-  const match = /<svg[^>]*\swidth="([\d.]+)"\s+height="([\d.]+)"/.exec(svg)
-  if (!match) throw new Error('The SVG has no size.')
-  return { width: Number(match[1]), height: Number(match[2]) }
-}
