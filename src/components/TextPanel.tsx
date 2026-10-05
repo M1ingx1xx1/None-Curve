@@ -13,10 +13,22 @@ interface TextPanelProps {
   onInputFocus?: () => void
 }
 
+// Line breaks are explicit: the specimen does not wrap, so long samples are broken into lines here.
 const samples: [string, string][] = [
-  ['Pangram', 'The quick brown fox jumps over the lazy dog.'],
-  ['Round letters', 'OO oo 00 BOB GOOD 808'],
-  ['Spacing', 'Hamburgefonstiv\nAVATAR Type, Tolerance'],
+  [
+    'Lorem ipsum',
+    [
+      'Lorem ipsum dolor sit amet, consectetur',
+      'adipiscing elit, sed do eiusmod tempor',
+      'incididunt ut labore et dolore magna aliqua.',
+      'Ut enim ad minim veniam, quis nostrud',
+      'exercitation ullamco laboris nisi ut aliquip',
+      'ex ea commodo consequat.',
+    ].join('\n'),
+  ],
+  ['Pangrams', 'The quick brown fox jumps over the lazy dog.\nCrazy Fredrick bought many very exquisite opal jewels.'],
+  ['Spacing', 'Hamburgefontsiv\nAVATAR Typography, Tolerance'],
+  ['Alphabet', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789\n.,:;!?()[]{}&@#$%*'],
 ]
 
 /** Bottom right, left part: the text shown in the result canvas. */
