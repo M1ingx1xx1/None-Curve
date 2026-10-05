@@ -63,101 +63,104 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
       <legend>
         Grid &amp; angles <HintButton hint={introHint} topic="Grid and angles" />
       </legend>
-      <HintText hint={introHint}>
-        Runs after anchor reduction: Grid snapping → Angle lock. Turning a step off restores the result of the steps
-        before it.
-      </HintText>
+      {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
+      <div className="group-body">
+        <HintText hint={introHint}>
+          Runs after anchor reduction: Grid snapping → Angle lock. Turning a step off restores the result of the steps
+          before it.
+        </HintText>
 
-      <div className="field field-toggle">
-        <input id="grid-snap" type="checkbox" checked={params.snap} onChange={(e) => update({ snap: e.target.checked })} />
-        <label htmlFor="grid-snap">Snap to grid</label>
-      </div>
-      <div className="field">
-        <div className="field-head">
-          <span className="field-title">
-            <label htmlFor="grid-size">Grid size</label>
-            <HintButton hint={sizeHint} topic="Grid size" />
-          </span>
-          <output htmlFor="grid-size">
-            {params.size > 0 ? params.size : 'Off'}
-            {params.size > 0 && <span className="unit">u</span>}
-          </output>
+        <div className="field field-toggle">
+          <input id="grid-snap" type="checkbox" checked={params.snap} onChange={(e) => update({ snap: e.target.checked })} />
+          <label htmlFor="grid-snap">Snap to grid</label>
         </div>
-        <input
-          id="grid-size"
-          type="range"
-          min={0}
-          max={GRID_MAX}
-          step={1}
-          value={params.size}
-          disabled={!params.snap}
-          aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
-          aria-describedby={sizeHint.id}
-          onChange={(e) => update({ size: Number(e.target.value) })}
-        />
-        <HintText hint={sizeHint}>
-          Each coordinate is rounded to the nearest multiple of the grid size
-          {unitsPerEm && params.size > 0 ? ` (${((params.size / unitsPerEm) * 100).toFixed(2)}% of the em)` : ''}, with
-          the grid anchored at the glyph origin so the baseline stays on a grid line. Exact halves round up. Neighbours
-          that land on the same point are merged. 0 turns snapping off.
-        </HintText>
-      </div>
-      {stats?.snapApplied && (
-        <p className="field-hint">
-          Largest move {stats.snapMaxShift.toFixed(2)} u · {stats.snapMerged} merged{' '}
-          {stats.snapMerged === 1 ? 'vertex' : 'vertices'}.
-        </p>
-      )}
-      {snapFallback && <p className="font-warning">Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.</p>}
+        <div className="field">
+          <div className="field-head">
+            <span className="field-title">
+              <label htmlFor="grid-size">Grid size</label>
+              <HintButton hint={sizeHint} topic="Grid size" />
+            </span>
+            <output htmlFor="grid-size">
+              {params.size > 0 ? params.size : 'Off'}
+              {params.size > 0 && <span className="unit">u</span>}
+            </output>
+          </div>
+          <input
+            id="grid-size"
+            type="range"
+            min={0}
+            max={GRID_MAX}
+            step={1}
+            value={params.size}
+            disabled={!params.snap}
+            aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
+            aria-describedby={sizeHint.id}
+            onChange={(e) => update({ size: Number(e.target.value) })}
+          />
+          <HintText hint={sizeHint}>
+            Each coordinate is rounded to the nearest multiple of the grid size
+            {unitsPerEm && params.size > 0 ? ` (${((params.size / unitsPerEm) * 100).toFixed(2)}% of the em)` : ''}, with
+            the grid anchored at the glyph origin so the baseline stays on a grid line. Exact halves round up. Neighbours
+            that land on the same point are merged. 0 turns snapping off.
+          </HintText>
+        </div>
+        {stats?.snapApplied && (
+          <p className="field-hint">
+            Largest move {stats.snapMaxShift.toFixed(2)} u · {stats.snapMerged} merged{' '}
+            {stats.snapMerged === 1 ? 'vertex' : 'vertices'}.
+          </p>
+        )}
+        {snapFallback && <p className="font-warning">Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.</p>}
 
-      <div className="field field-toggle">
-        <input
-          id="angle-lock"
-          type="checkbox"
-          checked={params.angleLock}
-          onChange={(e) => update({ angleLock: e.target.checked })}
-        />
-        <label htmlFor="angle-lock">Angle lock</label>
-      </div>
-      <div className="field">
-        <span className="field-title">
-          <label htmlFor="angle-step">Allowed directions</label>
-          <HintButton hint={angleHint} topic="Allowed directions" />
-        </span>
-        <select
-          id="angle-step"
-          value={params.angleStep}
-          disabled={!params.angleLock}
-          aria-describedby={angleHint.id}
-          onChange={(e) => update({ angleStep: Number(e.target.value) })}
-        >
-          {ANGLE_STEPS.map((step) => (
-            <option key={step} value={step}>
-              {stepLabels[step]}
-            </option>
-          ))}
-        </select>
-        <HintText hint={angleHint}>
-          Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal; an
-          exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their length,
-          so the contour closes again. The start vertex stays fixed.
-        </HintText>
-      </div>
-      {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
-      {angleFallback && (
-        <p className="font-warning">Angle lock skipped for: {angleFallback}. Those contours keep their previous points.</p>
-      )}
+        <div className="field field-toggle">
+          <input
+            id="angle-lock"
+            type="checkbox"
+            checked={params.angleLock}
+            onChange={(e) => update({ angleLock: e.target.checked })}
+          />
+          <label htmlFor="angle-lock">Angle lock</label>
+        </div>
+        <div className="field">
+          <span className="field-title">
+            <label htmlFor="angle-step">Allowed directions</label>
+            <HintButton hint={angleHint} topic="Allowed directions" />
+          </span>
+          <select
+            id="angle-step"
+            value={params.angleStep}
+            disabled={!params.angleLock}
+            aria-describedby={angleHint.id}
+            onChange={(e) => update({ angleStep: Number(e.target.value) })}
+          >
+            {ANGLE_STEPS.map((step) => (
+              <option key={step} value={step}>
+                {stepLabels[step]}
+              </option>
+            ))}
+          </select>
+          <HintText hint={angleHint}>
+            Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal; an
+            exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their length,
+            so the contour closes again. The start vertex stays fixed.
+          </HintText>
+        </div>
+        {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
+        {angleFallback && (
+          <p className="font-warning">Angle lock skipped for: {angleFallback}. Those contours keep their previous points.</p>
+        )}
 
-      {snapOn && params.angleLock && (
-        <p className="font-warning">
-          Angle lock runs after snapping and adjusts edge lengths, so some vertices move off the grid.
-        </p>
-      )}
+        {snapOn && params.angleLock && (
+          <p className="font-warning">
+            Angle lock runs after snapping and adjusts edge lengths, so some vertices move off the grid.
+          </p>
+        )}
 
-      <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_GRID)}>
-        Reset grid &amp; angles
-      </button>
-      {pending && <p className="field-hint">Updating…</p>}
+        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_GRID)}>
+          Reset grid &amp; angles
+        </button>
+        {pending && <p className="field-hint">Updating…</p>}
+      </div>
     </fieldset>
   )
 }

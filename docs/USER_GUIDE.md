@@ -40,10 +40,10 @@ The screen is split into two rows and five areas:
 │   Font information     ║                                      │
 │   Shaping controls     ║                                      │
 ╞════════════════════════╩══════════════════════════════════════╡
-│ ③ Glyphs               │ ④ Text input ║ ⑤ Preview             │
-│   click to insert      │   type here  ║   small copy of ②,    │
-│   a character          │              ║   with Blur & Invert  │
-└────────────────────────┴──────────────╨───────────────────────┘
+│ ③ Glyphs               ║ ④ Text input ║ ⑤ Preview             │
+│   click to insert      ║   type here  ║   small copy of ②,    │
+│   a character          ║              ║   with Blur & Invert  │
+└────────────────────────╨──────────────╨───────────────────────┘
 ```
 
 1. **Tools (top left)** — the **Import font** button, information about the loaded font, and all the shaping controls. Scroll this area to see every control.
@@ -58,6 +58,7 @@ At the very top there is an **Export…** button, and along the bottom a status 
 
 - between the **top and bottom rows** — drag up or down to give the canvas or the bottom row more height;
 - between the **tools and the canvas** — drag left or right;
+- between the **Glyphs list and the text input** — drag left or right;
 - between the **text input and the preview** — drag left or right.
 
 Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
@@ -129,6 +130,7 @@ If a new font fails to load, the previous font stays on screen.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
 - Up to 1000 characters are shown.
 - To add a symbol you cannot type easily, click it in the **Glyphs** list (bottom left). It goes in where your cursor is in the text box (or at the end, if you have not clicked into the box yet). If you selected some text, the symbol replaces it.
+- If you make the Glyphs list narrow, it shows only the characters, without their codes, so more fit in. Make it wider to see the codes again (or hover over a character).
 - The **search box** above the Glyphs list finds characters by the character itself (`A`), its code (`U+0041`), or part of its name (`arrow`, `dieresis`).
 
 ---

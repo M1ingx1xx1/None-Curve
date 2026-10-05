@@ -20,7 +20,7 @@ interface WorkspaceProps {
  * Two rows that always fill the window between the header and the status bar:
  *   ┌ tools + geometry ║ canvas          ┐   ← top row; ║ moves the tools / canvas border
  *   ╞═══════════════════════════════════╡   ← moves the border between the rows
- *   └ glyphs           │ input ║ preview  ┘   ← bottom row (its own handle is in InputPanel)
+ *   └ glyphs           ║ input ║ preview  ┘   ← bottom row; the input / preview handle is in InputPanel
  * Each handle only moves a border: the panes on either side always add up to the same size.
  * Narrow screens stack tools, canvas, geometry (collapsible), input, glyphs, without handles.
  */
@@ -40,6 +40,16 @@ export default function Workspace({ tools, geometry, canvas, glyphs, input, geom
     minStart: 280,
     minEnd: 320,
     cssVars: ['--side-width', '--canvas-width'],
+  })
+  // Glyphs | text input + preview. The second pane's minimum leaves room for both of InputPanel's
+  // minimums (180 + 200) and its handle.
+  const bottom = useSplit<HTMLDivElement>({
+    storageKey: 'none-curve:glyphs-split',
+    defaultValue: 0.3,
+    axis: 'x',
+    minStart: 220,
+    minEnd: 388,
+    cssVars: ['--glyphs-width', '--input-width'],
   })
 
   return (
@@ -65,8 +75,15 @@ export default function Workspace({ tools, geometry, canvas, glyphs, input, geom
         valueText={`Top ${rows.percent}%, bottom ${100 - rows.percent}%`}
         handleProps={rows.handleProps}
       />
-      <div className="workspace-bottom">
+      <div ref={bottom.containerRef} className="workspace-bottom" style={bottom.style}>
         <div className="workspace-glyphs">{glyphs}</div>
+        <SplitHandle
+          axis="x"
+          strong
+          label="Resize the glyph list and the text input"
+          valueText={`Glyphs ${bottom.percent}%, text and preview ${100 - bottom.percent}%`}
+          handleProps={bottom.handleProps}
+        />
         <div className="workspace-input">{input}</div>
       </div>
     </main>
