@@ -133,6 +133,62 @@ export function sampleRun(pieces: readonly Curve[], n: number, push: (p: Point) 
   return deviation
 }
 
+/**
+ * Adaptive mode: approximates a whole run with as few edges as possible while every densely sampled
+ * point stays within `tolerance` of its edge (Ramer–Douglas–Peucker on the run). Vertices are dense
+ * samples, so they lie on the curve. At least `minEdges` edges are used; a closed loop is first cut
+ * into that many parts of equal arc length. Pushes the end point of each edge and returns the
+ * largest deviation.
+ */
+export function simplifyRun(pieces: readonly Curve[], tolerance: number, minEdges: number, push: (p: Point) => void): number {
+  const dense: Point[] = [pieces[0][0]]
+  for (const piece of pieces) {
+    const steps = piece.length === 2 ? 1 : SAMPLES_PER_PIECE
+    for (let k = 1; k <= steps; k++) dense.push(evaluate(piece, k / steps))
+  }
+  const cumulative = [0]
+  for (let i = 1; i < dense.length; i++) cumulative.push(cumulative[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y))
+  const total = cumulative[cumulative.length - 1]
+  const last = dense.length - 1
+
+  // Fixed cut points: start, equal arc-length parts when more than one edge is required, end.
+  const cuts = [0]
+  for (let i = 1; i < minEdges; i++) {
+    const target = (total * i) / minEdges
+    let j = cuts[cuts.length - 1] + 1
+    while (j < last && cumulative[j] < target) j++
+    if (j < last) cuts.push(j)
+  }
+  cuts.push(last)
+
+  const keep = new Set<number>(cuts)
+  let deviation = 0
+  const stack: [number, number][] = []
+  for (let i = 1; i < cuts.length; i++) stack.push([cuts[i - 1], cuts[i]])
+  while (stack.length > 0) {
+    const [a, b] = stack.pop()!
+    let worst = -1
+    let worstDistance = 0
+    for (let k = a + 1; k < b; k++) {
+      const d = distanceToSegment(dense[k], dense[a], dense[b])
+      if (d > worstDistance) {
+        worstDistance = d
+        worst = k
+      }
+    }
+    if (worst >= 0 && worstDistance > tolerance) {
+      keep.add(worst)
+      stack.push([a, worst], [worst, b])
+    } else {
+      deviation = Math.max(deviation, worstDistance)
+    }
+  }
+
+  const indices = [...keep].sort((x, y) => x - y)
+  for (let i = 1; i < indices.length; i++) push(dense[indices[i]])
+  return deviation
+}
+
 // ---- Helpers ----
 
 function splitAtExtrema(curve: Curve): Curve[] {

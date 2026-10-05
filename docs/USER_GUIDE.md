@@ -31,30 +31,38 @@ Everything happens inside your web browser. Your font files are never uploaded a
 
 ## 3. A tour of the screen
 
-The screen is split into four areas, like a window with four panes:
+The screen is split into two rows and five areas:
 
 ```text
-┌────────────────────────┬──────────────────────────────────────┐
-│ ① Tools                │ ② Result canvas                      │
-│   Import font          │   your text, rebuilt live            │
-│   Font information     │                                      │
-│   Shaping controls     │                                      │
-├────────────────────────┼──────────────────────┬───────────────┤
-│ ③ Glyphs               │ ④ Text input         │ ⑤ Glyph       │
-│   every letter in      │   type here          │   preview     │
-│   the font             │                      │               │
-└────────────────────────┴──────────────────────┴───────────────┘
+┌────────────────────────╥──────────────────────────────────────┐
+│ ① Tools                ║ ② Result canvas                      │
+│   Import font          ║   your text, rebuilt live            │
+│   Font information     ║                                      │
+│   Shaping controls     ║                                      │
+╞════════════════════════╩══════════════════════════════════════╡
+│ ③ Glyphs               │ ④ Text input ║ ⑤ Preview             │
+│   click to insert      │   type here  ║   small copy of ②,    │
+│   a character          │              ║   with Blur & Invert  │
+└────────────────────────┴──────────────╨───────────────────────┘
 ```
 
 1. **Tools (top left)** — the **Import font** button, information about the loaded font, and all the shaping controls. Scroll this area to see every control.
 2. **Result canvas (top right)** — the big preview. It always shows the text you typed, rebuilt with your current settings.
-3. **Glyphs (bottom left)** — every letter, number, and symbol in the font. Click one to look at it closely.
-4. **Text input (bottom right, left half)** — type the text you want to see on the canvas.
-5. **Glyph preview (bottom right, right half)** — a close-up of the one letter you selected.
+3. **Glyphs (bottom left)** — every letter, number, and symbol in the font. Click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters.
+4. **Text input (bottom right, left part)** — type the text you want to see on the canvas.
+5. **Preview (bottom right, right part)** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button. Drag the line between ④ and ⑤ to share the space differently.
 
 At the very top there is an **Export…** button, and along the bottom a status line tells you what is shown and which settings are active.
 
-> On a phone the areas are stacked: tools, canvas, text input, glyph preview, then the glyph list. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
+**Changing the size of the areas.** The double lines in the picture are thin lines you can drag:
+
+- between the **top and bottom rows** — drag up or down to give the canvas or the bottom row more height;
+- between the **tools and the canvas** — drag left or right;
+- between the **text input and the preview** — drag left or right.
+
+Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
+
+> On a phone the areas are stacked: tools, canvas, text input, preview, then the glyph list. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
 
 ---
 
@@ -120,6 +128,8 @@ If a new font fails to load, the previous font stays on screen.
 - Below the box you see how many characters you typed and whether the font's own **kerning** (fine spacing between pairs like "AV") is applied.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
 - Up to 1000 characters are shown.
+- To add a symbol you cannot type easily, click it in the **Glyphs** list (bottom left). It goes in where your cursor is in the text box (or at the end, if you have not clicked into the box yet). If you selected some text, the symbol replaces it.
+- The **search box** above the Glyphs list finds characters by the character itself (`A`), its code (`U+0041`), or part of its name (`arrow`, `dieresis`).
 
 ---
 
@@ -146,10 +156,18 @@ If a new font fails to load, the previous font stays on screen.
 
 ### Looking at one letter
 
-- Click a letter in the **Glyphs** list (bottom left), or click a letter on the canvas.
-- It appears in the **glyph preview** (bottom right). The preview uses the same view and layers as the canvas, but has its own zoom — scroll or drag inside it, and click **Fit** to reset.
-- The search box above the glyph list accepts a character (`A`), a code (`U+0041`), a glyph number (`#12`), or part of a glyph name. **Characters** shows letters you can type; **All glyphs** also shows extra shapes the font contains.
+- Click a letter on the canvas to select it; it is highlighted wherever it appears. Inserting a character from the Glyphs list selects it too.
 - The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter.
+- To look closely, zoom in on the canvas.
+
+### The preview: Blur, Invert, and width
+
+The **Preview** (bottom right) is a small copy of the canvas that always shows all of your text at once. It follows the canvas's Original / Flattened / Compare and layer buttons, but not its zoom.
+
+- **Blur** softens the preview, as if you looked at the text from far away or squinted. This shows the overall shape and rhythm of the letters without the details — a quick way to check whether a rough or faceted style still reads well.
+- **Invert** swaps the colours of the letters and the background in the preview — dark letters on light become light on dark, and back. Useful to check how the text works both ways, for example for a sign or a dark poster.
+- Blur and Invert only change this small view. They do not change the letters on the canvas or what you export.
+- **Making the text box or the preview wider:** drag the thin line between them (see "Changing the size of the areas" in section 3).
 
 ---
 
@@ -161,16 +179,21 @@ The controls are applied in a fixed order, top to bottom, so later steps work on
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Every control has a short explanation under it. If a setting would break a shape (for example, make a letter cross over itself), that part of the letter keeps its previous shape and a yellow note tells you why.
+Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the panel. Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), that part of the letter keeps its previous shape and a yellow note tells you why.
 
 ### Curve flattening — how curves become straight lines
 
 Choose one **Mode**:
 
-- **Adaptive** — keeps the shape close to the original. **Tolerance** is how far the straight lines may stray from the curve. Small values (0.1–2) look almost identical to the original; large values (20–100) look visibly angular.
+- **Adaptive** — keeps the shape close to the original. **Tolerance** is how far the straight lines may stray from the curve. Small values (0.1–2) look almost identical to the original; large values (20–500) look visibly angular. On its own, Adaptive stops getting coarser at around 100 — turn on **Merge joined curves** to go further.
 - **Fixed segments** — every curve is replaced by the same number of straight lines. **Segments per curve** sets that number (1–32). Fewer lines give a cruder, more faceted look.
 
-**Merge joined curves** (only with Fixed segments) — the key to a strong faceted look. A curve you see as one arc is usually stored in the font as several small curves. Without merging, "2 segments per curve" applies to each small piece, so letters still look smooth. With merging, the whole visible arc counts as one curve. Try **Segments per curve** 4, then 3, then 2 to go from subtle to bold.
+**Merge joined curves** (works in both modes) — the key to a strong faceted look. A curve you see as one arc is usually stored in the font as several small curves. Without merging, the settings apply to each small piece, so letters still look smooth. With merging, the whole visible arc counts as one curve:
+
+- with **Fixed segments**, try **Segments per curve** 4, then 3, then 2 to go from subtle to bold;
+- with **Adaptive**, raise **Tolerance** (try 50, 150, then 500): each arc is straightened as much as the tolerance allows, down to a single line.
+
+The merge settings below are shared by both modes, so switching mode keeps them.
 
 - **Break merged curves at** — where one merged curve ends and the next begins:
   - **Corners & extremes** (default) — at sharp corners and at the leftmost, rightmost, top, and bottom points of each round shape. A round "O" is split into four quarter arcs, which gives balanced, symmetric facets.
@@ -220,7 +243,9 @@ Distortion can make text harder to read — use it with care.
 
 ### Random anchors (experimental) — a different look every time, but repeatable
 
-At the very bottom of the tools panel. Normally the app places points on the curves at regular spacing. With **Use random anchors** on, it places them at random spots on the letter's original outline instead — the points always sit on the real letter, only *where* they sit is random. The later controls (Squaring, Anchors, Grid & angles, Distortion) still apply on top.
+At the very bottom of the tools panel. Normally the app places points on the curves at regular spacing (Curve flattening). With **Use random anchors** on, it places them at random spots on the letter's original outline instead — the points always sit on the real letter, only *where* they sit is random. The later controls (Squaring, Anchors, Grid & angles, Distortion) still apply on top.
+
+While random anchors are on, the **Curve flattening** controls are greyed out with a note, because random anchors replace them — changing them would do nothing. Turn random anchors off to use them again.
 
 - **Density** — roughly how many points per 1000 font units of outline. Low values (2–6) give rough, chunky letters; high values stay close to the original.
 - **Randomness** — 0 % spaces the points evenly; 100 % lets each point wander within its own small stretch. Points never swap places, so the letter cannot tangle.
@@ -230,6 +255,7 @@ At the very bottom of the tools panel. Normally the app places points on the cur
   - **Copy** copies the seed so you can paste it into your notes.
   - **Previous** lists the seeds you tried before in this session; click one to go back to it.
   - To get a result again later, load the same font, use the same settings, and type the seed into the box.
+  - At **Randomness** 0 % the points are evenly spaced, so the seed does nothing and is greyed out.
 - **Reset random anchors** turns it off and restores the other settings, but keeps your seed.
 
 The seed is also shown in the status line at the bottom and in the export dialog, so it is recorded with what you export.
@@ -241,8 +267,11 @@ The seed is also shown in the status line at the bottom and in the export dialog
 **Bold, faceted letters (like "4 / 3 / 2 lines per curve")**
 Curve flattening → **Fixed segments**, **Merge joined curves** on, **Break merged curves at** = Corners & extremes, **Segments per curve** = 4 (subtle), 3, or 2 (bold).
 
+**Faceted letters in Adaptive mode**
+Curve flattening → **Adaptive**, **Merge joined curves** on, **Tolerance** 50 (subtle), 150, or 500 (very bold).
+
 **Extreme low-resolution letters**
-As above, then turn on **Merge through straight lines** and raise **Corner angle** to 45°–90°. Try **Break merged curves at** = Corners only for the most reduced shapes.
+As above (either mode), then turn on **Merge through straight lines** and raise **Corner angle** to 45°–90°. Try **Break merged curves at** = Corners only for the most reduced shapes.
 
 **Square O and round letters**
 Squaring → **Square**, Applies to **Round contours**, then Anchors → **Anchor reduction** = 2. Type "OO oo 00" (Sample… → Round letters) to check.
@@ -267,7 +296,7 @@ Click **Export…** in the top-right corner. Nothing is downloaded until you pre
 
 ### As an image (SVG)
 
-1. Choose **SVG — current glyph** (the letter in the glyph preview) or **SVG — specimen text** (everything you typed).
+1. Choose **SVG — current glyph** (the selected letter) or **SVG — specimen text** (everything you typed).
 2. **Coordinate precision** — how many decimals the numbers in the file keep. 2 is a good default. If the app says a shape would break at this precision, choose a higher one.
 3. Click **Download SVG**.
 
@@ -297,13 +326,19 @@ Good to know:
 Turn on **Merge joined curves** (Fixed segments mode). Without it, each small piece of a curve gets its own segments.
 
 **Changing Corner angle does nothing.**
-Turn on **Merge through straight lines** (Fixed segments → Merge joined curves). Without it, Corner angle only affects joints between two curves, which are almost always smooth already.
+Turn on **Merge through straight lines** (under Merge joined curves). Without it, Corner angle only affects joints between two curves, which are almost always smooth already.
 
 **I liked a random-anchor result. How do I get it back?**
 Write down (or **Copy**) its seed. Later, load the same font, set the same Random anchors settings, and type the seed into the **Seed** box. Within one visit you can also click it under **Previous**.
 
 **Why don't I see the skeleton points or green vertices?**
-They only appear when letters are big enough. Zoom in, or look at the glyph preview.
+They only appear when letters are big enough. Zoom in on the canvas.
+
+**Some controls are grey and do not move.**
+They would have no effect right now. The note above them says why — for example, Curve flattening is greyed out while Random anchors are on, and the random Seed is greyed out at 0 % Randomness.
+
+**Clicking a character in Glyphs put it in the wrong place.**
+It goes where the text cursor last was. Click in the text box where you want it, then click the character.
 
 **A yellow note says some contours "kept their previous shape".**
 That setting would have made part of a letter collapse or cross over itself, so the app kept the last good version for that part. Try a gentler value.
