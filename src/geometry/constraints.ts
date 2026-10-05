@@ -1,7 +1,7 @@
 // Geometric constraints on the reduced polygon: grid snapping, then angle lock.
 // Pure functions in font units; no React, no DOM. Inputs are never modified.
 
-import { countSelfCrossings } from './anchors'
+import { countSelfCrossings, simplifyClosed } from './anchors'
 import { signedArea } from './flatten'
 import type { GridParams, Point, PolygonContour, PolygonGlyph } from './types'
 
@@ -9,6 +9,13 @@ export const ANGLE_STEPS = [90, 45, 30, 15] as const
 
 /** Edges shorter than this after angle lock (font units) make the contour fall back. */
 const MIN_EDGE = 0.5
+
+/**
+ * When a step fails on a contour, it is retried on simplified copies of the contour (RDP tolerance as a
+ * fraction of the contour's bounding-box diagonal): fewer, longer edges are much easier to snap or
+ * lock without collapsing or crossing. Only if every retry fails does the contour keep its points.
+ */
+const RETRY_TOLERANCES = [0.01, 0.02, 0.04, 0.08, 0.16] as const
 
 export type FallbackReason = 'collapsed' | 'flipped' | 'crossings' | 'unsolvable'
 
@@ -21,6 +28,8 @@ export interface ConstraintStats {
   angleApplied: boolean
   /** Largest distance a vertex moved under angle lock (font units). */
   angleMaxShift: number
+  /** Contours that only worked after simplification, by step. */
+  simplified: { step: 'snap' | 'angle' }[]
   /** Contours that kept their pre-step points, by step and reason. */
   fallbacks: { step: 'snap' | 'angle'; reason: FallbackReason }[]
 }
@@ -32,6 +41,7 @@ export function applyConstraints(polygon: PolygonGlyph, params: GridParams): { p
     snapMaxShift: 0,
     angleApplied: false,
     angleMaxShift: 0,
+    simplified: [],
     fallbacks: [],
   }
   let contours = polygon.contours
@@ -40,15 +50,25 @@ export function applyConstraints(polygon: PolygonGlyph, params: GridParams): { p
   if (params.snap && size > 0) {
     stats.snapApplied = true
     contours = contours.map((c) => {
-      const result = snapContour(c.points, size)
-      const reason = result.points ? validate(c.points, result.points) : 'collapsed'
-      if (reason) {
-        stats.fallbacks.push({ step: 'snap', reason })
+      const outcome = withRetries(c.points, [
+        (points) => {
+          const result = snapContour(points, size)
+          return { points: result.points, reason: result.points ? null : ('collapsed' as const) }
+        },
+      ])
+      if (!outcome.points) {
+        stats.fallbacks.push({ step: 'snap', reason: outcome.reason })
         return c
       }
-      stats.snapMerged += result.merged
-      stats.snapMaxShift = Math.max(stats.snapMaxShift, result.maxShift)
-      return withPoints(result.points!)
+      if (outcome.simplified) {
+        stats.simplified.push({ step: 'snap' })
+        stats.snapMaxShift = Math.max(stats.snapMaxShift, nearestShift(c.points, outcome.points))
+      } else {
+        const direct = snapContour(c.points, size)
+        stats.snapMerged += direct.merged
+        stats.snapMaxShift = Math.max(stats.snapMaxShift, direct.maxShift)
+      }
+      return withPoints(outcome.points)
     })
   }
 
@@ -56,18 +76,125 @@ export function applyConstraints(polygon: PolygonGlyph, params: GridParams): { p
   if (params.angleLock) {
     stats.angleApplied = true
     contours = contours.map((c) => {
-      const result = lockAngles(c.points, step)
-      const reason = result.points ? validate(c.points, result.points) : result.reason
-      if (reason) {
-        stats.fallbacks.push({ step: 'angle', reason })
+      // Prefer locked edges (lengths adjusted); if that cannot be made valid, use stairs (every
+      // vertex kept, off-angle edges split into two allowed directions) before keeping the contour.
+      const outcome = withRetries(c.points, [(points) => lockAngles(points, step), (points) => stairAngles(points, step)])
+      if (!outcome.points) {
+        stats.fallbacks.push({ step: 'angle', reason: outcome.reason })
         return c
       }
-      stats.angleMaxShift = Math.max(stats.angleMaxShift, maxShift(c.points, result.points!))
-      return withPoints(result.points!)
+      if (outcome.simplified) stats.simplified.push({ step: 'angle' })
+      stats.angleMaxShift = Math.max(
+        stats.angleMaxShift,
+        outcome.simplified ? nearestShift(c.points, outcome.points) : maxShift(c.points, outcome.points),
+      )
+      return withPoints(outcome.points)
     })
   }
 
   return { polygon: { ...polygon, contours }, stats }
+}
+
+type StepRun = (points: readonly Point[]) => { points: Point[] | null; reason: FallbackReason | null }
+
+/**
+ * Runs a step on the contour; if the result is invalid, runs it again on simplified copies (see
+ * RETRY_TOLERANCES), then tries the next method in `runs` the same way. Every result is validated
+ * against the contour as it was before the step; the first reason is reported if all fail.
+ */
+function withRetries(
+  points: readonly Point[],
+  runs: StepRun[],
+): { points: Point[]; simplified: boolean; reason: null } | { points: null; simplified: false; reason: FallbackReason } {
+  const first = runs[0](points)
+  const firstReason = first.points ? validate(points, first.points) : (first.reason ?? 'collapsed')
+  if (!firstReason) return { points: first.points!, simplified: false, reason: null }
+
+  const box = bounds(points)
+  const diagonal = Math.hypot(box.maxX - box.minX, box.maxY - box.minY)
+  let baseline: number | null = null
+  const crossings = () => (baseline ??= countSelfCrossings(points))
+  const variants: (readonly Point[])[] = [points]
+  for (const fraction of RETRY_TOLERANCES) {
+    const simplified = simplifyClosed(points, diagonal * fraction, crossings)
+    if (simplified.valid && simplified.points.length < variants[variants.length - 1].length) variants.push(simplified.points)
+  }
+  for (let r = 0; r < runs.length; r++) {
+    for (let v = r === 0 ? 1 : 0; v < variants.length; v++) {
+      const result = runs[r](variants[v])
+      if (result.points && !validate(points, result.points)) {
+        return { points: result.points, simplified: r > 0 || v > 0, reason: null }
+      }
+    }
+  }
+  return { points: null, simplified: false, reason: firstReason }
+}
+
+function bounds(points: readonly Point[]) {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of points) {
+    minX = Math.min(minX, p.x)
+    minY = Math.min(minY, p.y)
+    maxX = Math.max(maxX, p.x)
+    maxY = Math.max(maxY, p.y)
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+/** Largest distance from an original vertex to the nearest vertex of the result (point counts may differ). */
+function nearestShift(before: readonly Point[], after: readonly Point[]): number {
+  let max = 0
+  for (const p of before) {
+    let best = Infinity
+    for (const q of after) best = Math.min(best, Math.hypot(p.x - q.x, p.y - q.y))
+    max = Math.max(max, best)
+  }
+  return max
+}
+
+/**
+ * Angle lock without moving any vertex: an edge already on an allowed direction stays; any other edge
+ * becomes two edges along the two allowed directions on either side of it, like a stair step. The
+ * step's corner always goes to the outside of the contour, so the two sides of a thin stroke move
+ * apart instead of into each other. The contour closes exactly, so no edge length has to be adjusted.
+ */
+function stairAngles(points: readonly Point[], step: number): { points: Point[] | null; reason: FallbackReason | null } {
+  const n = points.length
+  if (n < 3) return { points: null, reason: 'collapsed' }
+  const rad = (step * Math.PI) / 180
+  // Positive area: the inside is to the left of each edge, so corners go to the right.
+  const outsideSign = signedArea(points) > 0 ? -1 : 1
+  const out: Point[] = []
+  const push = (p: Point) => {
+    const last = out[out.length - 1]
+    if (!last || Math.hypot(last.x - p.x, last.y - p.y) > 1e-9) out.push(p)
+  }
+  for (let i = 0; i < n; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % n]
+    push({ x: a.x, y: a.y })
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const theta = Math.atan2(dy, dx)
+    const k = Math.floor(theta / rad + 1e-9)
+    const t1 = k * rad
+    const t2 = (k + 1) * rad
+    if (Math.abs(theta - t1) < 1e-9) continue
+    // Solve d = α·u1 + β·u2 with u1, u2 the allowed directions around the edge (α, β ≥ 0).
+    const u1 = { x: Math.cos(t1), y: Math.sin(t1) }
+    const u2 = { x: Math.cos(t2), y: Math.sin(t2) }
+    const det = u1.x * u2.y - u1.y * u2.x
+    const alpha = (dx * u2.y - dy * u2.x) / det
+    const beta = (u1.x * dy - u1.y * dx) / det
+    const c1 = { x: a.x + alpha * u1.x, y: a.y + alpha * u1.y }
+    const side = Math.sign(dx * (c1.y - a.y) - dy * (c1.x - a.x))
+    push(side === outsideSign ? c1 : { x: a.x + beta * u2.x, y: a.y + beta * u2.y })
+  }
+  while (out.length > 1 && Math.hypot(out[0].x - out[out.length - 1].x, out[0].y - out[out.length - 1].y) < 1e-9) out.pop()
+  return out.length >= 3 ? { points: out, reason: null } : { points: null, reason: 'collapsed' }
 }
 
 function withPoints(points: Point[]): PolygonContour {

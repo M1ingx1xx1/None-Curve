@@ -35,12 +35,23 @@ export interface SquaringStats {
   partial: number
   /** Contours left alone because they are not round (scope 'round'). */
   notRound: number
-  /** Contours that kept their previous points because the result was invalid. */
+  /** Contours squared less than asked because the full amount would make them invalid. */
+  reduced: number
+  /** Contours that kept their previous points because even a small amount was invalid. */
   fallbacks: { reason: 'collapsed' | 'flipped' | 'crossings' }[]
 }
 
+/** Bisection steps when searching for the largest valid amount, and the smallest share worth using. */
+const REDUCE_STEPS = 8
+const REDUCE_MIN = 0.05
+/**
+ * The largest valid share sits right at the edge of validity (the outline almost touches itself), so
+ * any later step such as distortion would push it over. Back off to this fraction of it when valid.
+ */
+const REDUCE_MARGIN = 0.85
+
 export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { polygon: PolygonGlyph; stats: SquaringStats } {
-  const stats: SquaringStats = { applied: false, squared: 0, partial: 0, notRound: 0, fallbacks: [] }
+  const stats: SquaringStats = { applied: false, squared: 0, partial: 0, notRound: 0, reduced: 0, fallbacks: [] }
   const amount = Number.isFinite(params.amount) ? Math.min(1, Math.max(0, params.amount)) : 0
   if (amount === 0) return { polygon, stats }
   stats.applied = true
@@ -54,13 +65,31 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
       return contour
     }
     const k = amount * weight
-    const points = squareContour(contour.points, box, k)
+    let points = squareContour(contour.points, box, k)
     const reason = validate(contour.points, points)
     if (reason) {
-      stats.fallbacks.push({ reason })
-      return contour
-    }
-    if (weight >= 0.999) stats.squared++
+      // Instead of dropping the whole effect, use the largest share of the amount that stays valid
+      // (bisection; the share found is always a valid one), so the letter is still squared, just less.
+      let lo = 0
+      let hi = 1
+      let best: Point[] | null = null
+      for (let i = 0; i < REDUCE_STEPS; i++) {
+        const mid = (lo + hi) / 2
+        const candidate = squareContour(contour.points, box, k * mid)
+        if (validate(contour.points, candidate)) hi = mid
+        else {
+          lo = mid
+          best = candidate
+        }
+      }
+      if (!best || lo < REDUCE_MIN) {
+        stats.fallbacks.push({ reason })
+        return contour
+      }
+      const safer = squareContour(contour.points, box, k * lo * REDUCE_MARGIN)
+      stats.reduced++
+      points = validate(contour.points, safer) ? best : safer
+    } else if (weight >= 0.999) stats.squared++
     else stats.partial++
     return { points, clockwise: signedArea(points) < 0 }
   })

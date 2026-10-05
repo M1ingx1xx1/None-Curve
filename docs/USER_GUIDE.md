@@ -181,7 +181,7 @@ The controls are applied in a fixed order, top to bottom, so later steps work on
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the panel. Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), that part of the letter keeps its previous shape and a yellow note tells you why.
+Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the panel. Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
 ### Curve flattening — how curves become straight lines
 

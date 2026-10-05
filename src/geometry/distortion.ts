@@ -21,7 +21,7 @@ export const DISTORTION_LIMITS = {
   /** Passes of the edge protection; each pass only shortens displacements. */
   protectionPasses: 4,
   /** Amplitude scales tried, in order, when a distorted contour is invalid. */
-  retryScales: [1, 0.5, 0.25] as const,
+  retryScales: [1, 0.5, 0.25, 0.125, 0.0625] as const,
 } as const
 
 export interface DistortionStats {
