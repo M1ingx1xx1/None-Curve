@@ -2,6 +2,7 @@ import type { Dispatch } from 'react'
 import { ANCHOR_LIMITS, type AnchorStats } from '../geometry/anchors'
 import type { AnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
+import { HintButton, HintText, useHint } from './Hint'
 
 interface AnchorControlsProps {
   params: AnchorParams
@@ -32,18 +33,26 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
   const update = (patch: Partial<AnchorParams>) => dispatch({ type: 'updateParams', group: 'anchors', patch })
   const spacingOn = params.spacing > 0
   const reductionOn = params.simplify > 0
+  const introHint = useHint()
+  const spacingHint = useHint()
+  const simplifyHint = useHint()
 
   return (
     <fieldset className="group anchors" disabled={disabled}>
-      <legend>Anchors</legend>
-      <p className="field-hint">
+      <legend>
+        Anchors <HintButton hint={introHint} topic="Anchors" />
+      </legend>
+      <HintText hint={introHint}>
         Runs after flattening, in a fixed order: Flatten → Spacing → Reduction. Each change is recomputed from the
         original curves.
-      </p>
+      </HintText>
 
       <div className="field">
         <div className="field-head">
-          <label htmlFor="anchor-spacing">Anchor spacing</label>
+          <span className="field-title">
+            <label htmlFor="anchor-spacing">Anchor spacing</label>
+            <HintButton hint={spacingHint} topic="Anchor spacing" />
+          </span>
           <output htmlFor="anchor-spacing">
             {spacingOn ? params.spacing : 'Off'}
             {spacingOn && <span className="unit">u</span>}
@@ -57,18 +66,21 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
           step={1}
           value={params.spacing}
           aria-valuetext={spacingOn ? `${params.spacing} font units` : 'Off'}
-          aria-describedby="anchor-spacing-hint"
+          aria-describedby={spacingHint.id}
           onChange={(e) => update({ spacing: Number(e.target.value) })}
         />
-        <p id="anchor-spacing-hint" className="field-hint">
+        <HintText hint={spacingHint}>
           Splits every polygon edge so no edge is longer than this{spacingOn ? emPercent(params.spacing, unitsPerEm) : ''}.
           New points sit on the existing edges, so the shape does not change. 0 turns it off.
-        </p>
+        </HintText>
       </div>
 
       <div className="field">
         <div className="field-head">
-          <label htmlFor="anchor-simplify">Anchor reduction</label>
+          <span className="field-title">
+            <label htmlFor="anchor-simplify">Anchor reduction</label>
+            <HintButton hint={simplifyHint} topic="Anchor reduction" />
+          </span>
           <output htmlFor="anchor-simplify">
             {reductionOn ? params.simplify : 'Off'}
             {reductionOn && <span className="unit">u</span>}
@@ -82,14 +94,14 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
           step={0.5}
           value={params.simplify}
           aria-valuetext={reductionOn ? `${params.simplify} font units` : 'Off'}
-          aria-describedby="anchor-simplify-hint"
+          aria-describedby={simplifyHint.id}
           onChange={(e) => update({ simplify: Number(e.target.value) })}
         />
-        <p id="anchor-simplify-hint" className="field-hint">
+        <HintText hint={simplifyHint}>
           Ramer–Douglas–Peucker: removes vertices that lie within this distance of the simplified outline
           {reductionOn ? emPercent(params.simplify, unitsPerEm) : ''}. Larger values remove more points and can erase
           small details, corners, and thin features. 0 turns it off.
-        </p>
+        </HintText>
       </div>
 
       <button

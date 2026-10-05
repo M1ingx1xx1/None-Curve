@@ -184,16 +184,36 @@ input[type='range']:disabled {
 }
 
 .workspace {
+  /* Two rows that always fill the space between the header and the status bar. The split is set
+     inline by Workspace; the rows always add up to the same height. */
   display: grid;
-  /* Four quadrants: tools + parameters | canvas over text | glyphs. */
-  grid-template-columns: minmax(300px, 30%) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) clamp(220px, 32vh, 360px);
-  grid-template-areas:
-    'tools canvas'
-    'geometry canvas'
-    'glyphs input';
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 8px minmax(0, var(--rows-bottom, 38fr));
   min-height: 0;
   overflow: hidden;
+}
+
+/* Top row: tools + parameters | handle | canvas. */
+.workspace-top {
+  display: grid;
+  grid-template-columns: minmax(0, var(--side-width, 30fr)) 8px minmax(0, var(--canvas-width, 70fr));
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Bottom row: glyphs | text input and preview (with their own handle). */
+.workspace-bottom {
+  display: grid;
+  grid-template-columns: minmax(300px, 30%) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
 }
 
 .workspace-tools,
@@ -208,21 +228,18 @@ input[type='range']:disabled {
 }
 
 .workspace-tools {
-  grid-area: tools;
-  border-right: 1px solid var(--border-strong);
+  flex: none;
   border-bottom: 1px solid var(--border);
   max-height: 45vh;
   overflow-y: auto;
 }
 
 .workspace-geometry {
-  grid-area: geometry;
-  border-right: 1px solid var(--border-strong);
+  flex: 1;
   overflow-y: auto;
 }
 
 .workspace-canvas {
-  grid-area: canvas;
   display: grid;
   padding: 12px;
   min-width: 0;
@@ -230,22 +247,84 @@ input[type='range']:disabled {
 }
 
 .workspace-glyphs {
-  grid-area: glyphs;
-  border-top: 1px solid var(--border-strong);
   border-right: 1px solid var(--border-strong);
   overflow-y: auto;
 }
 
 .workspace-input {
-  grid-area: input;
-  border-top: 1px solid var(--border-strong);
   overflow: hidden;
 }
 
-/* Bottom right: text input (left) and selected-glyph preview (right). */
+/* ---- Split handles (between tools and canvas, the two rows, text and preview) ---- */
+
+.split-handle {
+  position: relative;
+  touch-action: none;
+  background: var(--surface);
+}
+
+.split-handle-x {
+  cursor: col-resize;
+}
+
+.split-handle-y {
+  cursor: row-resize;
+}
+
+/* The visible line; the rest of the handle is a larger grab area. */
+.split-handle::before {
+  content: '';
+  position: absolute;
+  background: var(--border);
+}
+
+.split-handle-strong::before {
+  background: var(--border-strong);
+}
+
+.split-handle-x::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.split-handle-y::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+.split-handle:hover::before,
+.split-handle:focus-visible::before,
+.split-handle[data-dragging='true']::before {
+  background: var(--accent);
+}
+
+.split-handle-x:hover::before,
+.split-handle-x:focus-visible::before,
+.split-handle-x[data-dragging='true']::before {
+  width: 3px;
+}
+
+.split-handle-y:hover::before,
+.split-handle-y:focus-visible::before,
+.split-handle-y[data-dragging='true']::before {
+  height: 3px;
+}
+
+.split-handle:focus-visible {
+  outline: none;
+}
+
+/* Bottom right: text input (left), a resize handle, and the canvas miniature (right). The split is
+   set inline by InputPanel; the two columns always share the same total width. */
 .input-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 38%);
+  grid-template-columns: minmax(0, var(--split-text, 2fr)) 8px minmax(0, var(--split-preview, 3fr));
   height: 100%;
 }
 
@@ -255,10 +334,6 @@ input[type='range']:disabled {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-}
-
-.input-panel-preview {
-  border-left: 1px solid var(--border);
 }
 
 /* The parameters toggle only matters on narrow screens. */
@@ -281,6 +356,51 @@ input[type='range']:disabled {
   padding: 8px 10px;
   border-left: 2px solid var(--accent);
   background: var(--bg);
+}
+
+/* ---- Explanations behind ⓘ buttons ---- */
+
+/* A label (or legend text) with its ⓘ button. */
+.field-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.hint-button {
+  padding: 0 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+  font-size: 0.95rem;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: middle;
+}
+
+.hint-button:hover,
+.hint-button[aria-expanded='true'] {
+  color: var(--accent);
+}
+
+.hint-button:disabled {
+  border: 0;
+  color: var(--faint);
+  opacity: 0.5;
+}
+
+.panel-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.panel-intro .hint-text {
+  color: var(--muted);
 }
 
 .group {
@@ -344,6 +464,23 @@ input[type='range']:disabled {
 .group:disabled .field-label,
 .group:disabled output {
   color: var(--faint);
+}
+
+/* A single control that has no effect right now (for example the seed at 0% randomness). */
+.field:has(input:disabled) > label,
+.field:has(input:disabled) .field-head label,
+.field:has(input:disabled) output,
+.field-toggle:has(input:disabled) label {
+  color: var(--faint);
+}
+
+/* Shown inside a group whose settings another step overrides. */
+.group-replaced {
+  font-size: 0.82rem;
+  color: var(--text);
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent);
+  background: var(--bg);
 }
 
 .button-block {
@@ -511,7 +648,7 @@ input[type='range']:disabled {
 /* ---- Text (B), font (A), specimen in the canvas ---- */
 
 .text-panel,
-.glyph-preview {
+.text-preview {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -530,13 +667,40 @@ input[type='range']:disabled {
   font-size: 0.85rem;
 }
 
-.glyph-preview .section-head h2 {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 0.85rem;
+.text-preview .section-head {
+  flex-wrap: wrap;
 }
 
-.glyph-preview-canvas {
+.text-preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.text-preview-controls .button-small[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--surface);
+}
+
+.text-preview-controls input {
+  width: clamp(80px, 12vw, 180px);
+}
+
+.text-preview-controls output {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.text-preview {
+  /* The theme's paper and ink, captured here so the inverted canvas can swap them without a cycle. */
+  --preview-paper: var(--canvas);
+  --preview-ink: var(--text);
+}
+
+.text-preview-canvas {
   position: relative;
   flex: 1;
   min-height: 120px;
@@ -544,7 +708,13 @@ input[type='range']:disabled {
   background-color: var(--canvas);
 }
 
-.glyph-preview-empty {
+/* Invert: glyphs and background trade colours; vertices, guides, and the selection keep theirs. */
+.text-preview-canvas[data-inverted='true'] {
+  --canvas: var(--preview-ink);
+  --text: var(--preview-paper);
+}
+
+.text-preview-empty {
   padding: 12px;
   font-size: 0.82rem;
   color: var(--muted);
@@ -591,7 +761,7 @@ input[type='range']:disabled {
   min-height: 0;
 }
 
-/* Bottom right is the glyph preview: larger cells, filling the quadrant. */
+/* Bottom left: larger cells, filling the quadrant. */
 .glyph-panel .glyph-grid {
   max-height: none;
   flex: 1;
@@ -926,19 +1096,6 @@ input[type='range']:disabled {
   color: var(--faint);
 }
 
-.glyph-cell[aria-pressed='true'] {
-  background: var(--text);
-  border-color: var(--text);
-}
-
-.glyph-cell[aria-pressed='true'] svg {
-  fill: var(--surface);
-}
-
-.glyph-cell[aria-pressed='true'] .glyph-cell-label {
-  color: var(--surface);
-}
-
 /* ---- Glyph view ---- */
 
 .glyph-view {
@@ -950,6 +1107,15 @@ input[type='range']:disabled {
 
 .glyph-view:active {
   cursor: grabbing;
+}
+
+.specimen-view-static {
+  cursor: default;
+  touch-action: auto;
+}
+
+.specimen-view-static .specimen-glyph {
+  pointer-events: none;
 }
 
 .glyph-view:focus-visible {
@@ -1496,12 +1662,43 @@ input[type='range']:disabled {
     min-height: 100vh;
   }
 
-  /* Stacked: import and font info, the canvas (largest), parameters (collapsible), text, glyphs. */
+  /* Stacked: import and font info, the canvas (largest), parameters (collapsible), text, glyphs.
+     The row and column wrappers dissolve so their panes join this single-column grid. */
   .workspace {
     grid-template-columns: 1fr;
     grid-template-rows: none;
     grid-template-areas: 'tools' 'canvas' 'geometry' 'input' 'glyphs';
     overflow: visible;
+  }
+
+  .workspace-top,
+  .workspace-side,
+  .workspace-bottom {
+    display: contents;
+  }
+
+  .workspace-tools {
+    grid-area: tools;
+  }
+
+  .workspace-geometry {
+    grid-area: geometry;
+  }
+
+  .workspace-canvas {
+    grid-area: canvas;
+  }
+
+  .workspace-input {
+    grid-area: input;
+  }
+
+  .workspace-glyphs {
+    grid-area: glyphs;
+  }
+
+  .split-handle {
+    display: none;
   }
 
   .workspace-tools,
@@ -1519,6 +1716,11 @@ input[type='range']:disabled {
 
   .workspace-geometry {
     border-top: 1px solid var(--border);
+  }
+
+  .workspace-input,
+  .workspace-glyphs {
+    border-top: 1px solid var(--border-strong);
   }
 
   .workspace-canvas {
@@ -1540,12 +1742,11 @@ input[type='range']:disabled {
   }
 
   .input-panel-preview {
-    border-left: 0;
     border-top: 1px solid var(--border);
   }
 
-  .glyph-preview-canvas {
-    min-height: 240px;
+  .text-preview-canvas {
+    min-height: 200px;
   }
 
   .glyph-grid {

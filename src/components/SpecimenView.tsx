@@ -16,6 +16,10 @@ interface SpecimenViewProps {
   label: string
   onViewChange: (patch: Partial<ViewParams>) => void
   onSelectGlyph: (glyph: GlyphRef) => void
+  /** False for a read-only miniature: no pan, zoom, keyboard focus, or glyph selection. */
+  interactive?: boolean
+  /** Gaussian blur over the whole drawing, in screen pixels; 0 is off. */
+  blur?: number
 }
 
 /** Point markers (skeleton, vertices) are drawn only when an em is at least this many pixels. */
@@ -28,7 +32,18 @@ const LABEL_MIN_PX_PER_EM = 28
  * kerning, drawn with the same layers as the single-glyph inspector. Only glyphs inside the visible
  * area are drawn, and point markers appear once the text is large enough to read them.
  */
-export default function SpecimenView({ font, scene, view, gridSize, selectedGlyph, label, onViewChange, onSelectGlyph }: SpecimenViewProps) {
+export default function SpecimenView({
+  font,
+  scene,
+  view,
+  gridSize,
+  selectedGlyph,
+  label,
+  onViewChange,
+  onSelectGlyph,
+  interactive = true,
+  blur = 0,
+}: SpecimenViewProps) {
   const { unitsPerEm, ascender, descender } = font.metrics
 
   // Scene coordinates are y down (first baseline at 0); the canvas works in y up.
@@ -38,7 +53,7 @@ export default function SpecimenView({ font, scene, view, gridSize, selectedGlyp
     return { cx: (minX + maxX) / 2, cy: -(minY + maxY) / 2, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 }
   }, [scene, unitsPerEm])
 
-  const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange)
+  const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange, interactive)
   const { left, right, top, bottom } = box
   const pxPerEm = unitsPerEm / u
   const showMarkers = pxPerEm >= MARKER_MIN_PX_PER_EM
@@ -75,14 +90,21 @@ export default function SpecimenView({ font, scene, view, gridSize, selectedGlyp
   return (
     <div
       ref={containerRef}
-      className="glyph-view specimen-view"
-      tabIndex={0}
+      className={interactive ? 'glyph-view specimen-view' : 'glyph-view specimen-view specimen-view-static'}
+      tabIndex={interactive ? 0 : undefined}
       role="img"
-      aria-label={`${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it.`}
-      {...handlers}
+      aria-label={
+        interactive ? `${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it.` : label
+      }
+      {...(interactive ? handlers : {})}
     >
       {ready && (
-        <svg viewBox={`${left} ${-top} ${visW} ${visH}`} preserveAspectRatio="none" aria-hidden="true">
+        <svg
+          viewBox={`${left} ${-top} ${visW} ${visH}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          style={blur > 0 ? { filter: `blur(${blur}px)` } : undefined}
+        >
           {grid && (
             <g className="snap-grid">
               {grid.xs.map((x) => (
@@ -142,9 +164,13 @@ export default function SpecimenView({ font, scene, view, gridSize, selectedGlyp
                       key={i}
                       className="specimen-glyph"
                       transform={`translate(${g.x} ${g.y}) scale(1 -1)`}
-                      onClick={() => {
-                        if (!wasDrag()) onSelectGlyph(selectRef(g.index, g.text))
-                      }}
+                      onClick={
+                        interactive
+                          ? () => {
+                              if (!wasDrag()) onSelectGlyph(selectRef(g.index, g.text))
+                            }
+                          : undefined
+                      }
                     >
                       <title>{g.text}</title>
                       <GlyphLayers
@@ -163,12 +189,12 @@ export default function SpecimenView({ font, scene, view, gridSize, selectedGlyp
           })}
         </svg>
       )}
-      {ready && gridSize && (
+      {interactive && ready && gridSize && (
         <p className="canvas-grid-note" aria-hidden="true">
           Snap grid {gridSize} u{grid ? '' : ' · too dense to draw at this zoom'}
         </p>
       )}
-      {markersHidden && (
+      {interactive && markersHidden && (
         <p className="canvas-note" aria-live="polite">
           Zoom in to see skeleton points and vertices (shown from {MARKER_MIN_PX_PER_EM} px per em).
         </p>

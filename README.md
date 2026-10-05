@@ -47,31 +47,33 @@ npm run preview   # preview the production build: http://localhost:4173/None-Cur
 ## Interface
 
 ```text
-┌────────────────────────┬──────────────────────────────────────┐
-│ Tools                  │ Result canvas                         │
-│ Import · font info     │ shows only the input text             │
-│ Parameters (scroll)    │                                       │
-├────────────────────────┼──────────────────────┬───────────────┤
-│ Glyphs                 │ Text input           │ Glyph preview │
-└────────────────────────┴──────────────────────┴───────────────┘
+┌────────────────────────╥──────────────────────────────────────┐
+│ Tools                  ║ Result canvas                         │
+│ Import · font info     ║ shows only the input text             │
+│ Parameters (scroll)    ║                                       │
+╞════════════════════════╩══════════════════════════════════════╡
+│ Glyphs (insert)        │ Text input   ║ Preview + Blur/Invert │
+└────────────────────────┴──────────────╨───────────────────────┘
 ```
 
-- **Top left — tools:** **Import font** and the font information come first, followed by every geometry parameter (flattening, squaring, anchors, grid & angles, distortion, export) in pipeline order. Parameter statistics refer to the selected glyph.
-- **Top right — result canvas:** shows only the text from the input, set with the current font and all parameters. Its outline and layer controls (Original / Flattened / Compare, Fill, Skeleton, Vertices, Metrics) also drive the glyph preview; zoom and pan apply to the canvas only. Clicking a glyph in the canvas selects it.
-- **Bottom left — glyphs:** the searchable glyph grid (characters or all glyphs). Selecting a glyph shows it in the preview; it never changes the text or the canvas view.
-- **Bottom right — input and preview:** a compact multi-line text input (sample texts in a menu, Clear, character count, kerning status, missing characters) on the left, and a small preview of the selected glyph on the right with its own zoom, pan, and **Fit**.
-- Narrow screens stack: import and font info, the canvas (at least 62 % of the viewport height), parameters (collapsed; **Parameters** in the canvas toolbar opens them), text input, glyph preview, then the glyph list.
+Double lines are drag handles. Each one only moves the border between its two neighbours, so they always add up to the same size: the top and bottom rows always fill the window between the header and the status bar (no page scrolling), the tools and the canvas share the top row's width, and the text input and the preview share theirs. Drag a handle, or focus it and use the arrow keys (Home / End jump to the limits); double-click resets it. Every area keeps a minimum size, and the splits are remembered in the browser. The bottom row's Glyphs column is not tied to the top row's split.
+
+- **Top left — tools:** **Import font** and the font information come first, followed by every geometry parameter (flattening, squaring, anchors, grid & angles, distortion) in pipeline order, then the experimental Random anchors. Parameter statistics refer to the selected glyph. Controls that currently have no effect are greyed out: all of Curve flattening while Random anchors are on, and the random seed at 0 % randomness. Explanations are folded behind an ⓘ button next to each label (click or tap to open, so it also works on touch screens and with the keyboard; the text stays the control's screen-reader description while folded); **Show all explanations** at the top of the panel opens them all and is remembered in the browser. Warnings, statistics, and notes about why a control is disabled are always shown.
+- **Top right — result canvas:** shows only the text from the input, set with the current font and all parameters. Its outline and layer controls (Original / Flattened / Compare, Fill, Skeleton, Vertices, Metrics) also drive the preview; zoom and pan apply to the canvas only. Clicking a glyph in the canvas selects it (the statistics follow it).
+- **Bottom left — glyphs:** a searchable grid of every character the font maps, used as an inserter: clicking a character inserts it into the text at the cursor (replacing selected text) and selects that glyph. Before the text box has been focused, characters are appended. Glyphs without a character (ligatures, alternates) and control characters are not listed, since they cannot be typed.
+- **Bottom right — input and preview:** a compact multi-line text input (sample texts in a menu, Clear, character count, kerning status, missing characters) on the left, and on the right a wider, fitted miniature of the result canvas with its own **Blur** slider (0–12 px) and an **Invert** button that swaps the glyph and background colours. Both only affect this view — a squint test for the overall shape, not part of the geometry or the export. A handle between the two parts moves the border (default 40 / 60).
+- Narrow screens stack (no handles): import and font info, the canvas (at least 62 % of the viewport height), parameters (collapsed; **Parameters** in the canvas toolbar opens them), text input, preview, then the glyph list.
 
 ### Canvas
 
 - Outline view: **Original** (font curves), **Flattened** (final polygon), **Compare** (final polygon with the original curves overlaid as a dashed line). The current view is shown in the canvas corner and the status bar.
 - Layers: **Fill** (off = outline stroke), **Skeleton** (original on-curve anchors as squares, off-curve controls as hollow circles, and handles; TrueType's implied on-curve points appear as anchors), **Vertices** (final polygon vertices as green dots), and **Metrics** (ascender, cap height, x-height, baseline, descender, advance width).
-- Zoom with the mouse wheel or `+` / `−`, pan by dragging or with the arrow keys (canvas focused), `0` or **Fit** to reset. The glyph preview has its own zoom and pan with the same gestures.
+- Zoom with the mouse wheel or `+` / `−`, pan by dragging or with the arrow keys (canvas focused), `0` or **Fit** to reset. The preview (bottom right) is always fitted and is not interactive.
 - All layers apply to every glyph of the text. Only glyphs inside the visible area are drawn. Skeleton points and vertices appear once an em is at least 48 px on screen; below that the canvas asks you to zoom in, so long texts stay readable. Metric labels are drawn on the first visible line only.
 
 ### Text preview
 
-The input text is set with the final polygons from a shared geometry cache, so the canvas, the glyph preview, and the exports always agree.
+The input text is set with the final polygons from a shared geometry cache, so the canvas, the preview, and the exports always agree.
 
 - Each glyph advances by its advance width plus kerning when the font has it (GPOS `kern` feature or a legacy `kern` table, applied through fontkit's layout). Ligatures are off so every character keeps its own glyph. Fonts without kerning data are labeled as such.
 - Line height is ascender − descender + the font's line gap. Spaces advance without drawing. Missing characters are drawn as dashed boxes and listed.
@@ -129,9 +131,9 @@ Every step validates each contour: it must keep at least three distinct points, 
 
 Every quadratic and cubic segment is replaced by straight edges (`src/geometry/flatten.ts`); the result uses only `M`, `L`, and `Z`.
 
-- **Adaptive (tolerance)** — recursive midpoint subdivision (de Casteljau). A sub-curve becomes one edge once an upper bound on its distance from the chord is within the tolerance (half the control point's distance for a quadratic, ¾ of the larger control distance for a cubic). Range 0.1–100 font units on a logarithmic slider. Safety limits: recursion depth 12 and a 0.01-unit minimum sub-curve length; curves that hit a limit are reported.
+- **Adaptive (tolerance)** — recursive midpoint subdivision (de Casteljau). A sub-curve becomes one edge once an upper bound on its distance from the chord is within the tolerance (half the control point's distance for a quadratic, ¾ of the larger control distance for a cubic). Range 0.1–500 font units on a logarithmic slider. Without merging every font curve keeps at least one edge, so raising the tolerance beyond about 100 changes little (Roboto: 11,219 vertices at both 100 and 500 over the first 400 glyphs); turn on **Merge joined curves** for coarser shapes. Safety limits: recursion depth 12 and a 0.01-unit minimum sub-curve length; curves that hit a limit are reported.
 - **Fixed segments** — each curve is sampled at `t = i/N` and becomes exactly N edges (1–32). Straight segments stay single edges. A warning appears if an edge strays more than 1 % of the em from its curve.
-- **Merge joined curves** (fixed mode, off by default; `src/geometry/curveRuns.ts`) — fonts build one visible curve from several Bézier segments (a Roboto O has 16 per contour), so "N per curve" alone stays smooth even at N = 1–2. Merging joins segments that meet smoothly into one curve and samples it with N edges spaced evenly by arc length.
+- **Merge joined curves** (both modes, off by default; the merge settings are shared; `src/geometry/curveRuns.ts`) — fonts build one visible curve from several Bézier segments (a Roboto O has 16 per contour), so per-curve settings alone stay smooth. Merging joins segments that meet smoothly into one curve. In fixed mode it is sampled with N edges spaced evenly by arc length; in adaptive mode it is simplified as a whole (Ramer–Douglas–Peucker on dense samples of the curve) so that no sample is farther than the tolerance from its edge, with at least 3 edges for a closed loop. Vertices stay on the curve. Roboto, first 400 glyphs, adaptive: 6,365 vertices at tolerance 500 with merging, against 11,219 without; the `o` goes from 36 to 12 vertices (Inter: 24 to 8).
   - **Break merged curves at:** **Corners & extremes** (default) — corners, straight segments, and the curve's horizontal/vertical extremes (found analytically, even inside a segment), so a round bowl splits into quarter arcs. **Corners only** — a fully smooth loop becomes one curve and uses at least 3 edges.
   - **Merge through straight lines** (off by default): straight segments that meet a neighbour smoothly also join the merged curve, so stems that flow into arches (n, m, u) or the straight sides of some O shapes are resampled with the curve. With this on, the extremes rule applies only between curves (a stem meets an arch exactly at its extreme). A straight segment left alone stays a line. Letters change a lot — stems can lose their ends.
   - **Corner angle** (1–90°, default 15°): a joint turning more than this always breaks. Merged curves also break at the contour start. Without merging through lines it only affects curve-to-curve joints, which in most fonts are already smooth (in Roboto 6200 of 6206 turn less than 1°), so it rarely changes anything. With merging through lines it decides which line joints merge: going from 15° to 90° changes 365 of the first 400 Roboto glyphs.
@@ -180,12 +182,12 @@ Crossings are checked within each contour, not between contours, so large values
 
 ### Random anchors (experimental)
 
-`src/geometry/randomAnchors.ts`. The last group in the tools panel, off by default. When on, anchors are placed at random arc-length positions on the **original curves** instead of Flatten's regular sampling; each anchor is evaluated on the source Bézier, so it lies exactly on the glyph outline. The result then goes through Squaring, Anchors, Grid, and Distortion as usual.
+`src/geometry/randomAnchors.ts`. The last group in the tools panel, off by default. When on, anchors are placed at random arc-length positions on the **original curves** instead of Flatten's regular sampling; each anchor is evaluated on the source Bézier, so it lies exactly on the glyph outline. The result then goes through Squaring, Anchors, Grid, and Distortion as usual. Because Flatten's polygon is replaced, the whole Curve flattening group is greyed out while this is on (its settings would only shape contours that fall back).
 
 - **Density** (1–100): about how many anchors per 1000 font units of outline; every contour keeps at least 3.
 - **Randomness** (0–100 %): stratified sampling. Each anchor has its own stretch of outline; 0 % puts it in the middle, 100 % anywhere inside it. Anchors never change order, so the outline cannot fold back.
 - **Keep sharp corners** (on by default): source joints that turn by more than 30° stay as fixed anchors, and each stretch between two corners is sampled on its own.
-- **Seed** (0–999,999): **Shuffle** picks a new seed (only the button uses the browser's random generator); **Copy** copies it; **Previous** lists the last six seeds of this session so you can go back. The seed also appears in the status bar and the export dialog.
+- **Seed** (0–999,999; greyed out at 0 % randomness, where it has no effect): **Shuffle** picks a new seed (only the button uses the browser's random generator); **Copy** copies it; **Previous** lists the last six seeds of this session so you can go back. The seed also appears in the status bar and the export dialog.
 - Reproducible: the random numbers come from a hash of (seed, glyph index, contour index, attempt), so the same font, settings, and seed always give the same polygon. Repeated letters in the text look identical; different letters get different draws.
 - Validation: a draw that reverses a contour, collapses it, or adds self-crossings is redrawn with a derived seed (up to 4 draws, still deterministic); if none is valid, that contour uses Flatten's result and the panel says so. On the first 400 glyphs of Roboto, Inter, and Andale Mono, no contour needed a redraw.
 - **Reset random anchors** restores the defaults but keeps the current seed.

@@ -35,9 +35,15 @@ function useElementSize<T extends HTMLElement>() {
 /**
  * Shared pan / zoom for the result canvas. Coordinates are font units with y up; the returned
  * view box is for an SVG whose content is drawn at (x, −y). Wheel zooms around the cursor, drag and
- * arrow keys pan, + / − zoom, 0 fits.
+ * arrow keys pan, + / − zoom, 0 fits. With `interactive` false only the view box is computed (no wheel
+ * listener), for read-only views.
  */
-export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch: Partial<ViewParams>) => void) {
+export function usePanZoom(
+  frame: Frame,
+  view: ViewParams,
+  onViewChange: (patch: Partial<ViewParams>) => void,
+  interactive = true,
+) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
   const ready = size.width > 0 && size.height > 0
   const scale = ready ? Math.min(size.width / frame.width, size.height / frame.height) * view.zoom : 1
@@ -52,7 +58,7 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
   latest.current = { view, frame, visW, visH, size }
   useEffect(() => {
     const el = containerRef.current
-    if (!el) return
+    if (!el || !interactive) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const { view, frame, visW, visH, size } = latest.current
@@ -67,7 +73,7 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [containerRef, onViewChange])
+  }, [containerRef, onViewChange, interactive])
 
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
   const lastGestureMoved = useRef(false)

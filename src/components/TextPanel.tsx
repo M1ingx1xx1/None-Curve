@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type Ref } from 'react'
 import type { LoadedFont } from '../font/model'
 import { SPECIMEN_MAX_CHARS, type SpecimenScene } from '../specimen/scene'
 
@@ -8,6 +8,9 @@ interface TextPanelProps {
   scene: SpecimenScene | null
   pending: boolean
   onTextChange: (text: string) => void
+  /** The textarea, so the glyph list can insert at the cursor. */
+  inputRef?: Ref<HTMLTextAreaElement>
+  onInputFocus?: () => void
 }
 
 const samples: [string, string][] = [
@@ -16,8 +19,8 @@ const samples: [string, string][] = [
   ['Spacing', 'Hamburgefonstiv\nAVATAR Type, Tolerance'],
 ]
 
-/** Bottom right, left half: the text shown in the result canvas. */
-export default function TextPanel({ font, text, scene, pending, onTextChange }: TextPanelProps) {
+/** Bottom right, left part: the text shown in the result canvas. */
+export default function TextPanel({ font, text, scene, pending, onTextChange, inputRef, onInputFocus }: TextPanelProps) {
   const id = useId()
   const length = [...text].length
 
@@ -60,7 +63,9 @@ export default function TextPanel({ font, text, scene, pending, onTextChange }: 
         Text to preview
       </label>
       <textarea
+        ref={inputRef}
         id={id}
+        onFocus={onInputFocus}
         className="text-input"
         value={text}
         spellCheck={false}
