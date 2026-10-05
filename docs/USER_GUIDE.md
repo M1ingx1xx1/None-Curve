@@ -73,7 +73,7 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 2. In the text input, type a word, for example `Hello`.
 3. In the tools area, find **Curve flattening**, choose **Fixed segments**, and set **Segments per curve** to `2`.
 4. Turn on **Merge joined curves**. The letters become clearly faceted.
-5. Click **Export…** at the top → **SVG — specimen text** → **Download SVG**.
+5. Click **Export…** at the top → **SVG — main view** → **Download SVG**.
 
 That's the whole workflow. The rest of this guide explains each step in more detail.
 
@@ -124,7 +124,7 @@ If a new font fails to load, the previous font stays on screen.
 ## 6. Typing text
 
 - Type in the **Text** box (bottom right). Press Enter for a new line.
-- **Sample…** offers ready-made texts: a pangram, round letters (good for testing squaring), and spacing pairs.
+- **Sample…** offers ready-made texts: **Lorem ipsum** (placeholder text), **Pangrams** (sentences that use every letter), **Spacing** (classic test words such as "Hamburgefontsiv"), and **Alphabet** (all capitals, lowercase letters, digits, and common punctuation, one group per line).
 - **Clear** empties the box.
 - Below the box you see how many characters you typed and whether the font's own **kerning** (fine spacing between pairs like "AV") is applied.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
@@ -276,7 +276,7 @@ Curve flattening → **Adaptive**, **Merge joined curves** on, **Tolerance** 50 
 As above (either mode), then turn on **Merge through straight lines** and raise **Corner angle** to 45°–90°. Try **Break merged curves at** = Corners only for the most reduced shapes.
 
 **Square O and round letters**
-Squaring → **Square**, Applies to **Round contours**, then Anchors → **Anchor reduction** = 2. Type "OO oo 00" (Sample… → Round letters) to check.
+Squaring → **Square**, Applies to **Round contours**, then Anchors → **Anchor reduction** = 2. Type "OO oo 00" to check.
 
 **Pixel / grid look**
 Grid & angles → **Snap to grid** on, **Grid size** around 5 % of the font's Units/em (for example 50 in a 1000-unit font). Add **Angle lock** at **90°** for only horizontal and vertical edges.
@@ -296,13 +296,16 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button.
 
-### As an image (SVG)
+### As an image (SVG or PNG)
 
-1. Choose **SVG — current glyph** (the selected letter) or **SVG — specimen text** (everything you typed).
-2. **Coordinate precision** — how many decimals the numbers in the file keep. 2 is a good default. If the app says a shape would break at this precision, choose a higher one.
-3. Click **Download SVG**.
+Both save everything you typed, as shown on the big canvas.
 
-SVG files open in Illustrator, Figma, Inkscape, and web browsers. The shapes contain only straight lines.
+1. Choose **SVG — main view** (shapes you can keep editing) or **PNG — main view** (a picture).
+2. Optional: tick **Export the preview look** to save what the small preview shows instead — its blur and its colours, including **Invert**. Set Blur and Invert in the preview first.
+3. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. For PNG, **Image width** — 2048 px suits most uses.
+4. Click **Download SVG** or **Download PNG**.
+
+SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes contain only straight lines. A blurred SVG uses a blur effect that browsers and most design apps show; if an app ignores it, use PNG.
 
 ### As a font (OTF)
 

@@ -196,10 +196,12 @@ Crossings are checked within each contour, not between contours, so large values
 
 Open **Export…** from the top-right corner of the header. Nothing is downloaded until you press a download button. Every export uses the same final polygons as the canvas.
 
-### SVG
+### SVG and PNG
 
-- **SVG — current glyph** or **SVG — specimen text**. Paths use only `M`, `L`, and `Z` with `fill-rule="nonzero"`; contour order and direction are kept.
-- Units are font units. The glyph view box is the advance box from descender to ascender, grown to include any overshoot; the text view box covers every line. Kerning and line breaks match the preview. Missing characters are blank advances, named in an XML comment.
+- **SVG — main view** (default) and **PNG — main view** export the whole text from the canvas (not just the selected glyph), laid out like the canvas. SVG: black outlines, no background. PNG: black on white, 1024 / 2048 / 4096 px wide, rendered from the same SVG.
+- **Export the preview look** (checkbox, off by default) exports the bottom-right preview instead: its on-screen colours (theme and **Invert** applied) on a solid background, with its **Blur**. The blur is converted from preview pixels to font units, so it keeps its size relative to the letters at any resolution; in SVG it is an `feGaussianBlur` filter, and the canvas grows by three standard deviations so the blur is not cut off.
+- Paths use only `M`, `L`, and `Z` with `fill-rule="nonzero"`; contour order and direction are kept.
+- Units are font units. The view box covers every line. Kerning and line breaks match the preview. Missing characters are blank advances, named in an XML comment.
 - **Coordinate precision** 0–4 decimal places. If rounding would collapse, flip, or cross a contour, the export stops and asks for a higher precision.
 - Text in `<title>` / `<desc>` is XML-escaped; file names use only ASCII letters, digits, `.`, `-`, and `_`.
 

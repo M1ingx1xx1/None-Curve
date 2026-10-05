@@ -8,7 +8,7 @@ import Header from './components/Header'
 import InputPanel from './components/InputPanel'
 import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
-import TextPreview from './components/TextPreview'
+import TextPreview, { DEFAULT_PREVIEW_LOOK, type PreviewLook, type PreviewRender } from './components/TextPreview'
 import ToolHead from './components/ToolHead'
 import Workspace from './components/Workspace'
 import type { GlyphRef } from './geometry/types'
@@ -25,6 +25,9 @@ export default function App() {
   const importer = useFontImport(dispatch)
   const derived = useDerivedGeometry(state)
   const [text, setText] = useState(DEFAULT_TEXT)
+  // The preview's blur and inversion, and its scale, so exports can reproduce the preview look.
+  const [previewLook, setPreviewLook] = useState<PreviewLook>(DEFAULT_PREVIEW_LOOK)
+  const [previewRender, setPreviewRender] = useState<PreviewRender>({ scale: 0, ink: '#000', paper: '#fff' })
   const { scene, pending: scenePending } = useSpecimenScene(state.document.font, text, derived.params, derived.paramsKey)
 
   // Only used on narrow screens; on desktop the geometry parameters are always shown top left.
@@ -114,6 +117,9 @@ export default function App() {
                 view={state.params.view}
                 gridSize={gridSize}
                 selectedGlyph={state.document.selectedGlyph}
+                look={previewLook}
+                onLookChange={setPreviewLook}
+                onRenderChange={setPreviewRender}
               />
             }
           />
@@ -127,6 +133,8 @@ export default function App() {
         font={state.document.font}
         selectedGlyph={state.document.selectedGlyph}
         specimenText={text}
+        previewLook={previewLook}
+        previewRender={previewRender}
         params={derived.params}
         paramsKey={derived.paramsKey}
         pending={derived.pending}

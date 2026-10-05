@@ -9,14 +9,17 @@ import {
   type FontNaming,
   type GlyphSet,
 } from '../export/fontFile'
-import { glyphToSvg, specimenToSvg } from '../export/svg'
+import { svgSize, svgToPng } from '../export/png'
+import { MAIN_LOOK, specimenToSvg, type SvgLook } from '../export/svg'
 import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
-import { glyphGeometry } from '../geometry/cache'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
 import { buildSpecimenScene } from '../specimen/scene'
+import type { PreviewLook, PreviewRender } from './TextPreview'
 
-type Format = 'glyph-svg' | 'specimen-svg' | 'otf'
+type Format = 'svg' | 'png' | 'otf'
+
+const PNG_WIDTHS = [1024, 2048, 4096] as const
 
 interface ExportDialogProps {
   open: boolean
@@ -24,6 +27,9 @@ interface ExportDialogProps {
   font: LoadedFont | null
   selectedGlyph: GlyphRef | null
   specimenText: string
+  /** Blur and inversion of the bottom-right preview, and how it is drawn (scale, colours). */
+  previewLook: PreviewLook
+  previewRender: PreviewRender
   params: GeometryParams
   paramsKey: string
   pending: boolean
@@ -42,8 +48,8 @@ type Status =
 type BuiltFont = { result: FontExportResult; key: string; fileName: string }
 
 const formats: { value: Format; label: string; hint: string }[] = [
-  { value: 'glyph-svg', label: 'SVG — current glyph', hint: 'The selected glyph as shown on the canvas.' },
-  { value: 'specimen-svg', label: 'SVG — specimen text', hint: 'The specimen text, laid out with advances and kerning.' },
+  { value: 'svg', label: 'SVG — main view', hint: 'The whole text from the canvas as vector outlines, with advances and kerning.' },
+  { value: 'png', label: 'PNG — main view', hint: 'The same text as an image on a solid background.' },
   { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download.' },
 ]
 
@@ -59,10 +65,14 @@ async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
 }
 
 export default function ExportDialog(props: ExportDialogProps) {
-  const { open, onClose, font, selectedGlyph, specimenText, params, paramsKey, pending, precision, onPrecisionChange, onExported } = props
+  const { open, onClose, font, selectedGlyph, specimenText, previewLook, previewRender, params, paramsKey, pending, precision, onPrecisionChange, onExported } =
+    props
   const dialogRef = useRef<HTMLDialogElement>(null)
   const firstRef = useRef<HTMLInputElement>(null)
-  const [format, setFormat] = useState<Format>('glyph-svg')
+  const [format, setFormat] = useState<Format>('svg')
+  // Off by default: exports show the main view; ticked, they carry the preview's blur and inversion.
+  const [usePreviewLook, setUsePreviewLook] = useState(false)
+  const [pngWidth, setPngWidth] = useState<(typeof PNG_WIDTHS)[number]>(2048)
   const [glyphSet, setGlyphSet] = useState<GlyphSet>('specimen')
   const [naming, setNaming] = useState<FontNaming>({ familyName: '', styleName: '' })
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -110,24 +120,39 @@ export default function ExportDialog(props: ExportDialogProps) {
     ? `${glyphLabel(selectedGlyph)}${selectedGlyph.unicode !== null ? ` (${formatCodePoint(selectedGlyph.unicode)})` : ''}`
     : 'none'
 
-  const exportSvg = () => {
+  // The preview's blur is in its own screen pixels; dividing by its scale gives font units, so the
+  // exported blur has the same size relative to the letters at any export resolution.
+  const previewBlurUnits = previewRender.scale > 0 ? previewLook.blur / previewRender.scale : 0
+  const look = (forPng: boolean): SvgLook =>
+    usePreviewLook
+      ? { blur: previewBlurUnits, ink: previewRender.ink, paper: previewRender.paper, background: true }
+      : { ...MAIN_LOOK, background: forPng }
+  const lookName = usePreviewLook
+    ? `preview look (${previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}${previewLook.inverted ? ', inverted' : ''})`
+    : 'main view'
+
+  const exportImage = async () => {
     if (!font) return
+    const forPng = format === 'png'
     try {
-      let svg
-      let fileName
-      if (format === 'glyph-svg') {
-        if (!selectedGlyph) throw new Error('Select a glyph first.')
-        const geometry = glyphGeometry(font, selectedGlyph.index, params, paramsKey)
-        svg = glyphToSvg(geometry.polygon, geometry.polygon.metrics, precision, { fontName, subject: `glyph ${glyphName}`, pipeline })
-        const id = selectedGlyph.unicode !== null ? formatCodePoint(selectedGlyph.unicode).replace('+', '') : selectedGlyph.name || `glyph${selectedGlyph.index}`
-        fileName = safeFileName([font.familyName, font.styleName, id], 'svg')
-      } else {
-        const scene = buildSpecimenScene(font, specimenText, params, paramsKey)
-        svg = specimenToSvg(scene, precision, { fontName, subject: `specimen “${specimenText.slice(0, 80)}”`, pipeline })
-        fileName = safeFileName([font.familyName, font.styleName, 'specimen'], 'svg')
+      const scene = buildSpecimenScene(font, specimenText, params, paramsKey)
+      const subject = `${usePreviewLook ? 'preview' : 'main view'} “${specimenText.slice(0, 80)}”`
+      // PNG coordinates only need to be sharp at the chosen pixel size; two decimals is plenty.
+      const svg = specimenToSvg(scene, forPng ? 2 : precision, { fontName, subject, pipeline }, look(forPng))
+      const parts = [font.familyName, font.styleName, usePreviewLook ? 'preview' : 'text']
+      if (!forPng) {
+        const fileName = safeFileName(parts, 'svg')
+        downloadFile(svg.svg, fileName, 'image/svg+xml')
+        setStatus({ kind: 'done', message: `Saved ${fileName}: ${svg.paths} outline${svg.paths === 1 ? '' : 's'}, ${svg.vertices} vertices, ${lookName}.` })
+        onExported(fileName)
+        return
       }
-      downloadFile(svg.svg, fileName, 'image/svg+xml')
-      setStatus({ kind: 'done', message: `Saved ${fileName}: ${svg.paths} outline${svg.paths === 1 ? '' : 's'}, ${svg.vertices} vertices.` })
+      setStatus({ kind: 'working', message: 'Drawing the PNG…' })
+      const size = svgSize(svg.svg)
+      const png = await svgToPng(svg.svg, size.width, size.height, pngWidth)
+      const fileName = safeFileName(parts, 'png')
+      downloadFile(png, fileName, 'image/png')
+      setStatus({ kind: 'done', message: `Saved ${fileName}: ${pngWidth} × ${Math.round((pngWidth * size.height) / size.width)} px, ${lookName}.` })
       onExported(fileName)
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
@@ -223,31 +248,58 @@ export default function ExportDialog(props: ExportDialogProps) {
 
             {format !== 'otf' && (
               <div className="export-section">
-                <div className="field">
-                  <label htmlFor="export-precision">Coordinate precision</label>
-                  <select id="export-precision" value={precision} onChange={(e) => onPrecisionChange(Number(e.target.value))}>
-                    {[0, 1, 2, 3, 4].map((p) => (
-                      <option key={p} value={p}>
-                        {p === 0 ? 'Whole font units' : `${p} decimal place${p === 1 ? '' : 's'}`}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="field-hint">
-                    Coordinates are font units. If rounding would collapse, flip, or cross a contour, the export stops
-                    and asks for a higher precision.
-                  </p>
+                <div className="field field-toggle">
+                  <input
+                    id="export-preview-look"
+                    type="checkbox"
+                    checked={usePreviewLook}
+                    aria-describedby="export-preview-look-hint"
+                    onChange={(e) => setUsePreviewLook(e.target.checked)}
+                  />
+                  <label htmlFor="export-preview-look">Export the preview look</label>
                 </div>
-                <p className="export-summary">
-                  {format === 'glyph-svg' ? `Glyph ${glyphName}` : `Specimen: “${specimenText.slice(0, 60)}${specimenText.length > 60 ? '…' : ''}”`} ·
-                  SVG paths use only M, L, and Z with nonzero fill.
+                <p id="export-preview-look-hint" className="field-hint">
+                  Off: the main view, {format === 'png' ? 'black text on white' : 'black outlines without a background'}. On: the
+                  bottom-right preview’s current look — {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'},{' '}
+                  {previewLook.inverted ? 'inverted' : 'not inverted'}, in the colours shown there. The blur keeps its size
+                  relative to the letters{format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
                 </p>
-                <button
-                  type="button"
-                  className="button-primary"
-                  disabled={pending || (format === 'glyph-svg' ? !selectedGlyph : !specimenText.trim())}
-                  onClick={exportSvg}
-                >
-                  Download SVG
+
+                {format === 'svg' ? (
+                  <div className="field">
+                    <label htmlFor="export-precision">Coordinate precision</label>
+                    <select id="export-precision" value={precision} onChange={(e) => onPrecisionChange(Number(e.target.value))}>
+                      {[0, 1, 2, 3, 4].map((p) => (
+                        <option key={p} value={p}>
+                          {p === 0 ? 'Whole font units' : `${p} decimal place${p === 1 ? '' : 's'}`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="field-hint">
+                      Coordinates are font units. If rounding would collapse, flip, or cross a contour, the export stops
+                      and asks for a higher precision.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="field">
+                    <label htmlFor="export-png-width">Image width</label>
+                    <select id="export-png-width" value={pngWidth} onChange={(e) => setPngWidth(Number(e.target.value) as (typeof PNG_WIDTHS)[number])}>
+                      {PNG_WIDTHS.map((w) => (
+                        <option key={w} value={w}>
+                          {w} px
+                        </option>
+                      ))}
+                    </select>
+                    <p className="field-hint">The height follows the text’s proportions.</p>
+                  </div>
+                )}
+                <p className="export-summary">
+                  Text: “{specimenText.slice(0, 60)}
+                  {specimenText.length > 60 ? '…' : ''}” · {lookName}
+                  {format === 'svg' ? ' · SVG paths use only M, L, and Z with nonzero fill.' : ''}
+                </p>
+                <button type="button" className="button-primary" disabled={pending || working || !specimenText.trim()} onClick={exportImage}>
+                  {format === 'svg' ? 'Download SVG' : 'Download PNG'}
                 </button>
               </div>
             )}

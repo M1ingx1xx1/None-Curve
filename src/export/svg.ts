@@ -1,6 +1,6 @@
 // SVG serialization of the final polygons. Paths use only M, L, and Z. No React, no DOM.
 
-import type { GlyphMetrics, Point, PolygonGlyph } from '../geometry/types'
+import type { Point } from '../geometry/types'
 import type { SpecimenScene } from '../specimen/scene'
 import { ExportError, quantizePolygon, roundTo } from './quantize'
 
@@ -18,6 +18,22 @@ export interface SvgMeta {
   /** Active pipeline steps, used in <desc>. */
   pipeline: string[]
 }
+
+/**
+ * How the specimen is painted. The default is the main view: black outlines, no background. The
+ * preview look uses the preview's colours and blur on a solid background.
+ */
+export interface SvgLook {
+  /** Gaussian blur standard deviation in font units; 0 is none. */
+  blur: number
+  /** Glyph colour and background colour (CSS colours). */
+  ink: string
+  paper: string
+  /** Paint a solid background (a blurred look always has one). */
+  background: boolean
+}
+
+export const MAIN_LOOK: SvgLook = { blur: 0, ink: '#000', paper: '#fff', background: false }
 
 /** Removes characters that are not allowed in XML 1.0, then escapes markup characters. */
 export function escapeXml(text: string): string {
@@ -57,44 +73,36 @@ function header(width: number, height: number, decimals: number, meta: SvgMeta):
 }
 
 /**
- * One glyph. The canvas is the advance box from descender to ascender, grown to include any outline
- * that overshoots it; the origin is the glyph origin flipped to SVG's y-down axis.
+ * Specimen text: one path per glyph, positioned with the same advances and kerning as the canvas.
+ * With a blurred look the canvas grows by three standard deviations on every side, so the blur is not
+ * cut off.
  */
-export function glyphToSvg(polygon: PolygonGlyph, metrics: GlyphMetrics, decimals: number, meta: SvgMeta): SvgDocument {
-  const contours = quantizePolygon(polygon, decimals, meta.subject)
-  const points = contours.flat()
-  let minX = Math.min(0, metrics.advanceWidth)
-  let maxX = Math.max(0, metrics.advanceWidth)
-  let top = metrics.ascender
-  let bottom = metrics.descender
-  for (const p of points) {
-    minX = Math.min(minX, p.x)
-    maxX = Math.max(maxX, p.x)
-    top = Math.max(top, p.y)
-    bottom = Math.min(bottom, p.y)
-  }
-  const flipped = contours.map((c) => c.map((p) => ({ x: p.x - minX, y: top - p.y })))
-
-  const lines = header(maxX - minX, top - bottom, decimals, meta)
-  lines.push(comment(`Advance width ${metrics.advanceWidth}; baseline at y = ${num(top, decimals)}.`))
-  if (contours.length) lines.push(`  <path fill="#000" fill-rule="nonzero" d="${pathData(flipped, decimals)}"/>`)
-  else lines.push(comment('This glyph has no outline.'))
-  lines.push('</svg>', '')
-  return { svg: lines.join('\n'), paths: contours.length ? 1 : 0, vertices: points.length }
-}
-
-/** Specimen text: one path per glyph, positioned with the same advances and kerning as the preview. */
-export function specimenToSvg(scene: SpecimenScene, decimals: number, meta: SvgMeta): SvgDocument {
+export function specimenToSvg(scene: SpecimenScene, decimals: number, meta: SvgMeta, look: SvgLook = MAIN_LOOK): SvgDocument {
   if (scene.glyphCount === 0) throw new ExportError('The specimen is empty. Type some text first.')
+  const blur = Math.max(0, look.blur)
+  const margin = Math.ceil(blur * 3)
   // Rounded outward so rounded coordinates can never fall outside the view box.
-  const minX = Math.floor(scene.bounds.minX)
-  const minY = Math.floor(scene.bounds.minY)
-  const maxX = Math.ceil(scene.bounds.maxX)
-  const maxY = Math.ceil(scene.bounds.maxY)
+  const minX = Math.floor(scene.bounds.minX) - margin
+  const minY = Math.floor(scene.bounds.minY) - margin
+  const maxX = Math.ceil(scene.bounds.maxX) + margin
+  const maxY = Math.ceil(scene.bounds.maxY) + margin
+  const width = maxX - minX
+  const height = maxY - minY
+  const ink = escapeXml(look.ink)
+  const paper = escapeXml(look.paper)
   const quantized = new Map<number, Point[][]>()
-  const lines = header(maxX - minX, maxY - minY, decimals, meta)
+  const lines = header(width, height, decimals, meta)
   if (scene.missingCharacters.length) {
     lines.push(comment(`Missing from the font, left as blank advances: ${scene.missingCharacters.join(' ')}`))
+  }
+  if (look.background || blur > 0) lines.push(`  <rect width="${width}" height="${height}" fill="${paper}"/>`)
+  if (blur > 0) {
+    lines.push(
+      `  <filter id="blur" filterUnits="userSpaceOnUse" x="0" y="0" width="${width}" height="${height}">`,
+      `    <feGaussianBlur stdDeviation="${num(blur, 3)}"/>`,
+      '  </filter>',
+      '  <g filter="url(#blur)">',
+    )
   }
   let paths = 0
   let vertices = 0
@@ -108,12 +116,13 @@ export function specimenToSvg(scene: SpecimenScene, decimals: number, meta: SvgM
         quantized.set(glyph.index, contours)
       }
       const placed = contours.map((c) => c.map((p) => ({ x: glyph.x + p.x - minX, y: glyph.y - p.y - minY })))
-      lines.push(`    <path fill="#000" fill-rule="nonzero" d="${pathData(placed, decimals)}"/>`)
+      lines.push(`    <path fill="${ink}" fill-rule="nonzero" d="${pathData(placed, decimals)}"/>`)
       paths++
       vertices += placed.reduce((n, c) => n + c.length, 0)
     }
     lines.push('  </g>')
   }
+  if (blur > 0) lines.push('  </g>')
   lines.push('</svg>', '')
   return { svg: lines.join('\n'), paths, vertices }
 }

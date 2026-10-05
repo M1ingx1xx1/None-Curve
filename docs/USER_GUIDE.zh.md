@@ -74,7 +74,7 @@
 2. 在文字输入框里输入一个词，比如 `Hello`。
 3. 在功能区找到 **Curve flattening**（曲线展平），选择 **Fixed segments**（固定线段数），把 **Segments per curve**（每条曲线的线段数）设为 `2`。
 4. 打开 **Merge joined curves**（合并相连曲线），字母会出现明显的折面效果。
-5. 点顶部的 **Export…** → **SVG — specimen text** → **Download SVG**。
+5. 点顶部的 **Export…** → **SVG — main view** → **Download SVG**。
 
 这就是完整的流程。本指南接下来会逐步详细说明。
 
@@ -125,7 +125,7 @@
 ## 6. 输入文字
 
 - 在 **Text** 输入框（右下）里打字，按回车换行。
-- **Sample…** 提供现成的示例文字：全字母句（Pangram）、圆形字母（Round letters，适合测试方形化）和字距组合（Spacing）。
+- **Sample…** 提供现成的示例文字：**Lorem ipsum**（假字填充）、**Pangrams**（包含所有字母的句子）、**Spacing**（如 “Hamburgefontsiv” 这类经典字距测试词）和 **Alphabet**（全部大写、小写、数字和常用标点，每组一行）。
 - **Clear** 清空输入框。
 - 输入框下方会显示字符数，以及是否应用了字体自带的**字偶距**（像 “AV” 这类字母组合之间的细微间距调整）。
 - 如果某个字符在字体里不存在，画布上会显示一个**红色虚线框**，并在输入框下方列出；这一行的其余部分照常显示。
@@ -277,7 +277,7 @@ Curve flattening → **Adaptive**，打开 **Merge joined curves**，**Tolerance
 在上面任一配方的基础上，打开 **Merge through straight lines**，把 **Corner angle** 调到 45°–90°。想要最简化的形状，可以把 **Break merged curves at** 改成 Corners only。
 
 **方形的 O 和其他圆形字母**
-Squaring → **Square**，Applies to 选 **Round contours**，再到 Anchors → **Anchor reduction** 设为 2。输入 “OO oo 00”（或 Sample… → Round letters）检查效果。
+Squaring → **Square**，Applies to 选 **Round contours**，再到 Anchors → **Anchor reduction** 设为 2。输入 “OO oo 00” 检查效果。
 
 **像素 / 网格风格**
 Grid & angles → 打开 **Snap to grid**，**Grid size** 约为字体 Units/em 的 5%（例如 1000 单位的字体设为 50）。再打开 **Angle lock** 并选 **90°**，就只剩水平和垂直的边。
@@ -297,13 +297,16 @@ Random anchors → 打开 **Use random anchors**，**Density** 3–5，**Randomn
 
 点右上角的 **Export…**。只有点下载按钮时才会下载。
 
-### 保存为图像（SVG）
+### 保存为图像（SVG 或 PNG）
 
-1. 选择 **SVG — current glyph**（当前选中的字母）或 **SVG — specimen text**（你输入的全部文字）。
-2. **Coordinate precision**（坐标精度）——文件里的数字保留几位小数，默认 2 即可。如果提示这个精度会破坏形状，就选更高的精度。
-3. 点 **Download SVG**。
+两种格式都会保存你输入的全部文字，样子与大画布一致。
 
-SVG 文件可以用 Illustrator、Figma、Inkscape 或浏览器打开，里面的形状全部由直线构成。
+1. 选择 **SVG — main view**（可以继续编辑的图形）或 **PNG — main view**（图片）。
+2. 可选：勾选 **Export the preview look**，改为保存小预览里的样子——它的模糊和颜色（包括 **Invert** 反色）。请先在预览里调好 Blur 和 Invert。
+3. SVG 选 **Coordinate precision**（坐标精度），即文件里的数字保留几位小数，默认 2 即可；PNG 选 **Image width**（图片宽度），一般 2048 像素就够。
+4. 点 **Download SVG** 或 **Download PNG**。
+
+SVG 文件可以用 Illustrator、Figma、Inkscape 或浏览器打开，里面的形状全部由直线构成。带模糊的 SVG 使用模糊滤镜，浏览器和大多数设计软件都能显示；如果某个软件不支持，请改用 PNG。
 
 ### 保存为字体（OTF）
 
