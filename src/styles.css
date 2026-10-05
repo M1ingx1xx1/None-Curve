@@ -7,7 +7,7 @@
   --faint: #9a9994;
   --border: #d6d5d0;
   --border-strong: #111110;
-  /* Accent: canvas drawings (skeleton, selection, original curves); interactive UI uses the primary mint. */
+  /* Accent: canvas drawings (skeleton, original curves); interactive UI and the glyph selection use the primary mint. */
   --accent: #1f4fd1;
   --guide: #c9c8c2;
   --grid: rgba(17, 17, 16, 0.05);
@@ -836,11 +836,11 @@ input[type='range']:disabled {
 }
 
 .specimen-glyph:hover .glyph-fill {
-  fill: var(--accent);
+  fill: var(--primary-strong);
 }
 
 .glyph-fill-selected {
-  fill: var(--accent);
+  fill: var(--primary-strong);
 }
 
 .gf-invalid {
