@@ -1,14 +1,14 @@
-import { useCallback, useReducer, useState } from 'react'
+import { useCallback, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import CanvasViewport from './components/CanvasViewport'
 import ExportDialog from './components/ExportDialog'
 import GeometryPanel from './components/GeometryPanel'
 import GlyphPanel from './components/GlyphPanel'
-import GlyphPreview from './components/GlyphPreview'
 import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
 import InputPanel from './components/InputPanel'
 import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
+import TextPreview from './components/TextPreview'
 import ToolHead from './components/ToolHead'
 import Workspace from './components/Workspace'
 import type { GlyphRef } from './geometry/types'
@@ -38,8 +38,36 @@ export default function App() {
     (patch: Partial<ViewParams>) => dispatch({ type: 'updateParams', group: 'view', patch }),
     [],
   )
-  // Selecting a glyph (in the list or the canvas) shows it in the preview; the canvas view is kept.
+  // Clicking a glyph in the canvas selects it (the statistics follow it); the canvas view is kept.
   const selectGlyph = useCallback((glyph: GlyphRef) => dispatch({ type: 'selectGlyph', glyph, keepView: true }), [])
+
+  // The glyph list inserts characters at the text cursor (or replaces the selected text), then puts
+  // the cursor after the insertion. The textarea keeps its selection while it is not focused; before
+  // it has ever been focused there is no real cursor, so characters are appended.
+  const textRef = useRef<HTMLTextAreaElement>(null)
+  const caretRef = useRef<number | null>(null)
+  const cursorPlaced = useRef(false)
+  const onTextFocus = useCallback(() => {
+    cursorPlaced.current = true
+  }, [])
+  const insertGlyph = useCallback((glyph: GlyphRef, insert: string) => {
+    const el = cursorPlaced.current ? textRef.current : null
+    setText((current) => {
+      const start = el ? Math.min(el.selectionStart, current.length) : current.length
+      const end = el ? Math.min(Math.max(el.selectionEnd, start), current.length) : current.length
+      caretRef.current = start + insert.length
+      return current.slice(0, start) + insert + current.slice(end)
+    })
+    dispatch({ type: 'selectGlyph', glyph, keepView: true })
+  }, [])
+  useLayoutEffect(() => {
+    const el = textRef.current
+    if (el && caretRef.current !== null) {
+      el.setSelectionRange(caretRef.current, caretRef.current)
+      caretRef.current = null
+      cursorPlaced.current = true
+    }
+  }, [text])
 
   const gridSize = state.params.grid.snap && state.params.grid.size > 0 ? state.params.grid.size : null
 
@@ -65,17 +93,27 @@ export default function App() {
             onOpenGoogleFonts={openGoogleFonts}
           />
         }
-        glyphs={<GlyphPanel font={state.document.font} selected={state.document.selectedGlyph} onInspectGlyph={selectGlyph} />}
+        glyphs={<GlyphPanel font={state.document.font} onInsert={insertGlyph} />}
         input={
           <InputPanel
-            text={<TextPanel font={state.document.font} text={text} scene={scene} pending={scenePending} onTextChange={setText} />}
-            preview={
-              <GlyphPreview
+            text={
+              <TextPanel
                 font={state.document.font}
-                selected={state.document.selectedGlyph}
-                glyphGeometry={derived.result}
+                text={text}
+                scene={scene}
+                pending={scenePending}
+                onTextChange={setText}
+                inputRef={textRef}
+                onInputFocus={onTextFocus}
+              />
+            }
+            preview={
+              <TextPreview
+                font={state.document.font}
+                scene={scene}
                 view={state.params.view}
                 gridSize={gridSize}
+                selectedGlyph={state.document.selectedGlyph}
               />
             }
           />

@@ -2,6 +2,7 @@ import type { Dispatch } from 'react'
 import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geometry/constraints'
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
+import { HintButton, HintText, useHint } from './Hint'
 
 interface GridControlsProps {
   params: GridParams
@@ -48,6 +49,9 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
   const snapOn = params.snap && params.size > 0
   const snapFallback = stats ? describeFallbacks(stats, 'snap') : null
   const angleFallback = stats ? describeFallbacks(stats, 'angle') : null
+  const introHint = useHint()
+  const sizeHint = useHint()
+  const angleHint = useHint()
   const isDefault =
     params.snap === DEFAULT_GRID.snap &&
     params.size === DEFAULT_GRID.size &&
@@ -56,11 +60,13 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
 
   return (
     <fieldset className="group grid-controls" disabled={disabled}>
-      <legend>Grid &amp; angles</legend>
-      <p className="field-hint">
+      <legend>
+        Grid &amp; angles <HintButton hint={introHint} topic="Grid and angles" />
+      </legend>
+      <HintText hint={introHint}>
         Runs after anchor reduction: Grid snapping → Angle lock. Turning a step off restores the result of the steps
         before it.
-      </p>
+      </HintText>
 
       <div className="field field-toggle">
         <input id="grid-snap" type="checkbox" checked={params.snap} onChange={(e) => update({ snap: e.target.checked })} />
@@ -68,7 +74,10 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
       </div>
       <div className="field">
         <div className="field-head">
-          <label htmlFor="grid-size">Grid size</label>
+          <span className="field-title">
+            <label htmlFor="grid-size">Grid size</label>
+            <HintButton hint={sizeHint} topic="Grid size" />
+          </span>
           <output htmlFor="grid-size">
             {params.size > 0 ? params.size : 'Off'}
             {params.size > 0 && <span className="unit">u</span>}
@@ -83,15 +92,15 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
           value={params.size}
           disabled={!params.snap}
           aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
-          aria-describedby="grid-size-hint"
+          aria-describedby={sizeHint.id}
           onChange={(e) => update({ size: Number(e.target.value) })}
         />
-        <p id="grid-size-hint" className="field-hint">
+        <HintText hint={sizeHint}>
           Each coordinate is rounded to the nearest multiple of the grid size
           {unitsPerEm && params.size > 0 ? ` (${((params.size / unitsPerEm) * 100).toFixed(2)}% of the em)` : ''}, with
           the grid anchored at the glyph origin so the baseline stays on a grid line. Exact halves round up. Neighbours
           that land on the same point are merged. 0 turns snapping off.
-        </p>
+        </HintText>
       </div>
       {stats?.snapApplied && (
         <p className="field-hint">
@@ -111,12 +120,15 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
         <label htmlFor="angle-lock">Angle lock</label>
       </div>
       <div className="field">
-        <label htmlFor="angle-step">Allowed directions</label>
+        <span className="field-title">
+          <label htmlFor="angle-step">Allowed directions</label>
+          <HintButton hint={angleHint} topic="Allowed directions" />
+        </span>
         <select
           id="angle-step"
           value={params.angleStep}
           disabled={!params.angleLock}
-          aria-describedby="angle-step-hint"
+          aria-describedby={angleHint.id}
           onChange={(e) => update({ angleStep: Number(e.target.value) })}
         >
           {ANGLE_STEPS.map((step) => (
@@ -125,11 +137,11 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
             </option>
           ))}
         </select>
-        <p id="angle-step-hint" className="field-hint">
+        <HintText hint={angleHint}>
           Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal; an
           exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their length,
           so the contour closes again. The start vertex stays fixed.
-        </p>
+        </HintText>
       </div>
       {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
       {angleFallback && (

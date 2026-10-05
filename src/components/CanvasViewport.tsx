@@ -73,7 +73,7 @@ export function Legend({ view }: { view: ViewParams }) {
 
 /**
  * Top right: the result canvas. It shows only the text from the input, set with the current font
- * and every geometry parameter. The view and layer controls here also drive the glyph preview.
+ * and every geometry parameter. The outline and layer controls here also drive the miniature preview.
  */
 export default function CanvasViewport(props: CanvasViewportProps) {
   const {

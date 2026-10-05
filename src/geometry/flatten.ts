@@ -4,7 +4,7 @@
 // accumulate error, and the source glyph is never modified.
 
 import { countSelfCrossings } from './anchors'
-import { buildCurveRuns, sampleRun } from './curveRuns'
+import { buildCurveRuns, sampleRun, simplifyRun } from './curveRuns'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
 /** Hard limits that keep pathological input (huge or degenerate curves) from running away. */
@@ -112,11 +112,11 @@ function flattenContour(contour: SourceContour, params: FlattenParams, stats: Fl
 
   push(contour.start)
 
-  if (params.mode === 'segments' && params.mergeCurves) {
+  if (params.mergeCurves) {
     const merged = flattenMerged(contour, params, push)
     const points = closeOut(out)
     // Merging is coarse by design; reject results that collapse, flip, or add self-crossings and
-    // fall back to the unmerged fixed result for this contour.
+    // fall back to the unmerged result (same mode) for this contour.
     const unmergedStats = emptyStats()
     const unmerged = flattenContour(contour, { ...params, mergeCurves: false }, unmergedStats)
     stats.mergedCurveCount ??= 0
@@ -181,8 +181,12 @@ function flattenMerged(contour: SourceContour, params: FlattenParams, push: (p: 
       result.curves += item.sourceCurves
       result.lines += item.sourceLines
       result.runs++
-      const n = loop ? Math.max(MIN_LOOP_EDGES, params.segmentsPerCurve) : params.segmentsPerCurve
-      result.deviation = Math.max(result.deviation, sampleRun(item.pieces, n, push))
+      const minEdges = loop ? MIN_LOOP_EDGES : 1
+      const deviation =
+        params.mode === 'segments'
+          ? sampleRun(item.pieces, Math.max(minEdges, params.segmentsPerCurve), push)
+          : simplifyRun(item.pieces, params.tolerance, minEdges, push)
+      result.deviation = Math.max(result.deviation, deviation)
     }
   }
   return result
