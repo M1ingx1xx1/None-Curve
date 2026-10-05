@@ -1,6 +1,8 @@
-import { useCallback, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useState, type DragEvent } from 'react'
 import type { GlyphRef } from '../geometry/types'
+import type { ArtboardLayout, ArtboardParams, PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
+import CanvasSizeControls from './CanvasSizeControls'
 import type { DocumentState, OutlineView, ViewParams } from '../state/types'
 import ErrorBoundary from './ErrorBoundary'
 import FileDropTarget from './FileDropTarget'
@@ -11,6 +13,11 @@ interface CanvasViewportProps {
   document: DocumentState
   view: ViewParams
   scene: SpecimenScene | null
+  /** The artboard the text is set on, its colours, and its size settings. */
+  layout: ArtboardLayout | null
+  palette: PaletteParams
+  artboard: ArtboardParams
+  onArtboardChange: (patch: Partial<ArtboardParams>) => void
   /** Snapping grid spacing to draw, or null when snapping is off. */
   gridSize: number | null
   geometryPanelOpen: boolean
@@ -21,6 +28,8 @@ interface CanvasViewportProps {
   onLocalFile: (file: File) => void
   onOpenGoogleFonts: () => void
 }
+
+const SIZE_OPEN_KEY = 'none-curve:canvas-size-open'
 
 export const outlineViews: { value: OutlineView; label: string; description: string }[] = [
   { value: 'source', label: 'Original', description: 'Original font curves' },
@@ -80,6 +89,10 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     document,
     view,
     scene,
+    layout,
+    palette,
+    artboard,
+    onArtboardChange,
     gridSize,
     geometryPanelOpen,
     onToggleGeometryPanel,
@@ -91,8 +104,30 @@ export default function CanvasViewport(props: CanvasViewportProps) {
   } = props
   const { font, selectedGlyph } = document
   const [dragging, setDragging] = useState(false)
+  // The canvas size drawer below the canvas; remembered per browser.
+  const [sizeOpen, setSizeOpen] = useState(() => {
+    try {
+      return localStorage.getItem(SIZE_OPEN_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIZE_OPEN_KEY, String(sizeOpen))
+    } catch {
+      // Not remembered; the drawer still works for this visit.
+    }
+  }, [sizeOpen])
 
-  const interactive = font !== null && scene !== null && scene.glyphCount > 0
+  const interactive = font !== null && scene !== null && layout !== null && scene.glyphCount > 0
+  // Text outside the artboard is shown on the canvas but cut off in the preview and in exports.
+  const overflows =
+    interactive &&
+    (scene.bounds.minX < layout.x - 0.5 ||
+      scene.bounds.maxX > layout.x + layout.width + 0.5 ||
+      scene.bounds.minY < layout.y - 0.5 ||
+      scene.bounds.maxY > layout.y + layout.height + 0.5)
   const zoomBy = (factor: number) => onViewChange({ zoom: clampZoom(view.zoom * factor) })
   const outlineDescription = outlineViews.find((o) => o.value === view.outline)?.description ?? ''
 
@@ -184,6 +219,9 @@ export default function CanvasViewport(props: CanvasViewportProps) {
             <SpecimenView
               font={font}
               scene={scene}
+              layout={layout}
+              ink={palette.ink}
+              paper={palette.paper}
               view={view}
               gridSize={gridSize}
               selectedGlyph={selectedGlyph}
@@ -195,6 +233,12 @@ export default function CanvasViewport(props: CanvasViewportProps) {
               {scene.glyphCount} glyphs · {outlineDescription}
             </p>
             <Legend view={view} />
+            {overflows && (
+              <p className="canvas-overflow" role="status">
+                The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography → Fit
+                text.
+              </p>
+            )}
           </ErrorBoundary>
         )}
         {font && !interactive && (
@@ -208,6 +252,25 @@ export default function CanvasViewport(props: CanvasViewportProps) {
             Drop to import
           </div>
         )}
+      </div>
+
+      <div className="canvas-size" data-open={sizeOpen}>
+        <button
+          type="button"
+          className="canvas-size-toggle"
+          aria-expanded={sizeOpen}
+          aria-controls="canvas-size-controls"
+          onClick={() => setSizeOpen((open) => !open)}
+        >
+          <span>Canvas size</span>
+          <span className="canvas-size-summary">
+            {artboard.width} × {artboard.height} px · {artboard.scale}×
+          </span>
+          <span aria-hidden="true">{sizeOpen ? '▾' : '▴'}</span>
+        </button>
+        <div id="canvas-size-controls" hidden={!sizeOpen}>
+          <CanvasSizeControls params={artboard} onChange={onArtboardChange} />
+        </div>
       </div>
     </section>
   )

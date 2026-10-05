@@ -7,7 +7,7 @@
   --faint: #9a9994;
   --border: #d6d5d0;
   --border-strong: #111110;
-  /* Accent: canvas drawings (skeleton, selection, original curves); interactive UI uses the primary mint. */
+  /* Accent: canvas drawings (skeleton, original curves); interactive UI and the glyph selection use the primary mint. */
   --accent: #1f4fd1;
   --guide: #c9c8c2;
   --grid: rgba(17, 17, 16, 0.05);
@@ -586,7 +586,8 @@ input[type='range']:disabled {
 
 .viewport {
   display: grid;
-  grid-template-rows: auto 1fr;
+  /* Toolbar, canvas, and the canvas size drawer; the drawer takes its height from the canvas. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   min-height: 320px;
@@ -723,24 +724,12 @@ input[type='range']:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.text-preview {
-  /* The theme's paper and ink, captured here so the inverted canvas can swap them without a cycle. */
-  --preview-paper: var(--canvas);
-  --preview-ink: var(--text);
-}
-
 .text-preview-canvas {
   position: relative;
   flex: 1;
   min-height: 120px;
   border: 1px solid var(--border);
   background-color: var(--canvas);
-}
-
-/* Invert: glyphs and background trade colours; vertices, guides, and the selection keep theirs. */
-.text-preview-canvas[data-inverted='true'] {
-  --canvas: var(--preview-ink);
-  --text: var(--preview-paper);
 }
 
 .text-preview-empty {
@@ -835,12 +824,290 @@ input[type='range']:disabled {
   cursor: pointer;
 }
 
-.specimen-glyph:hover .glyph-fill {
-  fill: var(--accent);
+/* On the canvas and the preview, glyphs use the Color settings (set on the SVG as --artboard-ink);
+   hover and selection keep the interface mint. */
+.specimen-view .glyph-fill {
+  fill: var(--artboard-ink, var(--text));
 }
 
-.glyph-fill-selected {
-  fill: var(--accent);
+.specimen-view .outline-stroke {
+  stroke: var(--artboard-ink, var(--text));
+}
+
+.specimen-view .specimen-glyph:hover .glyph-fill,
+.specimen-view .glyph-fill.glyph-fill-selected {
+  fill: var(--primary-strong);
+}
+
+/* The artboard: the canvas area that is exported. A thin edge keeps it visible on any background. */
+.artboard {
+  stroke: var(--border-strong);
+  stroke-opacity: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.specimen-view-static .artboard {
+  stroke: none;
+}
+
+.canvas-overflow {
+  position: absolute;
+  left: 8px;
+  top: 34px;
+  max-width: min(420px, calc(100% - 16px));
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--danger);
+  pointer-events: none;
+}
+
+/* ---- Canvas size drawer (below the canvas) ---- */
+
+.canvas-size {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.canvas-size-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.canvas-size-toggle:hover {
+  background: var(--bg);
+}
+
+.canvas-size-summary {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.canvas-size-controls {
+  display: grid;
+  /* Three groups side by side when there is room; they wrap when the canvas is narrow. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 20px;
+  padding: 10px 12px 12px;
+}
+
+.canvas-size-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+
+.canvas-size-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-size-axis {
+  font-weight: 700;
+  color: var(--primary-strong);
+}
+
+.ratio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.ratio-grid .button-small,
+.swap-button,
+.scale-row .button-small {
+  justify-content: center;
+}
+
+.ratio-grid .button-small[aria-pressed='true'],
+.scale-row .button-small[aria-pressed='true'] {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary-edge);
+}
+
+.scale-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+/* ---- Tool tabs ---- */
+
+.tool-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-strong);
+  margin: -2px 0 0;
+}
+
+.tool-tabs [role='tab'] {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 8px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tool-tabs [role='tab']:hover {
+  color: var(--text);
+}
+
+.tool-tabs [role='tab'][aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--primary-strong);
+}
+
+.tool-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tool-tab-panel[hidden] {
+  display: none;
+}
+
+.show-explanations {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ---- Slider with a number box (Typography) ---- */
+
+.slider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider-unit {
+  min-width: 3.2em;
+  font-size: 0.75rem;
+}
+
+.number-field {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fit-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- Color ---- */
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.palette-option {
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-color: var(--border);
+  font-size: 0.8rem;
+  min-width: 0;
+}
+
+.palette-option[aria-pressed='true'] {
+  border-color: var(--primary-strong);
+  box-shadow: inset 0 0 0 1px var(--primary-strong);
+}
+
+.palette-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+
+.palette-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.color-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+  align-items: center;
+}
+
+.color-swatch {
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.color-hex {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 5px 8px;
+  min-width: 0;
+}
+
+.color-hex[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+/* ---- Letter case toggles above the text box ---- */
+
+.case-row {
+  align-self: flex-start;
+}
+
+.case-row button {
+  padding: 2px 8px;
+  font-size: 0.78rem;
+}
+
+.case-sample {
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .gf-invalid {

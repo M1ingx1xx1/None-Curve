@@ -187,7 +187,7 @@ export default function DistortionControls({
         {stats && stats.fallbackContours > 0 && (
           <p className="font-warning">
             {stats.fallbackContours} {stats.fallbackContours === 1 ? 'contour is' : 'contours are'} left undistorted: even a
-            quarter of the amplitude made {stats.fallbackContours === 1 ? 'it' : 'them'} invalid.
+            sixteenth of the amplitude made {stats.fallbackContours === 1 ? 'it' : 'them'} invalid.
           </p>
         )}
 

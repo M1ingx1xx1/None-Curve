@@ -46,8 +46,8 @@ The screen is split into two rows and five areas:
 └────────────────────────╨──────────────╨───────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import font** button, information about the loaded font, and all the shaping controls. Scroll this area to see every control.
-2. **Result canvas (top right)** — the big preview. It always shows the text you typed, rebuilt with your current settings.
+1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the controls in three tabs: **Geometry** (the shape of the letters), **Typography** (size, spacing, slant, alignment), and **Color**. Scroll a tab to see every control.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The **Canvas size** bar at its bottom opens the size settings.
 3. **Glyphs (bottom left)** — every letter, number, and symbol in the font. Click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters.
 4. **Text input (bottom right, left part)** — type the text you want to see on the canvas.
 5. **Preview (bottom right, right part)** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button. Drag the line between ④ and ⑤ to share the space differently.
@@ -73,7 +73,7 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 2. In the text input, type a word, for example `Hello`.
 3. In the tools area, find **Curve flattening**, choose **Fixed segments**, and set **Segments per curve** to `2`.
 4. Turn on **Merge joined curves**. The letters become clearly faceted.
-5. Click **Export…** at the top → **SVG — specimen text** → **Download SVG**.
+5. Click **Export…** at the top → **SVG — main view** → **Download SVG**.
 
 That's the whole workflow. The rest of this guide explains each step in more detail.
 
@@ -124,8 +124,9 @@ If a new font fails to load, the previous font stays on screen.
 ## 6. Typing text
 
 - Type in the **Text** box (bottom right). Press Enter for a new line.
-- **Sample…** offers ready-made texts: a pangram, round letters (good for testing squaring), and spacing pairs.
+- The sample menu next to **Clear** offers ready-made texts: **Lorem ipsum** (placeholder text), **Pangrams** (sentences that use every letter), **Spacing** (classic test words such as "Hamburgefontsiv"), and **Alphabet** (all capitals, lowercase letters, digits, and common punctuation, one group per line). The app starts with Lorem ipsum. Once you change the text, the menu shows the last sample with "(edited)"; pick it again to get the original back.
 - **Clear** empties the box.
+- Above the box, **All caps**, **Lower**, and **Title case** change how the letters appear on the canvas and in exports (Title case: a capital at the start of every word). Your typed text stays as it is. Click the highlighted button again to go back to the text as typed.
 - Below the box you see how many characters you typed and whether the font's own **kerning** (fine spacing between pairs like "AV") is applied.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
 - Up to 1000 characters are shown.
@@ -164,24 +165,34 @@ If a new font fails to load, the previous font stays on screen.
 
 ### The preview: Blur, Invert, and width
 
-The **Preview** (bottom right) is a small copy of the canvas that always shows all of your text at once. It follows the canvas's Original / Flattened / Compare and layer buttons, but not its zoom.
+The **Preview** (bottom right) shows the whole canvas exactly as it will be exported — anything outside the canvas is cut off. It follows the canvas's Original / Flattened / Compare and layer buttons, but not its zoom.
 
 - **Blur** softens the preview, as if you looked at the text from far away or squinted. This shows the overall shape and rhythm of the letters without the details — a quick way to check whether a rough or faceted style still reads well.
-- **Invert** swaps the colours of the letters and the background in the preview — dark letters on light become light on dark, and back. Useful to check how the text works both ways, for example for a sign or a dark poster.
-- Blur and Invert only change this small view. They do not change the letters on the canvas or what you export.
+- **Invert** swaps the text and background colours in the preview — dark letters on light become light on dark, and back. Useful to check how the text works both ways, for example for a sign or a dark poster.
+- Blur and Invert only change this small view. To save them in a file, tick **Export the preview look** when exporting.
 - **Making the text box or the preview wider:** drag the thin line between them (see "Changing the size of the areas" in section 3).
+
+### Canvas size
+
+The text sits on a **canvas** of a fixed size in pixels, like a page or an artboard. Click the **Canvas size** bar under the big canvas to open or close its settings:
+
+- **W** and **H** — the width and height in pixels. Drag the slider or type a number (it takes effect when you press Enter or click elsewhere).
+- **1:1, 4:3, 16:9, 4:5, 3:2, 3:4** — common picture shapes. The width stays and the height follows. **Swap** turns a landscape canvas into a portrait one and back.
+- **1×, 2×, 3×, 4×** — how many times larger a PNG export is. The layout stays the same; a higher number just gives a sharper, larger image (shown underneath, for example 2400 × 1600 px).
+
+If the text is too big for the canvas, a red note appears on the big canvas; the preview and exports cut the text off at the edge. **Typography → Fit text** makes it fit.
 
 ---
 
 ## 8. The shaping controls
 
-The controls are applied in a fixed order, top to bottom, so later steps work on the result of earlier ones:
+These are in the **Geometry** tab. The controls are applied in a fixed order, top to bottom, so later steps work on the result of earlier ones:
 
 **Curve flattening → Squaring → Anchors → Grid & angles → Distortion**
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the panel. Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), that part of the letter keeps its previous shape and a yellow note tells you why.
+Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the panel. Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
 ### Curve flattening — how curves become straight lines
 
@@ -262,6 +273,28 @@ While random anchors are on, the **Curve flattening** controls are greyed out wi
 
 The seed is also shown in the status line at the bottom and in the export dialog, so it is recorded with what you export.
 
+### Typography tab — size, spacing, and alignment
+
+These place the text on the canvas. They do not change the shape of the letters or the exported font file.
+
+- **Size** — the letter size, as a percentage of the canvas width (the explanation shows the size in pixels). Because it follows the width, the text keeps its proportions when you change the canvas size. You can drag the slider or type a number.
+- **Fit text** — makes the text as large as possible while still fitting inside the padding.
+- **Padding** — empty space around the text on every side.
+- **Tracking** — extra space between letters. Negative values pull letters closer.
+- **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.
+- **Slant** — leans the letters, like a quick italic. Positive leans right, negative leans left.
+- **Align** — **Left**, **Center**, or **Right**. The text block is always centred top to bottom.
+- **Reset typography** puts these back to their starting values.
+
+### Color tab — text and background colours
+
+- **Presets** — twelve ready-made colour pairs; the two dots show the text colour and the background. **Ink** (dark text on light paper) is the default.
+- **Random** picks a random pair that is still easy to read. **Swap** exchanges the text and background colours.
+- **Text** and **Background** — click the colour bar to pick any colour, or type a hex code such as `#35f2b4`.
+- Under them, **Contrast** tells you how readable the pair is; below 3 : 1 a yellow note warns that the text will be hard to read.
+
+The colours are used by the canvas, the preview, and SVG and PNG exports. A font file has no colour.
+
 ---
 
 ## 9. Recipes
@@ -276,7 +309,7 @@ Curve flattening → **Adaptive**, **Merge joined curves** on, **Tolerance** 50 
 As above (either mode), then turn on **Merge through straight lines** and raise **Corner angle** to 45°–90°. Try **Break merged curves at** = Corners only for the most reduced shapes.
 
 **Square O and round letters**
-Squaring → **Square**, Applies to **Round contours**, then Anchors → **Anchor reduction** = 2. Type "OO oo 00" (Sample… → Round letters) to check.
+Squaring → **Square**, Applies to **Round contours**, then Anchors → **Anchor reduction** = 2. Type "OO oo 00" to check.
 
 **Pixel / grid look**
 Grid & angles → **Snap to grid** on, **Grid size** around 5 % of the font's Units/em (for example 50 in a 1000-unit font). Add **Angle lock** at **90°** for only horizontal and vertical edges.
@@ -296,13 +329,17 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button.
 
-### As an image (SVG)
+### As an image (SVG or PNG)
 
-1. Choose **SVG — current glyph** (the selected letter) or **SVG — specimen text** (everything you typed).
-2. **Coordinate precision** — how many decimals the numbers in the file keep. 2 is a good default. If the app says a shape would break at this precision, choose a higher one.
-3. Click **Download SVG**.
+Both save the canvas: its size, your text placed as on the canvas, and your colours.
 
-SVG files open in Illustrator, Figma, Inkscape, and web browsers. The shapes contain only straight lines.
+1. Choose **SVG — main view** (shapes you can keep editing) or **PNG — main view** (a picture).
+2. Optional: untick **Include the background colour** for a transparent background (only the letters are drawn).
+3. Optional: tick **Export the preview look** to save what the small preview shows instead — its blur, and its swapped colours if **Invert** is on. Set Blur and Invert in the preview first.
+4. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
+5. Click **Download SVG** or **Download PNG**.
+
+SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes contain only straight lines. A blurred SVG uses a blur effect that browsers and most design apps show; if an app ignores it, use PNG.
 
 ### As a font (OTF)
 

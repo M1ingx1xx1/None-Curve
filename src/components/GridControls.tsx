@@ -49,6 +49,8 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
   const snapOn = params.snap && params.size > 0
   const snapFallback = stats ? describeFallbacks(stats, 'snap') : null
   const angleFallback = stats ? describeFallbacks(stats, 'angle') : null
+  const simplifiedSnap = stats?.simplified.filter((s) => s.step === 'snap').length ?? 0
+  const simplifiedAngle = stats?.simplified.filter((s) => s.step === 'angle').length ?? 0
   const introHint = useHint()
   const sizeHint = useHint()
   const angleHint = useHint()
@@ -110,6 +112,12 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
             {stats.snapMerged === 1 ? 'vertex' : 'vertices'}.
           </p>
         )}
+        {simplifiedSnap > 0 && (
+          <p className="field-hint">
+            {simplifiedSnap} contour{simplifiedSnap === 1 ? ' was' : 's were'} simplified first so snapping could apply
+            without collapsing or crossing.
+          </p>
+        )}
         {snapFallback && <p className="font-warning">Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.</p>}
 
         <div className="field field-toggle">
@@ -146,6 +154,12 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
           </HintText>
         </div>
         {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
+        {simplifiedAngle > 0 && (
+          <p className="field-hint">
+            {simplifiedAngle} contour{simplifiedAngle === 1 ? ' needed' : 's needed'} a coarser outline or stair steps
+            to lock their angles without crossing.
+          </p>
+        )}
         {angleFallback && (
           <p className="font-warning">Angle lock skipped for: {angleFallback}. Those contours keep their previous points.</p>
         )}

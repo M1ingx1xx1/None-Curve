@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useId, useMemo, type CSSProperties } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
+import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
@@ -10,6 +11,13 @@ import { usePanZoom } from './usePanZoom'
 interface SpecimenViewProps {
   font: LoadedFont
   scene: SpecimenScene
+  /** Where the artboard sits in scene units; zoom 1 shows the whole artboard. */
+  layout: ArtboardLayout
+  /** Glyph and artboard colours. */
+  ink: string
+  paper: string
+  /** Hide everything outside the artboard (the preview shows exactly what is exported). */
+  clip?: boolean
   view: ViewParams
   gridSize: number | null
   selectedGlyph: GlyphRef | null
@@ -18,7 +26,7 @@ interface SpecimenViewProps {
   onSelectGlyph: (glyph: GlyphRef) => void
   /** False for a read-only miniature: no pan, zoom, keyboard focus, or glyph selection. */
   interactive?: boolean
-  /** Gaussian blur over the whole drawing, in screen pixels; 0 is off. */
+  /** Gaussian blur of the glyphs, in screen pixels; 0 is off. The artboard itself stays sharp. */
   blur?: number
 }
 
@@ -35,6 +43,10 @@ const LABEL_MIN_PX_PER_EM = 28
 export default function SpecimenView({
   font,
   scene,
+  layout,
+  ink,
+  paper,
+  clip = false,
   view,
   gridSize,
   selectedGlyph,
@@ -46,12 +58,13 @@ export default function SpecimenView({
 }: SpecimenViewProps) {
   const { unitsPerEm, ascender, descender } = font.metrics
 
-  // Scene coordinates are y down (first baseline at 0); the canvas works in y up.
-  const frame = useMemo(() => {
-    const { minX, maxX, minY, maxY } = scene.bounds
-    const pad = unitsPerEm * 0.25
-    return { cx: (minX + maxX) / 2, cy: -(minY + maxY) / 2, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 }
-  }, [scene, unitsPerEm])
+  // Scene coordinates are y down (first baseline at 0); the canvas works in y up. Zoom 1 fits the artboard.
+  const frame = useMemo(() => artboardViewFrame(layout), [layout])
+  const ids = useId()
+  const blurId = `${ids}-blur`
+  const clipId = `${ids}-clip`
+  // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
+  const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
 
   const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange, interactive)
   const { left, right, top, bottom } = box
@@ -86,6 +99,9 @@ export default function SpecimenView({
   const sceneBottom = -bottom
   const margin = unitsPerEm
   const firstVisibleLine = scene.lines.findIndex((line) => line.baseline - descender >= sceneTop)
+  // Metric guides span the artboard (or the visible part of it), not the whole view.
+  const guideLeft = Math.max(left, layout.x)
+  const guideRight = Math.min(right, layout.x + layout.width)
 
   return (
     <div
@@ -103,8 +119,21 @@ export default function SpecimenView({
           viewBox={`${left} ${-top} ${visW} ${visH}`}
           preserveAspectRatio="none"
           aria-hidden="true"
-          style={blur > 0 ? { filter: `blur(${blur}px)` } : undefined}
+          style={{ '--artboard-ink': ink } as CSSProperties}
         >
+          <defs>
+            {blur > 0 && (
+              <filter id={blurId} filterUnits="userSpaceOnUse" x={layout.x} y={layout.y} width={layout.width} height={layout.height}>
+                <feGaussianBlur stdDeviation={blur * u} />
+              </filter>
+            )}
+            {clip && (
+              <clipPath id={clipId}>
+                <rect x={layout.x} y={layout.y} width={layout.width} height={layout.height} />
+              </clipPath>
+            )}
+          </defs>
+          <rect className="artboard" x={layout.x} y={layout.y} width={layout.width} height={layout.height} fill={paper} />
           {grid && (
             <g className="snap-grid">
               {grid.xs.map((x) => (
@@ -124,9 +153,9 @@ export default function SpecimenView({
                 <g key={l} className="metric-lines">
                   {guides.map(([name, y]) => (
                     <g key={name} className={y === 0 ? 'metric-baseline' : undefined}>
-                      <line x1={left} x2={right} y1={line.baseline - y} y2={line.baseline - y} vectorEffect="non-scaling-stroke" />
+                      <line x1={guideLeft} x2={guideRight} y1={line.baseline - y} y2={line.baseline - y} vectorEffect="non-scaling-stroke" />
                       {labelled && pxPerEm >= LABEL_MIN_PX_PER_EM && (
-                        <text x={left + 8 * u} y={line.baseline - y - 4 * u} fontSize={10 * u}>
+                        <text x={guideLeft + 8 * u} y={line.baseline - y - 4 * u} fontSize={10 * u}>
                           {name}
                         </text>
                       )}
@@ -136,57 +165,59 @@ export default function SpecimenView({
               )
             })}
 
-          {scene.lines.map((line, l) => {
-            if (line.baseline - ascender - margin > sceneBottom || line.baseline - descender + margin < sceneTop) return null
-            return (
-              <g key={l}>
-                {line.glyphs.map((g, i) => {
-                  if (g.x + g.advance + margin < left || g.x - margin > right) return null
-                  if (g.missing) {
+          <g filter={blur > 0 ? `url(#${blurId})` : undefined} clipPath={clip ? `url(#${clipId})` : undefined}>
+            {scene.lines.map((line, l) => {
+              if (line.baseline - ascender - margin > sceneBottom || line.baseline - descender + margin < sceneTop) return null
+              return (
+                <g key={l}>
+                  {line.glyphs.map((g, i) => {
+                    if (g.x + g.advance + margin < left || g.x - margin > right) return null
+                    if (g.missing) {
+                      return (
+                        <rect
+                          key={i}
+                          className="strip-missing"
+                          x={g.x + g.advance * 0.1}
+                          y={g.y - ascender * 0.7}
+                          width={g.advance * 0.8}
+                          height={ascender * 0.7}
+                          vectorEffect="non-scaling-stroke"
+                        >
+                          <title>Missing from the font: {g.text}</title>
+                        </rect>
+                      )
+                    }
+                    const source = sourceFor(g.index)
+                    if (!source || source.contours.length === 0) return null
                     return (
-                      <rect
+                      <g
                         key={i}
-                        className="strip-missing"
-                        x={g.x + g.advance * 0.1}
-                        y={g.y - ascender * 0.7}
-                        width={g.advance * 0.8}
-                        height={ascender * 0.7}
-                        vectorEffect="non-scaling-stroke"
+                        className="specimen-glyph"
+                        transform={`translate(${g.x} ${g.y})${skew} scale(1 -1)`}
+                        onClick={
+                          interactive
+                            ? () => {
+                                if (!wasDrag()) onSelectGlyph(selectRef(g.index, g.text))
+                              }
+                            : undefined
+                        }
                       >
-                        <title>Missing from the font: {g.text}</title>
-                      </rect>
+                        <title>{g.text}</title>
+                        <GlyphLayers
+                          source={source}
+                          polygon={g.polygon}
+                          view={view}
+                          markerRadius={3.5 * u}
+                          showMarkers={showMarkers}
+                          selected={selectedGlyph?.index === g.index}
+                        />
+                      </g>
                     )
-                  }
-                  const source = sourceFor(g.index)
-                  if (!source || source.contours.length === 0) return null
-                  return (
-                    <g
-                      key={i}
-                      className="specimen-glyph"
-                      transform={`translate(${g.x} ${g.y}) scale(1 -1)`}
-                      onClick={
-                        interactive
-                          ? () => {
-                              if (!wasDrag()) onSelectGlyph(selectRef(g.index, g.text))
-                            }
-                          : undefined
-                      }
-                    >
-                      <title>{g.text}</title>
-                      <GlyphLayers
-                        source={source}
-                        polygon={g.polygon}
-                        view={view}
-                        markerRadius={3.5 * u}
-                        showMarkers={showMarkers}
-                        selected={selectedGlyph?.index === g.index}
-                      />
-                    </g>
-                  )
-                })}
-              </g>
-            )
-          })}
+                  })}
+                </g>
+              )
+            })}
+          </g>
         </svg>
       )}
       {interactive && ready && gridSize && (
