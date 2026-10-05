@@ -47,7 +47,10 @@ export default function StatusBar({ state, glyphGeometry, scene }: StatusBarProp
       <span>Glyph: {glyphInfo}</span>
       <span>Advance: {advance ?? '—'}</span>
       <span>UPM: {font?.metrics.unitsPerEm ?? '—'}</span>
-      <span className="statusbar-view">View: {viewing}</span>
+      {/* Truncated to one line on wide screens; the full text is in the tooltip. */}
+      <span className="statusbar-view" title={`View: ${viewing}`}>
+        View: {viewing}
+      </span>
     </footer>
   )
 }

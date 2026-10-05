@@ -67,185 +67,188 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
         Random anchors <span className="tag-experimental">Experimental</span>{' '}
         <HintButton hint={introHint} topic="Random anchors" />
       </legend>
-      <HintText hint={introHint}>
-        Places anchors at random points on the original curves instead of Flatten’s regular spacing, so every anchor
-        still lies on the letter’s outline. Runs in place of Flatten’s sampling; Squaring, Anchors, Grid, and
-        Distortion then work on the result. Each seed gives one fixed result, so write down a seed you like.
-      </HintText>
-
-      <div className="field field-toggle">
-        <input
-          id="random-enabled"
-          type="checkbox"
-          checked={params.enabled}
-          aria-describedby={enabledHint.id}
-          onChange={(e) => update({ enabled: e.target.checked })}
-        />
-        <span className="field-title">
-          <label htmlFor="random-enabled">Use random anchors</label>
-          <HintButton hint={enabledHint} topic="Use random anchors" />
-        </span>
-      </div>
-      <HintText hint={enabledHint}>
-        Off by default. While on, Flatten’s settings only matter for contours that fall back (see below).
-      </HintText>
-
-      <div className="field">
-        <div className="field-head">
-          <span className="field-title">
-            <label htmlFor="random-density">Density</label>
-            <HintButton hint={densityHint} topic="Density" />
-          </span>
-          <output htmlFor="random-density">
-            {params.density}
-            <span className="unit">/1000 u</span>
-          </output>
-        </div>
-        <input
-          id="random-density"
-          type="range"
-          min={RANDOM_ANCHOR_LIMITS.minDensity}
-          max={RANDOM_ANCHOR_LIMITS.maxDensity}
-          step={1}
-          value={params.density}
-          disabled={off}
-          aria-valuetext={`${params.density} anchors per 1000 font units`}
-          aria-describedby={densityHint.id}
-          onChange={(e) => update({ density: Number(e.target.value) })}
-        />
-        <HintText hint={densityHint}>
-          About how many anchors per 1000 font units of outline. Low values give rough, faceted letters; every contour
-          keeps at least 3 anchors.
+      {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
+      <div className="group-body">
+        <HintText hint={introHint}>
+          Places anchors at random points on the original curves instead of Flatten’s regular spacing, so every anchor
+          still lies on the letter’s outline. Runs in place of Flatten’s sampling; Squaring, Anchors, Grid, and
+          Distortion then work on the result. Each seed gives one fixed result, so write down a seed you like.
         </HintText>
-      </div>
 
-      <div className="field">
-        <div className="field-head">
-          <span className="field-title">
-            <label htmlFor="random-randomness">Randomness</label>
-            <HintButton hint={randomnessHint} topic="Randomness" />
-          </span>
-          <output htmlFor="random-randomness">{percent}%</output>
-        </div>
-        <input
-          id="random-randomness"
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={params.randomness}
-          disabled={off}
-          aria-valuetext={`${percent} percent`}
-          aria-describedby={randomnessHint.id}
-          onChange={(e) => update({ randomness: Number(e.target.value) })}
-        />
-        <HintText hint={randomnessHint}>
-          0% spaces anchors evenly along the outline; 100% lets each anchor land anywhere in its own stretch. Anchors
-          never swap order, so the outline does not fold back on itself.
-        </HintText>
-      </div>
-
-      <div className="field field-toggle">
-        <input
-          id="random-corners"
-          type="checkbox"
-          checked={params.keepCorners}
-          disabled={off}
-          aria-describedby={cornersHint.id}
-          onChange={(e) => update({ keepCorners: e.target.checked })}
-        />
-        <span className="field-title">
-          <label htmlFor="random-corners">Keep sharp corners</label>
-          <HintButton hint={cornersHint} topic="Keep sharp corners" />
-        </span>
-      </div>
-      <HintText hint={cornersHint}>
-        Keeps every source corner sharper than {RANDOM_ANCHOR_LIMITS.cornerAngle}° as a fixed anchor, so stems and
-        serifs stay crisp. Turn off to let corners be cut too.
-      </HintText>
-
-      <div className="field">
-        <span className="field-title">
-          <label htmlFor="random-seed">Seed</label>
-          <HintButton hint={seedHint} topic="Seed" />
-        </span>
-        <div className="seed-row">
+        <div className="field field-toggle">
           <input
-            id="random-seed"
-            type="number"
-            min={0}
-            max={RANDOM_ANCHOR_LIMITS.maxSeed}
-            step={1}
-            value={params.seed}
-            disabled={seedOff}
-            aria-describedby={seedHint.id}
-            onChange={(e) => {
-              const value = Math.trunc(Number(e.target.value))
-              // Typed seeds skip the history; a seed enters it once Shuffle or a previous seed replaces it.
-              if (Number.isFinite(value)) update({ seed: Math.min(RANDOM_ANCHOR_LIMITS.maxSeed, Math.max(0, value)) })
-            }}
+            id="random-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            aria-describedby={enabledHint.id}
+            onChange={(e) => update({ enabled: e.target.checked })}
           />
-          <button type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(pickSeed(params.seed))}>
-            Shuffle
-          </button>
-          <button type="button" className="button-small" disabled={seedOff} onClick={copySeed}>
-            {copied ? 'Copied' : 'Copy'}
-          </button>
+          <span className="field-title">
+            <label htmlFor="random-enabled">Use random anchors</label>
+            <HintButton hint={enabledHint} topic="Use random anchors" />
+          </span>
         </div>
-        {params.randomness === 0 && params.enabled ? (
-          // Why the seed is greyed out: a state note, so it is always shown.
-          <p id={seedHint.id} className="field-hint">
-            At 0% Randomness the anchors are evenly spaced, so the seed has no effect. Raise Randomness to use it.
-          </p>
-        ) : (
-          <HintText hint={seedHint}>
-            Shuffle picks a new random seed. To reproduce a result, type its seed here with the same settings and font.
+        <HintText hint={enabledHint}>
+          Off by default. While on, Flatten’s settings only matter for contours that fall back (see below).
+        </HintText>
+
+        <div className="field">
+          <div className="field-head">
+            <span className="field-title">
+              <label htmlFor="random-density">Density</label>
+              <HintButton hint={densityHint} topic="Density" />
+            </span>
+            <output htmlFor="random-density">
+              {params.density}
+              <span className="unit">/1000 u</span>
+            </output>
+          </div>
+          <input
+            id="random-density"
+            type="range"
+            min={RANDOM_ANCHOR_LIMITS.minDensity}
+            max={RANDOM_ANCHOR_LIMITS.maxDensity}
+            step={1}
+            value={params.density}
+            disabled={off}
+            aria-valuetext={`${params.density} anchors per 1000 font units`}
+            aria-describedby={densityHint.id}
+            onChange={(e) => update({ density: Number(e.target.value) })}
+          />
+          <HintText hint={densityHint}>
+            About how many anchors per 1000 font units of outline. Low values give rough, faceted letters; every contour
+            keeps at least 3 anchors.
           </HintText>
-        )}
-        {history.length > 0 && (
-          <div className="seed-history" role="group" aria-label="Previous seeds">
-            <span className="field-label">Previous</span>
-            {history.map((seed) => (
-              <button key={seed} type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(seed)}>
-                {seed}
-              </button>
-            ))}
+        </div>
+
+        <div className="field">
+          <div className="field-head">
+            <span className="field-title">
+              <label htmlFor="random-randomness">Randomness</label>
+              <HintButton hint={randomnessHint} topic="Randomness" />
+            </span>
+            <output htmlFor="random-randomness">{percent}%</output>
           </div>
+          <input
+            id="random-randomness"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={params.randomness}
+            disabled={off}
+            aria-valuetext={`${percent} percent`}
+            aria-describedby={randomnessHint.id}
+            onChange={(e) => update({ randomness: Number(e.target.value) })}
+          />
+          <HintText hint={randomnessHint}>
+            0% spaces anchors evenly along the outline; 100% lets each anchor land anywhere in its own stretch. Anchors
+            never swap order, so the outline does not fold back on itself.
+          </HintText>
+        </div>
+
+        <div className="field field-toggle">
+          <input
+            id="random-corners"
+            type="checkbox"
+            checked={params.keepCorners}
+            disabled={off}
+            aria-describedby={cornersHint.id}
+            onChange={(e) => update({ keepCorners: e.target.checked })}
+          />
+          <span className="field-title">
+            <label htmlFor="random-corners">Keep sharp corners</label>
+            <HintButton hint={cornersHint} topic="Keep sharp corners" />
+          </span>
+        </div>
+        <HintText hint={cornersHint}>
+          Keeps every source corner sharper than {RANDOM_ANCHOR_LIMITS.cornerAngle}° as a fixed anchor, so stems and
+          serifs stay crisp. Turn off to let corners be cut too.
+        </HintText>
+
+        <div className="field">
+          <span className="field-title">
+            <label htmlFor="random-seed">Seed</label>
+            <HintButton hint={seedHint} topic="Seed" />
+          </span>
+          <div className="seed-row">
+            <input
+              id="random-seed"
+              type="number"
+              min={0}
+              max={RANDOM_ANCHOR_LIMITS.maxSeed}
+              step={1}
+              value={params.seed}
+              disabled={seedOff}
+              aria-describedby={seedHint.id}
+              onChange={(e) => {
+                const value = Math.trunc(Number(e.target.value))
+                // Typed seeds skip the history; a seed enters it once Shuffle or a previous seed replaces it.
+                if (Number.isFinite(value)) update({ seed: Math.min(RANDOM_ANCHOR_LIMITS.maxSeed, Math.max(0, value)) })
+              }}
+            />
+            <button type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(pickSeed(params.seed))}>
+              Shuffle
+            </button>
+            <button type="button" className="button-small" disabled={seedOff} onClick={copySeed}>
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          {params.randomness === 0 && params.enabled ? (
+            // Why the seed is greyed out: a state note, so it is always shown.
+            <p id={seedHint.id} className="field-hint">
+              At 0% Randomness the anchors are evenly spaced, so the seed has no effect. Raise Randomness to use it.
+            </p>
+          ) : (
+            <HintText hint={seedHint}>
+              Shuffle picks a new random seed. To reproduce a result, type its seed here with the same settings and font.
+            </HintText>
+          )}
+          {history.length > 0 && (
+            <div className="seed-history" role="group" aria-label="Previous seeds">
+              <span className="field-label">Previous</span>
+              {history.map((seed) => (
+                <button key={seed} type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(seed)}>
+                  {seed}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {stats?.applied && (
+          <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+            <div>
+              <dt>Seed</dt>
+              <dd>{params.seed}</dd>
+            </div>
+            <div>
+              <dt>Anchors</dt>
+              <dd>{stats.anchors}</dd>
+            </div>
+            <div>
+              <dt>Corners kept</dt>
+              <dd>{stats.corners}</dd>
+            </div>
+          </dl>
         )}
+        {stats && stats.redrawnContours > 0 && (
+          <p className="field-hint">
+            {stats.redrawnContours} {stats.redrawnContours === 1 ? 'contour was' : 'contours were'} drawn again with a
+            derived seed because the first draw reversed or crossed itself. Still reproducible.
+          </p>
+        )}
+        {stats && stats.fallbackContours > 0 && (
+          <p className="font-warning">
+            {stats.fallbackContours} {stats.fallbackContours === 1 ? 'contour uses' : 'contours use'} Flatten’s result:
+            no random draw kept {stats.fallbackContours === 1 ? 'it' : 'them'} valid.
+          </p>
+        )}
+
+        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}>
+          Reset random anchors
+        </button>
       </div>
-
-      {stats?.applied && (
-        <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
-          <div>
-            <dt>Seed</dt>
-            <dd>{params.seed}</dd>
-          </div>
-          <div>
-            <dt>Anchors</dt>
-            <dd>{stats.anchors}</dd>
-          </div>
-          <div>
-            <dt>Corners kept</dt>
-            <dd>{stats.corners}</dd>
-          </div>
-        </dl>
-      )}
-      {stats && stats.redrawnContours > 0 && (
-        <p className="field-hint">
-          {stats.redrawnContours} {stats.redrawnContours === 1 ? 'contour was' : 'contours were'} drawn again with a
-          derived seed because the first draw reversed or crossed itself. Still reproducible.
-        </p>
-      )}
-      {stats && stats.fallbackContours > 0 && (
-        <p className="font-warning">
-          {stats.fallbackContours} {stats.fallbackContours === 1 ? 'contour uses' : 'contours use'} Flatten’s result:
-          no random draw kept {stats.fallbackContours === 1 ? 'it' : 'them'} valid.
-        </p>
-      )}
-
-      <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}>
-        Reset random anchors
-      </button>
     </fieldset>
   )
 }
