@@ -7,10 +7,11 @@
   --faint: #9a9994;
   --border: #d6d5d0;
   --border-strong: #111110;
+  /* Accent: canvas drawings (skeleton, selection, original curves); interactive UI uses the primary mint. */
   --accent: #1f4fd1;
   --guide: #c9c8c2;
   --grid: rgba(17, 17, 16, 0.05);
-  --focus: #1f4fd1;
+  --focus: var(--primary-strong);
   --danger: #b42318;
   --control: #c2410c;
   --vertex: #0f8a5f;
@@ -19,6 +20,8 @@
   --on-primary: #0b2a22;
   /* On the light theme the mint nearly matches the white panels, so its edge is drawn darker. */
   --primary-edge: #3fae8f;
+  /* The mint for thin lines, outlines, and small text: deeper on the light theme so it stays visible. */
+  --primary-strong: #0f7a5c;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -39,11 +42,12 @@
     --accent: #7ea2ff;
     --guide: #3a3936;
     --grid: rgba(242, 241, 237, 0.05);
-    --focus: #7ea2ff;
+    --focus: var(--primary-strong);
     --danger: #ff8a7a;
     --control: #ff9a5c;
     --vertex: #3ddc97;
     --primary-edge: #adfce7;
+    --primary-strong: #adfce7;
   }
 }
 
@@ -113,7 +117,12 @@ input:disabled {
 
 input[type='range'] {
   width: 100%;
-  accent-color: var(--accent);
+  accent-color: var(--primary-strong);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--primary-strong);
 }
 
 input[type='range']:disabled {
@@ -181,8 +190,8 @@ input[type='range']:disabled {
 }
 
 .file-status[data-state='ready'] .dot {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
 }
 
 .header-actions {
@@ -308,7 +317,7 @@ input[type='range']:disabled {
 .split-handle:hover::before,
 .split-handle:focus-visible::before,
 .split-handle[data-dragging='true']::before {
-  background: var(--accent);
+  background: var(--primary-strong);
 }
 
 .split-handle-x:hover::before,
@@ -361,7 +370,7 @@ input[type='range']:disabled {
   font-size: 0.85rem;
   color: var(--muted);
   padding: 8px 10px;
-  border-left: 2px solid var(--accent);
+  border-left: 2px solid var(--primary-strong);
   background: var(--bg);
 }
 
@@ -391,7 +400,7 @@ input[type='range']:disabled {
 
 .hint-button:hover,
 .hint-button[aria-expanded='true'] {
-  color: var(--accent);
+  color: var(--primary-strong);
 }
 
 .hint-button:disabled {
@@ -493,7 +502,7 @@ input[type='range']:disabled {
   font-size: 0.82rem;
   color: var(--text);
   padding: 8px 10px;
-  border-left: 2px solid var(--accent);
+  border-left: 2px solid var(--primary-strong);
   background: var(--bg);
 }
 
@@ -520,8 +529,8 @@ input[type='range']:disabled {
 
 .segmented button[aria-pressed='true'] {
   font-weight: 600;
-  background: var(--text);
-  color: var(--surface);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .segmented button[aria-pressed='true']:disabled {
@@ -559,8 +568,8 @@ input[type='range']:disabled {
 }
 
 .segment-option input:checked + span {
-  background: var(--text);
-  color: var(--surface);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .group:disabled .segment-option input:checked + span {
@@ -700,8 +709,8 @@ input[type='range']:disabled {
 }
 
 .text-preview-controls .button-small[aria-pressed='true'] {
-  background: var(--text);
-  color: var(--surface);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .text-preview-controls input {
@@ -818,8 +827,8 @@ input[type='range']:disabled {
 }
 
 .preset-row .button-small[aria-pressed='true'] {
-  background: var(--text);
-  color: var(--surface);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .specimen-glyph {
@@ -1293,9 +1302,9 @@ input[type='range']:disabled {
   inset: 8px;
   display: grid;
   place-items: center;
-  border: 2px dashed var(--accent);
+  border: 2px dashed var(--primary-strong);
   background: color-mix(in srgb, var(--canvas) 85%, transparent);
-  color: var(--accent);
+  color: var(--primary-strong);
   font-weight: 600;
   pointer-events: none;
 }
@@ -1415,8 +1424,8 @@ input[type='range']:disabled {
 .tag-experimental {
   margin-left: 6px;
   padding: 1px 6px;
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--primary-strong);
+  color: var(--primary-strong);
   font-size: 0.65rem;
   letter-spacing: 0.06em;
 }
@@ -1558,8 +1567,8 @@ input[type='range']:disabled {
 }
 
 .gf-family[aria-pressed='true'] {
-  background: var(--text);
-  color: var(--surface);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .gf-category {
@@ -1628,7 +1637,7 @@ input[type='range']:disabled {
 }
 
 .export-format:has(input:checked) {
-  border-color: var(--border-strong);
+  border-color: var(--primary-strong);
 }
 
 .export-section {
