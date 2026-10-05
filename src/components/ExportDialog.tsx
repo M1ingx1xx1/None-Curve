@@ -9,17 +9,17 @@ import {
   type FontNaming,
   type GlyphSet,
 } from '../export/fontFile'
-import { svgSize, svgToPng } from '../export/png'
-import { MAIN_LOOK, specimenToSvg, type SvgLook } from '../export/svg'
+import { svgToPng } from '../export/png'
+import { specimenToSvg, type SvgLook } from '../export/svg'
 import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
+import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { buildSpecimenScene } from '../specimen/scene'
-import type { PreviewLook, PreviewRender } from './TextPreview'
+import { previewColors, type PreviewLook } from './TextPreview'
 
 type Format = 'svg' | 'png' | 'otf'
 
-const PNG_WIDTHS = [1024, 2048, 4096] as const
 
 interface ExportDialogProps {
   open: boolean
@@ -27,9 +27,13 @@ interface ExportDialogProps {
   font: LoadedFont | null
   selectedGlyph: GlyphRef | null
   specimenText: string
-  /** Blur and inversion of the bottom-right preview, and how it is drawn (scale, colours). */
+  /** How the text is set on the canvas, its colours, and the canvas size (with the PNG multiplier). */
+  typography: TypographyParams
+  palette: PaletteParams
+  artboard: ArtboardParams
+  /** Blur and inversion of the bottom-right preview, and its scale (screen pixels per font unit). */
   previewLook: PreviewLook
-  previewRender: PreviewRender
+  previewScale: number
   params: GeometryParams
   paramsKey: string
   pending: boolean
@@ -48,8 +52,8 @@ type Status =
 type BuiltFont = { result: FontExportResult; key: string; fileName: string }
 
 const formats: { value: Format; label: string; hint: string }[] = [
-  { value: 'svg', label: 'SVG — main view', hint: 'The whole text from the canvas as vector outlines, with advances and kerning.' },
-  { value: 'png', label: 'PNG — main view', hint: 'The same text as an image on a solid background.' },
+  { value: 'svg', label: 'SVG — main view', hint: 'The canvas with its text, colours, and size, as vector outlines.' },
+  { value: 'png', label: 'PNG — main view', hint: 'The canvas as an image, at the size and multiplier set under Canvas size.' },
   { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download.' },
 ]
 
@@ -65,14 +69,15 @@ async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
 }
 
 export default function ExportDialog(props: ExportDialogProps) {
-  const { open, onClose, font, selectedGlyph, specimenText, previewLook, previewRender, params, paramsKey, pending, precision, onPrecisionChange, onExported } =
-    props
+  const { open, onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale } = props
+  const { params, paramsKey, pending, precision, onPrecisionChange, onExported } = props
   const dialogRef = useRef<HTMLDialogElement>(null)
   const firstRef = useRef<HTMLInputElement>(null)
   const [format, setFormat] = useState<Format>('svg')
   // Off by default: exports show the main view; ticked, they carry the preview's blur and inversion.
   const [usePreviewLook, setUsePreviewLook] = useState(false)
-  const [pngWidth, setPngWidth] = useState<(typeof PNG_WIDTHS)[number]>(2048)
+  // A transparent background is useful for placing the text on something else (main view only).
+  const [includeBackground, setIncludeBackground] = useState(true)
   const [glyphSet, setGlyphSet] = useState<GlyphSet>('specimen')
   const [naming, setNaming] = useState<FontNaming>({ familyName: '', styleName: '' })
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -120,13 +125,15 @@ export default function ExportDialog(props: ExportDialogProps) {
     ? `${glyphLabel(selectedGlyph)}${selectedGlyph.unicode !== null ? ` (${formatCodePoint(selectedGlyph.unicode)})` : ''}`
     : 'none'
 
-  // The preview's blur is in its own screen pixels; dividing by its scale gives font units, so the
-  // exported blur has the same size relative to the letters at any export resolution.
-  const previewBlurUnits = previewRender.scale > 0 ? previewLook.blur / previewRender.scale : 0
-  const look = (forPng: boolean): SvgLook =>
-    usePreviewLook
-      ? { blur: previewBlurUnits, ink: previewRender.ink, paper: previewRender.paper, background: true }
-      : { ...MAIN_LOOK, background: forPng }
+  // The preview's blur is in its own screen pixels; dividing by its scale gives font units, and by the
+  // canvas's font units per pixel gives canvas pixels, so the blur keeps its size relative to the letters.
+  const look = (unitsPerPx: number): SvgLook => {
+    if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background: includeBackground, blur: 0 }
+    const blurUnits = previewScale > 0 ? previewLook.blur / previewScale : 0
+    return { ...previewColors(palette, previewLook), background: true, blur: blurUnits / unitsPerPx }
+  }
+  const pngWidth = artboard.width * artboard.scale
+  const pngHeight = artboard.height * artboard.scale
   const lookName = usePreviewLook
     ? `preview look (${previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}${previewLook.inverted ? ', inverted' : ''})`
     : 'main view'
@@ -135,10 +142,13 @@ export default function ExportDialog(props: ExportDialogProps) {
     if (!font) return
     const forPng = format === 'png'
     try {
-      const scene = buildSpecimenScene(font, specimenText, params, paramsKey)
+      const { tracking, lineHeight, align, slant } = typography
+      const scene = buildSpecimenScene(font, specimenText, params, paramsKey, { tracking, lineHeight, align, slant })
+      const layout = layoutArtboard(scene, typography, artboard, font.metrics.unitsPerEm)
       const subject = `${usePreviewLook ? 'preview' : 'main view'} “${specimenText.slice(0, 80)}”`
       // PNG coordinates only need to be sharp at the chosen pixel size; two decimals is plenty.
-      const svg = specimenToSvg(scene, forPng ? 2 : precision, { fontName, subject, pipeline }, look(forPng))
+      const size = { width: artboard.width, height: artboard.height }
+      const svg = specimenToSvg(scene, layout, size, forPng ? 2 : precision, { fontName, subject, pipeline }, look(layout.unitsPerPx))
       const parts = [font.familyName, font.styleName, usePreviewLook ? 'preview' : 'text']
       if (!forPng) {
         const fileName = safeFileName(parts, 'svg')
@@ -148,11 +158,10 @@ export default function ExportDialog(props: ExportDialogProps) {
         return
       }
       setStatus({ kind: 'working', message: 'Drawing the PNG…' })
-      const size = svgSize(svg.svg)
       const png = await svgToPng(svg.svg, size.width, size.height, pngWidth)
       const fileName = safeFileName(parts, 'png')
       downloadFile(png, fileName, 'image/png')
-      setStatus({ kind: 'done', message: `Saved ${fileName}: ${pngWidth} × ${Math.round((pngWidth * size.height) / size.width)} px, ${lookName}.` })
+      setStatus({ kind: 'done', message: `Saved ${fileName}: ${pngWidth} × ${pngHeight} px, ${lookName}.` })
       onExported(fileName)
     } catch (error) {
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
@@ -259,11 +268,23 @@ export default function ExportDialog(props: ExportDialogProps) {
                   <label htmlFor="export-preview-look">Export the preview look</label>
                 </div>
                 <p id="export-preview-look-hint" className="field-hint">
-                  Off: the main view, {format === 'png' ? 'black text on white' : 'black outlines without a background'}. On: the
-                  bottom-right preview’s current look — {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'},{' '}
-                  {previewLook.inverted ? 'inverted' : 'not inverted'}, in the colours shown there. The blur keeps its size
-                  relative to the letters{format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
+                  Off: the main view — the canvas in its Color settings. On: the bottom-right preview’s current look —{' '}
+                  {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}, {previewLook.inverted ? 'colours swapped' : 'same colours'}. The
+                  blur keeps its size relative to the letters{format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
                 </p>
+                <div className="field field-toggle">
+                  <input
+                    id="export-background"
+                    type="checkbox"
+                    checked={usePreviewLook || includeBackground}
+                    disabled={usePreviewLook}
+                    onChange={(e) => setIncludeBackground(e.target.checked)}
+                  />
+                  <label htmlFor="export-background">Include the background colour</label>
+                </div>
+                {!usePreviewLook && !includeBackground && (
+                  <p className="field-hint">Transparent background: only the text is drawn{format === 'png' ? ' (PNG with transparency)' : ''}.</p>
+                )}
 
                 {format === 'svg' ? (
                   <div className="field">
@@ -276,22 +297,16 @@ export default function ExportDialog(props: ExportDialogProps) {
                       ))}
                     </select>
                     <p className="field-hint">
-                      Coordinates are font units. If rounding would collapse, flip, or cross a contour, the export stops
-                      and asks for a higher precision.
+                      The file is {artboard.width} × {artboard.height} px. Outline coordinates are kept in font units and placed
+                      with transforms; if rounding would collapse, flip, or cross a contour, the export stops and asks for a
+                      higher precision.
                     </p>
                   </div>
                 ) : (
-                  <div className="field">
-                    <label htmlFor="export-png-width">Image width</label>
-                    <select id="export-png-width" value={pngWidth} onChange={(e) => setPngWidth(Number(e.target.value) as (typeof PNG_WIDTHS)[number])}>
-                      {PNG_WIDTHS.map((w) => (
-                        <option key={w} value={w}>
-                          {w} px
-                        </option>
-                      ))}
-                    </select>
-                    <p className="field-hint">The height follows the text’s proportions.</p>
-                  </div>
+                  <p className="field-hint">
+                    Image size: {pngWidth} × {pngHeight} px (canvas {artboard.width} × {artboard.height} px at {artboard.scale}×). Change it
+                    under Canvas size, below the canvas.
+                  </p>
                 )}
                 <p className="export-summary">
                   Text: “{specimenText.slice(0, 60)}

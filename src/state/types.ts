@@ -1,6 +1,7 @@
 import type { GeometryParams, GlyphRef } from '../geometry/types'
 import type { FontErrorKind } from '../font/errors'
 import type { LoadedFont } from '../font/model'
+import type { ArtboardParams, PaletteParams, TypographyParams } from '../specimen/artboard'
 
 // ---- Document state ----
 
@@ -50,6 +51,10 @@ export interface ViewParams {
 
 export interface EditorParams extends GeometryParams {
   view: ViewParams
+  /** How the text is set on the artboard; not part of the glyph geometry or the font export. */
+  typography: TypographyParams
+  palette: PaletteParams
+  artboard: ArtboardParams
 }
 
 export interface AppState {

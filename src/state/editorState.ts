@@ -1,5 +1,6 @@
 import type { FontErrorKind } from '../font/errors'
 import { pickDefaultGlyph, type LoadedFont } from '../font/model'
+import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../specimen/artboard'
 import type { GlyphRef } from '../geometry/types'
 import type { AppState, EditorParams, ExportMeta, ImportOrigin, ViewParams } from './types'
 
@@ -29,6 +30,9 @@ export const initialState: AppState = {
     grid: { snap: false, size: 10, angleLock: false, angleStep: 45 },
     distortion: { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 },
     view: initialView,
+    typography: DEFAULT_TYPOGRAPHY,
+    palette: DEFAULT_PALETTE,
+    artboard: DEFAULT_ARTBOARD,
   },
 }
 

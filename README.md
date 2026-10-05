@@ -18,7 +18,8 @@ An experimental web app for turning font curves into editable polygon shapes. Lo
 | Squaring (round O → square O), anchor spacing and reduction, grid snapping, angle lock, deterministic distortion | ✅ Implemented |
 | Random anchors on the original curves with a reproducible seed | 🧪 Experimental |
 | Live text preview with advance widths, kerning, multiple lines, and missing-character marks | ✅ Implemented |
-| SVG export of the selected glyph or the text | ✅ Implemented |
+| Canvas (artboard) with size, aspect presets, and 1×–4× export multiplier; typography (size, padding, tracking, line height, slant, alignment, letter case); colour presets and custom colours | ✅ Implemented |
+| SVG and PNG export of the canvas, optionally with the preview's blur and inverted colours | ✅ Implemented |
 | OpenType font export (CFF, .otf), verified after writing | ✅ Implemented — see [limits](#font-file) |
 | TTF / WOFF / WOFF2 output; exporting kerning and OpenType features | ❌ Not supported |
 | Sound → Carving Logic → Letterform | ⏳ Planned, not implemented |
@@ -58,10 +59,10 @@ npm run preview   # preview the production build: http://localhost:4173/None-Cur
 
 Double lines are drag handles. Each one only moves the border between its two neighbours, so they always add up to the same size: the top and bottom rows always fill the window between the header and the status bar (no page scrolling), the tools and the canvas share the top row's width, and in the bottom row the glyph list, the text input, and the preview always add up to the row's width (one handle between the glyphs and the text input, one between the text input and the preview). Drag a handle, or focus it and use the arrow keys (Home / End jump to the limits); double-click resets it. Every area keeps a minimum size, and the splits are remembered in the browser. The top and bottom rows are split independently, so their column borders need not line up.
 
-- **Top left — tools:** **Import font** and the font information come first, followed by every geometry parameter (flattening, squaring, anchors, grid & angles, distortion) in pipeline order, then the experimental Random anchors. Parameter statistics refer to the selected glyph. Controls that currently have no effect are greyed out: all of Curve flattening while Random anchors are on, and the random seed at 0 % randomness. Explanations are folded behind an ⓘ button next to each label (click or tap to open, so it also works on touch screens and with the keyboard; the text stays the control's screen-reader description while folded); **Show all explanations** at the top of the panel opens them all and is remembered in the browser. Warnings, statistics, and notes about why a control is disabled are always shown.
-- **Top right — result canvas:** shows only the text from the input, set with the current font and all parameters. Its outline and layer controls (Original / Flattened / Compare, Fill, Skeleton, Vertices, Metrics) also drive the preview; zoom and pan apply to the canvas only. Clicking a glyph in the canvas selects it (the statistics follow it).
+- **Top left — tools:** **Import font** and the font information come first, then three tabs (remembered in the browser; arrow keys move between them): **Geometry** — every geometry parameter (flattening, squaring, anchors, grid & angles, distortion) in pipeline order, then the experimental Random anchors; **Typography** — how the text is set on the canvas; **Color** — the text and background colours. Every tab stays loaded, so switching keeps local state. Parameter statistics refer to the selected glyph. Controls that currently have no effect are greyed out: all of Curve flattening while Random anchors are on, and the random seed at 0 % randomness. Explanations are folded behind an ⓘ button next to each label (click or tap to open, so it also works on touch screens and with the keyboard; the text stays the control's screen-reader description while folded); **Show all explanations** at the top of the panel opens them all and is remembered in the browser. Warnings, statistics, and notes about why a control is disabled are always shown.
+- **Top right — result canvas:** shows the canvas (artboard) with the text from the input, set with the current font, all parameters, the Typography settings, and the colours. Below it, **Canvas size** opens and closes a drawer with the canvas size (see [Canvas size](#canvas-size)); the drawer's state is remembered. Its outline and layer controls (Original / Flattened / Compare, Fill, Skeleton, Vertices, Metrics) also drive the preview; zoom and pan apply to the canvas only. Clicking a glyph in the canvas selects it (the statistics follow it).
 - **Bottom left — glyphs:** a searchable grid of every character the font maps, used as an inserter: clicking a character inserts it into the text at the cursor (replacing selected text) and selects that glyph. Before the text box has been focused, characters are appended. Glyphs without a character (ligatures, alternates) and control characters are not listed, since they cannot be typed. When the glyph list is narrower than 280 px, the cells shrink and show only the character; the code point labels return above that width (the code point stays in each cell's tooltip).
-- **Bottom right — input and preview:** a compact multi-line text input (sample texts in a menu, Clear, character count, kerning status, missing characters) on the left, and on the right a wider, fitted miniature of the result canvas with its own **Blur** slider (0–12 px) and an **Invert** button that swaps the glyph and background colours. Both only affect this view — a squint test for the overall shape, not part of the geometry or the export. A handle between the two parts moves the border (default 40 / 60).
+- **Bottom right — input and preview:** a compact multi-line text input (sample texts in a menu, Clear, letter case toggles **All caps** / **Lower** / **Title case**, character count, kerning status, missing characters) on the left, and on the right a wider miniature of the canvas exactly as it is exported (cut to the canvas edges) with its own **Blur** slider (0–12 px) and an **Invert** button that swaps the text and background colours. Both only affect this view unless **Export the preview look** is ticked — a squint test for the overall shape. A handle between the two parts moves the border (default 40 / 60).
 - Narrow screens stack (no handles): import and font info, the canvas (at least 62 % of the viewport height), parameters (collapsed; **Parameters** in the canvas toolbar opens them), text input, preview, then the glyph list.
 
 ### Canvas
@@ -71,12 +72,39 @@ Double lines are drag handles. Each one only moves the border between its two ne
 - Zoom with the mouse wheel or `+` / `−`, pan by dragging or with the arrow keys (canvas focused), `0` or **Fit** to reset. The preview (bottom right) is always fitted and is not interactive.
 - All layers apply to every glyph of the text. Only glyphs inside the visible area are drawn. Skeleton points and vertices appear once an em is at least 48 px on screen; below that the canvas asks you to zoom in, so long texts stay readable. Metric labels are drawn on the first visible line only.
 
+### Canvas size
+
+The text is set on a canvas (artboard) of a fixed pixel size; zoom 1 fits the whole canvas. The drawer below the canvas holds:
+
+- **W** / **H**: canvas width and height, 100–4000 px (slider or number box; the box commits on Enter or when you leave it, clamped to the range).
+- Aspect presets **1:1**, **4:3**, **16:9**, **4:5**, **3:2**, **3:4** keep the width and set the height (or keep the height if that would exceed the range); the matching preset is highlighted. **Swap** exchanges width and height.
+- **1×–4×**: export multiplier. A PNG is width × multiplier by height × multiplier pixels with the same layout, so higher multipliers are sharper.
+
+Text that runs past the canvas edge stays visible on the canvas with a warning; the preview and the exports are cut to the canvas.
+
+### Typography
+
+`src/specimen/artboard.ts` and `src/specimen/scene.ts`. These settings change the layout and the SVG/PNG export, not the glyph geometry or the font file.
+
+- **Size** (0.5–40 % of the canvas width): the em in pixels, so the text keeps its proportions when the canvas changes size. **Fit text** sets the largest size (rounded down to 0.1) at which the whole text block, slant included, fits inside the padding on both axes.
+- **Padding** (0–30 % of the width): margin on every side; left and right alignment start at it.
+- **Tracking** (−200–1000 thousandths of an em): added between glyphs on top of advances and kerning, not after a line's last glyph.
+- **Line height** (0.5–3 ×): multiple of the font's line spacing (ascender − descender + line gap).
+- **Slant** (−30°–30°): a skew around each glyph's own baseline (x′ = x + tan(slant) · y); positive leans right.
+- **Align** Left / Center / Right: aligns the lines inside the block and places the block at the left padding, centred, or at the right padding. The block is always centred vertically.
+- **Letter case** (above the text box): **All caps**, **Lower**, or **Title case** (first letter of every word upper case, the rest lower case); press the active one again for the text as typed. The typed text is never changed; the canvas, the preview, the exports, and the font file's "Specimen characters" use the converted text.
+- **Reset typography** restores the defaults (4 %, 8 %, 0, 1, 0°, left) and keeps the letter case.
+
+### Color
+
+Twelve presets (Ink — the default, dark text on paper — Obsidian, Cyan Lab, Amber, Violet, Signal Red, Acid, Olive Paper, Night Blue, Brass, Ember, Mint Grid), **Random** (a random readable pair, contrast ≥ 4.5 : 1), **Swap**, and custom **Text** and **Background** colours with a colour picker and a hex box (`#rgb` or `#rrggbb`). The contrast ratio is shown, with a warning below 3 : 1. The interface's own mint stays for hover and selection on the canvas.
+
 ### Text preview
 
 The input text is set with the final polygons from a shared geometry cache, so the canvas, the preview, and the exports always agree.
 
 - Each glyph advances by its advance width plus kerning when the font has it (GPOS `kern` feature or a legacy `kern` table, applied through fontkit's layout). Ligatures are off so every character keeps its own glyph. Fonts without kerning data are labeled as such.
-- Line height is ascender − descender + the font's line gap. Spaces advance without drawing. Missing characters are drawn as dashed boxes and listed.
+- Line height is ascender − descender + the font's line gap, times **Line height**. Spaces advance without drawing. Missing characters are drawn as dashed boxes and listed.
 - Up to 1000 characters are shown. Each distinct glyph is processed once per parameter set (cache key: font, glyph, and all geometry parameters).
 
 ## Fonts
@@ -198,10 +226,9 @@ Open **Export…** from the top-right corner of the header. Nothing is downloade
 
 ### SVG and PNG
 
-- **SVG — main view** (default) and **PNG — main view** export the whole text from the canvas (not just the selected glyph), laid out like the canvas. SVG: black outlines, no background. PNG: black on white, 1024 / 2048 / 4096 px wide, rendered from the same SVG.
-- **Export the preview look** (checkbox, off by default) exports the bottom-right preview instead: its on-screen colours (theme and **Invert** applied) on a solid background, with its **Blur**. The blur is converted from preview pixels to font units, so it keeps its size relative to the letters at any resolution; in SVG it is an `feGaussianBlur` filter, and the canvas grows by three standard deviations so the blur is not cut off.
-- Paths use only `M`, `L`, and `Z` with `fill-rule="nonzero"`; contour order and direction are kept.
-- Units are font units. The view box covers every line. Kerning and line breaks match the preview. Missing characters are blank advances, named in an XML comment.
+- **SVG — main view** (default) and **PNG — main view** export the canvas: its size, the text placed by the Typography settings, and the Color settings. **Include the background colour** (on by default) can be turned off for a transparent background. The SVG is width × height px; the PNG is that times the **Canvas size** multiplier, rendered from the same SVG.
+- **Export the preview look** (checkbox, off by default) exports the bottom-right preview instead: its colours (swapped when **Invert** is on) on a solid background, with its **Blur**. The blur is converted from preview pixels to font units and then to canvas pixels, so it keeps its size relative to the letters at any resolution; in SVG it is an `feGaussianBlur` filter on an untransformed group.
+- Each glyph is one path in its own font units (y up, so outline coordinates keep full precision), placed with `translate(…) skewX(…) scale(1 −1)` inside a group that scales font units to canvas pixels. Paths use only `M`, `L`, and `Z` with `fill-rule="nonzero"`; contour order and direction are kept. Kerning, tracking, and line breaks match the canvas. Missing characters are blank advances, named in an XML comment.
 - **Coordinate precision** 0–4 decimal places. If rounding would collapse, flip, or cross a contour, the export stops and asks for a higher precision.
 - Text in `<title>` / `<desc>` is XML-escaped; file names use only ASCII letters, digits, `.`, `-`, and `_`.
 

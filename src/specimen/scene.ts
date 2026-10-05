@@ -26,8 +26,15 @@ export interface SpecimenScene {
   lineHeight: number
   ascender: number
   descender: number
-  /** Scene bounds (y down) covering every line's ascender/descender and every outline. */
+  /** Scene bounds (y down) covering every line's ascender/descender and every outline (slant included). */
   bounds: { minX: number; minY: number; maxX: number; maxY: number }
+  /** Width of the longest line; lines are aligned inside this width. */
+  blockWidth: number
+  /** First line's ascender and last line's descender (y down). */
+  textTop: number
+  textBottom: number
+  /** Slant in degrees, applied to every glyph around its own baseline (positive leans right). */
+  slant: number
   missingCharacters: string[]
   failedGlyphs: number
   glyphCount: number
@@ -35,14 +42,36 @@ export interface SpecimenScene {
   kerning: boolean
 }
 
+/** Spacing and slant applied while setting the text. Defaults reproduce plain setting. */
+export interface SceneLayout {
+  /** Thousandths of an em added between glyphs. */
+  tracking: number
+  /** Multiple of the font's line spacing. */
+  lineHeight: number
+  align: 'left' | 'center' | 'right'
+  /** Degrees; positive leans right. */
+  slant: number
+}
+
+export const PLAIN_LAYOUT: SceneLayout = { tracking: 0, lineHeight: 1, align: 'left', slant: 0 }
+
 /** Splits text into lines; \r\n and \r count as line breaks. */
 export function specimenLines(text: string): string[] {
   return text.replace(/\r\n?/g, '\n').split('\n')
 }
 
-export function buildSpecimenScene(font: LoadedFont, text: string, params: GeometryParams, key: string): SpecimenScene {
-  const { ascender, descender, lineGap } = font.metrics
-  const lineHeight = ascender - descender + lineGap
+export function buildSpecimenScene(
+  font: LoadedFont,
+  text: string,
+  params: GeometryParams,
+  key: string,
+  layout: SceneLayout = PLAIN_LAYOUT,
+): SpecimenScene {
+  const { ascender, descender, lineGap, unitsPerEm } = font.metrics
+  const lineHeight = (ascender - descender + lineGap) * (Number.isFinite(layout.lineHeight) && layout.lineHeight > 0 ? layout.lineHeight : 1)
+  const tracking = ((Number.isFinite(layout.tracking) ? layout.tracking : 0) * unitsPerEm) / 1000
+  const slant = Number.isFinite(layout.slant) ? Math.max(-89, Math.min(89, layout.slant)) : 0
+  const shear = Math.tan((slant * Math.PI) / 180)
   const chars = [...text]
   const truncated = chars.length > SPECIMEN_MAX_CHARS
   const source = truncated ? chars.slice(0, SPECIMEN_MAX_CHARS).join('') : text
@@ -59,7 +88,8 @@ export function buildSpecimenScene(font: LoadedFont, text: string, params: Geome
     const baseline = lineIndex * lineHeight
     const glyphs: PlacedGlyph[] = []
     let pen = 0
-    for (const shaped of line ? font.shapeLine(line) : []) {
+    const shapedLine = line ? font.shapeLine(line) : []
+    shapedLine.forEach((shaped, i) => {
       const glyphText = String.fromCodePoint(...shaped.codePoints)
       let polygon: PolygonGlyph | null = null
       let error: string | null = null
@@ -79,20 +109,34 @@ export function buildSpecimenScene(font: LoadedFont, text: string, params: Geome
       }
       const x = pen + shaped.xOffset
       const y = baseline - shaped.yOffset
-      for (const p of polygonPoints(polygon)) {
-        minX = Math.min(minX, x + p.x)
-        maxX = Math.max(maxX, x + p.x)
-        minY = Math.min(minY, y - p.y)
-        maxY = Math.max(maxY, y - p.y)
-      }
       glyphs.push({ index: shaped.index, text: glyphText, x, y, advance: shaped.xAdvance, missing: shaped.missing, polygon, error })
-      pen += shaped.xAdvance
+      // Tracking goes between glyphs, so a line does not grow past its last glyph.
+      pen += shaped.xAdvance + (i < shapedLine.length - 1 ? tracking : 0)
       glyphCount++
-    }
-    maxX = Math.max(maxX, pen)
-    maxY = Math.max(maxY, baseline - descender)
+    })
     return { glyphs, width: pen, baseline }
   })
+
+  // Align every line inside the width of the longest one, then measure the outlines in place
+  // (slanted around each glyph's baseline: x' = x + tan(slant) · height above the baseline).
+  const blockWidth = Math.max(0, ...lines.map((l) => l.width))
+  for (const line of lines) {
+    const shift = layout.align === 'center' ? (blockWidth - line.width) / 2 : layout.align === 'right' ? blockWidth - line.width : 0
+    for (const g of line.glyphs) {
+      g.x += shift
+      for (const p of polygonPoints(g.polygon)) {
+        const px = g.x + p.x + shear * p.y
+        minX = Math.min(minX, px)
+        maxX = Math.max(maxX, px)
+        minY = Math.min(minY, g.y - p.y)
+        maxY = Math.max(maxY, g.y - p.y)
+      }
+    }
+    maxX = Math.max(maxX, shift + line.width)
+    maxY = Math.max(maxY, line.baseline - descender)
+  }
+  const textTop = -ascender
+  const textBottom = (lines.length - 1) * lineHeight - descender
 
   return {
     lines,
@@ -100,6 +144,10 @@ export function buildSpecimenScene(font: LoadedFont, text: string, params: Geome
     ascender,
     descender,
     bounds: { minX, minY, maxX, maxY },
+    blockWidth,
+    textTop,
+    textBottom,
+    slant,
     missingCharacters: [...missing],
     failedGlyphs,
     glyphCount,
