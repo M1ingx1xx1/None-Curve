@@ -51,15 +51,17 @@ export default function TextPanel({ font, text, scene, pending, onTextChange, in
           <label htmlFor={`${id}-sample`} className="visually-hidden">
             Sample text
           </label>
+          {/* Shows the loaded sample; after editing it is blank (a hidden option), so any sample can be picked again. */}
           <select
             id={`${id}-sample`}
-            value=""
+            value={samples.find(([, sample]) => sample === text)?.[0] ?? ''}
+            title="Sample text"
             onChange={(e) => {
               const sample = samples.find(([label]) => label === e.target.value)
               if (sample) onTextChange(sample[1])
             }}
           >
-            <option value="">Sample…</option>
+            <option value="" hidden disabled />
             {samples.map(([label]) => (
               <option key={label} value={label}>
                 {label}
