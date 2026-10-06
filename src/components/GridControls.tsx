@@ -3,6 +3,7 @@ import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geome
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
+import Icon from './Icon'
 
 interface GridControlsProps {
   params: GridParams
@@ -171,6 +172,7 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
         )}
 
         <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_GRID)}>
+          <Icon name="reset" />
           Reset grid &amp; angles
         </button>
         {pending && <p className="field-hint">Updating…</p>}

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import LocalFileInput from './LocalFileInput'
+import Icon from './Icon'
 
 interface ImportMenuProps {
   busy: boolean
@@ -50,6 +51,7 @@ export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts }: Imp
         aria-controls={menuId}
         onClick={() => setOpen((o) => !o)}
       >
+        <Icon name="upload" />
         Import font
         <span className="chevron" aria-hidden="true">
           {open ? '▴' : '▾'}

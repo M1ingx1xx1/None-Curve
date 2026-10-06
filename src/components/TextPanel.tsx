@@ -3,6 +3,7 @@ import type { LoadedFont } from '../font/model'
 import type { TextCase } from '../specimen/artboard'
 import { SAMPLES } from '../specimen/samples'
 import { SPECIMEN_MAX_CHARS, type SpecimenScene } from '../specimen/scene'
+import Icon from './Icon'
 
 interface TextPanelProps {
   font: LoadedFont | null
@@ -100,6 +101,7 @@ export default function TextPanel({
             ))}
           </select>
           <button type="button" className="button-small" disabled={!text} onClick={() => onTextChange('')}>
+            <Icon name="close" />
             Clear
           </button>
         </div>

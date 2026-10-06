@@ -2,19 +2,18 @@ import { useCallback, useLayoutEffect, useMemo, useReducer, useRef, useState } f
 import CanvasViewport from './components/CanvasViewport'
 import ExportDialog from './components/ExportDialog'
 import GeometryPanel from './components/GeometryPanel'
-import GlyphPanel from './components/GlyphPanel'
 import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
 import { HintsContext, useShowAllHints } from './components/Hint'
 import InputPanel from './components/InputPanel'
 import StatusBar from './components/StatusBar'
-import StylePanel from './components/StylePanel'
 import TextPanel from './components/TextPanel'
 import TextPreview, { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './components/TextPreview'
+import TextTools from './components/TextTools'
 import ToolHead from './components/ToolHead'
 import Workspace from './components/Workspace'
 import type { GlyphRef } from './geometry/types'
-import { applyTextCase, type ArtboardParams, type TextCase } from './specimen/artboard'
+import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase, type TypographyParams } from './specimen/artboard'
 import { DEFAULT_TEXT } from './specimen/samples'
 import { editorReducer, initialState } from './state/editorState'
 import type { ViewParams } from './state/types'
@@ -43,6 +42,19 @@ export default function App() {
     (textCase: TextCase) => dispatch({ type: 'updateParams', group: 'typography', patch: { textCase } }),
     [],
   )
+  // Free position: dragging the text on the canvas. The drag reports its offset since it started, so
+  // the position is computed from where the text was then (no drift from rounding along the way).
+  const latest = useRef({ scene, layout, typography })
+  latest.current = { scene, layout, typography }
+  const dragStart = useRef<Pick<TypographyParams, 'freeX' | 'freeY'> | null>(null)
+  const moveText = useCallback((phase: 'start' | 'move' | 'end', dx: number, dy: number) => {
+    const { scene, layout, typography } = latest.current
+    if (phase === 'start') dragStart.current = { freeX: typography.freeX, freeY: typography.freeY }
+    else if (phase === 'end') dragStart.current = null
+    else if (dragStart.current && scene && layout) {
+      dispatch({ type: 'updateParams', group: 'typography', patch: moveFreeText(dragStart.current, dx, dy, scene, layout) })
+    }
+  }, [])
   const setArtboard = useCallback(
     (patch: Partial<ArtboardParams>) => dispatch({ type: 'updateParams', group: 'artboard', patch }),
     [],
@@ -133,13 +145,24 @@ export default function App() {
               highlightSelection={highlight}
               onSelectGlyph={selectGlyph}
               onClearHighlight={clearHighlight}
+              onMoveText={typography.position === 'free' ? moveText : undefined}
               onViewChange={onViewChange}
               onResetView={() => dispatch({ type: 'resetView' })}
               onLocalFile={importer.importLocal}
               onOpenGoogleFonts={openGoogleFonts}
             />
           }
-          glyphs={<GlyphPanel font={state.document.font} onInsert={insertGlyph} />}
+          textTools={
+            <TextTools
+              typography={typography}
+              palette={palette}
+              artboard={artboard}
+              font={state.document.font}
+              scene={scene}
+              dispatch={dispatch}
+              onInsertGlyph={insertGlyph}
+            />
+          }
           input={
             <InputPanel
               text={
@@ -153,16 +176,6 @@ export default function App() {
                   onInputFocus={onTextFocus}
                   textCase={typography.textCase}
                   onTextCaseChange={setTextCase}
-                />
-              }
-              style={
-                <StylePanel
-                  typography={typography}
-                  palette={palette}
-                  artboard={artboard}
-                  font={state.document.font}
-                  scene={scene}
-                  dispatch={dispatch}
                 />
               }
               preview={

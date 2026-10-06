@@ -8,6 +8,7 @@ import ErrorBoundary from './ErrorBoundary'
 import FileDropTarget from './FileDropTarget'
 import SpecimenView from './SpecimenView'
 import { clampZoom } from './usePanZoom'
+import Icon from './Icon'
 
 interface CanvasViewportProps {
   document: DocumentState
@@ -26,6 +27,8 @@ interface CanvasViewportProps {
   highlightSelection: boolean
   onSelectGlyph: (glyph: GlyphRef) => void
   onClearHighlight: () => void
+  /** Set while the text has a Free position: dragging the text on the canvas moves it. */
+  onMoveText?: (phase: 'start' | 'move' | 'end', dx: number, dy: number) => void
   onViewChange: (patch: Partial<ViewParams>) => void
   onResetView: () => void
   onLocalFile: (file: File) => void
@@ -102,6 +105,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     highlightSelection,
     onSelectGlyph,
     onClearHighlight,
+    onMoveText,
     onViewChange,
     onResetView,
     onLocalFile,
@@ -207,6 +211,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
             +
           </button>
           <button type="button" disabled={!interactive} onClick={onResetView}>
+            <Icon name="fitView" />
             Fit
           </button>
         </div>
@@ -235,6 +240,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
               onViewChange={onViewChange}
               onSelectGlyph={onSelectGlyph}
               onClearSelection={onClearHighlight}
+              onMoveText={onMoveText}
             />
             <p className="canvas-badge" aria-hidden="true">
               {scene.glyphCount} glyphs · {outlineDescription}

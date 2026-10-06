@@ -7,6 +7,32 @@ import type { SpecimenScene } from './scene'
 export type TextAlign = 'left' | 'center' | 'right'
 export type TextCase = 'none' | 'upper' | 'lower' | 'title'
 
+/** Where the text block sits on the artboard: one of nine anchors (inside the padding), or Free. */
+export type TextAnchor =
+  | 'top-left'
+  | 'top'
+  | 'top-right'
+  | 'left'
+  | 'center'
+  | 'right'
+  | 'bottom-left'
+  | 'bottom'
+  | 'bottom-right'
+export type TextPosition = TextAnchor | 'free'
+
+/** The nine anchors in reading order (rows top to bottom), as a 3 × 3 grid. */
+export const TEXT_ANCHORS: TextAnchor[] = [
+  'top-left',
+  'top',
+  'top-right',
+  'left',
+  'center',
+  'right',
+  'bottom-left',
+  'bottom',
+  'bottom-right',
+]
+
 export interface TypographyParams {
   /** Font size as a percentage of the artboard width (the em in pixels = size % × width). */
   size: number
@@ -18,7 +44,14 @@ export interface TypographyParams {
   lineHeight: number
   /** Slant in degrees; positive leans right. */
   slant: number
+  /** How the lines align with each other inside the text block. */
   align: TextAlign
+  /** Where the text block sits on the artboard. */
+  position: TextPosition
+  /** Free position: the block's left and top edges as a share (0–1) of the room the artboard leaves
+      beside and above the block, so the text stays inside the artboard whatever its size. */
+  freeX: number
+  freeY: number
   /** Shown on the canvas and exported; the typed text itself is not changed. */
   textCase: TextCase
 }
@@ -61,6 +94,9 @@ export const DEFAULT_TYPOGRAPHY: TypographyParams = {
   lineHeight: 1,
   slant: 0,
   align: 'left',
+  position: 'left',
+  freeX: 0.5,
+  freeY: 0.5,
   textCase: 'none',
 }
 
@@ -112,11 +148,21 @@ export interface ArtboardLayout {
   height: number
 }
 
+/** The text block for Free positioning: the lines' box joined with the outlines (slant included). */
+function freeBox(scene: SpecimenScene) {
+  const minX = Math.min(0, scene.bounds.minX)
+  const maxX = Math.max(scene.blockWidth, scene.bounds.maxX)
+  const minY = Math.min(scene.textTop, scene.bounds.minY)
+  const maxY = Math.max(scene.textBottom, scene.bounds.maxY)
+  return { minX, minY, width: maxX - minX, height: maxY - minY }
+}
+
 /**
  * Places the text block on the artboard. The em is size % of the artboard width, which fixes the
- * scale between font units and pixels. Horizontally the block sits at the left padding, in the
- * middle, or at the right padding (lines are already aligned inside the block by the scene);
- * vertically it is centred between the first line's ascender and the last line's descender.
+ * scale between font units and pixels. At an anchor the block sits at the left padding, in the
+ * middle, or at the right padding, and at the top padding, in the middle (between the first line's
+ * ascender and the last line's descender), or at the bottom padding; the lines are already aligned
+ * inside the block by the scene. Free places the block by freeX / freeY, inside the artboard edges.
  */
 export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
   const emPx = Math.max(0.01, (clamp(typography.size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize) / 100) * artboard.width)
@@ -124,11 +170,58 @@ export function layoutArtboard(scene: SpecimenScene, typography: TypographyParam
   const width = artboard.width * unitsPerPx
   const height = artboard.height * unitsPerPx
   const pad = (clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) / 100) * artboard.width * unitsPerPx
+  const { position } = typography
+  if (position === 'free') {
+    const box = freeBox(scene)
+    const x = box.minX - clamp(typography.freeX, 0, 1) * (width - box.width)
+    const y = box.minY - clamp(typography.freeY, 0, 1) * (height - box.height)
+    return { unitsPerPx, x, y, width, height }
+  }
   const block = scene.blockWidth
-  const x = typography.align === 'left' ? -pad : typography.align === 'center' ? block / 2 - width / 2 : block + pad - width
-  const y = (scene.textTop + scene.textBottom) / 2 - height / 2
+  const column = position.endsWith('left') ? 'left' : position.endsWith('right') ? 'right' : 'center'
+  const row = position.startsWith('top') ? 'top' : position.startsWith('bottom') ? 'bottom' : 'middle'
+  const x = column === 'left' ? -pad : column === 'center' ? block / 2 - width / 2 : block + pad - width
+  const y =
+    row === 'top'
+      ? scene.textTop - pad
+      : row === 'bottom'
+        ? scene.textBottom + pad - height
+        : (scene.textTop + scene.textBottom) / 2 - height / 2
   return { unitsPerPx, x, y, width, height }
 }
+
+/** freeX / freeY that keep the block where it is now, for switching from an anchor to Free. */
+export function freeFromLayout(scene: SpecimenScene, layout: ArtboardLayout): Pick<TypographyParams, 'freeX' | 'freeY'> {
+  const box = freeBox(scene)
+  const roomX = layout.width - box.width
+  const roomY = layout.height - box.height
+  return {
+    freeX: roomX > 0 ? round3(clamp((box.minX - layout.x) / roomX, 0, 1)) : 0.5,
+    freeY: roomY > 0 ? round3(clamp((box.minY - layout.y) / roomY, 0, 1)) : 0.5,
+  }
+}
+
+/**
+ * Free position after dragging the text by (dx, dy) font units from where it was at `start`. The block
+ * stops at the artboard edges; along an axis where it is larger than the artboard it does not move.
+ */
+export function moveFreeText(
+  start: Pick<TypographyParams, 'freeX' | 'freeY'>,
+  dx: number,
+  dy: number,
+  scene: SpecimenScene,
+  layout: ArtboardLayout,
+): Pick<TypographyParams, 'freeX' | 'freeY'> {
+  const box = freeBox(scene)
+  const roomX = layout.width - box.width
+  const roomY = layout.height - box.height
+  return {
+    freeX: roomX > 0 ? round3(clamp(start.freeX + dx / roomX, 0, 1)) : start.freeX,
+    freeY: roomY > 0 ? round3(clamp(start.freeY + dy / roomY, 0, 1)) : start.freeY,
+  }
+}
+
+const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 /**
  * The font size (% of the artboard width) at which the whole text block, slant included, fits inside

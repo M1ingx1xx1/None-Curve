@@ -17,6 +17,7 @@ import type { GeometryParams, GlyphRef } from '../geometry/types'
 import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { buildSpecimenScene } from '../specimen/scene'
 import { previewColors, type PreviewLook } from './TextPreview'
+import Icon from './Icon'
 
 type Format = 'svg' | 'png' | 'otf'
 
@@ -216,7 +217,7 @@ export default function ExportDialog(props: ExportDialogProps) {
         <header className="gf-head">
           <h2 id="export-title">Export</h2>
           <button type="button" className="button-small" onClick={close} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </header>
 
@@ -366,6 +367,7 @@ export default function ExportDialog(props: ExportDialogProps) {
                     </button>
                   )}
                   <button type="button" className="button-primary" disabled={!currentBuild || working} onClick={downloadFont}>
+                    <Icon name="download" />
                     Download .otf
                   </button>
                 </div>
