@@ -3,6 +3,7 @@ import { describePipeline } from '../geometry/describe'
 import type { SpecimenScene } from '../specimen/scene'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
+import ThemeToggle from './ThemeToggle'
 
 interface StatusBarProps {
   state: AppState
@@ -51,6 +52,7 @@ export default function StatusBar({ state, glyphGeometry, scene }: StatusBarProp
       <span className="statusbar-view" title={`View: ${viewing}`}>
         View: {viewing}
       </span>
+      <ThemeToggle />
     </footer>
   )
 }

@@ -11,14 +11,13 @@ interface GlyphLayersProps {
   markerRadius: number
   /** False when markers would be too small or too many to read; outlines are still drawn. */
   showMarkers: boolean
-  selected?: boolean
 }
 
 /**
  * The outline layers of one glyph in its own font units (y up). The caller positions it and flips y.
  * Shared by the single-glyph inspector and the text specimen so both show the same layers.
  */
-function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, selected = false }: GlyphLayersProps) {
+function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers }: GlyphLayersProps) {
   const path = useMemo(() => sourceGlyphToPath(source), [source])
   const polygonPath = useMemo(() => (polygon ? polygonGlyphToPath(polygon) : ''), [polygon])
   const skeleton = useMemo(() => (view.showSkeleton && showMarkers ? sourceGlyphSkeleton(source) : null), [source, view.showSkeleton, showMarkers])
@@ -27,26 +26,25 @@ function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, sele
     [polygon, view.showVertices, showMarkers],
   )
   const { outline } = view
-  const fillClass = selected ? 'glyph-fill glyph-fill-selected' : 'glyph-fill'
 
   return (
     <>
       {outline === 'source' &&
         (view.showFill ? (
-          <path className={fillClass} d={path} />
+          <path className="glyph-fill" d={path} />
         ) : (
           <path className="outline-stroke" d={path} vectorEffect="non-scaling-stroke" />
         ))}
       {outline === 'flattened' &&
         polygon &&
         (view.showFill ? (
-          <path className={fillClass} d={polygonPath} />
+          <path className="glyph-fill" d={polygonPath} />
         ) : (
           <path className="outline-stroke" d={polygonPath} vectorEffect="non-scaling-stroke" />
         ))}
       {outline === 'compare' && (
         <g className="compare">
-          {view.showFill && polygon && <path className={`${fillClass} compare-fill`} d={polygonPath} />}
+          {view.showFill && polygon && <path className="glyph-fill compare-fill" d={polygonPath} />}
           {polygon && <path className="outline-stroke" d={polygonPath} vectorEffect="non-scaling-stroke" />}
           <path className="compare-source" d={path} vectorEffect="non-scaling-stroke" />
         </g>

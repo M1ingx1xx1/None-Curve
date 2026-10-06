@@ -28,6 +28,9 @@ export interface PaletteParams {
   ink: string
   /** Background colour, #rrggbb. */
   paper: string
+  /** No background: the canvas shows a checkerboard and SVG / PNG exports leave the background out.
+      The background colour is kept (Swap and the preview's Invert still use it). */
+  transparent: boolean
 }
 
 export interface ArtboardParams {
@@ -65,21 +68,21 @@ export const DEFAULT_ARTBOARD: ArtboardParams = { width: 1200, height: 800, scal
 
 /** Named colour pairs. The first is the default. */
 export const PALETTES: { name: string; ink: string; paper: string }[] = [
-  { name: 'Ink', ink: '#141414', paper: '#f4f1ea' },
-  { name: 'Obsidian', ink: '#f4f1ea', paper: '#111111' },
-  { name: 'Cyan Lab', ink: '#6cc6ff', paper: '#0b1a33' },
-  { name: 'Amber', ink: '#f0a830', paper: '#1e1408' },
-  { name: 'Violet', ink: '#a066ff', paper: '#160a24' },
-  { name: 'Signal Red', ink: '#e5484d', paper: '#fdf0f2' },
-  { name: 'Acid', ink: '#d9f75c', paper: '#11140a' },
-  { name: 'Olive Paper', ink: '#6b7a45', paper: '#f1eedf' },
-  { name: 'Night Blue', ink: '#a8cdfb', paper: '#0e1424' },
-  { name: 'Brass', ink: '#e8c15a', paper: '#22180a' },
-  { name: 'Ember', ink: '#f07a3a', paper: '#170f0b' },
-  { name: 'Mint Grid', ink: '#35f2b4', paper: '#001911' },
+  { name: 'Charcoal', ink: '#101010', paper: '#f7f3ea' },
+  { name: 'Off White', ink: '#fdfdef', paper: '#050505' },
+  { name: 'Kryptonite', ink: '#66ffe5', paper: '#001911' },
+  { name: 'Plum', ink: '#f800e3', paper: '#23060a' },
+  { name: 'Glowing Cyan', ink: '#35d7ff', paper: '#001d38' },
+  { name: 'Acid Lime', ink: '#c8ff00', paper: '#141900' },
+  { name: 'Ember', ink: '#ff7a1a', paper: '#1a0b05' },
+  { name: 'Moonlit Purple', ink: '#dfb1ed', paper: '#0d0e1c' },
+  { name: 'Chrome Pink', ink: '#fe019a', paper: '#c1c7cd' },
+  { name: 'Cherry', ink: '#f3385d', paper: '#ffe0e9' },
+  { name: 'Atomic Blue', ink: '#0000d6', paper: '#d6ddf0' },
+  { name: 'Forest Moss', ink: '#006100', paper: '#d1ffd1' },
 ]
 
-export const DEFAULT_PALETTE: PaletteParams = { ink: PALETTES[0].ink, paper: PALETTES[0].paper }
+export const DEFAULT_PALETTE: PaletteParams = { ink: PALETTES[0].ink, paper: PALETTES[0].paper, transparent: false }
 
 /** Applies the case setting for display and export; the typed text is left as it is. */
 export function applyTextCase(text: string, textCase: TextCase): string {
