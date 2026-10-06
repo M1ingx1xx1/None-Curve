@@ -1,27 +1,30 @@
 :root {
-  --bg: #f4f4f2;
-  --surface: #ffffff;
-  --canvas: #fbfbfa;
-  --text: #111110;
-  --muted: #5f5e5a;
-  --faint: #9a9994;
-  --border: #d6d5d0;
-  --border-strong: #111110;
-  /* Accent: canvas drawings (skeleton, original curves); interactive UI and the glyph selection use the primary mint. */
-  --accent: #1f4fd1;
-  --guide: #c9c8c2;
-  --grid: rgba(17, 17, 16, 0.05);
+  /* Every themed colour is light-dark(light, dark). The theme follows the system until the toggle in
+     the status bar sets data-theme, which switches color-scheme and with it every token. */
+  --bg: light-dark(#f4f4f2, #0e0e0d);
+  --surface: light-dark(#ffffff, #171716);
+  --canvas: light-dark(#fbfbfa, #121211);
+  --text: light-dark(#111110, #f2f1ed);
+  --muted: light-dark(#5f5e5a, #a8a7a1);
+  --faint: light-dark(#9a9994, #6e6d68);
+  --border: light-dark(#d6d5d0, #2e2d2a);
+  --border-strong: light-dark(#111110, #f2f1ed);
+  /* Accent: canvas drawings (skeleton, original curves); interactive UI uses the primary mint, and the
+     glyph selection a brighter version of the text colour. */
+  --accent: light-dark(#1f4fd1, #7ea2ff);
+  --guide: light-dark(#c9c8c2, #3a3936);
+  --grid: light-dark(rgba(17, 17, 16, 0.05), rgba(242, 241, 237, 0.05));
   --focus: var(--primary-strong);
-  --danger: #b42318;
-  --control: #c2410c;
-  --vertex: #0f8a5f;
+  --danger: light-dark(#b42318, #ff8a7a);
+  --control: light-dark(#c2410c, #ff9a5c);
+  --vertex: light-dark(#0f8a5f, #3ddc97);
   /* Primary buttons: the same mint in both themes, with dark text for contrast. */
   --primary: #adfce7;
   --on-primary: #0b2a22;
   /* On the light theme the mint nearly matches the white panels, so its edge is drawn darker. */
-  --primary-edge: #3fae8f;
+  --primary-edge: light-dark(#3fae8f, #adfce7);
   /* The mint for thin lines, outlines, and small text: deeper on the light theme so it stays visible. */
-  --primary-strong: #0f7a5c;
+  --primary-strong: light-dark(#0f7a5c, #adfce7);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -29,26 +32,12 @@
   line-height: 1.5;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e0e0d;
-    --surface: #171716;
-    --canvas: #121211;
-    --text: #f2f1ed;
-    --muted: #a8a7a1;
-    --faint: #6e6d68;
-    --border: #2e2d2a;
-    --border-strong: #f2f1ed;
-    --accent: #7ea2ff;
-    --guide: #3a3936;
-    --grid: rgba(242, 241, 237, 0.05);
-    --focus: var(--primary-strong);
-    --danger: #ff8a7a;
-    --control: #ff9a5c;
-    --vertex: #3ddc97;
-    --primary-edge: #adfce7;
-    --primary-strong: #adfce7;
-  }
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 * {
@@ -205,7 +194,7 @@ input[type='range']:disabled {
      inline by Workspace; the rows always add up to the same height. */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 8px minmax(0, var(--rows-bottom, 38fr));
+  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 1px minmax(0, var(--rows-bottom, 38fr));
   min-height: 0;
   overflow: hidden;
 }
@@ -213,7 +202,7 @@ input[type='range']:disabled {
 /* Top row: tools + parameters | handle | canvas. */
 .workspace-top {
   display: grid;
-  grid-template-columns: minmax(0, var(--side-width, 30fr)) 8px minmax(0, var(--canvas-width, 70fr));
+  grid-template-columns: minmax(0, var(--side-width, 30fr)) 1px minmax(0, var(--canvas-width, 70fr));
   min-width: 0;
   min-height: 0;
 }
@@ -228,7 +217,7 @@ input[type='range']:disabled {
 /* Bottom row: glyphs | handle | text input and preview (with their own handle). */
 .workspace-bottom {
   display: grid;
-  grid-template-columns: minmax(0, var(--glyphs-width, 30fr)) 8px minmax(0, var(--input-width, 70fr));
+  grid-template-columns: minmax(0, var(--glyphs-width, 30fr)) 1px minmax(0, var(--input-width, 70fr));
   min-width: 0;
   min-height: 0;
 }
@@ -257,8 +246,8 @@ input[type='range']:disabled {
 }
 
 .workspace-canvas {
+  /* The canvas fills its area edge to edge; the split handles around it are its borders. */
   display: grid;
-  padding: 12px;
   min-width: 0;
   min-height: 0;
 }
@@ -271,12 +260,29 @@ input[type='range']:disabled {
   overflow: hidden;
 }
 
-/* ---- Split handles (between tools and canvas, the two rows, text and preview) ---- */
+/* ---- Split handles (between the main areas) ---- */
 
+/* Each handle is the 1 px line itself, so the panes on both sides reach the line. A wider invisible
+   grab area (::after) overlaps the panes, above them. */
 .split-handle {
   position: relative;
+  z-index: 2;
   touch-action: none;
-  background: var(--surface);
+  background: var(--border);
+}
+
+.split-handle-strong {
+  background: var(--border-strong);
+}
+
+.split-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.split-handle-y::after {
+  inset: -4px 0;
 }
 
 .split-handle-x {
@@ -287,15 +293,10 @@ input[type='range']:disabled {
   cursor: row-resize;
 }
 
-/* The visible line; the rest of the handle is a larger grab area. */
+/* The highlighted line while hovering, focused, or dragging. */
 .split-handle::before {
   content: '';
   position: absolute;
-  background: var(--border);
-}
-
-.split-handle-strong::before {
-  background: var(--border-strong);
 }
 
 .split-handle-x::before {
@@ -336,20 +337,52 @@ input[type='range']:disabled {
   outline: none;
 }
 
-/* Bottom right: text input (left), a resize handle, and the canvas miniature (right). The split is
-   set inline by InputPanel; the two columns always share the same total width. */
+/* Bottom right: text input, Typography and Color tabs, and the canvas miniature, with a resize
+   handle between each pair. The split is set inline by InputPanel; the columns always share the same
+   total width. */
 .input-panel {
   display: grid;
-  grid-template-columns: minmax(0, var(--split-text, 2fr)) 8px minmax(0, var(--split-preview, 3fr));
+  grid-template-columns:
+    minmax(0, var(--split-text, 3fr)) 1px minmax(0, var(--split-style, 3fr)) 1px
+    minmax(0, var(--split-preview, 4fr));
   height: 100%;
 }
 
 .input-panel-text,
+.input-panel-style,
 .input-panel-preview {
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* The style tabs stay at the top; only the settings below them scroll. */
+.input-panel-style {
+  overflow: hidden;
+}
+
+.style-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.style-panel .tool-tabs {
+  flex: none;
+  padding: 4px 14px 0;
+}
+
+.style-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.style-panel .group {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 /* The parameters toggle only matters on narrow screens. */
@@ -417,6 +450,23 @@ input[type='range']:disabled {
 
 .panel-intro .hint-text {
   color: var(--muted);
+}
+
+/* Which glyph the statistics describe (the last selected one, highlighted or not). */
+.statistics-target {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.statistics-glyph {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.statistics-code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
 }
 
 .group {
@@ -588,7 +638,6 @@ input[type='range']:disabled {
   display: grid;
   /* Toolbar, canvas, and the canvas size drawer; the drawer takes its height from the canvas. */
   grid-template-rows: auto minmax(0, 1fr) auto;
-  border: 1px solid var(--border-strong);
   background: var(--surface);
   min-height: 320px;
 }
@@ -824,8 +873,9 @@ input[type='range']:disabled {
   cursor: pointer;
 }
 
-/* On the canvas and the preview, glyphs use the Color settings (set on the SVG as --artboard-ink);
-   hover and selection keep the interface mint. */
+/* On the canvas and the preview, glyphs use the Color settings (set on the SVG as --artboard-ink).
+   Hover and selection recolour the glyph with --artboard-highlight, computed from the text and
+   background colours to stand out while staying readable (see highlightColor). */
 .specimen-view .glyph-fill {
   fill: var(--artboard-ink, var(--text));
 }
@@ -835,19 +885,41 @@ input[type='range']:disabled {
 }
 
 .specimen-view .specimen-glyph:hover .glyph-fill,
-.specimen-view .glyph-fill.glyph-fill-selected {
-  fill: var(--primary-strong);
+.specimen-view .specimen-glyph-selected .glyph-fill {
+  fill: var(--artboard-highlight);
 }
 
-/* The artboard: the canvas area that is exported. A thin edge keeps it visible on any background. */
-.artboard {
-  stroke: var(--border-strong);
-  stroke-opacity: 0.35;
-  vector-effect: non-scaling-stroke;
+.specimen-view .specimen-glyph:hover .outline-stroke,
+.specimen-view .specimen-glyph-selected .outline-stroke {
+  stroke: var(--artboard-highlight);
 }
 
-.specimen-view-static .artboard {
-  stroke: none;
+/* Each glyph's click target (its advance by its line): invisible, but painted, so it catches clicks
+   on small text and inside counters. */
+.glyph-box {
+  fill: transparent;
+}
+
+/* The canvas fills the view with the background colour. The screen grid sits above it, drawn in the
+   text colour so it suits every palette; four right angles mark the area that is exported. */
+.view-grid-line {
+  fill: none;
+  stroke: var(--artboard-ink);
+  stroke-opacity: 0.08;
+}
+
+.artboard-corners {
+  fill: none;
+  stroke: var(--artboard-ink);
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+}
+
+/* A transparent background: a checkerboard of the background colour and the same tinted with the
+   text colour, so the text stays as readable as on its background. */
+.checker-tint {
+  fill: var(--artboard-ink);
+  fill-opacity: 0.1;
 }
 
 .canvas-overflow {
@@ -951,12 +1023,11 @@ input[type='range']:disabled {
   gap: 6px;
 }
 
-/* ---- Tool tabs ---- */
+/* ---- Typography / Color tabs ---- */
 
 .tool-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-strong);
-  margin: -2px 0 0;
 }
 
 .tool-tabs [role='tab'] {
@@ -983,19 +1054,13 @@ input[type='range']:disabled {
   border-bottom-color: var(--primary-strong);
 }
 
-.tool-tab-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.tool-tab-panel[hidden] {
-  display: none;
-}
-
 .show-explanations {
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.geometry-panel .section-head {
+  flex-wrap: wrap;
 }
 
 /* ---- Slider with a number box (Typography) ---- */
@@ -1094,18 +1159,17 @@ input[type='range']:disabled {
   border-color: var(--danger);
 }
 
-/* ---- Letter case toggles above the text box ---- */
+/* ---- Letter case toggles, right of the Text title ---- */
 
-.case-row {
-  align-self: flex-start;
+.text-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .case-row button {
   padding: 2px 8px;
   font-size: 0.78rem;
-}
-
-.case-sample {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -1150,6 +1214,40 @@ input[type='range']:disabled {
   text-overflow: ellipsis;
   text-align: right;
   color: var(--faint);
+}
+
+/* Light / dark interface, the last item of the status bar (bottom right, also when the bar wraps on
+   narrow screens). Small enough not to change the bar's height. */
+.theme-toggle {
+  flex: none;
+  align-self: center;
+  margin: -2px 0 -2px auto;
+  border-color: var(--border);
+}
+
+.theme-toggle button {
+  padding: 2px 5px;
+  line-height: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.theme-toggle button:hover {
+  color: var(--text);
+}
+
+.theme-toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-toggle button[aria-pressed='true'] svg {
+  fill: currentColor;
 }
 
 /* ---- Buttons ---- */
@@ -1453,13 +1551,14 @@ input[type='range']:disabled {
 }
 
 .metric-lines line {
-  stroke: var(--guide);
+  stroke: var(--artboard-ink, var(--guide));
+  stroke-opacity: 0.3;
   stroke-width: 1;
   stroke-dasharray: 4 4;
 }
 
 .metric-lines .metric-baseline line {
-  stroke: var(--faint);
+  stroke-opacity: 0.5;
   stroke-dasharray: none;
 }
 
@@ -1469,7 +1568,8 @@ input[type='range']:disabled {
 }
 
 .metric-lines text {
-  fill: var(--faint);
+  fill: var(--artboard-ink, var(--faint));
+  fill-opacity: 0.55;
   font-family: var(--mono);
 }
 
@@ -2049,7 +2149,6 @@ input[type='range']:disabled {
 
   .workspace-canvas {
     min-height: 62vh;
-    padding: 8px;
   }
 
   .panel-toggle {
@@ -2065,8 +2164,14 @@ input[type='range']:disabled {
     grid-template-columns: 1fr;
   }
 
+  .input-panel-style,
   .input-panel-preview {
     border-top: 1px solid var(--border);
+  }
+
+  .input-panel-style,
+  .style-panel-body {
+    overflow: visible;
   }
 
   .text-preview-canvas {

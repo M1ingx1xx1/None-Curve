@@ -76,8 +76,6 @@ export default function ExportDialog(props: ExportDialogProps) {
   const [format, setFormat] = useState<Format>('svg')
   // Off by default: exports show the main view; ticked, they carry the preview's blur and inversion.
   const [usePreviewLook, setUsePreviewLook] = useState(false)
-  // A transparent background is useful for placing the text on something else (main view only).
-  const [includeBackground, setIncludeBackground] = useState(true)
   const [glyphSet, setGlyphSet] = useState<GlyphSet>('specimen')
   const [naming, setNaming] = useState<FontNaming>({ familyName: '', styleName: '' })
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -128,9 +126,10 @@ export default function ExportDialog(props: ExportDialogProps) {
   // The preview's blur is in its own screen pixels; dividing by its scale gives font units, and by the
   // canvas's font units per pixel gives canvas pixels, so the blur keeps its size relative to the letters.
   const look = (unitsPerPx: number): SvgLook => {
-    if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background: includeBackground, blur: 0 }
+    const background = !palette.transparent
+    if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background, blur: 0 }
     const blurUnits = previewScale > 0 ? previewLook.blur / previewScale : 0
-    return { ...previewColors(palette, previewLook), background: true, blur: blurUnits / unitsPerPx }
+    return { ...previewColors(palette, previewLook), background, blur: blurUnits / unitsPerPx }
   }
   const pngWidth = artboard.width * artboard.scale
   const pngHeight = artboard.height * artboard.scale
@@ -272,18 +271,10 @@ export default function ExportDialog(props: ExportDialogProps) {
                   {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}, {previewLook.inverted ? 'colours swapped' : 'same colours'}. The
                   blur keeps its size relative to the letters{format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
                 </p>
-                <div className="field field-toggle">
-                  <input
-                    id="export-background"
-                    type="checkbox"
-                    checked={usePreviewLook || includeBackground}
-                    disabled={usePreviewLook}
-                    onChange={(e) => setIncludeBackground(e.target.checked)}
-                  />
-                  <label htmlFor="export-background">Include the background colour</label>
-                </div>
-                {!usePreviewLook && !includeBackground && (
-                  <p className="field-hint">Transparent background: only the text is drawn{format === 'png' ? ' (PNG with transparency)' : ''}.</p>
+                {palette.transparent && (
+                  <p className="field-hint">
+                    Transparent background (set in Color): only the text is drawn{format === 'png' ? ' (PNG with transparency)' : ''}.
+                  </p>
                 )}
 
                 {format === 'svg' ? (

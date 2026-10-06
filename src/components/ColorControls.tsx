@@ -1,7 +1,7 @@
 import { useEffect, useState, type Dispatch } from 'react'
 import { contrastRatio, DEFAULT_PALETTE, normalizeHex, PALETTES, type PaletteParams } from '../specimen/artboard'
 import type { Action } from '../state/editorState'
-import { HintButton, HintText, useHint } from './Hint'
+import { HintText, useHint } from './Hint'
 
 interface ColorControlsProps {
   params: PaletteParams
@@ -25,7 +25,7 @@ function hslToHex(h: number, s: number, l: number): string {
 }
 
 /** A random pair with readable contrast: a bright colour on a deep one, or the other way round. */
-function randomPalette(): PaletteParams {
+function randomPalette(): Pick<PaletteParams, 'ink' | 'paper'> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const hue = Math.random() * 360
     const bright = hslToHex(hue, 0.6 + Math.random() * 0.35, 0.6 + Math.random() * 0.2)
@@ -33,7 +33,7 @@ function randomPalette(): PaletteParams {
     const pair = Math.random() < 0.75 ? { ink: bright, paper: deep } : { ink: deep, paper: bright }
     if (contrastRatio(pair.ink, pair.paper) >= 4.5) return pair
   }
-  return DEFAULT_PALETTE
+  return { ink: DEFAULT_PALETTE.ink, paper: DEFAULT_PALETTE.paper }
 }
 
 /** Text and background colours of the canvas, the preview, and SVG/PNG export. */
@@ -45,9 +45,8 @@ export default function ColorControls({ params, disabled, dispatch }: ColorContr
 
   return (
     <fieldset className="group colors" disabled={disabled}>
-      <legend>
-        Color <HintButton hint={intro} topic="Color" />
-      </legend>
+      {/* The tab above names the group; the legend stays for screen readers. */}
+      <legend className="visually-hidden">Color</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={intro}>
@@ -86,11 +85,27 @@ export default function ColorControls({ params, disabled, dispatch }: ColorContr
 
         <ColorField id="palette-ink" label="Text" value={params.ink} onChange={(ink) => update({ ink })} />
         <ColorField id="palette-paper" label="Background" value={params.paper} onChange={(paper) => update({ paper })} />
+        <div className="field field-toggle">
+          <input
+            id="palette-transparent"
+            type="checkbox"
+            checked={params.transparent}
+            onChange={(e) => update({ transparent: e.target.checked })}
+          />
+          <label htmlFor="palette-transparent">Transparent background</label>
+        </div>
 
-        <p className={contrast < LOW_CONTRAST ? 'font-warning' : 'field-hint'} aria-live="polite">
-          Contrast {contrast.toFixed(1)} : 1{active ? ` · ${active.name}` : ' · custom'}
-          {contrast < LOW_CONTRAST ? ' — the text will be hard to read.' : ''}
-        </p>
+        {params.transparent ? (
+          <p className="field-hint" aria-live="polite">
+            No background in SVG and PNG exports{active ? ` · ${active.name}` : ''}. The checkerboard on the canvas
+            stands for transparency.
+          </p>
+        ) : (
+          <p className={contrast < LOW_CONTRAST ? 'font-warning' : 'field-hint'} aria-live="polite">
+            Contrast {contrast.toFixed(1)} : 1{active ? ` · ${active.name}` : ' · custom'}
+            {contrast < LOW_CONTRAST ? ' — the text will be hard to read.' : ''}
+          </p>
+        )}
       </div>
     </fieldset>
   )

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { INPUT_PANEL_MIN } from './InputPanel'
 import { SplitHandle, useSplit } from './useSplit'
 
 interface WorkspaceProps {
@@ -10,7 +11,7 @@ interface WorkspaceProps {
   canvas: ReactNode
   /** Bottom left: glyph list (inserts characters into the text). */
   glyphs: ReactNode
-  /** Bottom right: text input and the canvas miniature. */
+  /** Bottom right: text input, the Typography and Color tabs, and the canvas miniature. */
   input: ReactNode
   /** Narrow screens only: whether the geometry parameters are expanded. */
   geometryOpen: boolean
@@ -20,7 +21,7 @@ interface WorkspaceProps {
  * Two rows that always fill the window between the header and the status bar:
  *   ┌ tools + geometry ║ canvas          ┐   ← top row; ║ moves the tools / canvas border
  *   ╞═══════════════════════════════════╡   ← moves the border between the rows
- *   └ glyphs           ║ input ║ preview  ┘   ← bottom row; the input / preview handle is in InputPanel
+ *   └ glyphs     ║ input ║ style ║ preview  ┘   ← bottom row; the handles right of input are in InputPanel
  * Each handle only moves a border: the panes on either side always add up to the same size.
  * Narrow screens stack tools, canvas, geometry (collapsible), input, glyphs, without handles.
  */
@@ -41,14 +42,14 @@ export default function Workspace({ tools, geometry, canvas, glyphs, input, geom
     minEnd: 320,
     cssVars: ['--side-width', '--canvas-width'],
   })
-  // Glyphs | text input + preview. The second pane's minimum leaves room for both of InputPanel's
-  // minimums (180 + 200) and its handle.
+  // Glyphs | text input + style + preview. The second pane's minimum leaves room for all of
+  // InputPanel's minimums and its handles.
   const bottom = useSplit<HTMLDivElement>({
     storageKey: 'none-curve:glyphs-split',
-    defaultValue: 0.3,
+    defaultValue: 0.24,
     axis: 'x',
     minStart: 220,
-    minEnd: 388,
+    minEnd: INPUT_PANEL_MIN,
     cssVars: ['--glyphs-width', '--input-width'],
   })
 
@@ -81,7 +82,7 @@ export default function Workspace({ tools, geometry, canvas, glyphs, input, geom
           axis="x"
           strong
           label="Resize the glyph list and the text input"
-          valueText={`Glyphs ${bottom.percent}%, text and preview ${100 - bottom.percent}%`}
+          valueText={`Glyphs ${bottom.percent}%, text, style, and preview ${100 - bottom.percent}%`}
           handleProps={bottom.handleProps}
         />
         <div className="workspace-input">{input}</div>

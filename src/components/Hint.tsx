@@ -1,7 +1,28 @@
 import { createContext, useContext, useEffect, useId, useState, type ReactNode } from 'react'
 
-/** True when "Show all explanations" is on in the tools panel. */
+/** True when "Show all explanations" is on (a checkbox in the geometry panel; it applies everywhere). */
 export const HintsContext = createContext(false)
+
+const SHOW_ALL_KEY = 'none-curve:show-explanations'
+
+/** The "Show all explanations" setting, remembered per browser. */
+export function useShowAllHints(): [boolean, (showAll: boolean) => void] {
+  const [showAll, setShowAll] = useState(() => {
+    try {
+      return localStorage.getItem(SHOW_ALL_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHOW_ALL_KEY, String(showAll))
+    } catch {
+      // Not remembered; the setting still works for this visit.
+    }
+  }, [showAll])
+  return [showAll, setShowAll]
+}
 
 export interface HintState {
   id: string

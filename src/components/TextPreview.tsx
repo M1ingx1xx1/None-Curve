@@ -1,6 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
-import type { GlyphRef } from '../geometry/types'
 import { artboardViewFrame, type ArtboardLayout, type PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
@@ -15,7 +14,6 @@ interface TextPreviewProps {
   /** Outline and layer settings of the result canvas; zoom and pan are ignored (always fitted). */
   view: ViewParams
   gridSize: number | null
-  selectedGlyph: GlyphRef | null
   /** Blur and inversion live in App so the export dialog can reproduce this view. */
   look: PreviewLook
   onLookChange: (look: PreviewLook) => void
@@ -34,7 +32,7 @@ export const DEFAULT_PREVIEW_LOOK: PreviewLook = { blur: 0, inverted: false }
 
 /** The preview's colours: the palette, swapped when inverted. */
 export function previewColors(palette: PaletteParams, look: PreviewLook): PaletteParams {
-  return look.inverted ? { ink: palette.paper, paper: palette.ink } : palette
+  return look.inverted ? { ...palette, ink: palette.paper, paper: palette.ink } : palette
 }
 
 const MAX_BLUR = 12
@@ -54,7 +52,6 @@ export default function TextPreview({
   palette,
   view,
   gridSize,
-  selectedGlyph,
   look,
   onLookChange,
   onScaleChange,
@@ -119,10 +116,11 @@ export default function TextPreview({
               layout={layout}
               ink={colors.ink}
               paper={colors.paper}
+              transparent={palette.transparent}
               clip
               view={{ ...view, ...FITTED }}
               gridSize={gridSize}
-              selectedGlyph={selectedGlyph}
+              selectedGlyph={null}
               label={`Miniature of the canvas${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
               onViewChange={ignoreViewChange}
               onSelectGlyph={ignoreSelect}

@@ -1,7 +1,8 @@
-import { useId, useMemo, type CSSProperties } from 'react'
+import { useId, useMemo, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
+import { highlightColor } from '../specimen/color'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
@@ -13,9 +14,10 @@ interface SpecimenViewProps {
   scene: SpecimenScene
   /** Where the artboard sits in scene units; zoom 1 shows the whole artboard. */
   layout: ArtboardLayout
-  /** Glyph and artboard colours. */
+  /** Glyph and background colours; a transparent background is drawn as a checkerboard. */
   ink: string
   paper: string
+  transparent?: boolean
   /** Hide everything outside the artboard (the preview shows exactly what is exported). */
   clip?: boolean
   view: ViewParams
@@ -24,10 +26,24 @@ interface SpecimenViewProps {
   label: string
   onViewChange: (patch: Partial<ViewParams>) => void
   onSelectGlyph: (glyph: GlyphRef) => void
+  /** A click on empty space (not on a glyph) or Escape: hides the selection highlight. */
+  onClearSelection?: () => void
   /** False for a read-only miniature: no pan, zoom, keyboard focus, or glyph selection. */
   interactive?: boolean
   /** Gaussian blur of the glyphs, in screen pixels; 0 is off. The artboard itself stays sharp. */
   blur?: number
+}
+
+/** Four right angles at the corners of the artboard (the area that is exported), `size` long. */
+function cornerMarks({ x, y, width, height }: ArtboardLayout, size: number): string {
+  const r = x + width
+  const b = y + height
+  return [
+    `M ${x} ${y + size} V ${y} H ${x + size}`,
+    `M ${r - size} ${y} H ${r} V ${y + size}`,
+    `M ${r} ${b - size} V ${b} H ${r - size}`,
+    `M ${x + size} ${b} H ${x} V ${b - size}`,
+  ].join(' ')
 }
 
 /** Point markers (skeleton, vertices) are drawn only when an em is at least this many pixels. */
@@ -46,6 +62,7 @@ export default function SpecimenView({
   layout,
   ink,
   paper,
+  transparent = false,
   clip = false,
   view,
   gridSize,
@@ -53,16 +70,23 @@ export default function SpecimenView({
   label,
   onViewChange,
   onSelectGlyph,
+  onClearSelection,
   interactive = true,
   blur = 0,
 }: SpecimenViewProps) {
   const { unitsPerEm, ascender, descender } = font.metrics
+  // Each glyph's invisible click target: its advance by the line (ascender to descender), so small
+  // text and the inside of letters like "o" are easy to hit.
 
   // Scene coordinates are y down (first baseline at 0); the canvas works in y up. Zoom 1 fits the artboard.
   const frame = useMemo(() => artboardViewFrame(layout), [layout])
   const ids = useId()
   const blurId = `${ids}-blur`
   const clipId = `${ids}-clip`
+  const gridId = `${ids}-grid`
+  const checkerId = `${ids}-checker`
+  // Selected and hovered glyphs: a colour computed from the text and background to stand out.
+  const highlight = useMemo(() => highlightColor(ink, paper), [ink, paper])
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
 
@@ -94,6 +118,18 @@ export default function SpecimenView({
     )
   }
 
+  // A click that lands on empty space (not on a glyph, and not the end of a drag) clears the highlight.
+  const onClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (wasDrag() || (e.target as Element).closest('.specimen-glyph')) return
+    onClearSelection?.()
+  }
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && e.target === e.currentTarget && onClearSelection) {
+      e.preventDefault()
+      onClearSelection()
+    } else handlers.onKeyDown(e)
+  }
+
   // Visible band in scene coordinates (y down).
   const sceneTop = -top
   const sceneBottom = -bottom
@@ -110,16 +146,23 @@ export default function SpecimenView({
       tabIndex={interactive ? 0 : undefined}
       role="img"
       aria-label={
-        interactive ? `${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it.` : label
+        interactive
+          ? `${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.`
+          : label
       }
-      {...(interactive ? handlers : {})}
+      {...(interactive ? { ...handlers, onKeyDown, onClick } : {})}
     >
       {ready && (
         <svg
           viewBox={`${left} ${-top} ${visW} ${visH}`}
           preserveAspectRatio="none"
           aria-hidden="true"
-          style={{ '--artboard-ink': ink } as CSSProperties}
+          style={
+            {
+              '--artboard-ink': ink,
+              '--artboard-highlight': highlight,
+            } as CSSProperties
+          }
         >
           <defs>
             {blur > 0 && (
@@ -132,8 +175,28 @@ export default function SpecimenView({
                 <rect x={layout.x} y={layout.y} width={layout.width} height={layout.height} />
               </clipPath>
             )}
+            {interactive && (
+              // A 24 px screen grid, fixed to the view like graph paper.
+              <pattern id={gridId} patternUnits="userSpaceOnUse" x={left} y={-top} width={24 * u} height={24 * u}>
+                <path className="view-grid-line" d={`M ${24 * u} 0 H 0 V ${24 * u}`} strokeWidth={u} />
+              </pattern>
+            )}
+            {transparent && (
+              <pattern id={checkerId} patternUnits="userSpaceOnUse" x={layout.x} y={layout.y} width={16 * u} height={16 * u}>
+                <rect width={16 * u} height={16 * u} fill={paper} />
+                <rect className="checker-tint" width={8 * u} height={8 * u} />
+                <rect className="checker-tint" x={8 * u} y={8 * u} width={8 * u} height={8 * u} />
+              </pattern>
+            )}
           </defs>
-          <rect className="artboard" x={layout.x} y={layout.y} width={layout.width} height={layout.height} fill={paper} />
+          {/* The background: the whole view on the canvas (the corner marks show the exported area),
+              only the exported area in the preview. Then the grid, above the background. */}
+          {clip ? (
+            <rect x={layout.x} y={layout.y} width={layout.width} height={layout.height} fill={transparent ? `url(#${checkerId})` : paper} />
+          ) : (
+            <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
+          )}
+          {interactive && <rect x={left} y={-top} width={visW} height={visH} fill={`url(#${gridId})`} />}
           {grid && (
             <g className="snap-grid">
               {grid.xs.map((x) => (
@@ -189,10 +252,11 @@ export default function SpecimenView({
                     }
                     const source = sourceFor(g.index)
                     if (!source || source.contours.length === 0) return null
+                    const selected = selectedGlyph?.index === g.index
                     return (
                       <g
                         key={i}
-                        className="specimen-glyph"
+                        className={selected ? 'specimen-glyph specimen-glyph-selected' : 'specimen-glyph'}
                         transform={`translate(${g.x} ${g.y})${skew} scale(1 -1)`}
                         onClick={
                           interactive
@@ -203,13 +267,21 @@ export default function SpecimenView({
                         }
                       >
                         <title>{g.text}</title>
+                        {interactive && (
+                          <rect
+                            className="glyph-box"
+                            x={0}
+                            y={descender}
+                            width={g.advance}
+                            height={ascender - descender}
+                          />
+                        )}
                         <GlyphLayers
                           source={source}
                           polygon={g.polygon}
                           view={view}
                           markerRadius={3.5 * u}
                           showMarkers={showMarkers}
-                          selected={selectedGlyph?.index === g.index}
                         />
                       </g>
                     )
@@ -218,6 +290,13 @@ export default function SpecimenView({
               )
             })}
           </g>
+          {interactive && (
+            <path
+              className="artboard-corners"
+              d={cornerMarks(layout, 18 * u)}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
         </svg>
       )}
       {interactive && ready && gridSize && (
