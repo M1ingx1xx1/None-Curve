@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import Icon from './Icon'
 
 interface ErrorBoundaryProps {
   /** Changing this value clears a previous error, e.g. when a new font loads. */
@@ -35,6 +36,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
         <p className="font-error-kind">{this.props.label} could not be displayed</p>
         <p>{this.state.error.message}</p>
         <button type="button" className="button-small" onClick={() => this.setState({ error: null })}>
+          <Icon name="retry" />
           Try again
         </button>
       </div>

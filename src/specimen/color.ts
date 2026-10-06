@@ -130,3 +130,15 @@ export function highlightColor(ink: string, paper: string): string {
   cache.set(key, best.hex)
   return best.hex
 }
+
+/** The interface's primary mint in its light and dark versions (see --primary and --primary-strong). */
+const PRIMARY_LIGHT = '#adfce7'
+const PRIMARY_DEEP = '#0f7a5c'
+
+/**
+ * The colour of the canvas outline: the interface mint, not the text colour, so the outline reads as
+ * a guide rather than part of the text. Whichever version stands out more on this background.
+ */
+export function artboardEdgeColor(paper: string): string {
+  return contrastRatio(PRIMARY_LIGHT, paper) >= contrastRatio(PRIMARY_DEEP, paper) ? PRIMARY_LIGHT : PRIMARY_DEEP
+}

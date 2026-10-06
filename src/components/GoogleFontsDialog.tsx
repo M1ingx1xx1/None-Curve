@@ -9,6 +9,7 @@ import {
   type GoogleFontRequest,
 } from '../font/google'
 import { looksLikeUrl, parseFontInput, type ParsedFontRequest } from '../font/googleUrl'
+import Icon from './Icon'
 
 interface GoogleFontsDialogProps {
   open: boolean
@@ -142,7 +143,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
         <header className="gf-head">
           <h2 id="gf-title">Google Fonts</h2>
           <button type="button" className="button-small" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </header>
 
@@ -242,6 +243,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                 <p className="font-error-kind">{errorKindLabel[familyState.error.kind]}</p>
                 <p>{familyState.error.message}</p>
                 <button type="button" className="button-small" onClick={() => setAttempt((n) => n + 1)}>
+                  <Icon name="retry" />
                   Retry
                 </button>
               </div>
@@ -322,6 +324,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
             Cancel
           </button>
           <button type="submit" className="button-primary" disabled={!canLoad}>
+            <Icon name="download" />
             Load font
           </button>
         </footer>

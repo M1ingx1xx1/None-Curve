@@ -1,4 +1,5 @@
 import type { DocumentState } from '../state/types'
+import Icon from './Icon'
 
 interface HeaderProps {
   document: DocumentState
@@ -32,6 +33,7 @@ export default function Header({ document, onOpenExport }: HeaderProps) {
       </p>
       <div className="header-actions">
         <button type="button" disabled={!document.font} onClick={onOpenExport} title={document.font ? 'Export SVG or a font file' : 'Load a font to export'}>
+          <Icon name="download" />
           Export…
         </button>
       </div>

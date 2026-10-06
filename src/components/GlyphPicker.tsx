@@ -113,10 +113,8 @@ export default function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
   }
 
   return (
-    <section className="glyph-picker" aria-labelledby="glyph-picker-title">
-      <div className="section-head">
-        <h2 id="glyph-picker-title">Glyphs</h2>
-      </div>
+    // The Glyphs tab names this list; the label stays for screen readers.
+    <section className="glyph-picker" aria-label="Glyphs">
       <p className="field-hint">Click a character to insert it into the text at the cursor.</p>
 
       <label className="visually-hidden" htmlFor="glyph-search">

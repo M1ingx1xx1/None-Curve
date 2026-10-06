@@ -2,6 +2,7 @@ import { useEffect, useState, type Dispatch } from 'react'
 import { contrastRatio, DEFAULT_PALETTE, normalizeHex, PALETTES, type PaletteParams } from '../specimen/artboard'
 import type { Action } from '../state/editorState'
 import { HintText, useHint } from './Hint'
+import Icon from './Icon'
 
 interface ColorControlsProps {
   params: PaletteParams
@@ -75,9 +76,11 @@ export default function ColorControls({ params, disabled, dispatch }: ColorContr
           </div>
           <div className="preset-row">
             <button type="button" className="button-small" onClick={() => update(randomPalette())}>
+              <Icon name="shuffle" />
               Random
             </button>
             <button type="button" className="button-small" onClick={() => update({ ink: params.paper, paper: params.ink })}>
+              <Icon name="swap" />
               Swap
             </button>
           </div>

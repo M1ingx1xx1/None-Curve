@@ -31,7 +31,7 @@ Everything happens inside your web browser. Your font files are never uploaded a
 
 ## 3. A tour of the screen
 
-The screen is split into two rows and six areas:
+The screen is split into two rows and five areas:
 
 ```text
 ┌────────────────────────╥─────────────────────────────────────────────────────┐
@@ -39,35 +39,33 @@ The screen is split into two rows and six areas:
 │   Import font          ║   your text, rebuilt live                           │
 │   Font information     ║                                                     │
 │   Shaping controls     ║                                                     │
-╞═══════════════════╦════╩═══════════╦═════════════════╦═══════════════════════╡
-│ ③ Glyphs          ║ ④ Text input   ║ ⑤ Typography    ║ ⑥ Preview             │
-│   click to insert ║   type here    ║   & Color tabs  ║   small copy of ②,    │
-│   a character     ║                ║                 ║   with Blur & Invert  │
-└───────────────────╨────────────────╨─────────────────╨───────────────────────┘
+╞════════════════════════╩═╦══════════════════════════╦════════════════════════╡
+│ ③ Typography,            ║ ④ Text input             ║ ⑤ Preview              │
+│   Glyphs & Color tabs    ║   type here              ║   small copy of ②,     │
+│                          ║                          ║   with Blur & Invert   │
+└──────────────────────────╨──────────────────────────╨────────────────────────┘
 ```
 
 1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the **Geometry** controls that shape the letters. Scroll to see every control.
-2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The background colour fills the whole view, with a light grid on top; four corner marks show the edges of the page that gets exported. The **Canvas size** bar at its bottom opens the size settings.
-3. **Glyphs (bottom left)** — every letter, number, and symbol in the font. Click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The background colour fills the whole view, with a light grid on top; a thin mint outline shows the edges of the page that gets exported (in the app's own colour, so it is never mistaken for part of your text). The **Canvas size** bar at its bottom opens the size settings.
+3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
-5. **Typography and Color** — two tabs: **Typography** sets the size, spacing, slant, and alignment of the text; **Color** sets the text and background colours.
-6. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
+5. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
 
 At the very top there is an **Export…** button, and along the bottom a status line tells you what is shown and which settings are active.
 
 **Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
 
-**Changing the size of the areas.** The double lines in the picture are thin lines you can drag:
+**Changing the size of the areas.** The double lines in the picture are the thin grey lines between the areas; you can drag them:
 
 - between the **top and bottom rows** — drag up or down to give the canvas or the bottom row more height;
 - between the **tools and the canvas** — drag left or right;
-- between the **Glyphs list and the text input** — drag left or right;
-- between the **text input and the Typography / Color tabs** — drag left or right;
-- between the **Typography / Color tabs and the preview** — drag left or right.
+- between the **Typography / Glyphs / Color tabs and the text input** — drag left or right;
+- between the **text input and the preview** — drag left or right.
 
 Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
 
-> On a phone the areas are stacked: tools, canvas, text input, Typography and Color, preview, then the glyph list. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
+> On a phone the areas are stacked: tools, canvas, text input, preview, then the Typography / Glyphs / Color tabs. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
 
 ---
 
@@ -134,7 +132,7 @@ If a new font fails to load, the previous font stays on screen.
 - Below the box you see how many characters you typed and whether the font's own **kerning** (fine spacing between pairs like "AV") is applied.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
 - Up to 1000 characters are shown.
-- To add a symbol you cannot type easily, click it in the **Glyphs** list (bottom left). It goes in where your cursor is in the text box (or at the end, if you have not clicked into the box yet). If you selected some text, the symbol replaces it.
+- To add a symbol you cannot type easily, click it in the **Glyphs** tab (bottom left). It goes in where your cursor is in the text box (or at the end, if you have not clicked into the box yet). If you selected some text, the symbol replaces it.
 - If you make the Glyphs list narrow, it shows only the characters, without their codes, so more fit in. Make it wider to see the codes again (or hover over a character).
 - The **search box** above the Glyphs list finds characters by the character itself (`A`), its code (`U+0041`), or part of its name (`arrow`, `dieresis`).
 
@@ -281,7 +279,7 @@ The seed is also shown in the status line at the bottom and in the export dialog
 
 ### Typography tab — size, spacing, and alignment
 
-The **Typography** and **Color** tabs are in the bottom row, between the text box and the preview. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
+The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
 
 - **Size** — the letter size, as a percentage of the canvas width (the explanation shows the size in pixels). Because it follows the width, the text keeps its proportions when you change the canvas size. You can drag the slider or type a number.
 - **Fit text** — makes the text as large as possible while still fitting inside the padding.
@@ -289,7 +287,8 @@ The **Typography** and **Color** tabs are in the bottom row, between the text bo
 - **Tracking** — extra space between letters. Negative values pull letters closer.
 - **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.
 - **Slant** — leans the letters, like a quick italic. Positive leans right, negative leans left.
-- **Align** — **Left**, **Center**, or **Right**. The text block is always centred top to bottom.
+- **Align** — the three buttons with lines line up the lines of text on the left, in the centre, or on the right.
+- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle (the text keeps the padding away from the edges). Click **Free** to place it yourself: then drag the text on the big canvas. It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
 - **Reset typography** puts these back to their starting values.
 
 ### Color tab — text and background colours

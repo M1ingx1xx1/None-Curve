@@ -3,6 +3,7 @@ import { DISTORTION_LIMITS, type DistortionStats } from '../geometry/distortion'
 import type { DistortionParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
+import Icon from './Icon'
 
 interface DistortionControlsProps {
   params: DistortionParams
@@ -145,6 +146,7 @@ export default function DistortionControls({
               }}
             />
             <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (MAX_SEED + 1) })}>
+              <Icon name="next" />
               Next variant
             </button>
           </div>
@@ -192,6 +194,7 @@ export default function DistortionControls({
         )}
 
         <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_DISTORTION)}>
+          <Icon name="reset" />
           Reset distortion
         </button>
       </div>

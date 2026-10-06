@@ -1,6 +1,7 @@
 import { errorKindLabel } from '../font/errors'
 import type { LoadedFont } from '../font/model'
 import type { LoadStatus } from '../state/types'
+import Icon from './Icon'
 
 interface FontStatusProps {
   status: LoadStatus
@@ -95,6 +96,7 @@ export default function FontStatus({ status, font, onRetry, onCancel }: FontStat
           <p>{status.message}</p>
           <div className="font-error-actions">
             <button type="button" className="button-small" onClick={onRetry}>
+              <Icon name="retry" />
               Retry
             </button>
             {font && <span className="font-meta">Still showing {font.familyName}.</span>}

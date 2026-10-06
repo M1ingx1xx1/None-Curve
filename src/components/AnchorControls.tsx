@@ -3,6 +3,7 @@ import { ANCHOR_LIMITS, type AnchorStats } from '../geometry/anchors'
 import type { AnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
+import Icon from './Icon'
 
 interface AnchorControlsProps {
   params: AnchorParams
@@ -112,6 +113,7 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
           disabled={disabled || (!spacingOn && !reductionOn)}
           onClick={() => update({ spacing: 0, simplify: 0 })}
         >
+          <Icon name="reset" />
           Reset anchors
         </button>
 
