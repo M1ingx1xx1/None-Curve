@@ -5,6 +5,7 @@ import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import ErrorBoundary from './ErrorBoundary'
 import SpecimenView from './SpecimenView'
+import Icon from './Icon'
 
 interface TextPreviewProps {
   font: LoadedFont | null
@@ -103,6 +104,7 @@ export default function TextPreview({
             title="Swap the text and background colours of the preview"
             onClick={() => onLookChange({ ...look, inverted: !inverted })}
           >
+            <Icon name="contrast" />
             Invert
           </button>
         </div>

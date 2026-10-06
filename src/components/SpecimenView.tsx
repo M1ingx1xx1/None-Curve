@@ -1,8 +1,8 @@
-import { useId, useMemo, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react'
+import { useId, useMemo, useRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
-import { highlightColor } from '../specimen/color'
+import { artboardEdgeColor, highlightColor } from '../specimen/color'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
@@ -28,22 +28,12 @@ interface SpecimenViewProps {
   onSelectGlyph: (glyph: GlyphRef) => void
   /** A click on empty space (not on a glyph) or Escape: hides the selection highlight. */
   onClearSelection?: () => void
+  /** Free position: dragging the text moves it. Reports the drag in font units since it started. */
+  onMoveText?: (phase: 'start' | 'move' | 'end', dx: number, dy: number) => void
   /** False for a read-only miniature: no pan, zoom, keyboard focus, or glyph selection. */
   interactive?: boolean
   /** Gaussian blur of the glyphs, in screen pixels; 0 is off. The artboard itself stays sharp. */
   blur?: number
-}
-
-/** Four right angles at the corners of the artboard (the area that is exported), `size` long. */
-function cornerMarks({ x, y, width, height }: ArtboardLayout, size: number): string {
-  const r = x + width
-  const b = y + height
-  return [
-    `M ${x} ${y + size} V ${y} H ${x + size}`,
-    `M ${r - size} ${y} H ${r} V ${y + size}`,
-    `M ${r} ${b - size} V ${b} H ${r - size}`,
-    `M ${x + size} ${b} H ${x} V ${b - size}`,
-  ].join(' ')
 }
 
 /** Point markers (skeleton, vertices) are drawn only when an em is at least this many pixels. */
@@ -71,6 +61,7 @@ export default function SpecimenView({
   onViewChange,
   onSelectGlyph,
   onClearSelection,
+  onMoveText,
   interactive = true,
   blur = 0,
 }: SpecimenViewProps) {
@@ -87,6 +78,8 @@ export default function SpecimenView({
   const checkerId = `${ids}-checker`
   // Selected and hovered glyphs: a colour computed from the text and background to stand out.
   const highlight = useMemo(() => highlightColor(ink, paper), [ink, paper])
+  // The canvas outline: the interface mint rather than the text colour, so it reads as a guide.
+  const edge = useMemo(() => artboardEdgeColor(paper), [paper])
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
 
@@ -118,9 +111,55 @@ export default function SpecimenView({
     )
   }
 
+  // Free position: a drag that starts on the text moves the text; anywhere else it pans as usual.
+  const freeMove = interactive && onMoveText !== undefined
+  const textDrag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const textMoved = useRef(false)
+  const dragged = () => wasDrag() || textMoved.current
+  const pointer = {
+    onPointerDown(e: PointerEvent<HTMLDivElement>) {
+      if (freeMove && e.button === 0 && (e.target as Element).closest('.specimen-glyph, .text-block-hit')) {
+        textDrag.current = { x: e.clientX, y: e.clientY, moved: false }
+        return
+      }
+      handlers.onPointerDown(e)
+    },
+    onPointerMove(e: PointerEvent<HTMLDivElement>) {
+      const d = textDrag.current
+      if (!d) return handlers.onPointerMove(e)
+      const dx = e.clientX - d.x
+      const dy = e.clientY - d.y
+      if (!d.moved) {
+        if (Math.hypot(dx, dy) < 3) return
+        d.moved = true
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          // Capture is a convenience; the drag still works while the pointer stays on the canvas.
+        }
+        onMoveText?.('start', 0, 0)
+      }
+      // Screen pixels to font units; both axes point the same way (y down) in the scene.
+      onMoveText?.('move', dx * u, dy * u)
+    },
+    onPointerUp() {
+      const d = textDrag.current
+      textMoved.current = d?.moved ?? false
+      textDrag.current = null
+      if (d?.moved) onMoveText?.('end', 0, 0)
+      handlers.onPointerUp()
+    },
+    onPointerCancel() {
+      if (textDrag.current?.moved) onMoveText?.('end', 0, 0)
+      textDrag.current = null
+      textMoved.current = false
+      handlers.onPointerCancel()
+    },
+  }
+
   // A click that lands on empty space (not on a glyph, and not the end of a drag) clears the highlight.
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (wasDrag() || (e.target as Element).closest('.specimen-glyph')) return
+    if (dragged() || (e.target as Element).closest('.specimen-glyph')) return
     onClearSelection?.()
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -147,10 +186,11 @@ export default function SpecimenView({
       role="img"
       aria-label={
         interactive
-          ? `${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.`
+          ? `${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.${freeMove ? ' Drag the text to move it.' : ''}`
           : label
       }
-      {...(interactive ? { ...handlers, onKeyDown, onClick } : {})}
+      data-free-move={freeMove || undefined}
+      {...(interactive ? { ...handlers, ...pointer, onKeyDown, onClick } : {})}
     >
       {ready && (
         <svg
@@ -197,6 +237,16 @@ export default function SpecimenView({
             <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
           )}
           {interactive && <rect x={left} y={-top} width={visW} height={visH} fill={`url(#${gridId})`} />}
+          {freeMove && (
+            // Free position: the whole text block (gaps between words included) is the drag handle.
+            <rect
+              className="text-block-hit"
+              x={Math.min(0, scene.bounds.minX)}
+              y={Math.min(scene.textTop, scene.bounds.minY)}
+              width={Math.max(scene.blockWidth, scene.bounds.maxX) - Math.min(0, scene.bounds.minX)}
+              height={Math.max(scene.textBottom, scene.bounds.maxY) - Math.min(scene.textTop, scene.bounds.minY)}
+            />
+          )}
           {grid && (
             <g className="snap-grid">
               {grid.xs.map((x) => (
@@ -261,7 +311,7 @@ export default function SpecimenView({
                         onClick={
                           interactive
                             ? () => {
-                                if (!wasDrag()) onSelectGlyph(selectRef(g.index, g.text))
+                                if (!dragged()) onSelectGlyph(selectRef(g.index, g.text))
                               }
                             : undefined
                         }
@@ -291,9 +341,13 @@ export default function SpecimenView({
             })}
           </g>
           {interactive && (
-            <path
-              className="artboard-corners"
-              d={cornerMarks(layout, 18 * u)}
+            <rect
+              className="artboard-edge"
+              x={layout.x}
+              y={layout.y}
+              width={layout.width}
+              height={layout.height}
+              stroke={edge}
               vectorEffect="non-scaling-stroke"
             />
           )}

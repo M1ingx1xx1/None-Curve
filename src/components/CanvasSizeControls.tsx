@@ -1,5 +1,6 @@
 import { ARTBOARD_LIMITS, type ArtboardParams } from '../specimen/artboard'
 import NumberField from './NumberField'
+import Icon from './Icon'
 
 interface CanvasSizeControlsProps {
   params: ArtboardParams
@@ -87,7 +88,8 @@ export default function CanvasSizeControls({ params, onChange }: CanvasSizeContr
           ))}
         </div>
         <button type="button" className="button-small swap-button" onClick={() => onChange({ width: height, height: width })}>
-          ⇄ Swap
+          <Icon name="swap" />
+          Swap
         </button>
       </div>
 

@@ -215,16 +215,14 @@ interface SplitHandleProps {
   axis: 'x' | 'y'
   label: string
   valueText: string
-  /** A stronger line, for the borders between the main areas. */
-  strong?: boolean
   handleProps: ReturnType<typeof useSplits>['handleProps'][number]
 }
 
 /** The draggable line between two panes of a split. Hidden on narrow screens, where panes stack. */
-export function SplitHandle({ axis, label, valueText, strong = false, handleProps }: SplitHandleProps) {
+export function SplitHandle({ axis, label, valueText, handleProps }: SplitHandleProps) {
   return (
     <div
-      className={`split-handle split-handle-${axis}${strong ? ' split-handle-strong' : ''}`}
+      className={`split-handle split-handle-${axis}`}
       aria-label={label}
       aria-valuetext={valueText}
       {...handleProps}

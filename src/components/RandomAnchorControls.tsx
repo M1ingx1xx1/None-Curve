@@ -3,6 +3,7 @@ import { RANDOM_ANCHOR_LIMITS, type RandomAnchorStats } from '../geometry/random
 import type { RandomAnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
+import Icon from './Icon'
 
 interface RandomAnchorControlsProps {
   params: RandomAnchorParams
@@ -188,6 +189,7 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
               }}
             />
             <button type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(pickSeed(params.seed))}>
+              <Icon name="shuffle" />
               Shuffle
             </button>
             <button type="button" className="button-small" disabled={seedOff} onClick={copySeed}>
@@ -246,6 +248,7 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
         )}
 
         <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}>
+          <Icon name="reset" />
           Reset random anchors
         </button>
       </div>
