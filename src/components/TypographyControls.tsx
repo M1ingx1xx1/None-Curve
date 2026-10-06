@@ -45,9 +45,8 @@ export default function TypographyControls({ params, artboard, font, scene, disa
 
   return (
     <fieldset className="group typography" disabled={disabled}>
-      <legend>
-        Typography <HintButton hint={intro} topic="Typography" />
-      </legend>
+      {/* The tab above names the group; the legend stays for screen readers. */}
+      <legend className="visually-hidden">Typography</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={intro}>

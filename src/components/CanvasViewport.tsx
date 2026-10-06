@@ -22,7 +22,10 @@ interface CanvasViewportProps {
   gridSize: number | null
   geometryPanelOpen: boolean
   onToggleGeometryPanel: () => void
+  /** False after a click on empty canvas: the selected glyph is no longer highlighted. */
+  highlightSelection: boolean
   onSelectGlyph: (glyph: GlyphRef) => void
+  onClearHighlight: () => void
   onViewChange: (patch: Partial<ViewParams>) => void
   onResetView: () => void
   onLocalFile: (file: File) => void
@@ -96,7 +99,9 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     gridSize,
     geometryPanelOpen,
     onToggleGeometryPanel,
+    highlightSelection,
     onSelectGlyph,
+    onClearHighlight,
     onViewChange,
     onResetView,
     onLocalFile,
@@ -222,12 +227,14 @@ export default function CanvasViewport(props: CanvasViewportProps) {
               layout={layout}
               ink={palette.ink}
               paper={palette.paper}
+              transparent={palette.transparent}
               view={view}
               gridSize={gridSize}
-              selectedGlyph={selectedGlyph}
+              selectedGlyph={highlightSelection ? selectedGlyph : null}
               label={`Text, ${outlineDescription}`}
               onViewChange={onViewChange}
               onSelectGlyph={onSelectGlyph}
+              onClearSelection={onClearHighlight}
             />
             <p className="canvas-badge" aria-hidden="true">
               {scene.glyphCount} glyphs · {outlineDescription}

@@ -23,10 +23,9 @@ const EDITED = 'edited'
 
 const cases: [Exclude<TextCase, 'none'>, string, string][] = [
   ['upper', 'All caps', 'AA'],
-  ['lower', 'Lower', 'aa'],
   ['title', 'Title case', 'Aa'],
+  ['lower', 'Lower', 'aa'],
 ]
-
 
 /** Bottom right, left part: the text shown in the result canvas. */
 export default function TextPanel({
@@ -60,7 +59,24 @@ export default function TextPanel({
   return (
     <section className="text-panel" aria-labelledby={`${id}-title`}>
       <div className="section-head">
-        <h2 id={`${id}-title`}>Text</h2>
+        <div className="text-title">
+          <h2 id={`${id}-title`}>Text</h2>
+          {/* Toggles: pressing the active one goes back to the text as typed. */}
+          <div className="case-row segmented segmented-small" role="group" aria-label="Letter case on the canvas">
+            {cases.map(([value, label, sample]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={textCase === value}
+                aria-label={label}
+                title={`${label} on the canvas and in exports; your text stays as typed`}
+                onClick={() => onTextCaseChange(textCase === value ? 'none' : value)}
+              >
+                {sample}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="text-actions">
           <label htmlFor={`${id}-sample`} className="visually-hidden">
             Sample text
@@ -91,23 +107,6 @@ export default function TextPanel({
       <label htmlFor={id} className="visually-hidden">
         Text to preview
       </label>
-      {/* Toggles: pressing the active one goes back to the text as typed. */}
-      <div className="case-row segmented segmented-small" role="group" aria-label="Letter case on the canvas">
-        {cases.map(([value, label, sample]) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={textCase === value}
-            title={`${label} on the canvas and in exports; your text stays as typed`}
-            onClick={() => onTextCaseChange(textCase === value ? 'none' : value)}
-          >
-            <span className="case-sample" aria-hidden="true">
-              {sample}
-            </span>{' '}
-            {label}
-          </button>
-        ))}
-      </div>
       <textarea
         ref={inputRef}
         id={id}
@@ -123,7 +122,6 @@ export default function TextPanel({
         <p className="field-hint">
           {length} / {SPECIMEN_MAX_CHARS} characters
           {font ? ` · ${notes.join(' · ')}` : ' · load a font to preview'}
-          {textCase !== 'none' && ` · shown in ${cases.find(([v]) => v === textCase)?.[1].toLowerCase()}`}
         </p>
         {scene && scene.missingCharacters.length > 0 && (
           <p className="font-warning">

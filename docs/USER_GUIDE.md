@@ -31,39 +31,43 @@ Everything happens inside your web browser. Your font files are never uploaded a
 
 ## 3. A tour of the screen
 
-The screen is split into two rows and five areas:
+The screen is split into two rows and six areas:
 
 ```text
-┌────────────────────────╥──────────────────────────────────────┐
-│ ① Tools                ║ ② Result canvas                      │
-│   Import font          ║   your text, rebuilt live            │
-│   Font information     ║                                      │
-│   Shaping controls     ║                                      │
-╞════════════════════════╩══════════════════════════════════════╡
-│ ③ Glyphs               ║ ④ Text input ║ ⑤ Preview             │
-│   click to insert      ║   type here  ║   small copy of ②,    │
-│   a character          ║              ║   with Blur & Invert  │
-└────────────────────────╨──────────────╨───────────────────────┘
+┌────────────────────────╥─────────────────────────────────────────────────────┐
+│ ① Tools                ║ ② Result canvas                                     │
+│   Import font          ║   your text, rebuilt live                           │
+│   Font information     ║                                                     │
+│   Shaping controls     ║                                                     │
+╞═══════════════════╦════╩═══════════╦═════════════════╦═══════════════════════╡
+│ ③ Glyphs          ║ ④ Text input   ║ ⑤ Typography    ║ ⑥ Preview             │
+│   click to insert ║   type here    ║   & Color tabs  ║   small copy of ②,    │
+│   a character     ║                ║                 ║   with Blur & Invert  │
+└───────────────────╨────────────────╨─────────────────╨───────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the controls in three tabs: **Geometry** (the shape of the letters), **Typography** (size, spacing, slant, alignment), and **Color**. Scroll a tab to see every control.
-2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The **Canvas size** bar at its bottom opens the size settings.
+1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the **Geometry** controls that shape the letters. Scroll to see every control.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The background colour fills the whole view, with a light grid on top; four corner marks show the edges of the page that gets exported. The **Canvas size** bar at its bottom opens the size settings.
 3. **Glyphs (bottom left)** — every letter, number, and symbol in the font. Click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters.
-4. **Text input (bottom right, left part)** — type the text you want to see on the canvas.
-5. **Preview (bottom right, right part)** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button. Drag the line between ④ and ⑤ to share the space differently.
+4. **Text input** — type the text you want to see on the canvas.
+5. **Typography and Color** — two tabs: **Typography** sets the size, spacing, slant, and alignment of the text; **Color** sets the text and background colours.
+6. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
 
 At the very top there is an **Export…** button, and along the bottom a status line tells you what is shown and which settings are active.
+
+**Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
 
 **Changing the size of the areas.** The double lines in the picture are thin lines you can drag:
 
 - between the **top and bottom rows** — drag up or down to give the canvas or the bottom row more height;
 - between the **tools and the canvas** — drag left or right;
 - between the **Glyphs list and the text input** — drag left or right;
-- between the **text input and the preview** — drag left or right.
+- between the **text input and the Typography / Color tabs** — drag left or right;
+- between the **Typography / Color tabs and the preview** — drag left or right.
 
 Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
 
-> On a phone the areas are stacked: tools, canvas, text input, preview, then the glyph list. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
+> On a phone the areas are stacked: tools, canvas, text input, Typography and Color, preview, then the glyph list. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
 
 ---
 
@@ -126,7 +130,7 @@ If a new font fails to load, the previous font stays on screen.
 - Type in the **Text** box (bottom right). Press Enter for a new line.
 - The sample menu next to **Clear** offers ready-made texts: **Lorem ipsum** (placeholder text), **Pangrams** (sentences that use every letter), **Spacing** (classic test words such as "Hamburgefontsiv"), and **Alphabet** (all capitals, lowercase letters, digits, and common punctuation, one group per line). The app starts with Lorem ipsum. Once you change the text, the menu shows the last sample with "(edited)"; pick it again to get the original back.
 - **Clear** empties the box.
-- Above the box, **All caps**, **Lower**, and **Title case** change how the letters appear on the canvas and in exports (Title case: a capital at the start of every word). Your typed text stays as it is. Click the highlighted button again to go back to the text as typed.
+- Right of the **Text** title, **AA** (all capitals), **Aa** (a capital at the start of every word), and **aa** (all lowercase) change how the letters appear on the canvas and in exports. Your typed text stays as it is. Click the highlighted button again to go back to the text as typed. (Hover over a button to see its name.)
 - Below the box you see how many characters you typed and whether the font's own **kerning** (fine spacing between pairs like "AV") is applied.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
 - Up to 1000 characters are shown.
@@ -159,8 +163,10 @@ If a new font fails to load, the previous font stays on screen.
 
 ### Looking at one letter
 
-- Click a letter on the canvas to select it; it is highlighted wherever it appears. Inserting a character from the Glyphs list selects it too.
-- The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter.
+- Click a letter on the canvas to select it (clicking anywhere in the letter's own space is enough). It changes colour wherever it appears. The colour is worked out from your text and background colours so that it stands out and is still easy to read — for black text on cream paper it is a vermilion red. Pointing at a letter colours it the same way. Inserting a character from the Glyphs list selects it too.
+- Click an empty part of the canvas, or press Escape, to remove the highlight. Dragging the canvas around does not remove it.
+- The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter — or, after you removed the highlight, the letter you selected last. The **Statistics** line at the top of the Geometry panel always says which letter that is, for example "Statistics: l U+006C".
+- The preview never shows the highlight, because it shows exactly what will be exported.
 - To look closely, zoom in on the canvas.
 
 ### The preview: Blur, Invert, and width
@@ -170,7 +176,7 @@ The **Preview** (bottom right) shows the whole canvas exactly as it will be expo
 - **Blur** softens the preview, as if you looked at the text from far away or squinted. This shows the overall shape and rhythm of the letters without the details — a quick way to check whether a rough or faceted style still reads well.
 - **Invert** swaps the text and background colours in the preview — dark letters on light become light on dark, and back. Useful to check how the text works both ways, for example for a sign or a dark poster.
 - Blur and Invert only change this small view. To save them in a file, tick **Export the preview look** when exporting.
-- **Making the text box or the preview wider:** drag the thin line between them (see "Changing the size of the areas" in section 3).
+- **Making the preview wider:** drag the thin line on its left (see "Changing the size of the areas" in section 3).
 
 ### Canvas size
 
@@ -186,13 +192,13 @@ If the text is too big for the canvas, a red note appears on the big canvas; the
 
 ## 8. The shaping controls
 
-These are in the **Geometry** tab. The controls are applied in a fixed order, top to bottom, so later steps work on the result of earlier ones:
+These are in the **Geometry** panel (top left). The controls are applied in a fixed order, top to bottom, so later steps work on the result of earlier ones:
 
 **Curve flattening → Squaring → Anchors → Grid & angles → Distortion**
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the panel. Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
+Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the Geometry panel (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
 ### Curve flattening — how curves become straight lines
 
@@ -275,7 +281,7 @@ The seed is also shown in the status line at the bottom and in the export dialog
 
 ### Typography tab — size, spacing, and alignment
 
-These place the text on the canvas. They do not change the shape of the letters or the exported font file.
+The **Typography** and **Color** tabs are in the bottom row, between the text box and the preview. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
 
 - **Size** — the letter size, as a percentage of the canvas width (the explanation shows the size in pixels). Because it follows the width, the text keeps its proportions when you change the canvas size. You can drag the slider or type a number.
 - **Fit text** — makes the text as large as possible while still fitting inside the padding.
@@ -288,9 +294,10 @@ These place the text on the canvas. They do not change the shape of the letters 
 
 ### Color tab — text and background colours
 
-- **Presets** — twelve ready-made colour pairs; the two dots show the text colour and the background. **Ink** (dark text on light paper) is the default.
+- **Presets** — twelve ready-made colour pairs; the two dots show the text colour and the background. **Charcoal** (dark text on light paper) is the default.
 - **Random** picks a random pair that is still easy to read. **Swap** exchanges the text and background colours.
 - **Text** and **Background** — click the colour bar to pick any colour, or type a hex code such as `#35f2b4`.
+- **Transparent background** — exports leave the background out, so you can place the text on something else. The canvas then shows a checkerboard (made from your colours, so the text stays easy to read).
 - Under them, **Contrast** tells you how readable the pair is; below 3 : 1 a yellow note warns that the text will be hard to read.
 
 The colours are used by the canvas, the preview, and SVG and PNG exports. A font file has no colour.
@@ -334,7 +341,7 @@ Click **Export…** in the top-right corner. Nothing is downloaded until you pre
 Both save the canvas: its size, your text placed as on the canvas, and your colours.
 
 1. Choose **SVG — main view** (shapes you can keep editing) or **PNG — main view** (a picture).
-2. Optional: untick **Include the background colour** for a transparent background (only the letters are drawn).
+2. For a transparent background (only the letters are drawn), tick **Transparent background** in the Color tab first.
 3. Optional: tick **Export the preview look** to save what the small preview shows instead — its blur, and its swapped colours if **Invert** is on. Set Blur and Invert in the preview first.
 4. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
 5. Click **Download SVG** or **Download PNG**.
