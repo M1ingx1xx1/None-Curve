@@ -36,10 +36,7 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
   // At 0% randomness the anchors are evenly spaced, so the seed has nothing to choose.
   const seedOff = off || params.randomness === 0
   const introHint = useHint()
-  const enabledHint = useHint()
   const densityHint = useHint()
-  const randomnessHint = useHint()
-  const cornersHint = useHint()
   const seedHint = useHint()
   const percent = Math.round(params.randomness * 100)
   const isDefault = (Object.keys(DEFAULT_RANDOM) as (keyof RandomAnchorParams)[]).every(
@@ -81,17 +78,13 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
             id="random-enabled"
             type="checkbox"
             checked={params.enabled}
-            aria-describedby={enabledHint.id}
             onChange={(e) => update({ enabled: e.target.checked })}
           />
           <span className="field-title">
             <label htmlFor="random-enabled">Use random anchors</label>
-            <HintButton hint={enabledHint} topic="Use random anchors" />
+
           </span>
         </div>
-        <HintText hint={enabledHint}>
-          Off by default. While on, Flatten’s settings only matter for contours that fall back (see below).
-        </HintText>
 
         <div className="field">
           <div className="field-head">
@@ -126,7 +119,7 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
           <div className="field-head">
             <span className="field-title">
               <label htmlFor="random-randomness">Randomness</label>
-              <HintButton hint={randomnessHint} topic="Randomness" />
+
             </span>
             <output htmlFor="random-randomness">{percent}%</output>
           </div>
@@ -139,13 +132,8 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
             value={params.randomness}
             disabled={off}
             aria-valuetext={`${percent} percent`}
-            aria-describedby={randomnessHint.id}
             onChange={(e) => update({ randomness: Number(e.target.value) })}
           />
-          <HintText hint={randomnessHint}>
-            0% spaces anchors evenly along the outline; 100% lets each anchor land anywhere in its own stretch. Anchors
-            never swap order, so the outline does not fold back on itself.
-          </HintText>
         </div>
 
         <div className="field field-toggle">
@@ -154,18 +142,13 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
             type="checkbox"
             checked={params.keepCorners}
             disabled={off}
-            aria-describedby={cornersHint.id}
             onChange={(e) => update({ keepCorners: e.target.checked })}
           />
           <span className="field-title">
             <label htmlFor="random-corners">Keep sharp corners</label>
-            <HintButton hint={cornersHint} topic="Keep sharp corners" />
+
           </span>
         </div>
-        <HintText hint={cornersHint}>
-          Keeps every source corner sharper than {RANDOM_ANCHOR_LIMITS.cornerAngle}° as a fixed anchor, so stems and
-          serifs stay crisp. Turn off to let corners be cut too.
-        </HintText>
 
         <div className="field">
           <span className="field-title">

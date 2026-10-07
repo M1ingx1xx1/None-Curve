@@ -89,7 +89,7 @@ export const ARTBOARD_LIMITS = { min: 100, max: 4000, scales: [1, 2, 3, 4] as co
 
 export const DEFAULT_TYPOGRAPHY: TypographyParams = {
   size: 4,
-  padding: 8,
+  padding: 0,
   tracking: 0,
   lineHeight: 1,
   slant: 0,
@@ -148,21 +148,24 @@ export interface ArtboardLayout {
   height: number
 }
 
-/** The text block for Free positioning: the lines' box joined with the outlines (slant included). */
-function freeBox(scene: SpecimenScene) {
-  const minX = Math.min(0, scene.bounds.minX)
-  const maxX = Math.max(scene.blockWidth, scene.bounds.maxX)
-  const minY = Math.min(scene.textTop, scene.bounds.minY)
-  const maxY = Math.max(scene.textBottom, scene.bounds.maxY)
-  return { minX, minY, width: maxX - minX, height: maxY - minY }
+/**
+ * The box the text is placed by: where its outlines are (slant included), so at an anchor with no
+ * padding the letters themselves touch the canvas edges. Without outlines (only spaces), the lines' box.
+ */
+export function textBox(scene: SpecimenScene) {
+  if (scene.ink) {
+    const { minX, minY, maxX, maxY } = scene.ink
+    return { minX, minY, width: maxX - minX, height: maxY - minY }
+  }
+  return { minX: 0, minY: scene.textTop, width: scene.blockWidth, height: scene.textBottom - scene.textTop }
 }
 
 /**
  * Places the text block on the artboard. The em is size % of the artboard width, which fixes the
- * scale between font units and pixels. At an anchor the block sits at the left padding, in the
- * middle, or at the right padding, and at the top padding, in the middle (between the first line's
- * ascender and the last line's descender), or at the bottom padding; the lines are already aligned
- * inside the block by the scene. Free places the block by freeX / freeY, inside the artboard edges.
+ * scale between font units and pixels. At an anchor the outlines' box sits against the left padding,
+ * in the middle, or against the right padding, and against the top padding, in the middle, or against
+ * the bottom padding (with no padding, against the canvas edges); the lines are already aligned inside
+ * the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
  */
 export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
   const emPx = Math.max(0.01, (clamp(typography.size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize) / 100) * artboard.width)
@@ -171,28 +174,32 @@ export function layoutArtboard(scene: SpecimenScene, typography: TypographyParam
   const height = artboard.height * unitsPerPx
   const pad = (clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) / 100) * artboard.width * unitsPerPx
   const { position } = typography
+  const box = textBox(scene)
   if (position === 'free') {
-    const box = freeBox(scene)
     const x = box.minX - clamp(typography.freeX, 0, 1) * (width - box.width)
     const y = box.minY - clamp(typography.freeY, 0, 1) * (height - box.height)
     return { unitsPerPx, x, y, width, height }
   }
-  const block = scene.blockWidth
   const column = position.endsWith('left') ? 'left' : position.endsWith('right') ? 'right' : 'center'
   const row = position.startsWith('top') ? 'top' : position.startsWith('bottom') ? 'bottom' : 'middle'
-  const x = column === 'left' ? -pad : column === 'center' ? block / 2 - width / 2 : block + pad - width
+  const x =
+    column === 'left'
+      ? box.minX - pad
+      : column === 'right'
+        ? box.minX + box.width + pad - width
+        : box.minX + box.width / 2 - width / 2
   const y =
     row === 'top'
-      ? scene.textTop - pad
+      ? box.minY - pad
       : row === 'bottom'
-        ? scene.textBottom + pad - height
-        : (scene.textTop + scene.textBottom) / 2 - height / 2
+        ? box.minY + box.height + pad - height
+        : box.minY + box.height / 2 - height / 2
   return { unitsPerPx, x, y, width, height }
 }
 
 /** freeX / freeY that keep the block where it is now, for switching from an anchor to Free. */
 export function freeFromLayout(scene: SpecimenScene, layout: ArtboardLayout): Pick<TypographyParams, 'freeX' | 'freeY'> {
-  const box = freeBox(scene)
+  const box = textBox(scene)
   const roomX = layout.width - box.width
   const roomY = layout.height - box.height
   return {
@@ -212,7 +219,7 @@ export function moveFreeText(
   scene: SpecimenScene,
   layout: ArtboardLayout,
 ): Pick<TypographyParams, 'freeX' | 'freeY'> {
-  const box = freeBox(scene)
+  const box = textBox(scene)
   const roomX = layout.width - box.width
   const roomY = layout.height - box.height
   return {
@@ -224,15 +231,16 @@ export function moveFreeText(
 const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 /**
- * The font size (% of the artboard width) at which the whole text block, slant included, fits inside
- * the padding on both axes. Rounded down to 0.1 so it never overflows.
+ * The font size (% of the artboard width) at which the outlines, slant included, fit inside the
+ * padding on both axes. Rounded down to 0.1 so it never overflows.
  */
 export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): number {
   const pad = (clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) / 100) * artboard.width
   const availableWidth = artboard.width - 2 * pad
   const availableHeight = artboard.height - 2 * pad
-  const blockWidth = (scene.bounds.maxX - scene.bounds.minX) / unitsPerEm
-  const blockHeight = (Math.max(scene.bounds.maxY, scene.textBottom) - Math.min(scene.bounds.minY, scene.textTop)) / unitsPerEm
+  const box = textBox(scene)
+  const blockWidth = box.width / unitsPerEm
+  const blockHeight = box.height / unitsPerEm
   if (!(blockWidth > 0 && blockHeight > 0) || availableWidth <= 0 || availableHeight <= 0) return typography.size
   const emPx = Math.min(availableWidth / blockWidth, availableHeight / blockHeight)
   const size = Math.floor(((emPx / artboard.width) * 100) * 10) / 10

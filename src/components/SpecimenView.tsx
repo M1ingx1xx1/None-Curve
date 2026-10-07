@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
-import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
+import { artboardViewFrame, contrastRatio, textBox, type ArtboardLayout } from '../specimen/artboard'
 import { artboardEdgeColor, highlightColor } from '../specimen/color'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
@@ -78,8 +78,11 @@ export default function SpecimenView({
   const checkerId = `${ids}-checker`
   // Selected and hovered glyphs: a colour computed from the text and background to stand out.
   const highlight = useMemo(() => highlightColor(ink, paper), [ink, paper])
-  // The canvas outline: the interface mint rather than the text colour, so it reads as a guide.
+  // The canvas outline: the interface mint rather than the text colour, so it reads as a guide. Its
+  // shadow (elevation, styled in .artboard-frame) is dark on a light background and light on a dark one.
   const edge = useMemo(() => artboardEdgeColor(paper), [paper])
+  const darkPaper = contrastRatio(paper, '#ffffff') > contrastRatio(paper, '#000000')
+  const block = textBox(scene)
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
 
@@ -241,10 +244,10 @@ export default function SpecimenView({
             // Free position: the whole text block (gaps between words included) is the drag handle.
             <rect
               className="text-block-hit"
-              x={Math.min(0, scene.bounds.minX)}
-              y={Math.min(scene.textTop, scene.bounds.minY)}
-              width={Math.max(scene.blockWidth, scene.bounds.maxX) - Math.min(0, scene.bounds.minX)}
-              height={Math.max(scene.textBottom, scene.bounds.maxY) - Math.min(scene.textTop, scene.bounds.minY)}
+              x={block.minX}
+              y={block.minY}
+              width={block.width}
+              height={block.height}
             />
           )}
           {grid && (
@@ -340,18 +343,25 @@ export default function SpecimenView({
               )
             })}
           </g>
-          {interactive && (
-            <rect
-              className="artboard-edge"
-              x={layout.x}
-              y={layout.y}
-              width={layout.width}
-              height={layout.height}
-              stroke={edge}
-              vectorEffect="non-scaling-stroke"
-            />
-          )}
         </svg>
+      )}
+      {ready && interactive && (
+        // The canvas edge, lifted off the background by a shadow: an HTML box over the SVG (screen
+        // pixels, so the outline and shadow keep their size at any zoom). Its own area stays clear.
+        <div
+          className="artboard-frame"
+          data-paper={darkPaper ? 'dark' : 'light'}
+          aria-hidden="true"
+          style={
+            {
+              left: (layout.x - left) / u,
+              top: (layout.y + top) / u,
+              width: layout.width / u,
+              height: layout.height / u,
+              '--artboard-edge': edge,
+            } as CSSProperties
+          }
+        />
       )}
       {interactive && ready && gridSize && (
         <p className="canvas-grid-note" aria-hidden="true">

@@ -29,7 +29,6 @@ export default function DistortionControls({
   const on = params.amount > 0
   const wavelength = Math.round(1000 / params.frequency)
   const introHint = useHint()
-  const amountHint = useHint()
   const frequencyHint = useHint()
   const biasHint = useHint()
   const seedHint = useHint()
@@ -53,7 +52,7 @@ export default function DistortionControls({
           <div className="field-head">
             <span className="field-title">
               <label htmlFor="distortion-amount">Noise amplitude</label>
-              <HintButton hint={amountHint} topic="Noise amplitude" />
+
             </span>
             <output htmlFor="distortion-amount">
               {on ? params.amount : 'Off'}
@@ -68,12 +67,8 @@ export default function DistortionControls({
             step={1}
             value={params.amount}
             aria-valuetext={on ? `${params.amount} font units` : 'Off'}
-            aria-describedby={amountHint.id}
             onChange={(e) => update({ amount: Number(e.target.value) })}
           />
-          <HintText hint={amountHint}>
-            Largest distance a vertex can move, in font units. 0 turns distortion off and leaves the outline unchanged.
-          </HintText>
         </div>
 
         <div className="field">

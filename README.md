@@ -76,7 +76,7 @@ Double lines are drag handles. Each one only moves the border between its two ne
 
 ### Canvas size
 
-The text is set on a canvas (artboard) of a fixed pixel size; zoom 1 fits the whole canvas. The background colour fills the whole view, a screen grid (every 24 px, in the text colour at 8 %) lies above it, and a 1.5 px outline marks the exported area — in the interface mint (#adfce7, or #0f7a5c where that stands out more on the background), not the text colour, so it never reads as part of the text; the metric guides are drawn in the text colour too. A transparent background shows as a checkerboard of the background colour and the same tinted with the text colour, so the text stays readable. The drawer below the canvas holds:
+The text is set on a canvas (artboard) of a fixed pixel size; zoom 1 fits the whole canvas. The background colour fills the whole view, a screen grid (every 24 px, in the text colour at 8 %) lies above it, and a 1.5 px outline with a soft shadow marks the exported area and lifts it off the surrounding background — the outline in the interface mint (#adfce7, or #0f7a5c where that stands out more on the background), not the text colour, so it never reads as part of the text; the shadow is dark on light backgrounds and a light glow on dark ones (`.artboard-frame` in `src/styles.css`); the metric guides are drawn in the text colour too. A transparent background shows as a checkerboard of the background colour and the same tinted with the text colour, so the text stays readable. The drawer below the canvas holds:
 
 - **W** / **H**: canvas width and height, 100–4000 px (slider or number box; the box commits on Enter or when you leave it, clamped to the range).
 - Aspect presets **1:1**, **4:3**, **16:9**, **4:5**, **3:2**, **3:4** keep the width and set the height (or keep the height if that would exceed the range); the matching preset is highlighted. **Swap** exchanges width and height.
@@ -88,15 +88,15 @@ Text that runs past the canvas edge stays visible on the canvas with a warning; 
 
 `src/specimen/artboard.ts` and `src/specimen/scene.ts`. These settings change the layout and the SVG/PNG export, not the glyph geometry or the font file.
 
-- **Size** (0.5–40 % of the canvas width): the em in pixels, so the text keeps its proportions when the canvas changes size. **Fit text** sets the largest size (rounded down to 0.1) at which the whole text block, slant included, fits inside the padding on both axes.
-- **Padding** (0–30 % of the width): margin on every side; left and right alignment start at it.
+- **Size** (0.5–40 % of the canvas width): the em in pixels, so the text keeps its proportions when the canvas changes size. **Fit text** sets the largest size (rounded down to 0.1) at which the outlines, slant included, fit inside the padding on both axes.
+- **Padding** (0–30 % of the width, default 0): margin kept on every side by the position anchors and Fit text.
 - **Tracking** (−200–1000 thousandths of an em): added between glyphs on top of advances and kerning, not after a line's last glyph.
 - **Line height** (0.5–3 ×): multiple of the font's line spacing (ascender − descender + line gap).
 - **Slant** (−30°–30°): a skew around each glyph's own baseline (x′ = x + tan(slant) · y); positive leans right.
 - **Align** Left / Center / Right (icon buttons): aligns the lines with each other inside the block.
-- **Position**: where the block sits on the canvas. Nine anchors (a 3 × 3 grid: corners, edge middles, centre) place it at the padding — left padding, centred, or right padding, and top padding (first line's ascender), centred, or bottom padding (last line's descender); the default is left, vertically centred. **Free** lets you drag the text on the canvas (drags that start elsewhere still pan); the position is stored as a share of the room the canvas leaves beside and above the block (outlines and slant included), so the text stops at the canvas edges and stays inside when its size or the canvas changes. Switching to Free starts from the current position.
+- **Position**: where the block sits on the canvas. Nine anchors (a 3 × 3 grid: corners, edge middles, centre) place the outlines' box (slant included; not the line box, so side bearings and ascender space do not leave a gap) against the left padding, centred, or against the right padding, and against the top padding, centred, or against the bottom padding — with the default padding of 0, the letters touch the canvas edges and corners. The default is left, vertically centred. **Free** lets you drag the text on the canvas (drags that start elsewhere still pan); the position is stored as a share of the room the canvas leaves beside and above the outlines' box, so the text stops at the canvas edges and stays inside when its size or the canvas changes. Switching to Free starts from the current position.
 - **Letter case** (**AA** / **Aa** / **aa**, right of the Text title): **All caps**, **Title case** (first letter of every word upper case, the rest lower case), or **Lower**; press the active one again for the text as typed. The typed text is never changed; the canvas, the preview, the exports, and the font file's "Specimen characters" use the converted text.
-- **Reset typography** restores the defaults (4 %, 8 %, 0, 1, 0°, left-aligned, positioned left and vertically centred) and keeps the letter case.
+- **Reset typography** restores the defaults (4 %, 0 %, 0, 1, 0°, left-aligned, positioned left and vertically centred) and keeps the letter case.
 
 ### Color
 
