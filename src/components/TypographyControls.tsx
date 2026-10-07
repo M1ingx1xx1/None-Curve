@@ -14,7 +14,6 @@ import {
 } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { Action } from '../state/editorState'
-import { HintButton, HintText, useHint } from './Hint'
 import Icon, { type IconName } from './Icon'
 import SliderField from './SliderField'
 
@@ -52,9 +51,6 @@ const anchorLabels: Record<TextAnchor, string> = {
  */
 export default function TypographyControls({ params, artboard, font, scene, disabled, dispatch }: TypographyControlsProps) {
   const update = (patch: Partial<TypographyParams>) => dispatch({ type: 'updateParams', group: 'typography', patch })
-  const intro = useHint()
-  const alignHint = useHint()
-  const positionHint = useHint()
   const emPx = Math.round((params.size / 100) * artboard.width * 10) / 10
   const isDefault = (Object.keys(DEFAULT_TYPOGRAPHY) as (keyof TypographyParams)[]).every(
     (k) => k === 'textCase' || params[k] === DEFAULT_TYPOGRAPHY[k],
@@ -67,10 +63,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
       <legend className="visually-hidden">Typography</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
-        <HintText hint={intro}>
-          How the text is set on the canvas. These settings change the layout and the SVG and PNG export; the glyph
-          outlines and the exported font file stay the same.
-        </HintText>
 
         <SliderField
           id="type-size"
@@ -81,7 +73,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           step={0.1}
           unit="% W"
           valueText={`${params.size} percent of the canvas width, ${emPx} pixels`}
-          hint={`Font size as a percentage of the canvas width, so the text keeps its proportions when the canvas changes size. Now ${emPx} px per em on a ${artboard.width} px wide canvas.`}
           onChange={(size) => update({ size })}
         />
 
@@ -108,7 +99,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           step={1}
           unit="% W"
           valueText={`${params.padding} percent of the canvas width`}
-          hint="Space kept free around the text on every side, as a percentage of the canvas width. Left and right alignment start at this margin, and Fit text keeps the whole text inside it."
           onChange={(padding) => update({ padding })}
         />
 
@@ -121,7 +111,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           step={5}
           unit="/1000 em"
           valueText={`${params.tracking} thousandths of an em`}
-          hint="Extra space between letters, in thousandths of an em (1000 = one em), added on top of the font's own spacing and kerning. Negative values pull letters together."
           onChange={(tracking) => update({ tracking })}
         />
 
@@ -134,7 +123,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           step={0.01}
           unit="×"
           valueText={`${params.lineHeight} times the font's line spacing`}
-          hint="Distance between lines (leading) as a multiple of the font's own line spacing. 1 keeps the spacing the font was designed with."
           onChange={(lineHeight) => update({ lineHeight })}
         />
 
@@ -147,7 +135,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           step={1}
           unit="°"
           valueText={`${params.slant} degrees`}
-          hint="Leans every letter around its own baseline (a skew, like a quick oblique). Positive values lean right, negative values lean left."
           onChange={(slant) => update({ slant })}
         />
 
@@ -156,9 +143,9 @@ export default function TypographyControls({ params, artboard, font, scene, disa
             <span className="field-label" id="type-align-label">
               Align
             </span>
-            <HintButton hint={alignHint} topic="Align" />
+
           </span>
-          <div className="segmented segmented-icons" role="radiogroup" aria-labelledby="type-align-label" aria-describedby={alignHint.id}>
+          <div className="segmented segmented-icons" role="radiogroup" aria-labelledby="type-align-label">
             {aligns.map(([align, label, icon]) => (
               <label key={align} className="segment-option" title={label}>
                 <input
@@ -175,9 +162,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
               </label>
             ))}
           </div>
-          <HintText hint={alignHint}>
-            Aligns the lines with each other inside the text block. Where the block sits on the canvas is set by Position.
-          </HintText>
         </div>
 
         <div className="field">
@@ -185,9 +169,9 @@ export default function TypographyControls({ params, artboard, font, scene, disa
             <span className="field-label" id="type-position-label">
               Position
             </span>
-            <HintButton hint={positionHint} topic="Position" />
+
           </span>
-          <div className="position-control" role="group" aria-labelledby="type-position-label" aria-describedby={positionHint.id}>
+          <div className="position-control" role="group" aria-labelledby="type-position-label">
             <div className="position-grid">
               {TEXT_ANCHORS.map((anchor) => (
                 <button
@@ -219,10 +203,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
               <span>Free</span>
             </button>
           </div>
-          <HintText hint={positionHint}>
-            Where the text block sits on the canvas: a corner, an edge, or the middle, inside the padding. Free: drag the
-            text on the big canvas to place it anywhere; it stops at the canvas edges.
-          </HintText>
         </div>
 
         <button

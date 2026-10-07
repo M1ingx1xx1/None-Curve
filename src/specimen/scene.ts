@@ -28,6 +28,9 @@ export interface SpecimenScene {
   descender: number
   /** Scene bounds (y down) covering every line's ascender/descender and every outline (slant included). */
   bounds: { minX: number; minY: number; maxX: number; maxY: number }
+  /** Bounds (y down) of the drawn outlines alone, slant included: where the ink is. Null when nothing
+      is drawn (only spaces or missing characters). */
+  ink: { minX: number; minY: number; maxX: number; maxY: number } | null
   /** Width of the longest line; lines are aligned inside this width. */
   blockWidth: number
   /** First line's ascender and last line's descender (y down). */
@@ -83,6 +86,7 @@ export function buildSpecimenScene(
   let maxX = 0
   let minY = -ascender
   let maxY = -descender
+  const ink = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
 
   const lines = specimenLines(source).map((line, lineIndex) => {
     const baseline = lineIndex * lineHeight
@@ -126,10 +130,15 @@ export function buildSpecimenScene(
       g.x += shift
       for (const p of polygonPoints(g.polygon)) {
         const px = g.x + p.x + shear * p.y
+        const py = g.y - p.y
         minX = Math.min(minX, px)
         maxX = Math.max(maxX, px)
-        minY = Math.min(minY, g.y - p.y)
-        maxY = Math.max(maxY, g.y - p.y)
+        minY = Math.min(minY, py)
+        maxY = Math.max(maxY, py)
+        ink.minX = Math.min(ink.minX, px)
+        ink.maxX = Math.max(ink.maxX, px)
+        ink.minY = Math.min(ink.minY, py)
+        ink.maxY = Math.max(ink.maxY, py)
       }
     }
     maxX = Math.max(maxX, shift + line.width)
@@ -144,6 +153,7 @@ export function buildSpecimenScene(
     ascender,
     descender,
     bounds: { minX, minY, maxX, maxY },
+    ink: ink.minX <= ink.maxX ? ink : null,
     blockWidth,
     textTop,
     textBottom,

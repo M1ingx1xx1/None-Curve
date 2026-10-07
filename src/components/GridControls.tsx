@@ -53,7 +53,6 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
   const simplifiedSnap = stats?.simplified.filter((s) => s.step === 'snap').length ?? 0
   const simplifiedAngle = stats?.simplified.filter((s) => s.step === 'angle').length ?? 0
   const introHint = useHint()
-  const sizeHint = useHint()
   const angleHint = useHint()
   const isDefault =
     params.snap === DEFAULT_GRID.snap &&
@@ -81,7 +80,7 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
           <div className="field-head">
             <span className="field-title">
               <label htmlFor="grid-size">Grid size</label>
-              <HintButton hint={sizeHint} topic="Grid size" />
+
             </span>
             <output htmlFor="grid-size">
               {params.size > 0 ? params.size : 'Off'}
@@ -97,15 +96,8 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
             value={params.size}
             disabled={!params.snap}
             aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
-            aria-describedby={sizeHint.id}
             onChange={(e) => update({ size: Number(e.target.value) })}
           />
-          <HintText hint={sizeHint}>
-            Each coordinate is rounded to the nearest multiple of the grid size
-            {unitsPerEm && params.size > 0 ? ` (${((params.size / unitsPerEm) * 100).toFixed(2)}% of the em)` : ''}, with
-            the grid anchored at the glyph origin so the baseline stays on a grid line. Exact halves round up. Neighbours
-            that land on the same point are merged. 0 turns snapping off.
-          </HintText>
         </div>
         {stats?.snapApplied && (
           <p className="field-hint">

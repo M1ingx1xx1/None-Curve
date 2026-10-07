@@ -59,12 +59,10 @@ export default function FlattenControls({
   // While random anchors replace the polygon, Flatten's statistics describe a shape that is not shown.
   const stats = replacedByRandom ? null : flattenStats
   const toleranceHint = useHint()
-  const segmentsHint = useHint()
   const mergeHint = useHint()
   const breakHint = useHint()
   const mergeLinesHint = useHint()
   const cornerHint = useHint()
-  const deviationHint = useHint()
   const emPercent = unitsPerEm ? ((params.tolerance / unitsPerEm) * 100).toFixed(2) : null
   const warnLimit = unitsPerEm ? unitsPerEm * WARN_FRACTION : null
   // Merging is coarse on purpose, so the "too far from the curve" warning only applies without it.
@@ -140,7 +138,7 @@ export default function FlattenControls({
             <div className="field-head">
               <span className="field-title">
                 <label htmlFor="flatten-segments">Segments per curve</label>
-                <HintButton hint={segmentsHint} topic="Segments per curve" />
+
               </span>
               <output htmlFor="flatten-segments">{params.segmentsPerCurve}</output>
             </div>
@@ -151,15 +149,8 @@ export default function FlattenControls({
               max={32}
               step={1}
               value={params.segmentsPerCurve}
-              aria-describedby={segmentsHint.id}
               onChange={(e) => update({ segmentsPerCurve: Number(e.target.value) })}
             />
-            <HintText hint={segmentsHint}>
-              {params.mergeCurves
-                ? 'Every merged curve becomes this many straight edges, spaced evenly along its length. Fewer edges give a coarser, more faceted outline.'
-                : 'Every quadratic or cubic curve becomes this many straight edges, sampled at equal steps of t. More segments give a finer approximation.'}{' '}
-              Straight segments are kept as they are.
-            </HintText>
           </div>
         )}
 
@@ -278,21 +269,13 @@ export default function FlattenControls({
               </dd>
             </div>
             <div>
-              <dt>
-                Max deviation <HintButton hint={deviationHint} topic="Max deviation" />
-              </dt>
+              <dt>Max deviation</dt>
               <dd>
                 {formatUnits(stats.maxDeviation)}
                 <span className="unit">u</span>
               </dd>
             </div>
           </dl>
-        )}
-        {stats && (
-          <HintText hint={deviationHint}>
-            Largest distance between the curve and its edges, measured at the middle of each edge in font units; it does
-            not change with canvas zoom.
-          </HintText>
         )}
         {stats && pending && <p className="field-hint">Updating…</p>}
         {showWarning && (
