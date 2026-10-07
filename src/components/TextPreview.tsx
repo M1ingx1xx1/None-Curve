@@ -93,7 +93,6 @@ export default function TextPreview({
             step={0.5}
             value={blur}
             aria-valuetext={blur > 0 ? `${blur} pixels` : 'Off'}
-            aria-describedby={`${id}-hint`}
             onChange={(e) => onLookChange({ ...look, blur: Number(e.target.value) })}
           />
           <output htmlFor={`${id}-blur`}>{blur > 0 ? `${blur} px` : 'Off'}</output>
@@ -134,11 +133,6 @@ export default function TextPreview({
           <p className="text-preview-empty">{font ? 'Type text to preview it here.' : 'Import a font to see a preview.'}</p>
         )}
       </div>
-      <p id={`${id}-hint`} className="field-hint">
-        The canvas as it will be exported, cut to its edges. Blur softens it like seeing it from far away; Invert swaps
-        the text and background colours. Both only affect this view; tick “Export the preview look” in Export to save
-        them.
-      </p>
     </section>
   )
 }

@@ -28,7 +28,8 @@
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 14px;
+  /* Every other text size is in rem, so this one value scales the whole interface (was 14px). */
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -94,11 +95,11 @@ button {
   cursor: pointer;
 }
 
-/* Line icons in buttons (see Icon.tsx). */
+/* Line icons in buttons (see Icon.tsx), sized with the button text. */
 .icon {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 1.15em;
+  height: 1.15em;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -923,10 +924,26 @@ input[type='range']:disabled {
   stroke-opacity: 0.08;
 }
 
-.artboard-edge {
-  fill: none;
-  stroke-width: 1.5;
+/* The canvas edge and its elevation. The outline colour comes from SpecimenView (--artboard-edge);
+   adjust the elevation with the two box-shadow lists below: the first is for light backgrounds (a
+   dark shadow), the second for dark ones (a light glow, since nothing is darker than black). Each
+   entry is: x offset, y offset, blur, colour. The box itself is transparent, so the shadow only shows
+   outside the canvas. */
+.artboard-frame {
+  position: absolute;
   pointer-events: none;
+  /* Trial: no visible outline, the shadow alone marks the edge. To bring the mint outline back:
+     outline: 1.5px solid var(--artboard-edge); */
+  outline: 1.5px solid transparent;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    0 12px 32px rgba(0, 0, 0, 0.26);
+}
+
+.artboard-frame[data-paper='dark'] {
+  box-shadow:
+    0 0 6px rgba(255, 255, 255, 0.12),
+    0 12px 36px rgba(255, 255, 255, 0.16);
 }
 
 /* Free position: the text can be dragged. */

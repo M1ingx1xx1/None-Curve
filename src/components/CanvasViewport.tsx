@@ -131,12 +131,14 @@ export default function CanvasViewport(props: CanvasViewportProps) {
 
   const interactive = font !== null && scene !== null && layout !== null && scene.glyphCount > 0
   // Text outside the artboard is shown on the canvas but cut off in the preview and in exports.
+  // Measured on the outlines (what is drawn and exported), so text set flush against an edge is fine.
   const overflows =
     interactive &&
-    (scene.bounds.minX < layout.x - 0.5 ||
-      scene.bounds.maxX > layout.x + layout.width + 0.5 ||
-      scene.bounds.minY < layout.y - 0.5 ||
-      scene.bounds.maxY > layout.y + layout.height + 0.5)
+    scene.ink !== null &&
+    (scene.ink.minX < layout.x - 0.5 ||
+      scene.ink.maxX > layout.x + layout.width + 0.5 ||
+      scene.ink.minY < layout.y - 0.5 ||
+      scene.ink.maxY > layout.y + layout.height + 0.5)
   const zoomBy = (factor: number) => onViewChange({ zoom: clampZoom(view.zoom * factor) })
   const outlineDescription = outlineViews.find((o) => o.value === view.outline)?.description ?? ''
 

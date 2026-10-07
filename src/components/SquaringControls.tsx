@@ -32,7 +32,6 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
   const update = (patch: Partial<SquaringParams>) => dispatch({ type: 'updateParams', group: 'squaring', patch })
   const percent = Math.round(params.amount * 100)
   const introHint = useHint()
-  const amountHint = useHint()
   const scopeHint = useHint()
 
   return (
@@ -51,7 +50,7 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
           <div className="field-head">
             <span className="field-title">
               <label htmlFor="squaring-amount">Amount</label>
-              <HintButton hint={amountHint} topic="Amount" />
+
             </span>
             <output htmlFor="squaring-amount">{percent > 0 ? `${percent}%` : 'Off'}</output>
           </div>
@@ -63,7 +62,6 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
             step={0.05}
             value={params.amount}
             aria-valuetext={percent > 0 ? `${percent} percent` : 'Off'}
-            aria-describedby={amountHint.id}
             onChange={(e) => update({ amount: Number(e.target.value) })}
           />
           <div className="preset-row" role="group" aria-label="Squaring presets">
@@ -79,12 +77,6 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
               </button>
             ))}
           </div>
-          <HintText hint={amountHint}>
-            Each point moves from the contour’s box centre toward the edge of its bounding box: 0% keeps the curve, 100%
-            puts every point on the box. Each counter uses its own box, so stems keep their thickness at the side
-            midpoints. Measured in each contour’s own box, so it does not depend on zoom. Add anchor reduction to clean up
-            the straight sides.
-          </HintText>
         </div>
 
         <div className="field">

@@ -1,7 +1,6 @@
 import { useEffect, useState, type Dispatch } from 'react'
 import { contrastRatio, DEFAULT_PALETTE, normalizeHex, PALETTES, type PaletteParams } from '../specimen/artboard'
 import type { Action } from '../state/editorState'
-import { HintText, useHint } from './Hint'
 import Icon from './Icon'
 
 interface ColorControlsProps {
@@ -40,7 +39,6 @@ function randomPalette(): Pick<PaletteParams, 'ink' | 'paper'> {
 /** Text and background colours of the canvas, the preview, and SVG/PNG export. */
 export default function ColorControls({ params, disabled, dispatch }: ColorControlsProps) {
   const update = (patch: Partial<PaletteParams>) => dispatch({ type: 'updateParams', group: 'palette', patch })
-  const intro = useHint()
   const active = PALETTES.find((p) => p.ink === params.ink && p.paper === params.paper)
   const contrast = contrastRatio(params.ink, params.paper)
 
@@ -50,10 +48,6 @@ export default function ColorControls({ params, disabled, dispatch }: ColorContr
       <legend className="visually-hidden">Color</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
-        <HintText hint={intro}>
-          The text and background colours of the canvas. The preview and SVG / PNG export use them too; the exported font
-          file has no colour.
-        </HintText>
 
         <div className="field">
           <span className="field-label" id="palette-presets-label">

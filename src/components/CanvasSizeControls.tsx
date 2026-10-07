@@ -102,7 +102,7 @@ export default function CanvasSizeControls({ params, onChange }: CanvasSizeContr
           ))}
         </div>
         <p className="field-hint">
-          PNG export: {width * scale} × {height * scale} px. Higher multipliers give sharper images at the same layout.
+          PNG {width * scale} × {height * scale} px
         </p>
       </div>
     </div>

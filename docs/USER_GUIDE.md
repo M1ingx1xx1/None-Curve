@@ -47,7 +47,7 @@ The screen is split into two rows and five areas:
 ```
 
 1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the **Geometry** controls that shape the letters. Scroll to see every control.
-2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The background colour fills the whole view, with a light grid on top; a thin mint outline shows the edges of the page that gets exported (in the app's own colour, so it is never mistaken for part of your text). The **Canvas size** bar at its bottom opens the size settings.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The background colour fills the whole view, with a light grid on top; a thin mint outline with a soft shadow shows the edges of the page that gets exported, as if the page sat slightly above the background (the outline is in the app's own colour, so it is never mistaken for part of your text). The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
 5. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
@@ -196,7 +196,7 @@ These are in the **Geometry** panel (top left). The controls are applied in a fi
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Every control has a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the Geometry panel (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
+Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the Geometry panel (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
 ### Curve flattening — how curves become straight lines
 
@@ -283,12 +283,12 @@ The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These
 
 - **Size** — the letter size, as a percentage of the canvas width (the explanation shows the size in pixels). Because it follows the width, the text keeps its proportions when you change the canvas size. You can drag the slider or type a number.
 - **Fit text** — makes the text as large as possible while still fitting inside the padding.
-- **Padding** — empty space around the text on every side.
+- **Padding** — empty space kept between the text and the canvas edges. It starts at 0, so the text can touch the edges.
 - **Tracking** — extra space between letters. Negative values pull letters closer.
 - **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.
 - **Slant** — leans the letters, like a quick italic. Positive leans right, negative leans left.
 - **Align** — the three buttons with lines line up the lines of text on the left, in the centre, or on the right.
-- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle (the text keeps the padding away from the edges). Click **Free** to place it yourself: then drag the text on the big canvas. It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
+- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The letters then touch that corner or edge exactly (raise **Padding** if you want some space). Click **Free** to place it yourself: then drag the text on the big canvas. It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
 - **Reset typography** puts these back to their starting values.
 
 ### Color tab — text and background colours
