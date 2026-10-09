@@ -25,6 +25,8 @@
   --primary-edge: light-dark(#3fae8f, #adfce7);
   /* The mint for thin lines, outlines, and small text: deeper on the light theme so it stays visible. */
   --primary-strong: light-dark(#0f7a5c, #adfce7);
+  /* The mint as a glow (outer light around selected controls); deeper on the light theme to show on white. */
+  --primary-glow: light-dark(rgba(63, 174, 143, 0.55), rgba(173, 252, 231, 0.6));
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -924,6 +926,35 @@ input[type='range']:disabled {
   stroke-opacity: 0.08;
 }
 
+/* Outside the artboard: the background a little darker (on a dark background, a little lighter).
+   Raise or lower fill-opacity to make the artboard stand out more or less. */
+.pasteboard {
+  fill: #000000;
+  fill-opacity: 0.07;
+}
+
+.pasteboard[data-paper='dark'] {
+  fill: #ffffff;
+  fill-opacity: 0.06;
+}
+
+/* The grid inside the artboard: hidden, fading in while dragging the text or when zoomed in. */
+.artboard-grid {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.artboard-grid[data-visible] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artboard-grid {
+    transition: none;
+  }
+}
+
 /* The canvas edge and its elevation. The outline colour comes from SpecimenView (--artboard-edge);
    adjust the elevation with the two box-shadow lists below: the first is for light backgrounds (a
    dark shadow), the second for dark ones (a light glow, since nothing is darker than black). Each
@@ -1167,16 +1198,23 @@ input[type='range']:disabled {
 
 .position-cell:hover .position-dot {
   background: var(--muted);
+  box-shadow: 0 0 6px var(--primary-glow);
 }
 
+/* The chosen anchor glows in the primary mint: the dot, and softly the cell around it. */
 .position-cell[aria-pressed='true'] {
   border-color: var(--primary-strong);
   background: color-mix(in srgb, var(--primary) 22%, var(--surface));
+  box-shadow: 0 0 10px var(--primary-glow);
 }
 
 .position-cell[aria-pressed='true'] .position-dot {
+  width: 7px;
+  height: 7px;
   background: var(--primary-strong);
-  box-shadow: 0 0 6px var(--primary);
+  box-shadow:
+    0 0 3px 1px var(--primary-glow),
+    0 0 10px 3px var(--primary-glow);
 }
 
 .position-free {
@@ -1206,6 +1244,11 @@ input[type='range']:disabled {
   border-color: var(--primary-strong);
   color: var(--primary-strong);
   background: color-mix(in srgb, var(--primary) 16%, var(--bg));
+  box-shadow: 0 0 12px var(--primary-glow);
+}
+
+.position-free[aria-pressed='true'] .icon {
+  filter: drop-shadow(0 0 4px var(--primary-glow));
 }
 
 .fit-row {

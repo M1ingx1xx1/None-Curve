@@ -21,6 +21,11 @@ export type TextAnchor =
 export type TextPosition = TextAnchor | 'free'
 
 /** The nine anchors in reading order (rows top to bottom), as a 3 × 3 grid. */
+/** The line alignment that goes with an anchor: its column (left, middle, right). */
+export function anchorAlign(anchor: TextAnchor): TextAlign {
+  return anchor.endsWith('left') ? 'left' : anchor.endsWith('right') ? 'right' : 'center'
+}
+
 export const TEXT_ANCHORS: TextAnchor[] = [
   'top-left',
   'top',
@@ -36,7 +41,8 @@ export const TEXT_ANCHORS: TextAnchor[] = [
 export interface TypographyParams {
   /** Font size as a percentage of the artboard width (the em in pixels = size % × width). */
   size: number
-  /** Space kept free on every side, as a percentage of the artboard width. */
+  /** Space kept free between the text and every canvas edge by the anchors and Fit text, in cap
+      heights of the text at its current size (1 = as tall as a capital letter), so it follows the size. */
   padding: number
   /** Extra space between glyphs, in thousandths of an em. */
   tracking: number
@@ -77,7 +83,7 @@ export interface ArtboardParams {
 export const TYPOGRAPHY_LIMITS = {
   minSize: 0.5,
   maxSize: 40,
-  maxPadding: 30,
+  maxPadding: 5,
   minTracking: -200,
   maxTracking: 1000,
   minLineHeight: 0.5,
@@ -89,7 +95,7 @@ export const ARTBOARD_LIMITS = { min: 100, max: 4000, scales: [1, 2, 3, 4] as co
 
 export const DEFAULT_TYPOGRAPHY: TypographyParams = {
   size: 4,
-  padding: 0,
+  padding: 1,
   tracking: 0,
   lineHeight: 1,
   slant: 0,
@@ -150,7 +156,7 @@ export interface ArtboardLayout {
 
 /**
  * The box the text is placed by: where its outlines are (slant included), so at an anchor with no
- * padding the letters themselves touch the canvas edges. Without outlines (only spaces), the lines' box.
+ * padding the letters themselves would touch the canvas edges. Without outlines (only spaces), the lines' box.
  */
 export function textBox(scene: SpecimenScene) {
   if (scene.ink) {
@@ -164,7 +170,7 @@ export function textBox(scene: SpecimenScene) {
  * Places the text block on the artboard. The em is size % of the artboard width, which fixes the
  * scale between font units and pixels. At an anchor the outlines' box sits against the left padding,
  * in the middle, or against the right padding, and against the top padding, in the middle, or against
- * the bottom padding (with no padding, against the canvas edges); the lines are already aligned inside
+ * the bottom padding (the padding is the gap left to the canvas edges); the lines are already aligned inside
  * the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
  */
 export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
@@ -172,7 +178,7 @@ export function layoutArtboard(scene: SpecimenScene, typography: TypographyParam
   const unitsPerPx = unitsPerEm / emPx
   const width = artboard.width * unitsPerPx
   const height = artboard.height * unitsPerPx
-  const pad = (clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) / 100) * artboard.width * unitsPerPx
+  const pad = clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) * scene.capHeight
   const { position } = typography
   const box = textBox(scene)
   if (position === 'free') {
@@ -232,17 +238,18 @@ const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 /**
  * The font size (% of the artboard width) at which the outlines, slant included, fit inside the
- * padding on both axes. Rounded down to 0.1 so it never overflows.
+ * padding on both axes. The padding grows with the size (it is in cap heights), so both are solved
+ * together: the text and its padding on both sides fill the artboard. Rounded down to 0.1 so it never
+ * overflows.
  */
 export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): number {
-  const pad = (clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) / 100) * artboard.width
-  const availableWidth = artboard.width - 2 * pad
-  const availableHeight = artboard.height - 2 * pad
   const box = textBox(scene)
-  const blockWidth = box.width / unitsPerEm
-  const blockHeight = box.height / unitsPerEm
-  if (!(blockWidth > 0 && blockHeight > 0) || availableWidth <= 0 || availableHeight <= 0) return typography.size
-  const emPx = Math.min(availableWidth / blockWidth, availableHeight / blockHeight)
+  // Everything in ems: the text box plus a padding on each side.
+  const margin = (2 * clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) * scene.capHeight) / unitsPerEm
+  const blockWidth = box.width / unitsPerEm + margin
+  const blockHeight = box.height / unitsPerEm + margin
+  if (!(box.width > 0 && box.height > 0)) return typography.size
+  const emPx = Math.min(artboard.width / blockWidth, artboard.height / blockHeight)
   const size = Math.floor(((emPx / artboard.width) * 100) * 10) / 10
   return clamp(size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
 }

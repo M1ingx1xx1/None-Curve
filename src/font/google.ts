@@ -17,35 +17,25 @@ import { parseFont } from './parse'
 
 export interface CuratedFamily {
   family: string
-  category: 'Sans' | 'Serif' | 'Display' | 'Mono' | 'Pixel'
+  category: 'Sans' | 'Serif' | 'Slab' | 'Mono'
 }
 
 export const curatedFamilies: CuratedFamily[] = [
-  { family: 'Inter', category: 'Sans' },
-  { family: 'Roboto', category: 'Sans' },
-  { family: 'Open Sans', category: 'Sans' },
-  { family: 'Lato', category: 'Sans' },
-  { family: 'Montserrat', category: 'Sans' },
-  { family: 'Poppins', category: 'Sans' },
-  { family: 'Raleway', category: 'Sans' },
-  { family: 'Space Grotesk', category: 'Sans' },
+  { family: 'Google Sans', category: 'Sans' },
   { family: 'Noto Sans', category: 'Sans' },
-  { family: 'Playfair Display', category: 'Serif' },
-  { family: 'Merriweather', category: 'Serif' },
-  { family: 'Lora', category: 'Serif' },
-  { family: 'Libre Baskerville', category: 'Serif' },
-  { family: 'Fraunces', category: 'Serif' },
-  { family: 'Noto Serif', category: 'Serif' },
-  { family: 'DM Serif Display', category: 'Display' },
-  { family: 'Abril Fatface', category: 'Display' },
-  { family: 'Bebas Neue', category: 'Display' },
-  { family: 'Oswald', category: 'Display' },
-  { family: 'Archivo Black', category: 'Display' },
+  { family: 'Archivo', category: 'Sans' },
+  { family: 'Inter', category: 'Sans' },
+  { family: 'DM Sans', category: 'Sans' },
+  { family: 'EB Garamond', category: 'Serif' },
+  { family: 'Baskervville', category: 'Serif' },
+  { family: 'Bodoni Moda', category: 'Serif' },
+  { family: 'DM Serif Display', category: 'Serif' },
+  { family: 'Slabo 13px', category: 'Slab' },
+  { family: 'Arvo', category: 'Slab' },
   { family: 'IBM Plex Mono', category: 'Mono' },
   { family: 'JetBrains Mono', category: 'Mono' },
-  { family: 'Press Start 2P', category: 'Pixel' },
-  { family: 'Silkscreen', category: 'Pixel' },
-  { family: 'Pixelify Sans', category: 'Pixel' },
+  { family: 'Space Mono', category: 'Mono' },
+  { family: 'DM Mono', category: 'Mono' },
 ]
 
 export type FontStyle = 'normal' | 'italic'
