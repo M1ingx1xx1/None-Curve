@@ -1,6 +1,7 @@
 import type { Dispatch } from 'react'
 import type { LoadedFont } from '../font/model'
 import {
+  anchorAlign,
   DEFAULT_TYPOGRAPHY,
   fitTextSize,
   freeFromLayout,
@@ -96,9 +97,9 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           value={params.padding}
           min={0}
           max={TYPOGRAPHY_LIMITS.maxPadding}
-          step={1}
-          unit="% W"
-          valueText={`${params.padding} percent of the canvas width`}
+          step={0.1}
+          unit="× cap"
+          valueText={`${params.padding} times the height of a capital letter`}
           onChange={(padding) => update({ padding })}
         />
 
@@ -181,7 +182,8 @@ export default function TypographyControls({ params, artboard, font, scene, disa
                   aria-pressed={params.position === anchor}
                   aria-label={anchorLabels[anchor]}
                   title={anchorLabels[anchor]}
-                  onClick={() => update({ position: anchor })}
+                  // The anchor's column also aligns the lines: left, centred, or right.
+                  onClick={() => update({ position: anchor, align: anchorAlign(anchor) })}
                 >
                   <span className="position-dot" aria-hidden="true" />
                 </button>
@@ -191,12 +193,13 @@ export default function TypographyControls({ params, artboard, font, scene, disa
               type="button"
               className="position-free"
               aria-pressed={params.position === 'free'}
-              title="Drag the text on the canvas to place it"
+              title="Back to the default position, then drag the text on the canvas to place it"
               onClick={() => {
-                if (params.position === 'free') return
-                // Start from where the text is now, so it does not jump.
-                const start = font && scene ? freeFromLayout(scene, layoutArtboard(scene, params, artboard, font.metrics.unitsPerEm)) : {}
-                update({ position: 'free', ...start })
+                // Free starts from the default position (and alignment); pressing it again resets there.
+                const home = { position: DEFAULT_TYPOGRAPHY.position, align: DEFAULT_TYPOGRAPHY.align }
+                const start =
+                  font && scene ? freeFromLayout(scene, layoutArtboard(scene, { ...params, ...home }, artboard, font.metrics.unitsPerEm)) : {}
+                update({ position: 'free', align: home.align, ...start })
               }}
             >
               <Icon name="move" />

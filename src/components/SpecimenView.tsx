@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
+import { useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, contrastRatio, textBox, type ArtboardLayout } from '../specimen/artboard'
@@ -36,6 +36,8 @@ interface SpecimenViewProps {
   blur?: number
 }
 
+/** From this zoom on, the grid also shows inside the artboard (for placing details precisely). */
+const GRID_INSIDE_ZOOM = 2
 /** Point markers (skeleton, vertices) are drawn only when an em is at least this many pixels. */
 const MARKER_MIN_PX_PER_EM = 48
 /** Metric labels are drawn only when an em is at least this many pixels. */
@@ -86,8 +88,15 @@ export default function SpecimenView({
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
 
+  // True while the text is being dragged (Free position); the grid then shows inside the artboard.
+  const [draggingText, setDraggingText] = useState(false)
   const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange, interactive)
   const { left, right, top, bottom } = box
+  // The view minus the artboard, as one even-odd path (scene coordinates, y down).
+  const pasteboard =
+    `M ${left} ${-top} h ${visW} v ${visH} h ${-visW} Z ` +
+    `M ${layout.x} ${layout.y} h ${layout.width} v ${layout.height} h ${-layout.width} Z`
+  const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
   const pxPerEm = unitsPerEm / u
   const showMarkers = pxPerEm >= MARKER_MIN_PX_PER_EM
   const markersHidden = (view.showSkeleton || view.showVertices) && !showMarkers
@@ -141,6 +150,7 @@ export default function SpecimenView({
           // Capture is a convenience; the drag still works while the pointer stays on the canvas.
         }
         onMoveText?.('start', 0, 0)
+        setDraggingText(true)
       }
       // Screen pixels to font units; both axes point the same way (y down) in the scene.
       onMoveText?.('move', dx * u, dy * u)
@@ -150,12 +160,14 @@ export default function SpecimenView({
       textMoved.current = d?.moved ?? false
       textDrag.current = null
       if (d?.moved) onMoveText?.('end', 0, 0)
+      setDraggingText(false)
       handlers.onPointerUp()
     },
     onPointerCancel() {
       if (textDrag.current?.moved) onMoveText?.('end', 0, 0)
       textDrag.current = null
       textMoved.current = false
+      setDraggingText(false)
       handlers.onPointerCancel()
     },
   }
@@ -232,14 +244,31 @@ export default function SpecimenView({
               </pattern>
             )}
           </defs>
-          {/* The background: the whole view on the canvas (the corner marks show the exported area),
-              only the exported area in the preview. Then the grid, above the background. */}
+          {/* The background: the whole view on the canvas, only the exported area in the preview. */}
           {clip ? (
             <rect x={layout.x} y={layout.y} width={layout.width} height={layout.height} fill={transparent ? `url(#${checkerId})` : paper} />
           ) : (
             <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
           )}
-          {interactive && <rect x={left} y={-top} width={visW} height={visH} fill={`url(#${gridId})`} />}
+          {interactive && (
+            <>
+              {/* Outside the artboard (the pasteboard): a little darker (lighter on a dark background)
+                  and covered by the grid, so the artboard stands out as the page that is exported. */}
+              <path className="pasteboard" data-paper={darkPaper ? 'dark' : 'light'} d={pasteboard} fillRule="evenodd" />
+              <path d={pasteboard} fillRule="evenodd" fill={`url(#${gridId})`} />
+              {/* Inside, the artboard looks like the export; the grid only fades in while it helps
+                  placing things: while dragging the text, or zoomed in to 200 % or more. */}
+              <rect
+                className="artboard-grid"
+                data-visible={showGridInside || undefined}
+                x={layout.x}
+                y={layout.y}
+                width={layout.width}
+                height={layout.height}
+                fill={`url(#${gridId})`}
+              />
+            </>
+          )}
           {freeMove && (
             // Free position: the whole text block (gaps between words included) is the drag handle.
             <rect
