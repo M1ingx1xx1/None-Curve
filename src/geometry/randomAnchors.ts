@@ -5,7 +5,7 @@
 // integer hash of (seed, glyph index, contour index, attempt), so the same seed, glyph, and settings
 // always give the same polygon.
 
-import { countSelfCrossings } from './anchors'
+import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { hashInts } from './distortion'
 import { evaluate, flattenGlyph, signedArea } from './flatten'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, RandomAnchorParams, SourceContour, SourceGlyph } from './types'
@@ -257,8 +257,7 @@ function isValid(points: readonly Point[], referenceArea: number, fallbackCrossi
   if (points.length < 3) return false
   const area = signedArea(points)
   if (Math.abs(area) < 1e-6 || Math.sign(area) !== Math.sign(referenceArea)) return false
-  const crossings = countSelfCrossings(points)
-  return crossings === 0 || crossings <= fallbackCrossings()
+  return !addsCrossings(points, fallbackCrossings)
 }
 
 // ---- Deterministic random numbers ----
@@ -291,16 +290,4 @@ function clamp(v: number, min: number, max: number): number {
 
 function finite(v: number, fallback: number): number {
   return Number.isFinite(v) ? v : fallback
-}
-
-function lazy<T>(compute: () => T): () => T {
-  let done = false
-  let value: T
-  return () => {
-    if (!done) {
-      value = compute()
-      done = true
-    }
-    return value
-  }
 }

@@ -147,11 +147,9 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
           </button>
         </header>
 
-        <p className="gf-intro">
-          Downloads the font file so its real outlines can be edited — a CSS preview alone has no outline data. Browse
-          the curated list, type any family name exactly as it appears on fonts.google.com, or paste a Google Fonts URL
-          (fonts.google.com/specimen/… or fonts.googleapis.com/css2?family=…). The full catalog needs an API key, so it is
-          not searchable here.
+        <p id="gf-intro" className="gf-intro">
+          Pick a font, type a family name exactly as on fonts.google.com, or paste a fonts.google.com or
+          fonts.googleapis.com link.
         </p>
 
         <div className="gf-columns">
@@ -165,7 +163,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
               autoComplete="off"
               spellCheck={false}
               ref={searchRef}
-              aria-describedby="gf-search-hint"
+              aria-describedby="gf-intro"
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
                 // Enter on a pasted URL or typed name selects it instead of submitting the form.
@@ -175,10 +173,6 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                 }
               }}
             />
-            <p id="gf-search-hint" className="field-hint">
-              Accepts https://fonts.google.com/specimen/Name and https://fonts.googleapis.com/css2?family=… links. Other
-              sites are not contacted.
-            </p>
             {typedIsUrl && parsed && !parsed.ok && (
               <p className="font-warning" role="alert">
                 {parsed.error}

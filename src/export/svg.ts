@@ -113,7 +113,7 @@ export function specimenToSvg(
       if (!glyph.polygon || glyph.polygon.contours.length === 0) continue
       let contours = quantized.get(glyph.index)
       if (!contours) {
-        contours = quantizePolygon(glyph.polygon, decimals, `Glyph “${glyph.text}”`)
+        contours = quantizePolygon(glyph.polygon, decimals, `Glyph “${glyph.text}”`, 'Use a higher precision.')
         quantized.set(glyph.index, contours)
       }
       const place = `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`

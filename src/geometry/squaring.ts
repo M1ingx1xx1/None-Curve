@@ -9,7 +9,7 @@
 // the side midpoints — where every point already touches its box — is unchanged. Amount blends
 // linearly between the original and the rectangle.
 
-import { countSelfCrossings } from './anchors'
+import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { signedArea } from './flatten'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 
@@ -65,8 +65,11 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
       return contour
     }
     const k = amount * weight
+    // The contour's own crossings, counted once for all the checks below.
+    const crossings = lazy(() => countSelfCrossings(contour.points))
+    const check = (after: readonly Point[]) => validate(contour.points, after, crossings)
     let points = squareContour(contour.points, box, k)
-    const reason = validate(contour.points, points)
+    const reason = check(points)
     if (reason) {
       // Instead of dropping the whole effect, use the largest share of the amount that stays valid
       // (bisection; the share found is always a valid one), so the letter is still squared, just less.
@@ -76,7 +79,7 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
       for (let i = 0; i < REDUCE_STEPS; i++) {
         const mid = (lo + hi) / 2
         const candidate = squareContour(contour.points, box, k * mid)
-        if (validate(contour.points, candidate)) hi = mid
+        if (check(candidate)) hi = mid
         else {
           lo = mid
           best = candidate
@@ -88,7 +91,7 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
       }
       const safer = squareContour(contour.points, box, k * lo * REDUCE_MARGIN)
       stats.reduced++
-      points = validate(contour.points, safer) ? best : safer
+      points = check(safer) ? best : safer
     } else if (weight >= 0.999) stats.squared++
     else stats.partial++
     return { points, clockwise: signedArea(points) < 0 }
@@ -176,7 +179,11 @@ function squareContour(points: readonly Point[], box: Box, k: number): Point[] {
   return out
 }
 
-function validate(before: readonly Point[], after: readonly Point[]): 'collapsed' | 'flipped' | 'crossings' | null {
+function validate(
+  before: readonly Point[],
+  after: readonly Point[],
+  beforeCrossings: () => number,
+): 'collapsed' | 'flipped' | 'crossings' | null {
   if (after.length < 3) return 'collapsed'
   for (let i = 0; i < after.length; i++) {
     const a = after[i]
@@ -187,7 +194,6 @@ function validate(before: readonly Point[], after: readonly Point[]): 'collapsed
   const a1 = signedArea(after)
   if (Math.abs(a1) < 1e-6) return 'collapsed'
   if (Math.sign(a1) !== Math.sign(a0)) return 'flipped'
-  const crossings = countSelfCrossings(after)
-  if (crossings > 0 && crossings > countSelfCrossings(before)) return 'crossings'
+  if (addsCrossings(after, beforeCrossings)) return 'crossings'
   return null
 }

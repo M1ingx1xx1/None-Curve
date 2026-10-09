@@ -4,7 +4,7 @@
 // Lattice values come from an integer hash of (seed, contour index, channel, lattice cell), so the
 // same glyph, parameters, contour order, and point order always give the same result.
 
-import { countSelfCrossings } from './anchors'
+import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { signedArea } from './flatten'
 import type { DistortionParams, Point, PolygonContour, PolygonGlyph } from './types'
 
@@ -157,8 +157,7 @@ function isValid(before: readonly Point[], after: readonly Point[], crossingsBef
   const a0 = signedArea(before)
   const a1 = signedArea(after)
   if (Math.abs(a1) < 1e-6 || Math.sign(a1) !== Math.sign(a0)) return false
-  const crossings = countSelfCrossings(after)
-  return crossings === 0 || crossings <= crossingsBefore()
+  return !addsCrossings(after, crossingsBefore)
 }
 
 // ---- Deterministic noise ----
@@ -209,16 +208,4 @@ function clamp(v: number, min: number, max: number): number {
 
 function finite(v: number, fallback: number): number {
   return Number.isFinite(v) ? v : fallback
-}
-
-function lazy<T>(compute: () => T): () => T {
-  let done = false
-  let value: T
-  return () => {
-    if (!done) {
-      value = compute()
-      done = true
-    }
-    return value
-  }
 }

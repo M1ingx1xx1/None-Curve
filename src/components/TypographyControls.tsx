@@ -52,7 +52,6 @@ const anchorLabels: Record<TextAnchor, string> = {
  */
 export default function TypographyControls({ params, artboard, font, scene, disabled, dispatch }: TypographyControlsProps) {
   const update = (patch: Partial<TypographyParams>) => dispatch({ type: 'updateParams', group: 'typography', patch })
-  const emPx = Math.round((params.size / 100) * artboard.width * 10) / 10
   const isDefault = (Object.keys(DEFAULT_TYPOGRAPHY) as (keyof TypographyParams)[]).every(
     (k) => k === 'textCase' || params[k] === DEFAULT_TYPOGRAPHY[k],
   )
@@ -71,9 +70,9 @@ export default function TypographyControls({ params, artboard, font, scene, disa
           value={params.size}
           min={TYPOGRAPHY_LIMITS.minSize}
           max={TYPOGRAPHY_LIMITS.maxSize}
-          step={0.1}
-          unit="% W"
-          valueText={`${params.size} percent of the canvas width, ${emPx} pixels`}
+          step={1}
+          unit="px"
+          valueText={`${params.size} pixels`}
           onChange={(size) => update({ size })}
         />
 

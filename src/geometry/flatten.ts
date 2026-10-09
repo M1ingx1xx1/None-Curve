@@ -3,7 +3,7 @@
 // Every call rebuilds the polygon from the original curves, so repeated parameter changes never
 // accumulate error, and the source glyph is never modified.
 
-import { countSelfCrossings } from './anchors'
+import { addsCrossings, countSelfCrossings } from './crossings'
 import { buildCurveRuns, sampleRun, simplifyRun } from './curveRuns'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
@@ -196,8 +196,7 @@ function isValidMerge(points: Point[], unmerged: Point[]): boolean {
   if (points.length < 3 || unmerged.length < 3) return points.length >= 3 || unmerged.length < 3
   const area = signedArea(points)
   if (Math.abs(area) < 1e-6 || Math.sign(area) !== Math.sign(signedArea(unmerged))) return false
-  const crossings = countSelfCrossings(points)
-  return crossings === 0 || crossings <= countSelfCrossings(unmerged)
+  return !addsCrossings(points, () => countSelfCrossings(unmerged))
 }
 
 /** The polygon is closed implicitly; drop an explicit closing point that repeats the start. */

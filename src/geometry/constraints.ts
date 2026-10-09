@@ -1,7 +1,8 @@
 // Geometric constraints on the reduced polygon: grid snapping, then angle lock.
 // Pure functions in font units; no React, no DOM. Inputs are never modified.
 
-import { countSelfCrossings, simplifyClosed } from './anchors'
+import { simplifyClosed } from './anchors'
+import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { signedArea } from './flatten'
 import type { GridParams, Point, PolygonContour, PolygonGlyph } from './types'
 
@@ -106,14 +107,14 @@ function withRetries(
   points: readonly Point[],
   runs: StepRun[],
 ): { points: Point[]; simplified: boolean; reason: null } | { points: null; simplified: false; reason: FallbackReason } {
+  // The contour's own crossings, counted once for every check against it.
+  const crossings = lazy(() => countSelfCrossings(points))
   const first = runs[0](points)
-  const firstReason = first.points ? validate(points, first.points) : (first.reason ?? 'collapsed')
+  const firstReason = first.points ? validate(points, first.points, crossings) : (first.reason ?? 'collapsed')
   if (!firstReason) return { points: first.points!, simplified: false, reason: null }
 
   const box = bounds(points)
   const diagonal = Math.hypot(box.maxX - box.minX, box.maxY - box.minY)
-  let baseline: number | null = null
-  const crossings = () => (baseline ??= countSelfCrossings(points))
   const variants: (readonly Point[])[] = [points]
   for (const fraction of RETRY_TOLERANCES) {
     const simplified = simplifyClosed(points, diagonal * fraction, crossings)
@@ -122,7 +123,7 @@ function withRetries(
   for (let r = 0; r < runs.length; r++) {
     for (let v = r === 0 ? 1 : 0; v < variants.length; v++) {
       const result = runs[r](variants[v])
-      if (result.points && !validate(points, result.points)) {
+      if (result.points && !validate(points, result.points, crossings)) {
         return { points: result.points, simplified: r > 0 || v > 0, reason: null }
       }
     }
@@ -205,14 +206,13 @@ function withPoints(points: Point[]): PolygonContour {
  * A constrained contour is valid when it keeps at least three distinct points, the same winding
  * direction with non-zero area, and no more self-crossings than before the step.
  */
-function validate(before: readonly Point[], after: readonly Point[]): FallbackReason | null {
+function validate(before: readonly Point[], after: readonly Point[], beforeCrossings: () => number): FallbackReason | null {
   if (after.length < 3 || new Set(after.map((p) => `${p.x},${p.y}`)).size !== after.length) return 'collapsed'
   const a0 = signedArea(before)
   const a1 = signedArea(after)
   if (Math.abs(a1) < 1e-6) return 'collapsed'
   if (Math.sign(a1) !== Math.sign(a0)) return 'flipped'
-  const crossings = countSelfCrossings(after)
-  if (crossings > 0 && crossings > countSelfCrossings(before)) return 'crossings'
+  if (addsCrossings(after, beforeCrossings)) return 'crossings'
   return null
 }
 

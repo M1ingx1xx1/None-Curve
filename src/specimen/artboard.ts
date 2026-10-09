@@ -39,7 +39,7 @@ export const TEXT_ANCHORS: TextAnchor[] = [
 ]
 
 export interface TypographyParams {
-  /** Font size as a percentage of the artboard width (the em in pixels = size % × width). */
+  /** Font size: the em in artboard pixels. */
   size: number
   /** Space kept free between the text and every canvas edge by the anchors and Fit text, in cap
       heights of the text at its current size (1 = as tall as a capital letter), so it follows the size. */
@@ -81,8 +81,8 @@ export interface ArtboardParams {
 }
 
 export const TYPOGRAPHY_LIMITS = {
-  minSize: 0.5,
-  maxSize: 40,
+  minSize: 4,
+  maxSize: 1000,
   maxPadding: 5,
   minTracking: -200,
   maxTracking: 1000,
@@ -94,7 +94,7 @@ export const TYPOGRAPHY_LIMITS = {
 export const ARTBOARD_LIMITS = { min: 100, max: 4000, scales: [1, 2, 3, 4] as const } as const
 
 export const DEFAULT_TYPOGRAPHY: TypographyParams = {
-  size: 4,
+  size: 48,
   padding: 1,
   tracking: 0,
   lineHeight: 1,
@@ -110,7 +110,7 @@ export const DEFAULT_ARTBOARD: ArtboardParams = { width: 1200, height: 800, scal
 
 /** Named colour pairs. The first is the default. */
 export const PALETTES: { name: string; ink: string; paper: string }[] = [
-  { name: 'Charcoal', ink: '#101010', paper: '#f7f3ea' },
+  { name: 'Charcoal', ink: '#101010', paper: '#fffdfa' },
   { name: 'Off White', ink: '#fdfdef', paper: '#050505' },
   { name: 'Kryptonite', ink: '#66ffe5', paper: '#001911' },
   { name: 'Plum', ink: '#f800e3', paper: '#23060a' },
@@ -167,14 +167,14 @@ export function textBox(scene: SpecimenScene) {
 }
 
 /**
- * Places the text block on the artboard. The em is size % of the artboard width, which fixes the
- * scale between font units and pixels. At an anchor the outlines' box sits against the left padding,
+ * Places the text block on the artboard. The em is `size` pixels, which fixes the scale between font
+ * units and pixels. At an anchor the outlines' box sits against the left padding,
  * in the middle, or against the right padding, and against the top padding, in the middle, or against
  * the bottom padding (the padding is the gap left to the canvas edges); the lines are already aligned inside
  * the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
  */
 export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
-  const emPx = Math.max(0.01, (clamp(typography.size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize) / 100) * artboard.width)
+  const emPx = clamp(typography.size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
   const unitsPerPx = unitsPerEm / emPx
   const width = artboard.width * unitsPerPx
   const height = artboard.height * unitsPerPx
@@ -237,10 +237,9 @@ export function moveFreeText(
 const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 /**
- * The font size (% of the artboard width) at which the outlines, slant included, fit inside the
- * padding on both axes. The padding grows with the size (it is in cap heights), so both are solved
- * together: the text and its padding on both sides fill the artboard. Rounded down to 0.1 so it never
- * overflows.
+ * The font size (pixels per em) at which the outlines, slant included, fit inside the padding on both
+ * axes. The padding grows with the size (it is in cap heights), so both are solved together: the text
+ * and its padding on both sides fill the artboard. Rounded down to a whole pixel so it never overflows.
  */
 export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): number {
   const box = textBox(scene)
@@ -250,8 +249,7 @@ export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, 
   const blockHeight = box.height / unitsPerEm + margin
   if (!(box.width > 0 && box.height > 0)) return typography.size
   const emPx = Math.min(artboard.width / blockWidth, artboard.height / blockHeight)
-  const size = Math.floor(((emPx / artboard.width) * 100) * 10) / 10
-  return clamp(size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
+  return clamp(Math.floor(emPx), TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
 }
 
 /** What zoom 1 shows: the artboard with a small margin, in font units with y up (for usePanZoom). */

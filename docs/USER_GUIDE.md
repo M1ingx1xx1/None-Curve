@@ -47,7 +47,7 @@ The screen is split into two rows and five areas:
 ```
 
 1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the **Geometry** controls that shape the letters. Scroll to see every control.
-2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. The **Canvas size** bar at its bottom opens the size settings.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
 5. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
@@ -281,7 +281,7 @@ The seed is also shown in the status line at the bottom and in the export dialog
 
 The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
 
-- **Size** — the letter size, as a percentage of the canvas width (the explanation shows the size in pixels). Because it follows the width, the text keeps its proportions when you change the canvas size. You can drag the slider or type a number.
+- **Size** — the letter size in pixels (how tall one em is on the canvas). It stays the same when you change the canvas size. You can drag the slider or type a number.
 - **Fit text** — makes the text as large as possible while still fitting inside the padding.
 - **Padding** — the gap kept between the text and the canvas edges, counted in capital-letter heights: 1 means the gap is as tall as a capital letter. Because it is tied to the letters, it grows when you make the text bigger. Set it to 0 to let the letters touch the edges.
 - **Tracking** — extra space between letters. Negative values pull letters closer.
@@ -359,9 +359,11 @@ Good to know:
 
 - If you change any setting after building, build again before downloading.
 - The new font has **no kerning**, ligatures, or other advanced features of the original — only the reshaped letters and their widths.
-- A few unusual letters may be left out if their shape cannot be stored safely; the app lists them.
+- Letters are saved with the same weight, style (for example italic), slant, line spacing, and copyright and license details as the original font, so a Regular and a Bold you make install side by side like the originals.
+- Very rarely a letter may be left out if its shape has details too fine for a font file to store; the app lists them. Less **Distortion** or **Anchor spacing** usually helps.
+- With very dense settings (Anchor spacing near 1) a whole font can have too many points for one file; the app stops and suggests a larger Anchor spacing or exporting only the characters in your text.
 - Variable fonts are saved in the version you see on screen.
-- **Licensing:** a modified font is still based on someone else's design. Check the original font's license before sharing it — many open-source fonts require a new name for modified versions.
+- **Licensing:** a modified font is still based on someone else's design. Check the original font's license before sharing it — many open-source fonts require a new name for modified versions. If the original reserves its name, the export dialog tells you to choose a different family name.
 
 ---
 

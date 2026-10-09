@@ -28,7 +28,7 @@ interface CanvasViewportProps {
   onSelectGlyph: (glyph: GlyphRef) => void
   onClearHighlight: () => void
   /** Set while the text has a Free position: dragging the text on the canvas moves it. */
-  onMoveText?: (phase: 'start' | 'move' | 'end', dx: number, dy: number) => void
+  onMoveText?: (dx: number, dy: number) => void
   onViewChange: (patch: Partial<ViewParams>) => void
   onResetView: () => void
   onLocalFile: (file: File) => void
@@ -246,6 +246,8 @@ export default function CanvasViewport(props: CanvasViewportProps) {
             />
             <p className="canvas-badge" aria-hidden="true">
               {scene.glyphCount} glyphs · {outlineDescription}
+              {/* Glyphs still being computed in the background keep their previous shape meanwhile. */}
+              {scene.pendingGlyphs > 0 && <span className="canvas-updating"> · Updating {scene.pendingGlyphs}…</span>}
             </p>
             <Legend view={view} />
             {overflows && (
