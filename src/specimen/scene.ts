@@ -26,6 +26,8 @@ export interface SpecimenScene {
   lineHeight: number
   ascender: number
   descender: number
+  /** Height of a capital letter (the font's cap height, or 0.7 em when the font does not say). */
+  capHeight: number
   /** Scene bounds (y down) covering every line's ascender/descender and every outline (slant included). */
   bounds: { minX: number; minY: number; maxX: number; maxY: number }
   /** Bounds (y down) of the drawn outlines alone, slant included: where the ink is. Null when nothing
@@ -71,6 +73,7 @@ export function buildSpecimenScene(
   layout: SceneLayout = PLAIN_LAYOUT,
 ): SpecimenScene {
   const { ascender, descender, lineGap, unitsPerEm } = font.metrics
+  const capHeight = font.metrics.capHeight ?? unitsPerEm * 0.7
   const lineHeight = (ascender - descender + lineGap) * (Number.isFinite(layout.lineHeight) && layout.lineHeight > 0 ? layout.lineHeight : 1)
   const tracking = ((Number.isFinite(layout.tracking) ? layout.tracking : 0) * unitsPerEm) / 1000
   const slant = Number.isFinite(layout.slant) ? Math.max(-89, Math.min(89, layout.slant)) : 0
@@ -152,6 +155,7 @@ export function buildSpecimenScene(
     lineHeight,
     ascender,
     descender,
+    capHeight,
     bounds: { minX, minY, maxX, maxY },
     ink: ink.minX <= ink.maxX ? ink : null,
     blockWidth,

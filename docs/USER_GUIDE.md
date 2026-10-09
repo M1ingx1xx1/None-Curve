@@ -47,7 +47,7 @@ The screen is split into two rows and five areas:
 ```
 
 1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the **Geometry** controls that shape the letters. Scroll to see every control.
-2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The background colour fills the whole view, with a light grid on top; a thin mint outline with a soft shadow shows the edges of the page that gets exported, as if the page sat slightly above the background (the outline is in the app's own colour, so it is never mistaken for part of your text). The **Canvas size** bar at its bottom opens the size settings.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
 5. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
@@ -95,7 +95,7 @@ Click **Import font** at the top of the tools area. You get two choices.
 
 Choose **Google Fonts**. In the **Family** box you can:
 
-- **Pick from the list** — 25 popular fonts are listed.
+- **Pick from the list** — 15 fonts are listed, grouped as Sans, Serif, Slab, and Mono (for example Google Sans, Inter, EB Garamond, Bodoni Moda, Arvo, JetBrains Mono).
 - **Type a name** — any Google font, spelled exactly as on fonts.google.com (capital letters matter: `Open Sans`, not `open sans`). Then click **Use "…"**.
 - **Paste a link** — copy the address of a font page from fonts.google.com, for example `https://fonts.google.com/specimen/Plaster`, and paste it. Links that already say a weight or italic (for example `…css2?family=Roboto:ital,wght@1,700`) are understood too.
 
@@ -148,7 +148,7 @@ If a new font fails to load, the previous font stays on screen.
 - **Flattened** — the result of all your settings (the default).
 - **Compare** — the result in grey with the original curves drawn on top as a blue dashed line.
 
-**Layers** — extra information you can switch on and off:
+**Layers** — extra information you can switch on and off (only **Fill** is on at the start):
 
 - **Fill** — solid letters. Turn it off to see only the outlines.
 - **Skeleton** — the points that define the original curves: blue squares sit on the curve, hollow orange circles are the "control points" that pull the curve, and thin lines connect them.
@@ -283,12 +283,12 @@ The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These
 
 - **Size** — the letter size, as a percentage of the canvas width (the explanation shows the size in pixels). Because it follows the width, the text keeps its proportions when you change the canvas size. You can drag the slider or type a number.
 - **Fit text** — makes the text as large as possible while still fitting inside the padding.
-- **Padding** — empty space kept between the text and the canvas edges. It starts at 0, so the text can touch the edges.
+- **Padding** — the gap kept between the text and the canvas edges, counted in capital-letter heights: 1 means the gap is as tall as a capital letter. Because it is tied to the letters, it grows when you make the text bigger. Set it to 0 to let the letters touch the edges.
 - **Tracking** — extra space between letters. Negative values pull letters closer.
 - **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.
 - **Slant** — leans the letters, like a quick italic. Positive leans right, negative leans left.
 - **Align** — the three buttons with lines line up the lines of text on the left, in the centre, or on the right.
-- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The letters then touch that corner or edge exactly (raise **Padding** if you want some space). Click **Free** to place it yourself: then drag the text on the big canvas. It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
+- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The text moves there, keeping the **Padding** gap (one capital-letter height) to the edges, and its lines line up to match: dots on the left line up left, in the middle centred, on the right line up right. The chosen dot glows. Click **Free** to place the text yourself: it first goes back to the starting position, then you drag it on the big canvas (click Free again any time to send it back). It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
 - **Reset typography** puts these back to their starting values.
 
 ### Color tab — text and background colours
