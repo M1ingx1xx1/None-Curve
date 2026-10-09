@@ -1,6 +1,7 @@
 // Anchor control on flattened polygons: spacing (subdivide edges) and reduction (RDP simplification).
 // Pure functions in font units; no React, no DOM. Inputs are never modified.
 
+import { addsCrossings, countSelfCrossings } from './crossings'
 import { signedArea } from './flatten'
 import type { AnchorParams, Point, PolygonContour, PolygonGlyph } from './types'
 
@@ -183,7 +184,7 @@ export function simplifyClosed(
     distinctCount(simplified) === simplified.length &&
     Math.sign(area) === Math.sign(originalArea) &&
     Math.abs(area) > 1e-6 &&
-    noNewCrossings(simplified, baselineCrossings)
+    !addsCrossings(simplified, baselineCrossings)
 
   return { points: valid ? simplified : points.slice(), valid, maxDeviation: valid ? maxDeviation : 0 }
 }
@@ -227,45 +228,3 @@ function distinctCount(points: readonly Point[]): number {
   return new Set(points.map((p) => `${p.x},${p.y}`)).size
 }
 
-function noNewCrossings(simplified: readonly Point[], baseline: () => number): boolean {
-  const crossings = countSelfCrossings(simplified)
-  return crossings === 0 || crossings <= baseline()
-}
-
-/** Number of non-adjacent edge pairs of the closed ring that cross or touch. O(n²). */
-export function countSelfCrossings(points: readonly Point[]): number {
-  const n = points.length
-  let count = 0
-  for (let i = 0; i < n; i++) {
-    const a1 = points[i]
-    const a2 = points[(i + 1) % n]
-    for (let j = i + 2; j < n; j++) {
-      if (i === 0 && j === n - 1) continue // shares the start vertex
-      if (segmentsIntersect(a1, a2, points[j], points[(j + 1) % n])) count++
-    }
-  }
-  return count
-}
-
-function orient(a: Point, b: Point, c: Point): number {
-  const v = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-  return Math.abs(v) < 1e-9 ? 0 : Math.sign(v)
-}
-
-function onSegment(a: Point, b: Point, p: Point): boolean {
-  return Math.min(a.x, b.x) <= p.x && p.x <= Math.max(a.x, b.x) && Math.min(a.y, b.y) <= p.y && p.y <= Math.max(a.y, b.y)
-}
-
-function segmentsIntersect(p1: Point, p2: Point, q1: Point, q2: Point): boolean {
-  const o1 = orient(p1, p2, q1)
-  const o2 = orient(p1, p2, q2)
-  const o3 = orient(q1, q2, p1)
-  const o4 = orient(q1, q2, p2)
-  if (o1 !== o2 && o3 !== o4) return true
-  return (
-    (o1 === 0 && onSegment(p1, p2, q1)) ||
-    (o2 === 0 && onSegment(p1, p2, q2)) ||
-    (o3 === 0 && onSegment(q1, q2, p1)) ||
-    (o4 === 0 && onSegment(q1, q2, p2))
-  )
-}

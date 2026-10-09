@@ -4,6 +4,7 @@ import {
   buildFontFile,
   FONT_EXPORT_LIMITS,
   planFontExport,
+  reservedFontNames,
   validateNaming,
   type FontExportResult,
   type FontNaming,
@@ -15,7 +16,8 @@ import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
 import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
-import { buildSpecimenScene } from '../specimen/scene'
+import { placePolygons, shapeSpecimen } from '../specimen/scene'
+import { exportPolygonLookup } from '../state/geometryClient'
 import { previewColors, type PreviewLook } from './TextPreview'
 import Icon from './Icon'
 
@@ -95,7 +97,8 @@ export default function ExportDialog(props: ExportDialogProps) {
 
   // New font: suggest a derived name (many licenses require renaming modified fonts).
   useEffect(() => {
-    if (font) setNaming({ familyName: `${font.familyName} Poly`.replace(/[^\x20-\x7E]/g, '').slice(0, 63).trim() || 'None Curve Poly', styleName: (font.styleName || 'Regular').replace(/[^\x20-\x7E]/g, '').slice(0, 63).trim() || 'Regular' })
+    // A leading dot (Apple's hidden system fonts) would hide the exported font from font menus too.
+    if (font) setNaming({ familyName: `${font.familyName} Poly`.replace(/[^\x20-\x7E]/g, '').replace(/^\.+/, '').slice(0, 63).trim() || 'None Curve Poly', styleName: (font.styleName || 'Regular').replace(/[^\x20-\x7E]/g, '').slice(0, 63).trim() || 'Regular' })
   }, [font])
 
   // Abort a running build when the dialog closes or the component unmounts.
@@ -111,6 +114,10 @@ export default function ExportDialog(props: ExportDialogProps) {
   const buildKey = `${font?.id}|${paramsKey}|${glyphSet}|${glyphSet === 'current' ? selectedGlyph?.index : glyphSet === 'specimen' ? specimenText : ''}|${naming.familyName}|${naming.styleName}`
   const currentBuild = built && built.key === buildKey ? built : null
   const namingError = validateNaming(naming)
+  // SIL OFL "Reserved Font Name": a modified version must not use it.
+  const reservedClash = font
+    ? reservedFontNames(font).find((name) => naming.familyName.toLowerCase().includes(name.toLowerCase())) ?? null
+    : null
   const working = status.kind === 'working'
 
   const close = () => {
@@ -143,7 +150,9 @@ export default function ExportDialog(props: ExportDialogProps) {
     const forPng = format === 'png'
     try {
       const { tracking, lineHeight, align, slant } = typography
-      const scene = buildSpecimenScene(font, specimenText, params, paramsKey, { tracking, lineHeight, align, slant })
+      // The canvas's polygons from the worker where ready; any glyph still missing is computed now.
+      const shaped = shapeSpecimen(font, specimenText, { tracking, lineHeight, align, slant })
+      const scene = placePolygons(shaped, exportPolygonLookup(font, params, paramsKey))
       const layout = layoutArtboard(scene, typography, artboard, font.metrics.unitsPerEm)
       const subject = `${usePreviewLook ? 'preview' : 'main view'} “${specimenText.slice(0, 80)}”`
       // PNG coordinates only need to be sharp at the chosen pixel size; two decimals is plenty.
@@ -290,8 +299,8 @@ export default function ExportDialog(props: ExportDialogProps) {
                     </select>
                     <p className="field-hint">
                       The file is {artboard.width} × {artboard.height} px. Outline coordinates are kept in font units and placed
-                      with transforms; if rounding would collapse, flip, or cross a contour, the export stops and asks for a
-                      higher precision.
+                      with transforms. Rounding is repaired where it can be; if a contour would still collapse or cross
+                      itself, the export stops and asks for a higher precision.
                     </p>
                   </div>
                 ) : (
@@ -336,6 +345,12 @@ export default function ExportDialog(props: ExportDialogProps) {
                   </div>
                 </div>
                 {namingError && <p className="font-warning">{namingError}</p>}
+                {reservedClash && (
+                  <p className="font-warning">
+                    The source font’s license reserves the name “{reservedClash}”: a modified version must use a different
+                    family name.
+                  </p>
+                )}
                 <p className="export-summary">
                   {plan.glyphs.length} glyph{plan.glyphs.length === 1 ? '' : 's'} plus .notdef, every one processed with the
                   current pipeline.
@@ -380,7 +395,8 @@ export default function ExportDialog(props: ExportDialogProps) {
                     </p>
                     {currentBuild.result.excluded.length > 0 && (
                       <p className="font-warning">
-                        Left out because their outline could not be stored safely at whole units:{' '}
+                        Left out because a font file stores whole font units and these outlines have details finer than
+                        that (less Distortion or Anchor spacing usually helps):{' '}
                         {currentBuild.result.excluded.slice(0, 8).map((e) => `${e.label} (${e.reason})`).join('; ')}
                         {currentBuild.result.excluded.length > 8 ? `; and ${currentBuild.result.excluded.length - 8} more` : ''}.
                       </p>

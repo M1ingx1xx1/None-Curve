@@ -6,7 +6,21 @@ const fmt = (n: number) => (Math.round(n * 100) / 100).toString()
 const pt = (p: Point) => `${fmt(p.x)} ${fmt(p.y)}`
 
 /** SVG path data in font units (y-up) for the original curves. */
+// Path strings are cached per outline object: a text repeats the same glyphs many times, and every
+// copy on the canvas and the preview would otherwise build the same (long) string again.
+const sourcePaths = new WeakMap<SourceGlyph, string>()
+const polygonPaths = new WeakMap<PolygonGlyph, string>()
+
 export function sourceGlyphToPath(glyph: SourceGlyph): string {
+  let path = sourcePaths.get(glyph)
+  if (path === undefined) {
+    path = buildSourcePath(glyph)
+    sourcePaths.set(glyph, path)
+  }
+  return path
+}
+
+function buildSourcePath(glyph: SourceGlyph): string {
   const parts: string[] = []
   for (const contour of glyph.contours) {
     parts.push(`M${pt(contour.start)}`)
@@ -84,5 +98,10 @@ export function sourceGlyphBounds(glyph: SourceGlyph): Bounds | null {
 
 /** SVG path data (font units, y-up) for a polygon: only M, L, and Z commands. */
 export function polygonGlyphToPath(polygon: PolygonGlyph): string {
-  return polygon.contours.map((c) => `M${c.points.map(pt).join('L')}Z`).join('')
+  let path = polygonPaths.get(polygon)
+  if (path === undefined) {
+    path = polygon.contours.map((c) => `M${c.points.map(pt).join('L')}Z`).join('')
+    polygonPaths.set(polygon, path)
+  }
+  return path
 }

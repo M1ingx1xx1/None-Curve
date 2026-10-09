@@ -4,7 +4,7 @@
 import type { Font, Glyph } from 'fontkit'
 import type { GlyphRef, Point, SourceContour, SourceGlyph } from '../geometry/types'
 import { FontLoadError } from './errors'
-import type { FontFormat, FontMetrics, FontSource, LoadedFont, VariationAxis } from './model'
+import type { FontFormat, FontInfo, FontMetrics, FontNameKey, FontSource, LoadedFont, VariationAxis } from './model'
 import { sniffFontFormat } from './sniff'
 
 let loadId = 0
@@ -34,10 +34,10 @@ export async function parseFont(bytes: Uint8Array, source: FontSource, signal: A
 
   if (!font.numGlyphs) throw new FontLoadError('no-glyphs', 'The font contains no glyphs.')
 
-  return buildLoadedFont(font, format, source)
+  return buildLoadedFont(font, format, source, bytes)
 }
 
-function buildLoadedFont(font: Font, format: FontFormat, source: FontSource): LoadedFont {
+function buildLoadedFont(font: Font, format: FontFormat, source: FontSource, bytes: Uint8Array): LoadedFont {
   const metrics: FontMetrics = {
     unitsPerEm: font.unitsPerEm,
     ascender: font.ascent,
@@ -91,9 +91,11 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource): Lo
     id: `font-${++loadId}`,
     source,
     format,
+    bytes,
     familyName: font.familyName || 'Untitled',
     styleName: font.subfamilyName || 'Regular',
     metrics,
+    info: readFontInfo(font),
     glyphCount: font.numGlyphs,
     characters,
     listAllGlyphs,
@@ -145,6 +147,74 @@ function isControlCharacter(cp: number): boolean {
 
 /** Keeps one glyph per character so the specimen and font export stay character-for-character. */
 const NO_LIGATURES = { liga: false, clig: false, dlig: false, hlig: false, calt: false, rlig: false }
+
+/** fontkit decodes bit fields as objects of named flags; these are the names in bit order. */
+const FS_TYPE_BITS = [null, 'noEmbedding', 'viewOnly', 'editable', null, null, null, null, 'noSubsetting', 'bitmapOnly']
+const FS_SELECTION_BITS = ['italic', 'underscore', 'negative', 'outlined', 'strikeout', 'bold', 'regular', 'useTypoMetrics', 'wws', 'oblique']
+const MAC_STYLE_BITS = ['bold', 'italic', 'underline', 'outline', 'shadow', 'condensed', 'extended']
+const NAME_KEYS: FontNameKey[] = ['copyright', 'version', 'trademark', 'manufacturer', 'designer', 'description', 'vendorURL', 'designerURL', 'license', 'licenseURL']
+
+function bits(flags: unknown, names: readonly (string | null)[]): number {
+  if (typeof flags === 'number') return flags
+  if (!flags || typeof flags !== 'object') return 0
+  return names.reduce((value, name, bit) => (name && (flags as Record<string, unknown>)[name] ? value | (1 << bit) : value), 0)
+}
+
+/** Reads the tables an exported font copies. Any table that cannot be read just falls back to defaults. */
+function readFontInfo(font: Font): FontInfo {
+  // OS/2, hhea, post, head, and name are part of fontkit's runtime API but not all are typed.
+  const tables = font as unknown as Record<string, Record<string, unknown> | undefined>
+  const read = <T,>(get: () => T, fallback: T): T => {
+    try {
+      return get() ?? fallback
+    } catch {
+      return fallback
+    }
+  }
+  const num = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback)
+  const optional = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+
+  const os2 = read(() => {
+    const t = tables['OS/2']
+    if (!t) return null
+    return {
+      weightClass: num(t.usWeightClass, 400),
+      widthClass: num(t.usWidthClass, 5),
+      fsType: bits(t.fsType, FS_TYPE_BITS),
+      fsSelection: bits(t.fsSelection, FS_SELECTION_BITS),
+      familyClass: num(t.sFamilyClass),
+      panose: Array.isArray(t.panose) ? t.panose.slice(0, 10).map((v) => num(v)) : [],
+      subscript: [num(t.ySubscriptXSize), num(t.ySubscriptYSize), num(t.ySubscriptXOffset), num(t.ySubscriptYOffset)] as [number, number, number, number],
+      superscript: [num(t.ySuperscriptXSize), num(t.ySuperscriptYSize), num(t.ySuperscriptXOffset), num(t.ySuperscriptYOffset)] as [number, number, number, number],
+      strikeoutSize: num(t.yStrikeoutSize),
+      strikeoutPosition: num(t.yStrikeoutPosition),
+      typoAscender: optional(t.typoAscender),
+      typoDescender: optional(t.typoDescender),
+      typoLineGap: optional(t.typoLineGap),
+      winAscent: optional(t.winAscent),
+      winDescent: optional(t.winDescent),
+      xHeight: optional(t.xHeight),
+      capHeight: optional(t.capHeight),
+    }
+  }, null)
+
+  const names: FontInfo['names'] = {}
+  for (const key of NAME_KEYS) {
+    const value = read(() => font.getName(key, 'en'), null)
+    if (typeof value === 'string' && value.trim()) names[key] = value.trim()
+  }
+
+  return {
+    os2,
+    lineGap: read(() => num(tables.hhea?.lineGap), 0),
+    italicAngle: read(() => num(tables.post?.italicAngle), 0),
+    underlinePosition: read(() => num(tables.post?.underlinePosition), 0),
+    underlineThickness: read(() => num(tables.post?.underlineThickness), 0),
+    isFixedPitch: read(() => num(tables.post?.isFixedPitch) !== 0, false),
+    macStyle: read(() => bits(tables.head?.macStyle, MAC_STYLE_BITS), 0),
+    names,
+  }
+}
 
 function hasTable(font: Font, tag: string): boolean {
   // `directory` is part of fontkit's runtime API but missing from @types/fontkit.

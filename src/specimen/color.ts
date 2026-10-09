@@ -142,3 +142,35 @@ const PRIMARY_DEEP = '#0f7a5c'
 export function artboardEdgeColor(paper: string): string {
   return contrastRatio(PRIMARY_LIGHT, paper) >= contrastRatio(PRIMARY_DEEP, paper) ? PRIMARY_LIGHT : PRIMARY_DEEP
 }
+
+/** True for a background where white reads better than black. */
+export function isDarkColor(color: string): boolean {
+  return contrastRatio(color, '#ffffff') > contrastRatio(color, '#000000')
+}
+
+/** The pasteboard grid: lines this much apart in contrast from the background, in every palette. */
+export const GRID_CONTRAST = 1.3
+/** The snap grid (Grid & angles) is a tool the user turned on, so it is a little stronger. */
+export const SNAP_GRID_CONTRAST = 1.5
+
+/**
+ * A grid line colour for this background: black on a light background, white on a dark one, only as
+ * opaque as it takes to stand out by `contrast`. Being tied to the background's brightness (not the
+ * text colour, which can be close to the background), the grid is equally visible in every palette.
+ */
+export function gridLineColor(paper: string, contrast: number): string {
+  const dark = isDarkColor(paper)
+  const base = dark ? 255 : 0
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(paper.slice(i, i + 2), 16))
+  const mix = (alpha: number) =>
+    `#${[r, g, b].map((v) => Math.round(base * alpha + v * (1 - alpha)).toString(16).padStart(2, '0')).join('')}`
+  let low = 0
+  let high = 1
+  for (let i = 0; i < 16; i++) {
+    const mid = (low + high) / 2
+    if (contrastRatio(mix(mid), paper) >= contrast) high = mid
+    else low = mid
+  }
+  const alpha = Math.round(high * 1000) / 1000
+  return dark ? `rgba(255, 255, 255, ${alpha})` : `rgba(0, 0, 0, ${alpha})`
+}
