@@ -1,8 +1,15 @@
-import { useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
-import type { GlyphRef, SourceGlyph } from '../geometry/types'
-import { artboardViewFrame, contrastRatio, textBox, type ArtboardLayout } from '../specimen/artboard'
-import { artboardEdgeColor, highlightColor } from '../specimen/color'
+import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
+import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
+import {
+  artboardEdgeColor,
+  GRID_CONTRAST,
+  gridLineColor,
+  highlightColor,
+  isDarkColor,
+  SNAP_GRID_CONTRAST,
+} from '../specimen/color'
 import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
@@ -28,13 +35,53 @@ interface SpecimenViewProps {
   onSelectGlyph: (glyph: GlyphRef) => void
   /** A click on empty space (not on a glyph) or Escape: hides the selection highlight. */
   onClearSelection?: () => void
-  /** Free position: dragging the text moves it. Reports the drag in font units since it started. */
-  onMoveText?: (phase: 'start' | 'move' | 'end', dx: number, dy: number) => void
+  /** Free position: dragging the text moves it. Called once, on release, with the move in font units. */
+  onMoveText?: (dx: number, dy: number) => void
   /** False for a read-only miniature: no pan, zoom, keyboard focus, or glyph selection. */
   interactive?: boolean
   /** Gaussian blur of the glyphs, in screen pixels; 0 is off. The artboard itself stays sharp. */
   blur?: number
 }
+
+interface SpecimenGlyphProps {
+  index: number
+  text: string
+  /** Pen position in scene units (y down). */
+  x: number
+  y: number
+  advance: number
+  /** Slant as an SVG transform suffix, or ''. */
+  skew: string
+  ascender: number
+  descender: number
+  source: SourceGlyph
+  polygon: PolygonGlyph | null
+  view: ViewParams
+  markerRadius: number
+  showMarkers: boolean
+  selected: boolean
+  /** Click handler (interactive canvas only). */
+  onSelect?: (index: number, text: string) => void
+}
+
+/**
+ * One glyph of the text. Memoised: when results for other glyphs arrive, or the view pans, the
+ * glyphs whose shape and place did not change are not drawn again.
+ */
+const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
+  const { index, text, x, y, advance, skew, ascender, descender, source, polygon, view, markerRadius, showMarkers, selected, onSelect } = props
+  return (
+    <g
+      className={selected ? 'specimen-glyph specimen-glyph-selected' : 'specimen-glyph'}
+      transform={`translate(${x} ${y})${skew} scale(1 -1)`}
+      onClick={onSelect ? () => onSelect(index, text) : undefined}
+    >
+      <title>{text}</title>
+      {onSelect && <rect className="glyph-box" x={0} y={descender} width={advance} height={ascender - descender} />}
+      <GlyphLayers source={source} polygon={polygon} view={view} markerRadius={markerRadius} showMarkers={showMarkers} />
+    </g>
+  )
+})
 
 /** From this zoom on, the grid also shows inside the artboard (for placing details precisely). */
 const GRID_INSIDE_ZOOM = 2
@@ -83,7 +130,10 @@ export default function SpecimenView({
   // The canvas outline: the interface mint rather than the text colour, so it reads as a guide. Its
   // shadow (elevation, styled in .artboard-frame) is dark on a light background and light on a dark one.
   const edge = useMemo(() => artboardEdgeColor(paper), [paper])
-  const darkPaper = contrastRatio(paper, '#ffffff') > contrastRatio(paper, '#000000')
+  const darkPaper = isDarkColor(paper)
+  // Grid lines from the background's brightness, so they show equally in every palette.
+  const gridColor = useMemo(() => gridLineColor(paper, GRID_CONTRAST), [paper])
+  const snapGridColor = useMemo(() => gridLineColor(paper, SNAP_GRID_CONTRAST), [paper])
   const block = textBox(scene)
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
@@ -123,15 +173,39 @@ export default function SpecimenView({
     )
   }
 
+  // One stable click handler for every glyph (so unchanged glyphs skip re-rendering); it reads the
+  // latest state through a ref.
+  const select = useRef<(index: number, text: string) => void>(() => {})
+  select.current = (index, text) => {
+    if (!dragged()) onSelectGlyph(selectRef(index, text))
+  }
+  const onGlyphSelect = useCallback((index: number, text: string) => select.current(index, text), [])
+
   // Free position: a drag that starts on the text moves the text; anywhere else it pans as usual.
+  // While dragging, only the text group's transform changes (nothing re-renders, so it follows the
+  // pointer smoothly however long the text); the new position is committed once, on release, and the
+  // transform is cleared when that position arrives back as a new layout.
   const freeMove = interactive && onMoveText !== undefined
-  const textDrag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const movingRef = useRef<SVGGElement>(null)
+  const textDrag = useRef<{ x: number; y: number; moved: boolean; dx: number; dy: number } | null>(null)
   const textMoved = useRef(false)
+  const committed = useRef(false)
   const dragged = () => wasDrag() || textMoved.current
+  const setOffset = (dx: number, dy: number) => {
+    if (dx || dy) movingRef.current?.setAttribute('transform', `translate(${dx} ${dy})`)
+    else movingRef.current?.removeAttribute('transform')
+  }
+  useLayoutEffect(() => {
+    if (!committed.current) return
+    committed.current = false
+    setOffset(0, 0)
+  }, [layout])
   const pointer = {
     onPointerDown(e: PointerEvent<HTMLDivElement>) {
       if (freeMove && e.button === 0 && (e.target as Element).closest('.specimen-glyph, .text-block-hit')) {
-        textDrag.current = { x: e.clientX, y: e.clientY, moved: false }
+        committed.current = false
+        setOffset(0, 0)
+        textDrag.current = { x: e.clientX, y: e.clientY, moved: false, dx: 0, dy: 0 }
         return
       }
       handlers.onPointerDown(e)
@@ -139,35 +213,39 @@ export default function SpecimenView({
     onPointerMove(e: PointerEvent<HTMLDivElement>) {
       const d = textDrag.current
       if (!d) return handlers.onPointerMove(e)
-      const dx = e.clientX - d.x
-      const dy = e.clientY - d.y
       if (!d.moved) {
-        if (Math.hypot(dx, dy) < 3) return
+        if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3) return
         d.moved = true
         try {
           e.currentTarget.setPointerCapture(e.pointerId)
         } catch {
           // Capture is a convenience; the drag still works while the pointer stays on the canvas.
         }
-        onMoveText?.('start', 0, 0)
         setDraggingText(true)
       }
-      // Screen pixels to font units; both axes point the same way (y down) in the scene.
-      onMoveText?.('move', dx * u, dy * u)
+      // Screen pixels to font units (both axes point down in the scene), stopped at the artboard edges.
+      // Along an axis where the text is larger than the artboard it does not move (see moveFreeText).
+      const along = (delta: number, low: number, high: number) => (low <= high ? Math.min(high, Math.max(low, delta)) : 0)
+      d.dx = along((e.clientX - d.x) * u, layout.x - block.minX, layout.x + layout.width - block.minX - block.width)
+      d.dy = along((e.clientY - d.y) * u, layout.y - block.minY, layout.y + layout.height - block.minY - block.height)
+      setOffset(d.dx, d.dy)
     },
     onPointerUp() {
       const d = textDrag.current
       textMoved.current = d?.moved ?? false
       textDrag.current = null
-      if (d?.moved) onMoveText?.('end', 0, 0)
-      setDraggingText(false)
+      if (d?.moved) {
+        committed.current = true
+        onMoveText?.(d.dx, d.dy)
+        setDraggingText(false)
+      }
       handlers.onPointerUp()
     },
     onPointerCancel() {
-      if (textDrag.current?.moved) onMoveText?.('end', 0, 0)
+      if (textDrag.current?.moved) setDraggingText(false)
       textDrag.current = null
       textMoved.current = false
-      setDraggingText(false)
+      setOffset(0, 0)
       handlers.onPointerCancel()
     },
   }
@@ -216,6 +294,8 @@ export default function SpecimenView({
             {
               '--artboard-ink': ink,
               '--artboard-highlight': highlight,
+              '--artboard-grid': gridColor,
+              '--artboard-snap-grid': snapGridColor,
             } as CSSProperties
           }
         >
@@ -269,16 +349,6 @@ export default function SpecimenView({
               />
             </>
           )}
-          {freeMove && (
-            // Free position: the whole text block (gaps between words included) is the drag handle.
-            <rect
-              className="text-block-hit"
-              x={block.minX}
-              y={block.minY}
-              width={block.width}
-              height={block.height}
-            />
-          )}
           {grid && (
             <g className="snap-grid">
               {grid.xs.map((x) => (
@@ -289,88 +359,88 @@ export default function SpecimenView({
               ))}
             </g>
           )}
-          {view.showMetrics &&
-            scene.lines.map((line, l) => {
-              if (line.baseline - ascender > sceneBottom || line.baseline - descender < sceneTop) return null
-              // Label only the first visible line so labels of neighbouring lines do not pile up.
-              const labelled = l === firstVisibleLine
-              return (
-                <g key={l} className="metric-lines">
-                  {guides.map(([name, y]) => (
-                    <g key={name} className={y === 0 ? 'metric-baseline' : undefined}>
-                      <line x1={guideLeft} x2={guideRight} y1={line.baseline - y} y2={line.baseline - y} vectorEffect="non-scaling-stroke" />
-                      {labelled && pxPerEm >= LABEL_MIN_PX_PER_EM && (
-                        <text x={guideLeft + 8 * u} y={line.baseline - y - 4 * u} fontSize={10 * u}>
-                          {name}
-                        </text>
-                      )}
-                    </g>
-                  ))}
-                </g>
-              )
-            })}
-
-          <g filter={blur > 0 ? `url(#${blurId})` : undefined} clipPath={clip ? `url(#${clipId})` : undefined}>
-            {scene.lines.map((line, l) => {
-              if (line.baseline - ascender - margin > sceneBottom || line.baseline - descender + margin < sceneTop) return null
-              return (
-                <g key={l}>
-                  {line.glyphs.map((g, i) => {
-                    if (g.x + g.advance + margin < left || g.x - margin > right) return null
-                    if (g.missing) {
-                      return (
-                        <rect
-                          key={i}
-                          className="strip-missing"
-                          x={g.x + g.advance * 0.1}
-                          y={g.y - ascender * 0.7}
-                          width={g.advance * 0.8}
-                          height={ascender * 0.7}
-                          vectorEffect="non-scaling-stroke"
-                        >
-                          <title>Missing from the font: {g.text}</title>
-                        </rect>
-                      )
-                    }
-                    const source = sourceFor(g.index)
-                    if (!source || source.contours.length === 0) return null
-                    const selected = selectedGlyph?.index === g.index
-                    return (
-                      <g
-                        key={i}
-                        className={selected ? 'specimen-glyph specimen-glyph-selected' : 'specimen-glyph'}
-                        transform={`translate(${g.x} ${g.y})${skew} scale(1 -1)`}
-                        onClick={
-                          interactive
-                            ? () => {
-                                if (!dragged()) onSelectGlyph(selectRef(g.index, g.text))
-                              }
-                            : undefined
-                        }
-                      >
-                        <title>{g.text}</title>
-                        {interactive && (
-                          <rect
-                            className="glyph-box"
-                            x={0}
-                            y={descender}
-                            width={g.advance}
-                            height={ascender - descender}
-                          />
+          {/* The text and its guides, moved as one while the text is dragged (Free position). */}
+          <g ref={movingRef}>
+            {freeMove && (
+              // Free position: the whole text block (gaps between words included) is the drag handle.
+              <rect
+                className="text-block-hit"
+                x={block.minX}
+                y={block.minY}
+                width={block.width}
+                height={block.height}
+              />
+            )}
+            {view.showMetrics &&
+              scene.lines.map((line, l) => {
+                if (line.baseline - ascender > sceneBottom || line.baseline - descender < sceneTop) return null
+                // Label only the first visible line so labels of neighbouring lines do not pile up.
+                const labelled = l === firstVisibleLine
+                return (
+                  <g key={l} className="metric-lines">
+                    {guides.map(([name, y]) => (
+                      <g key={name} className={y === 0 ? 'metric-baseline' : undefined}>
+                        <line x1={guideLeft} x2={guideRight} y1={line.baseline - y} y2={line.baseline - y} vectorEffect="non-scaling-stroke" />
+                        {labelled && pxPerEm >= LABEL_MIN_PX_PER_EM && (
+                          <text x={guideLeft + 8 * u} y={line.baseline - y - 4 * u} fontSize={10 * u}>
+                            {name}
+                          </text>
                         )}
-                        <GlyphLayers
+                      </g>
+                    ))}
+                  </g>
+                )
+              })}
+
+            <g filter={blur > 0 ? `url(#${blurId})` : undefined} clipPath={clip ? `url(#${clipId})` : undefined}>
+              {scene.lines.map((line, l) => {
+                if (line.baseline - ascender - margin > sceneBottom || line.baseline - descender + margin < sceneTop) return null
+                return (
+                  <g key={l}>
+                    {line.glyphs.map((g, i) => {
+                      if (g.x + g.advance + margin < left || g.x - margin > right) return null
+                      if (g.missing) {
+                        return (
+                          <rect
+                            key={i}
+                            className="strip-missing"
+                            x={g.x + g.advance * 0.1}
+                            y={g.y - ascender * 0.7}
+                            width={g.advance * 0.8}
+                            height={ascender * 0.7}
+                            vectorEffect="non-scaling-stroke"
+                          >
+                            <title>Missing from the font: {g.text}</title>
+                          </rect>
+                        )
+                      }
+                      const source = sourceFor(g.index)
+                      if (!source || source.contours.length === 0) return null
+                      return (
+                        <SpecimenGlyph
+                          key={i}
+                          index={g.index}
+                          text={g.text}
+                          x={g.x}
+                          y={g.y}
+                          advance={g.advance}
+                          skew={skew}
+                          ascender={ascender}
+                          descender={descender}
                           source={source}
                           polygon={g.polygon}
                           view={view}
                           markerRadius={3.5 * u}
                           showMarkers={showMarkers}
+                          selected={selectedGlyph?.index === g.index}
+                          onSelect={interactive ? onGlyphSelect : undefined}
                         />
-                      </g>
-                    )
-                  })}
-                </g>
-              )
-            })}
+                      )
+                    })}
+                  </g>
+                )
+              })}
+            </g>
           </g>
         </svg>
       )}

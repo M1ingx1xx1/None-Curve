@@ -54,14 +54,68 @@ export interface ShapedGlyph {
 }
 
 
+/** Name table entries copied into an exported font (name IDs 0, 5, 7–14). */
+export type FontNameKey =
+  | 'copyright'
+  | 'version'
+  | 'trademark'
+  | 'manufacturer'
+  | 'designer'
+  | 'description'
+  | 'vendorURL'
+  | 'designerURL'
+  | 'license'
+  | 'licenseURL'
+
+/**
+ * Font-wide data that is not about outlines, read once so an exported font can carry it over:
+ * weight, width, style bits, slant, vertical metrics, and the legal and credit names.
+ */
+export interface FontInfo {
+  /** OS/2 values, or null when the font has no OS/2 table. Bit fields are plain numbers. */
+  os2: {
+    weightClass: number
+    widthClass: number
+    fsType: number
+    fsSelection: number
+    familyClass: number
+    panose: number[]
+    subscript: [number, number, number, number]
+    superscript: [number, number, number, number]
+    strikeoutSize: number
+    strikeoutPosition: number
+    typoAscender: number | null
+    typoDescender: number | null
+    typoLineGap: number | null
+    winAscent: number | null
+    winDescent: number | null
+    xHeight: number | null
+    capHeight: number | null
+  } | null
+  /** hhea line gap. */
+  lineGap: number
+  /** post table. */
+  italicAngle: number
+  underlinePosition: number
+  underlineThickness: number
+  isFixedPitch: boolean
+  /** head.macStyle bits (1 bold, 2 italic, …). */
+  macStyle: number
+  names: Partial<Record<FontNameKey, string>>
+}
+
 export interface LoadedFont {
   /** Unique per load, so a re-import of the same file is a new font. */
   id: string
   source: FontSource
   format: FontFormat
+  /** The font file, so the geometry worker can open its own copy. */
+  bytes: Uint8Array
   familyName: string
   styleName: string
   metrics: FontMetrics
+  /** Weight, style, vertical metrics, and names, for font export. */
+  info: FontInfo
   glyphCount: number
   /** One entry per visible Unicode code point in the cmap (controls excluded), sorted by code point. */
   characters: GlyphRef[]

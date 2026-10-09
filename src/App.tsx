@@ -13,19 +13,17 @@ import TextTools from './components/TextTools'
 import ToolHead from './components/ToolHead'
 import Workspace from './components/Workspace'
 import type { GlyphRef } from './geometry/types'
-import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase, type TypographyParams } from './specimen/artboard'
+import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from './specimen/artboard'
 import { DEFAULT_TEXT } from './specimen/samples'
 import { editorReducer, initialState } from './state/editorState'
 import type { ViewParams } from './state/types'
-import { useDerivedGeometry } from './state/useDerivedGeometry'
+import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
-import { useSpecimenScene } from './state/useSpecimenScene'
 
 
 export default function App() {
   const [state, dispatch] = useReducer(editorReducer, initialState)
   const importer = useFontImport(dispatch)
-  const derived = useDerivedGeometry(state)
   const [text, setText] = useState(DEFAULT_TEXT)
   // The preview's blur and inversion, and its scale, so exports can reproduce the preview look.
   const [previewLook, setPreviewLook] = useState<PreviewLook>(DEFAULT_PREVIEW_LOOK)
@@ -33,27 +31,18 @@ export default function App() {
   const { typography, palette, artboard } = state.params
   // The text as shown and exported: the typed text with the letter case applied.
   const displayText = useMemo(() => applyTextCase(text, typography.textCase), [text, typography.textCase])
-  const {
-    scene,
-    layout,
-    pending: scenePending,
-  } = useSpecimenScene(state.document.font, displayText, derived.params, derived.paramsKey, typography, artboard)
+  const { derived, scene, layout, scenePending } = useGeometry(state, displayText)
   const setTextCase = useCallback(
     (textCase: TextCase) => dispatch({ type: 'updateParams', group: 'typography', patch: { textCase } }),
     [],
   )
-  // Free position: dragging the text on the canvas. The drag reports its offset since it started, so
-  // the position is computed from where the text was then (no drift from rounding along the way).
+  // Free position: the canvas moves the text itself while it is dragged and reports the move (in font
+  // units) once, on release; the new position is computed from where the text was.
   const latest = useRef({ scene, layout, typography })
   latest.current = { scene, layout, typography }
-  const dragStart = useRef<Pick<TypographyParams, 'freeX' | 'freeY'> | null>(null)
-  const moveText = useCallback((phase: 'start' | 'move' | 'end', dx: number, dy: number) => {
+  const moveText = useCallback((dx: number, dy: number) => {
     const { scene, layout, typography } = latest.current
-    if (phase === 'start') dragStart.current = { freeX: typography.freeX, freeY: typography.freeY }
-    else if (phase === 'end') dragStart.current = null
-    else if (dragStart.current && scene && layout) {
-      dispatch({ type: 'updateParams', group: 'typography', patch: moveFreeText(dragStart.current, dx, dy, scene, layout) })
-    }
+    if (scene && layout) dispatch({ type: 'updateParams', group: 'typography', patch: moveFreeText(typography, dx, dy, scene, layout) })
   }, [])
   const setArtboard = useCallback(
     (patch: Partial<ArtboardParams>) => dispatch({ type: 'updateParams', group: 'artboard', patch }),

@@ -918,12 +918,12 @@ input[type='range']:disabled {
   fill: transparent;
 }
 
-/* The canvas fills the view with the background colour. The screen grid sits above it, drawn in the
-   text colour so it suits every palette; an outline in the interface mint marks the exported area. */
+/* The canvas fills the view with the background colour. The screen grid sits above it; its colour
+   (--artboard-grid, see gridLineColor) is black or white at the opacity that stands out equally from
+   every background. An outline in the interface mint marks the exported area. */
 .view-grid-line {
   fill: none;
-  stroke: var(--artboard-ink);
-  stroke-opacity: 0.08;
+  stroke: var(--artboard-grid);
 }
 
 /* Outside the artboard: the background a little darker (on a dark background, a little lighter).
@@ -1920,8 +1920,7 @@ input[type='range']:disabled {
 }
 
 .snap-grid line {
-  stroke: var(--vertex);
-  stroke-opacity: 0.18;
+  stroke: var(--artboard-snap-grid, var(--vertex));
   stroke-width: 1;
 }
 
@@ -2002,6 +2001,10 @@ input[type='range']:disabled {
 
 .legend-source {
   border-top: 2px dashed var(--accent);
+}
+
+.canvas-updating {
+  color: var(--primary-strong);
 }
 
 .canvas-badge {

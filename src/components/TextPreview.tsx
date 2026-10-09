@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import { artboardViewFrame, type ArtboardLayout, type PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
@@ -60,6 +60,8 @@ export default function TextPreview({
   const id = useId()
   const { blur, inverted } = look
   const colors = previewColors(palette, look)
+  // A stable object, so glyphs whose shape did not change are not drawn again.
+  const fittedView = useMemo(() => ({ ...view, ...FITTED }), [view])
   const hasText = font !== null && scene !== null && layout !== null && scene.glyphCount > 0
 
   // The same fit as SpecimenView at zoom 1, so the export can turn preview pixels into font units.
@@ -119,7 +121,7 @@ export default function TextPreview({
               paper={colors.paper}
               transparent={palette.transparent}
               clip
-              view={{ ...view, ...FITTED }}
+              view={fittedView}
               gridSize={gridSize}
               selectedGlyph={null}
               label={`Miniature of the canvas${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
