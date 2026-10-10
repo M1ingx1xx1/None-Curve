@@ -52,6 +52,9 @@ function FontSummary({ font }: { font: LoadedFont }) {
       {font.characters.length === 0 && (
         <p className="font-warning">This font has no Unicode mapping. Browse it with “All glyphs”.</p>
       )}
+      {font.characters.length > 0 && !hasOutlines(font) && (
+        <p className="font-warning">This font has no outlines to edit: its glyphs are colour images only.</p>
+      )}
       {font.axes.length > 0 && (
         <div className="font-axes">
           <p className="font-axes-title">Variable axes</p>
@@ -63,7 +66,9 @@ function FontSummary({ font }: { font: LoadedFont }) {
             ))}
           </ul>
           <p className="font-warning">
-            Outlines show the default instance. Choosing axis values is not supported yet.
+            {font.instance
+              ? `Outlines use ${Object.entries(font.instance).map(([tag, value]) => `${tag} ${value}`).join(', ')}; other axes stay at their defaults.`
+              : 'Outlines show the default instance.'}
           </p>
         </div>
       )}
@@ -107,4 +112,9 @@ export default function FontStatus({ status, font, onRetry, onCancel }: FontStat
       {font && status.kind !== 'error' && <FontSummary font={font} />}
     </section>
   )
+}
+
+/** True when the first characters include one with an outline (colour-only fonts such as Noto Color Emoji have none). */
+function hasOutlines(font: LoadedFont): boolean {
+  return font.characters.slice(0, 200).some((c) => font.getPreviewPath(c.index) !== '')
 }

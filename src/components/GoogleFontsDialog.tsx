@@ -23,6 +23,18 @@ type FamilyState =
   | { kind: 'ready'; info: GoogleFamilyInfo }
   | { kind: 'error'; error: FontLoadError }
 
+const WEIGHT_LABELS: Record<number, string> = {
+  100: 'Thin',
+  200: 'ExtraLight',
+  300: 'Light',
+  400: 'Regular',
+  500: 'Medium',
+  600: 'SemiBold',
+  700: 'Bold',
+  800: 'ExtraBold',
+  900: 'Black',
+}
+
 export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFontsDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -64,15 +76,12 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
         const useItalic = (wantItalic && info.weights.italic.length > 0) || !hasNormal
         const weights = useItalic ? info.weights.italic : info.weights.normal
         const fallbackWeight = defaultWeight(weights)
-        // A variable family serves one file for every weight, so a requested weight cannot be applied.
-        const useWeight =
-          !info.variable && requested?.weight && weights.includes(requested.weight) ? requested.weight : fallbackWeight
+        const useWeight = requested?.weight && weights.includes(requested.weight) ? requested.weight : fallbackWeight
         let note: string | null = null
         if (requested && (requested.weight !== null || requested.italic !== null)) {
           const asked = `${requested.weight ?? ''}${requested.italic ? ' italic' : ''}`.trim() || 'regular'
-          const actual = info.variable ? `the default instance${useItalic ? ' (italic)' : ''}` : `${useWeight}${useItalic ? ' italic' : ''}`
-          const matched = !info.variable && (requested.weight === null || requested.weight === useWeight) && (requested.italic === null || requested.italic === useItalic)
-          if (!matched) note = `The URL asks for ${asked}${info.variable ? ', but this is a variable font' : ', which this family does not have'}; ${actual} will be loaded.`
+          const matched = (requested.weight === null || requested.weight === useWeight) && (requested.italic === null || requested.italic === useItalic)
+          if (!matched) note = `The URL asks for ${asked}, which this family does not have; ${useWeight}${useItalic ? ' italic' : ''} will be loaded.`
         }
         setItalic(useItalic)
         setWeight(useWeight)
@@ -255,7 +264,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                 {requested && requested.unsupportedAxes.length > 0 && (
                   <p className="font-warning">
                     The URL sets axes this app cannot apply ({requested.unsupportedAxes.join(', ')}). They are ignored and
-                    the font’s default instance is loaded.
+                    stay at their defaults.
                   </p>
                 )}
                 {requested?.notes.map((note) => (
@@ -264,23 +273,12 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                   </p>
                 ))}
                 {styleNote && <p className="font-warning">{styleNote}</p>}
-                {info.variable && (
-                  <p className="font-warning">
-                    Variable font: all weights share one file. The outlines show the font's default instance, so
-                    weight selection is disabled. Its axes are listed after loading.
-                  </p>
-                )}
                 <div className="field">
                   <label htmlFor="gf-weight">Weight</label>
-                  <select
-                    id="gf-weight"
-                    value={weight}
-                    disabled={info.variable}
-                    onChange={(e) => setWeight(Number(e.target.value))}
-                  >
+                  <select id="gf-weight" value={weight} onChange={(e) => setWeight(Number(e.target.value))}>
                     {styleWeights.map((w) => (
                       <option key={w} value={w}>
-                        {info.variable ? 'Default instance' : w}
+                        {w} {WEIGHT_LABELS[w] ?? ''}
                       </option>
                     ))}
                   </select>

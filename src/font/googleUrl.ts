@@ -113,7 +113,7 @@ function parseCss2Spec(spec: string): Pick<ParsedFontRequest, 'weight' | 'italic
     if (axis === 'wght') {
       const range = /^(\d+)\.\.(\d+)$/.exec(value)
       if (range) {
-        result.notes.push(`Weight range ${value} requested; a variable font is loaded with its default instance.`)
+        result.notes.push(`Weight range ${value} requested; choose a weight to load.`)
       } else if (/^\d+$/.test(value)) {
         result.weight = Number(value)
       }

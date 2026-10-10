@@ -139,7 +139,10 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 - **目录：** 完整的可搜索目录需要 Google Fonts Developer API key，静态网站无法保密。对话框提供15 个精选字体（无衬线：Google Sans、Noto Sans、Archivo、Inter、DM Sans；衬线：EB Garamond、Baskervville、Bodoni Moda、DM Serif Display；粗衬线：Slabo 13px、Arvo；等宽：IBM Plex Mono、JetBrains Mono、Space Mono、DM Mono）、可输入与 fonts.google.com 完全一致的字体名称（区分大小写），也可粘贴 Google Fonts 链接。
 - **字符子集：** Google 按子集（latin、latin-ext、cyrillic 等）拆分文件，一次只加载一个子集。
-- **可变字体：** 当多个字重共用一个文件时识别为可变字体。轮廓显示默认实例；可变轴会列出但不能设置（fontkit 无法从 WOFF2 生成变体实例），因此字重选择被禁用。
+- **可变字体：** 当多个字重共用一个文件时识别为可变字体。仍然可以选择任何字重：所选字重会单独向 Google 请求，Google 会返回为该字重生成的静态文件（样式名和 OS/2 字重都正确）。如果 Google 仍返回可变文件（例如 Roboto Flex 的 700），则在载入时应用字重：fontkit 无法对 WOFF2 文件应用变体，所以先把 WOFF2 重建为 TrueType（`src/font/woff2.ts`：重新编码解码后的字形表，不含 hinting，其他表原样复制），再按该字重生成实例；字体面板会注明所用的字重。其他轴（`opsz`、`wdth` 等）保持默认值。
+- **彩色字体**（Nabla、Honk、Bungee Spice、各个 “Ink” 字族）：只读取它们的普通轮廓；fontkit 读不了 COLR 第 1 版，所以绕过它的彩色字形（COLR、sbix）。字形只有彩色图像的字体（Noto Color Emoji）可以载入，但会提示没有可编辑的轮廓。
+- **fontkit 读不了排版表的字体**（Iosevka Charon）按每个字符一个字形、使用字宽排列，不做字偶距。
+- 已用整个 Google Fonts 目录（1950 个字族）检查：每个字族都能载入，每个可变字族在第二个字重下也能载入，且轮廓与默认字重不同。
 - **错误：** 未知字体名返回 HTTP 400 且不带 CORS 头，浏览器看来与断网相同。应用会再发一次 `no-cors` 请求，区分“Google 拒绝了这个名字”和“网络 / CORS / 拦截插件”。下载失败与解析失败分别提示，都可 **Retry**。
 
 #### 粘贴 Google Fonts 链接
@@ -149,13 +152,13 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 | 链接 | 读取内容 |
 |---|---|
 | `https://fonts.google.com/specimen/Roboto` | 字体名（`+` 代表空格）。`categoryFilters`、`preview.script` 等参数会被忽略并列出。 |
-| `https://fonts.googleapis.com/css2?family=Roboto:ital,wght@1,700` | 从第一组样式中读取字体名、字重和斜体。字重范围（`wght@300..700`）表示加载默认实例。 |
+| `https://fonts.googleapis.com/css2?family=Roboto:ital,wght@1,700` | 从第一组样式中读取字体名、字重和斜体。字重范围（`wght@300..700`）表示在对话框中选择字重。 |
 | `https://fonts.googleapis.com/css?family=Lato:300italic` | 旧版接口：字体名和第一个样式（`400`、`700italic`、`300i`、`bold`）。 |
 
 - 只接受 `https://` 开头、域名为 `fonts.google.com` 或 `fonts.googleapis.com` 的链接。其他网站、仿冒域名、`http://`、带账号密码或端口的链接以及其他路径都会被拒绝并说明原因。
 - 链接包含多个字体或样式时只用第一个，对话框会说明。`display`、`subset`、`text` 和追踪参数会被忽略并列出。
-- `wght` 和 `ital` 以外的轴（如 `opsz`、`wdth`）无法应用；对话框会说明并加载默认实例。
-- 请求的样式不存在时按默认规则（最接近 400）回退，并写明实际加载的样式。可变字体无法应用指定字重，对话框也会说明。
+- `wght` 和 `ital` 以外的轴（如 `opsz`、`wdth`）无法应用；对话框会说明，这些轴保持默认值。
+- 请求的样式不存在时按默认规则（最接近 400）回退，并写明实际加载的样式。
 
 ## 几何流水线
 
@@ -260,7 +263,7 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - 从原字体复制：OS/2 的字重和字宽等级、样式位（`fsSelection`，与 head 的 `macStyle` 保持一致）、嵌入权限（`fsType`）、panose、字族分类、上下标与删除线参数、typo 上伸 / 下伸 / 行距、x 高度和大写高度；hhea 行距；post 的倾斜角、下划线位置和粗细、等宽标记。Windows 上伸和下伸沿用原字体，若新轮廓超出则相应加大（Windows 会裁掉超出部分）。复制的名称记录：版权、商标、厂商、设计师、厂商和设计师网址、授权及授权网址；描述中注明轮廓由 None-Curve 重建。原字体没有的条目直接省略，而不是写成空白。CFF 的 FontBBox 为实际包围盒。写入库（opentype.js）无法设置的字段——hhea 行距、head `macStyle`、CFF FontBBox——会在生成的文件中直接改写（`src/export/sfnt.ts`），并重新计算校验和。
 - 取整（`src/export/quantize.ts`）：每个轮廓先取整到整数单位，再去掉重复点、零长度边，以及位于前后两点连线上的点（包括往返的尖刺）。轮廓必须至少保留三个点、方向不变、面积不为零，且不能新增自交。只有在未取整的轮廓既没有自交、也没有两部分相距两个单位以内的地方出现的交叉，才算新增——原本就重叠（字体中很常见）或几乎相碰的轮廓，在整数单位下无法避免，差别也不到一个单位。取整造成的交叉先通过删除相关的一个顶点来修复；仍不行时，把轮廓极轻微地简化（0.5–2 个单位）后再取整。面积小于 4 平方单位的轮廓若在取整后退化，只排除该轮廓本身。取整后的每个轮廓还要和字形的其他轮廓保持原来的位置关系：两个轮廓之间的新交叉，只有在两者原本就相距两个单位以内的地方才接受；会把轮廓推进另一个轮廓的修复不采用，改试下一种做法。自交检查按 x 排序扫描线段，所以有数千个点的轮廓（Anchor spacing 1）也很快。在 New York 和 Arial 上测试：默认设置、Squaring 为 Square / All contours、Anchor spacing 1、Distortion 40 时都没有字形被排除（之前默认设置下 New York 有 42 个字形被排除，包括所有 “a”；Square / All 时为 26%）。
 - 先点 **Build & verify**，再点 **Download .otf**。文件会用 fontkit 重新打开并逐字形比对（文件签名、族名、字形数、每个映射、每个字宽、每个轮廓的每个点及方向），再交给浏览器字体引擎加载（`FontFace`，OTS 校验）。任一检查失败都不会提供下载。无法安全保存的字形会被排除并列出，并说明字体只能保存整数字体单位（不适用任何精度设置）。
-- 不包含：TTF / WOFF / WOFF2 输出；字偶距、连字及其他 OpenType 排版特性；hinting；可变轴（可变字体导出默认实例）；只能通过排版特性访问的字形；U+FFFF 以上的字符。坐标取整到字体单位。
+- 不包含：TTF / WOFF / WOFF2 输出；字偶距、连字及其他 OpenType 排版特性；hinting；可变轴（可变字体导出画布上显示的实例）；只能通过排版特性访问的字形；U+FFFF 以上的字符。坐标取整到字体单位。
 
 ## 开发
 
