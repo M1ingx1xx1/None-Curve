@@ -23,7 +23,7 @@ const caches = new WeakMap<LoadedFont, FontCache>()
 
 /** Stable key for a parameter set; JSON of a plain object with a fixed key order. */
 export function paramsKey(params: GeometryParams): string {
-  return JSON.stringify([params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion])
+  return JSON.stringify([params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion, params.experimental])
 }
 
 /**

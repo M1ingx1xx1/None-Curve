@@ -129,6 +129,16 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Validate missing glyphs, invalid contours, and unsupported font features before export.
 - Inform users about supported scope and features that cannot be preserved.
 
+### P2: Experimental effects (stackable)
+
+Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumpled paper), **Ripple** (waves from a point), and **Wind** (pulled along a direction), built in that order. Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
+
+- **No curves, also to the eye:** every effect is a piecewise-linear warp of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible.
+- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Wind, each on the previous result.
+- **Always valid:** every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
+- **Repeatable:** one shared seed for the tab; effects work in glyph coordinates, so every copy of a letter has the same shape and fonts can be exported.
+- Random anchors moves out of "experimental" and stays in the Geometry tab.
+
 ## 6. Information architecture and interface requirements
 
 ```text
@@ -154,6 +164,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 2. **Geometry and grid:** Grid snapping, grid size, angle locking, fixed-anchor behavior.
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed.
 4. **Export:** SVG settings, font glyph coverage, and font metadata.
+5. **Experimental** (its own tab beside Geometry): Noise, Ripple, and Wind, stackable, with one shared seed.
 
 ### Tool hierarchy
 
@@ -185,6 +196,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Derive geometry from the source curves and current parameters; changing parameters must not mutate the original data cumulatively.
 - Use an explicit seed for random distortion so previews are repeatable.
 - Validate SVG output to ensure path data contains no curve commands such as `C` or `Q`.
+- Experimental effects are piecewise-linear warps that add vertices only at creases; they must not add runs of small same-direction turns that read as curves.
 - Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing.
 
 ## 8. Acceptance criteria
@@ -201,6 +213,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Font loading, preview, and export all run client-side.
 - Loading a font does not automatically create a download; export happens only after an explicit user action.
 - If font export cannot preserve certain features, the app explains this before export.
+- Experimental effects can all be on at once; any combination at any strength gives valid outlines (no crossings, counters inside) and adds no curve-like runs.
 
 ## 9. Suggested milestones
 
@@ -290,6 +303,7 @@ Delivery order: local audio analysis → static aggregate mappings → distinct 
 | P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
+| P2 Experimental effects | Implemented: Noise, Ripple, and Wind, stackable |
 | Section 11 Sound-driven carving | Not implemented |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.

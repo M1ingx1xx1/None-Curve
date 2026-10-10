@@ -1,8 +1,11 @@
+import { noiseIsOn } from './noise'
+import { rippleIsOn } from './ripple'
+import { windIsOn } from './wind'
 import type { GeometryParams } from './types'
 
 /** Human-readable list of the active pipeline steps, in pipeline order. */
 export function describePipeline(params: GeometryParams): string[] {
-  const { flatten, random, squaring, anchors, grid, distortion } = params
+  const { flatten, random, squaring, anchors, grid, distortion, experimental } = params
   const merge = flatten.mergeCurves
     ? `merged, break at ${flatten.breakAt === 'extrema' ? 'corners & extremes' : 'corners'}, ${flatten.cornerAngle}°${flatten.mergeLines ? ', through lines' : ''}`
     : null
@@ -25,6 +28,21 @@ export function describePipeline(params: GeometryParams): string[] {
     steps.push(
       `distortion ${distortion.amount} u, frequency ${distortion.frequency}, bias ${Math.round(distortion.normalBias * 100)}%, seed ${distortion.seed}`,
     )
+  }
+  if (noiseIsOn(experimental.noise)) {
+    steps.push(`noise ${Math.round(experimental.noise.amount * 100)}%, facets ${Math.round(experimental.noise.facet * 100)}% em, seed ${experimental.seed}`)
+  }
+  if (rippleIsOn(experimental.ripple)) {
+    const r = experimental.ripple
+    const pct = (v: number) => `${Math.round(v * 100)}%`
+    steps.push(
+      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}`,
+    )
+  }
+  if (windIsOn(experimental.wind)) {
+    const w = experimental.wind
+    const pct = (v: number) => `${Math.round(v * 100)}%`
+    steps.push(`wind ${pct(w.strength)} toward ${Math.round(w.direction)}°, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}, seed ${experimental.seed}`)
   }
   return steps
 }

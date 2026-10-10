@@ -41,7 +41,7 @@ const NEGLIGIBLE_AREA = 4
  * rounding step) and tried again. Every result must also sit against the glyph's other contours as
  * before: no contour moving into or out of another, and no new crossing between two contours except
  * where they already ran within two rounding steps of each other. A contour too small to show that
- * collapses is left out. Throws ExportError naming the glyph only when nothing works; `advice` (for example "Use a higher
+ * collapses is left out. Contours are rounded in order, and in the reverse order if that fails. Throws ExportError naming the glyph only when nothing works; `advice` (for example "Use a higher
  * precision.") is appended to that message. Output is y-up font units.
  */
 export function quantizePolygon(polygon: PolygonGlyph, decimals: number, label: string, advice = ''): Point[][] {
@@ -50,16 +50,37 @@ export function quantizePolygon(polygon: PolygonGlyph, decimals: number, label: 
   }
   const step = 10 ** -decimals
   const places = decimals === 0 ? 'whole units' : `${decimals} decimal place${decimals === 1 ? '' : 's'}`
+  for (const contour of polygon.contours) {
+    for (const p of contour.points) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new ExportError(`${label} has a non-finite coordinate.`)
+    }
+  }
+  // Contours are rounded one after another, each checked against the others as they stand, so the
+  // order matters: a repair of one contour can leave a neighbour no room to round. If the first order
+  // fails, the reverse order is tried before giving up.
+  const forward = polygon.contours.map((_, k) => k)
+  const first = roundInOrder(polygon, forward, decimals, step)
+  const result = Array.isArray(first) ? first : roundInOrder(polygon, forward.slice().reverse(), decimals, step)
+  if (Array.isArray(result)) return result.filter((c): c is Point[] => c !== null)
+  const what = { collapse: 'a contour collapses or flips', cross: 'a contour crosses itself', contours: 'a contour crosses another' }
+  const failure = Array.isArray(first) ? result : first
+  throw new ExportError(`${label}: ${what[failure]} when its points are rounded to ${places}.${advice ? ` ${advice}` : ''}`)
+}
+
+/** Rounds the contours in the given order; the rounded contours by index (null: left out), or why it failed. */
+function roundInOrder(
+  polygon: PolygonGlyph,
+  order: readonly number[],
+  decimals: number,
+  step: number,
+): (Point[] | null)[] | 'collapse' | 'cross' | 'contours' {
   // Contours as they stand: rounded once done, unrounded until then (null: left out). Each rounded
   // contour must sit against the others as the unrounded ones do.
   const unrounded = polygon.contours.map((c) => c.points)
   const current: (readonly Point[] | null)[] = unrounded.slice()
   const layout = new ContourLayout(unrounded)
-  for (let k = 0; k < polygon.contours.length; k++) {
+  for (const k of order) {
     const contour = polygon.contours[k]
-    for (const p of contour.points) {
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new ExportError(`${label} has a non-finite coordinate.`)
-    }
     const area = signedArea(contour.points)
     const direction = Math.sign(area)
     const original = new Original(contour.points)
@@ -78,12 +99,9 @@ export function quantizePolygon(polygon: PolygonGlyph, decimals: number, label: 
     }
     if (result) current[k] = result
     else if (failure === 'collapse' && Math.abs(area) < NEGLIGIBLE_AREA * step * step) current[k] = null
-    else {
-      const what = { collapse: 'a contour collapses or flips', cross: 'a contour crosses itself', contours: 'a contour crosses another' }
-      throw new ExportError(`${label}: ${what[failure]} when its points are rounded to ${places}.${advice ? ` ${advice}` : ''}`)
-    }
+    else return failure
   }
-  return current.filter((c): c is Point[] => c !== null)
+  return current as (Point[] | null)[]
 }
 
 /**

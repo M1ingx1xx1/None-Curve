@@ -1,4 +1,4 @@
-// Experimental: seeded random anchors. Pure functions in font units; no React, no DOM, no Math.random.
+// Seeded random anchors. Pure functions in font units; no React, no DOM, no Math.random.
 //
 // Instead of Flatten's regular sampling, anchors are placed at random arc-length positions on the
 // original curves, so every anchor lies exactly on the source outline. Randomness comes from an

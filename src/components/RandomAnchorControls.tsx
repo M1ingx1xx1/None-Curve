@@ -62,8 +62,7 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
   return (
     <fieldset className="group random-anchors" disabled={disabled}>
       <legend>
-        Random anchors <span className="tag-experimental">Experimental</span>{' '}
-        <HintButton hint={introHint} topic="Random anchors" />
+        Random anchors <HintButton hint={introHint} topic="Random anchors" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
