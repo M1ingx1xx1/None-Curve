@@ -170,7 +170,6 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
           <Icon name="reset" />
           Reset grid &amp; angles
         </button>
-        {pending && <p className="field-hint">Updating…</p>}
       </div>
     </fieldset>
   )
