@@ -2,13 +2,14 @@
 //
 // Instead of Flatten's regular sampling, anchors are placed at random arc-length positions on the
 // original curves, so every anchor lies exactly on the source outline. Randomness comes from an
-// integer hash of (seed, glyph index, contour index, attempt), so the same seed, glyph, and settings
-// always give the same polygon.
+// integer hash of (seed, the contour's outline, attempt), so the same seed and settings always give
+// the same polygon for the same outline, also in different glyphs that share it (Latin A, Greek Alpha).
 
+import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { hashInts } from './distortion'
-import { evaluate, flattenGlyph, signedArea } from './flatten'
-import type { FlattenParams, Point, PolygonContour, PolygonGlyph, RandomAnchorParams, SourceContour, SourceGlyph } from './types'
+import { evaluate, signedArea, type FlattenResult } from './flatten'
+import type { Point, PolygonContour, PolygonGlyph, RandomAnchorParams, SourceContour, SourceGlyph } from './types'
 
 export const RANDOM_ANCHOR_LIMITS = {
   minDensity: 1,
@@ -51,14 +52,19 @@ interface ArcTable {
   total: number
 }
 
+/**
+ * Replaces each contour of Flatten's result with random anchors on its source curves. A draw must keep
+ * the contour's direction, add no self-crossings, and sit against the glyph's other contours as
+ * Flatten's contour does (counters stay inside, separate parts apart); otherwise the next draw is
+ * tried, and after the last one the contour keeps Flatten's result.
+ */
 export function applyRandomAnchors(
   source: SourceGlyph,
-  flattened: PolygonGlyph,
+  flattened: FlattenResult,
   params: RandomAnchorParams,
-  flattenParams: FlattenParams,
 ): { polygon: PolygonGlyph; stats: RandomAnchorStats } {
   const stats: RandomAnchorStats = { applied: false, anchors: 0, corners: 0, redrawnContours: 0, fallbackContours: 0 }
-  if (!params.enabled) return { polygon: flattened, stats }
+  if (!params.enabled) return { polygon: flattened.polygon, stats }
 
   stats.applied = true
   const settings = {
@@ -68,42 +74,50 @@ export function applyRandomAnchors(
     seed: Math.trunc(finite(params.seed, 1)) | 0,
   }
 
-  const contours: PolygonContour[] = []
-  source.contours.forEach((contour, contourIndex) => {
-    const table = buildTable(contour)
-    // Flatten's result for this contour alone: the reference for validity and the fallback.
-    const fallback = lazy(() => flattenGlyph({ ...source, contours: [contour] }, flattenParams).polygon.contours[0] ?? null)
-    if (!table || table.total <= 0) {
-      const f = fallback()
-      if (f) contours.push(f)
-      return
-    }
-    const referenceArea = signedArea(table.s.map((_, k) => evaluate(table.pieces[table.piece[k]], table.t[k])))
-    const fallbackCrossings = lazy(() => {
-      const f = fallback()
-      return f ? countSelfCrossings(f.points) : 0
-    })
+  const base = flattened.polygon.contours
+  const current = base.map((c) => c.points)
+  const layout = new ContourLayout(current.slice())
+  const contours = base.map((contour, k): PolygonContour => {
+    const sourceContour = source.contours[flattened.sources[k]]
+    const table = buildTable(sourceContour)
+    if (!table || table.total <= 0) return contour
+    const crossings = lazy(() => countSelfCrossings(contour.points))
+    const area = signedArea(contour.points)
+    const outline = outlineHash(sourceContour)
 
     for (let attempt = 0; attempt < RANDOM_ANCHOR_LIMITS.attempts; attempt++) {
-      const random = mulberry32(hashInts(settings.seed, source.ref.index, contourIndex, attempt))
+      const random = mulberry32(hashInts(settings.seed, outline, attempt))
       const drawn = drawContour(table, settings, random)
-      if (isValid(drawn.points, referenceArea, fallbackCrossings)) {
+      if (isValid(drawn.points, area, crossings) && layout.keeps(current, k, drawn.points)) {
         if (attempt > 0) stats.redrawnContours++
         stats.anchors += drawn.points.length
         stats.corners += drawn.corners
-        contours.push({ points: drawn.points, clockwise: signedArea(drawn.points) < 0 })
-        return
+        current[k] = drawn.points
+        return { points: drawn.points, clockwise: signedArea(drawn.points) < 0 }
       }
     }
     stats.fallbackContours++
-    const f = fallback()
-    if (f) {
-      stats.anchors += f.points.length
-      contours.push(f)
-    }
+    stats.anchors += contour.points.length
+    return contour
   })
 
-  return { polygon: { ...flattened, contours }, stats }
+  return { polygon: { ...flattened.polygon, contours }, stats }
+}
+
+/** Hash of a contour's coordinates: the same outline gets the same draws in every glyph. */
+function outlineHash(contour: SourceContour): number {
+  // Coordinates in 1/64 font units, so outlines equal up to float noise hash alike.
+  let h = hashInts(Math.round(contour.start.x * 64), Math.round(contour.start.y * 64))
+  for (const segment of contour.segments) {
+    const points =
+      segment.type === 'line'
+        ? [segment.to]
+        : segment.type === 'quad'
+          ? [segment.control, segment.to]
+          : [segment.control1, segment.control2, segment.to]
+    for (const p of points) h = hashInts(h, Math.round(p.x * 64), Math.round(p.y * 64))
+  }
+  return h
 }
 
 // ---- Sampling ----

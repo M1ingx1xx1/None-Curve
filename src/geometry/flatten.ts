@@ -1,9 +1,13 @@
 // Curve flattening (linearization). Pure functions in font units; no React, no DOM.
 //
 // Every call rebuilds the polygon from the original curves, so repeated parameter changes never
-// accumulate error, and the source glyph is never modified.
+// accumulate error, and the source glyph is never modified. The result is checked against a much
+// finer flattening that stands in for the source curves: where an edge cuts across a stroke thinner
+// than the tolerance, so the outline crosses itself or another contour, the curves involved are
+// flattened again more finely.
 
-import { addsCrossings, countSelfCrossings } from './crossings'
+import { ContourLayout } from './contourLayout'
+import { addsCrossings, countSelfCrossings, findRingCrossings, findSelfCrossings, lazy } from './crossings'
 import { buildCurveRuns, sampleRun, simplifyRun } from './curveRuns'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
@@ -17,7 +21,17 @@ export const FLATTEN_LIMITS = {
   maxDepth: 12,
   /** Sub-curves whose control polygon is shorter than this (font units) are not split further. */
   minLength: 0.01,
+  /**
+   * Rounds of finer flattening for curves whose edges cross the outline where the source does not;
+   * each round divides their tolerance by 4 (adaptive) or doubles their edges (fixed).
+   */
+  maxRefinements: 6,
 } as const
+
+/** Tolerance of the reference flattening that stands in for the source curves, per unit of em size. */
+const REFERENCE_TOLERANCE_PER_EM = 1 / 5000
+/** Contours with less area than this (square font units) enclose nothing and are left out. */
+const MIN_AREA = 1e-6
 
 export interface FlattenStats {
   /** Quadratic and cubic segments in the source. */
@@ -36,12 +50,18 @@ export interface FlattenStats {
   maxDeviation: number
   /** Curves where adaptive subdivision stopped at the depth or length limit before meeting tolerance. */
   limitedCurves: number
-  /** Source contours with fewer than three distinct points; they enclose no area and are omitted. */
+  /** Curves flattened more finely than asked, so the outline does not cross itself or another contour. */
+  refinedCurves: number
+  /** Contours that still cross themselves or another contour at the finest flattening tried. */
+  unresolvedContours: number
+  /** Source contours with fewer than three distinct points or no area; they enclose nothing and are omitted. */
   droppedContours: number
 }
 
 export interface FlattenResult {
   polygon: PolygonGlyph
+  /** The source contour each polygon contour comes from (dropped contours are skipped). */
+  sources: number[]
   stats: FlattenStats
 }
 
@@ -54,6 +74,20 @@ export class GeometryError extends Error {
 
 type Bezier = readonly Point[] // 3 points (quadratic) or 4 points (cubic)
 
+/** What flattening a curve measures: the largest deviation, and curves that hit the subdivision limit. */
+type Measure = Pick<FlattenStats, 'maxDeviation' | 'limitedCurves'>
+
+/** One contour flattened without merging, with the source segment behind every edge. */
+interface Flattened extends Measure {
+  points: Point[]
+  /** owners[i]: the source segment that produced points[i] (-1 for the start point). */
+  owners: number[]
+  /** The source segment that produced the closing edge, or -1 when the contour closes with an implied line. */
+  closingOwner: number
+  curves: number
+  lines: number
+}
+
 export function flattenGlyph(source: SourceGlyph, params: FlattenParams): FlattenResult {
   const stats: FlattenStats = {
     curveCount: 0,
@@ -63,26 +97,138 @@ export function flattenGlyph(source: SourceGlyph, params: FlattenParams): Flatte
     vertexCount: 0,
     maxDeviation: 0,
     limitedCurves: 0,
+    refinedCurves: 0,
+    unresolvedContours: 0,
     droppedContours: 0,
   }
   const settings = normalizeParams(params)
-  const contours: PolygonContour[] = []
+  const sourceContours = source.contours
+  // Refinement level of every source segment; each level flattens that curve more finely.
+  const levels = sourceContours.map((c) => new Uint8Array(c.segments.length))
+  const runs = sourceContours.map((c, i) => flattenPlain(c, settings, levels[i]))
 
-  for (const contour of source.contours) {
-    const points = flattenContour(contour, settings, stats)
-    if (points.length < 3) {
-      stats.droppedContours++
-      continue
+  const reference = lazy(() => {
+    const tolerance = Math.max(FLATTEN_LIMITS.minTolerance, source.metrics.unitsPerEm * REFERENCE_TOLERANCE_PER_EM)
+    return sourceContours.map((c) => flattenPlain(c, { ...settings, mode: 'adaptive', tolerance }, null).points)
+  })
+  const layout = lazy(() => new ContourLayout(reference()))
+  const referenceCrossings = sourceContours.map((_, i) => lazy(() => countSelfCrossings(reference()[i])))
+  // A contour without area in the source is dropped; one that only lost its area to coarse flattening is refined.
+  const isEmpty = sourceContours.map((_, i) => lazy(() => !enclosesArea(reference()[i])))
+
+  for (let round = 0; ; round++) {
+    const damage = findDamage(runs, layout, referenceCrossings, isEmpty)
+    stats.unresolvedContours = damage.size
+    if (damage.size === 0 || round === FLATTEN_LIMITS.maxRefinements) break
+    let refined = false
+    for (const [i, segments] of damage) {
+      const contour = sourceContours[i]
+      let changed = false
+      for (const s of segments === 'all' ? contour.segments.keys() : segments) {
+        if (contour.segments[s].type !== 'line' && levels[i][s] < FLATTEN_LIMITS.maxRefinements) {
+          levels[i][s]++
+          changed = true
+        }
+      }
+      if (changed) runs[i] = flattenPlain(contour, settings, levels[i])
+      refined ||= changed
     }
-    contours.push({ points, clockwise: signedArea(points) < 0 })
-    stats.vertexCount += points.length
+    if (!refined) break
   }
 
+  const kept = runs.flatMap((run, i) => (enclosesArea(run.points) ? [i] : []))
+  stats.droppedContours = sourceContours.length - kept.length
+  // Contours as they stand, by source index (null: dropped); merged contours replace them one by one.
+  const current: (Point[] | null)[] = runs.map((run, i) => (kept.includes(i) ? run.points : null))
+  if (settings.mergeCurves) stats.mergedCurveCount = 0
+  for (const i of kept) {
+    const run = runs[i]
+    stats.refinedCurves += levels[i].reduce((n, level) => n + (level > 0 ? 1 : 0), 0)
+    stats.curveCount += run.curves
+    stats.lineCount += run.lines
+    if (settings.mergeCurves) {
+      // Merging is coarse by design; a merged contour that collapses, flips, crosses itself, or
+      // disturbs another contour falls back to the unmerged result (same mode).
+      const merged = flattenMerged(sourceContours[i], settings)
+      if (isValidMerge(merged.points, run.points, referenceCrossings[i]) && layout().keeps(current, i, merged.points)) {
+        current[i] = merged.points
+        stats.mergedCurveCount! += merged.runs
+        stats.maxDeviation = Math.max(stats.maxDeviation, merged.deviation)
+        continue
+      }
+      stats.mergeFallbacks++
+      stats.mergedCurveCount! += run.curves
+    }
+    stats.maxDeviation = Math.max(stats.maxDeviation, run.maxDeviation)
+    stats.limitedCurves += run.limitedCurves
+  }
+
+  const contours: PolygonContour[] = kept.map((i) => {
+    const points = current[i]!
+    stats.vertexCount += points.length
+    return { points, clockwise: signedArea(points) < 0 }
+  })
   return {
     polygon: { ref: source.ref, metrics: { ...source.metrics }, contours },
+    sources: kept,
     stats,
   }
 }
+
+/**
+ * Contours whose flattening damaged the outline, with the source segments to flatten more finely
+ * ('all' when no particular edge is to blame): crossings the source does not have, within a contour or
+ * between two, a contour that moved into or out of another, and contours that lost all their area.
+ */
+function findDamage(
+  runs: readonly Flattened[],
+  layout: () => ContourLayout,
+  referenceCrossings: readonly (() => number)[],
+  isEmpty: readonly (() => boolean)[],
+): Map<number, Set<number> | 'all'> {
+  const damage = new Map<number, Set<number> | 'all'>()
+  const blame = (i: number, edge: number) => {
+    const run = runs[i]
+    const owner = edge + 1 < run.points.length ? run.owners[edge + 1] : run.closingOwner
+    const segments = damage.get(i) ?? new Set<number>()
+    if (segments === 'all') return
+    if (owner >= 0) segments.add(owner)
+    damage.set(i, segments)
+  }
+  const live: number[] = []
+  runs.forEach((run, i) => {
+    if (!enclosesArea(run.points)) {
+      if (!isEmpty[i]()) damage.set(i, 'all')
+      return
+    }
+    live.push(i)
+    if (addsCrossings(run.points, referenceCrossings[i])) {
+      for (const c of findSelfCrossings(run.points)) {
+        blame(i, c.i)
+        blame(i, c.j)
+      }
+    }
+  })
+  for (let a = 0; a < live.length; a++) {
+    for (let b = a + 1; b < live.length; b++) {
+      const i = live[a]
+      const j = live[b]
+      if (layout().pairKept(i, j, runs[i].points, runs[j].points)) continue
+      const found = findRingCrossings(runs[i].points, runs[j].points)
+      if (found.length === 0) {
+        damage.set(i, 'all')
+        damage.set(j, 'all')
+      }
+      for (const c of found) {
+        blame(i, c.i)
+        blame(j, c.j)
+      }
+    }
+  }
+  return damage
+}
+
+const enclosesArea = (points: readonly Point[]) => points.length >= 3 && Math.abs(signedArea(points)) >= MIN_AREA
 
 function normalizeParams(params: FlattenParams): FlattenParams {
   const { minTolerance, maxTolerance, minSegments, maxSegments } = FLATTEN_LIMITS
@@ -100,86 +246,75 @@ function normalizeParams(params: FlattenParams): FlattenParams {
   }
 }
 
-function flattenContour(contour: SourceContour, params: FlattenParams, stats: FlattenStats): Point[] {
-  const out: Point[] = []
+/** Collects a contour's points, skipping repeats; non-finite coordinates are an error. */
+function collector() {
+  const points: Point[] = []
   const push = (p: Point) => {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
       throw new GeometryError('The glyph contains a non-finite coordinate.')
     }
-    const last = out[out.length - 1]
-    if (!last || last.x !== p.x || last.y !== p.y) out.push({ x: p.x, y: p.y })
-  }
-
-  push(contour.start)
-
-  if (params.mergeCurves) {
-    const merged = flattenMerged(contour, params, push)
-    const points = closeOut(out)
-    // Merging is coarse by design; reject results that collapse, flip, or add self-crossings and
-    // fall back to the unmerged result (same mode) for this contour.
-    const unmergedStats = emptyStats()
-    const unmerged = flattenContour(contour, { ...params, mergeCurves: false }, unmergedStats)
-    stats.mergedCurveCount ??= 0
-    if (isValidMerge(points, unmerged)) {
-      stats.curveCount += merged.curves
-      stats.lineCount += merged.lines
-      stats.mergedCurveCount += merged.runs
-      stats.maxDeviation = Math.max(stats.maxDeviation, merged.deviation)
-      return points
+    const last = points[points.length - 1]
+    if (!last || last.x !== p.x || last.y !== p.y) {
+      points.push({ x: p.x, y: p.y })
+      return true
     }
-    stats.mergeFallbacks++
-    stats.curveCount += unmergedStats.curveCount
-    stats.lineCount += unmergedStats.lineCount
-    stats.mergedCurveCount += unmergedStats.curveCount
-    stats.maxDeviation = Math.max(stats.maxDeviation, unmergedStats.maxDeviation)
-    return unmerged
+    return false
   }
-
-  let prev = contour.start
-  for (const seg of contour.segments) {
-    if (seg.type === 'line') {
-      stats.lineCount++
-      push(seg.to)
-    } else {
-      stats.curveCount++
-      const curve: Bezier =
-        seg.type === 'quad' ? [prev, seg.control, seg.to] : [prev, seg.control1, seg.control2, seg.to]
-      if (params.mode === 'segments') flattenFixed(curve, params.segmentsPerCurve, push, stats)
-      else flattenAdaptive(curve, params.tolerance, push, stats)
-    }
-    prev = seg.to
-  }
-
-  return closeOut(out)
+  return { points, push }
 }
 
-function emptyStats(): FlattenStats {
-  return {
-    curveCount: 0,
-    mergedCurveCount: null,
-    mergeFallbacks: 0,
-    lineCount: 0,
-    vertexCount: 0,
-    maxDeviation: 0,
-    limitedCurves: 0,
-    droppedContours: 0,
+/**
+ * Flattens every curve of the contour on its own. `levels` refines single curves: each level divides
+ * the tolerance by 4 (adaptive) or doubles the edges (fixed).
+ */
+function flattenPlain(contour: SourceContour, params: FlattenParams, levels: Uint8Array | null): Flattened {
+  const { points, push } = collector()
+  const owners: number[] = []
+  let owner = -1
+  const add = (p: Point) => {
+    if (push(p)) owners.push(owner)
   }
+  const result: Flattened = { points, owners, closingOwner: -1, curves: 0, lines: 0, maxDeviation: 0, limitedCurves: 0 }
+
+  add(contour.start)
+  let prev = contour.start
+  contour.segments.forEach((seg, s) => {
+    owner = s
+    if (seg.type === 'line') {
+      result.lines++
+      add(seg.to)
+    } else {
+      result.curves++
+      const level = levels?.[s] ?? 0
+      const curve: Bezier =
+        seg.type === 'quad' ? [prev, seg.control, seg.to] : [prev, seg.control1, seg.control2, seg.to]
+      if (params.mode === 'segments') {
+        flattenFixed(curve, Math.min(FLATTEN_LIMITS.maxSegments, params.segmentsPerCurve * 2 ** level), add, result)
+      } else {
+        flattenAdaptive(curve, Math.max(FLATTEN_LIMITS.minTolerance, params.tolerance / 4 ** level), add, result)
+      }
+    }
+    prev = seg.to
+  })
+
+  // The polygon is closed implicitly; drop an explicit closing point that repeats the start.
+  if (closeOut(points)) result.closingOwner = owners.pop()!
+  return result
 }
 
 /** Minimum edges for a merged curve that runs all the way around a smooth, corner-free contour. */
 const MIN_LOOP_EDGES = 3
 
-function flattenMerged(contour: SourceContour, params: FlattenParams, push: (p: Point) => void) {
+function flattenMerged(contour: SourceContour, params: FlattenParams) {
+  const { points, push } = collector()
+  push(contour.start)
   const items = buildCurveRuns(contour, params.breakAt, params.cornerAngle, params.mergeLines)
   const loop = items.length === 1 && items[0].kind === 'run'
-  const result = { curves: 0, lines: 0, runs: 0, deviation: 0 }
+  const result = { points, runs: 0, deviation: 0 }
   for (const item of items) {
     if (item.kind === 'line') {
-      result.lines++
       push(item.to)
     } else {
-      result.curves += item.sourceCurves
-      result.lines += item.sourceLines
       result.runs++
       const minEdges = loop ? MIN_LOOP_EDGES : 1
       const deviation =
@@ -189,29 +324,32 @@ function flattenMerged(contour: SourceContour, params: FlattenParams, push: (p: 
       result.deviation = Math.max(result.deviation, deviation)
     }
   }
+  closeOut(points)
   return result
 }
 
-function isValidMerge(points: Point[], unmerged: Point[]): boolean {
-  if (points.length < 3 || unmerged.length < 3) return points.length >= 3 || unmerged.length < 3
-  const area = signedArea(points)
-  if (Math.abs(area) < 1e-6 || Math.sign(area) !== Math.sign(signedArea(unmerged))) return false
-  return !addsCrossings(points, () => countSelfCrossings(unmerged))
+function isValidMerge(points: Point[], unmerged: Point[], referenceCrossings: () => number): boolean {
+  if (!enclosesArea(points)) return false
+  if (Math.sign(signedArea(points)) !== Math.sign(signedArea(unmerged))) return false
+  return !addsCrossings(points, referenceCrossings)
 }
 
-/** The polygon is closed implicitly; drop an explicit closing point that repeats the start. */
-function closeOut(out: Point[]): Point[] {
+/** Drops an explicit closing point that repeats the start; true when one was dropped. */
+function closeOut(out: Point[]): boolean {
   if (out.length > 1) {
     const first = out[0]
     const last = out[out.length - 1]
-    if (first.x === last.x && first.y === last.y) out.pop()
+    if (first.x === last.x && first.y === last.y) {
+      out.pop()
+      return true
+    }
   }
-  return out
+  return false
 }
 
 // ---- Fixed mode: N edges per curve, sampled at t = i / N ----
 
-function flattenFixed(curve: Bezier, n: number, push: (p: Point) => void, stats: FlattenStats) {
+function flattenFixed(curve: Bezier, n: number, push: (p: Point) => void, stats: Measure) {
   let prev = curve[0]
   for (let i = 1; i <= n; i++) {
     const p = evaluate(curve, i / n)
@@ -235,7 +373,7 @@ export function flatnessBound(curve: Bezier): number {
   return (3 / 4) * Math.max(distanceToLine(curve[1], a, b), distanceToLine(curve[2], a, b))
 }
 
-function flattenAdaptive(curve: Bezier, tolerance: number, push: (p: Point) => void, stats: FlattenStats) {
+function flattenAdaptive(curve: Bezier, tolerance: number, push: (p: Point) => void, stats: Measure) {
   let limited = false
 
   const recurse = (part: Bezier, t0: number, t1: number, depth: number) => {
@@ -315,7 +453,7 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
 }
 
-function recordDeviation(curve: Bezier, t: number, a: Point, b: Point, stats: FlattenStats) {
+function recordDeviation(curve: Bezier, t: number, a: Point, b: Point, stats: Measure) {
   const d = distanceToSegment(evaluate(curve, t), a, b)
   if (d > stats.maxDeviation) stats.maxDeviation = d
 }

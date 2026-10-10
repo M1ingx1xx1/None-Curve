@@ -28,7 +28,9 @@ const reasonText: Record<FallbackReason, string> = {
   collapsed: 'collapsed to fewer than three points or zero area',
   flipped: 'reversed its direction',
   crossings: 'would add self-crossings',
+  contours: 'would move across another contour',
   unsolvable: 'has no closed shape with the allowed directions',
+  moved: 'would change its shape too much',
 }
 
 function allowedAngles(step: number): string {
@@ -143,14 +145,15 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
           <HintText hint={angleHint}>
             Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal; an
             exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their length,
-            so the contour closes again. The start vertex stays fixed.
+            so the contour closes again, and it is fitted back to its original size and place. Where that would change
+            the letter too much, its edges become fine stair steps instead.
           </HintText>
         </div>
         {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
         {simplifiedAngle > 0 && (
           <p className="field-hint">
             {simplifiedAngle} contour{simplifiedAngle === 1 ? ' needed' : 's needed'} a coarser outline or stair steps
-            to lock their angles without crossing.
+            to lock their angles without crossing or changing the letter too much.
           </p>
         )}
         {angleFallback && (

@@ -152,7 +152,7 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
         {stats && stats.reductionFallbacks > 0 && (
           <p className="font-warning">
             {stats.reductionFallbacks} contour{stats.reductionFallbacks === 1 ? '' : 's'} could not be reduced safely (the
-            result collapsed, flipped direction, or added self-crossings) and {stats.reductionFallbacks === 1 ? 'keeps' : 'keep'}{' '}
+            result collapsed, flipped direction, crossed itself, or moved across another contour) and {stats.reductionFallbacks === 1 ? 'keeps' : 'keep'}{' '}
             {stats.reductionFallbacks === 1 ? 'its' : 'their'} unreduced points.
           </p>
         )}
