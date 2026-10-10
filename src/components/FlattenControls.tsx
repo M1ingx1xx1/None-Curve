@@ -286,9 +286,21 @@ export default function FlattenControls({
         {stats && stats.mergeFallbacks > 0 && (
           <p className="font-warning">
             {stats.mergeFallbacks} contour{stats.mergeFallbacks === 1 ? '' : 's'} would collapse, flip, or cross
-            {stats.mergeFallbacks === 1 ? ' itself' : ' themselves'} when merged, so{' '}
+            {stats.mergeFallbacks === 1 ? ' itself' : ' themselves'} or another contour when merged, so{' '}
             {stats.mergeFallbacks === 1 ? 'it uses' : 'they use'} the unmerged result. Try breaking at extrema or adding
             segments.
+          </p>
+        )}
+        {stats && stats.refinedCurves > 0 && (
+          <p className="field-hint">
+            {stats.refinedCurves} curve{stats.refinedCurves === 1 ? ' is' : 's are'} flattened more finely than set, so
+            the outline does not cross itself or another contour.
+          </p>
+        )}
+        {stats && stats.unresolvedContours > 0 && (
+          <p className="font-warning">
+            {stats.unresolvedContours} contour{stats.unresolvedContours === 1 ? ' still crosses' : 's still cross'} where
+            the original does not, even at the finest flattening tried.
           </p>
         )}
         {stats && stats.limitedCurves > 0 && (
@@ -299,8 +311,8 @@ export default function FlattenControls({
         )}
         {stats && stats.droppedContours > 0 && (
           <p className="font-warning">
-            {stats.droppedContours} contour{stats.droppedContours === 1 ? '' : 's'} collapsed to fewer than three points
-            and {stats.droppedContours === 1 ? 'is' : 'are'} omitted.
+            {stats.droppedContours} contour{stats.droppedContours === 1 ? ' has' : 's have'} no area (fewer than three
+            points, or all in a line) and {stats.droppedContours === 1 ? 'is' : 'are'} omitted.
           </p>
         )}
       </div>

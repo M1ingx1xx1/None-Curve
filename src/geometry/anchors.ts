@@ -1,6 +1,7 @@
 // Anchor control on flattened polygons: spacing (subdivide edges) and reduction (RDP simplification).
 // Pure functions in font units; no React, no DOM. Inputs are never modified.
 
+import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings } from './crossings'
 import { signedArea } from './flatten'
 import type { AnchorParams, Point, PolygonContour, PolygonGlyph } from './types'
@@ -25,7 +26,10 @@ export interface AnchorStats {
   reductionApplied: boolean
   /** Largest distance from a removed vertex to the simplified outline (font units). */
   reductionMaxDeviation: number
-  /** Contours whose simplified version was invalid and was replaced by the unsimplified contour. */
+  /**
+   * Contours whose simplified version was invalid (collapsed, flipped, crossed itself, or moved across
+   * another contour) and was replaced by the unsimplified contour.
+   */
   reductionFallbacks: number
   /**
    * Contours that already cross themselves in the font. Reduction may keep, but not add, crossings
@@ -65,6 +69,9 @@ export function applyAnchorControls(polygon: PolygonGlyph, params: AnchorParams)
 
   const tolerance = Number.isFinite(params.simplify) ? params.simplify : 0
   if (tolerance > 0) {
+    // Simplified contours must also sit against the other contours as before (counters stay inside).
+    const current = contours.map((c) => c.points)
+    const layout = new ContourLayout(current.slice())
     contours = contours.map((c, i) => {
       // Spacing only adds points on existing edges, so the flattened contour has the same crossings
       // and is cheaper to check.
@@ -74,11 +81,12 @@ export function applyAnchorControls(polygon: PolygonGlyph, params: AnchorParams)
         return count
       }
       const result = simplifyClosed(c.points, tolerance, baseline)
-      if (!result.valid) {
+      if (!result.valid || !layout.keeps(current, i, result.points)) {
         stats.reductionFallbacks++
         return c
       }
       stats.reductionMaxDeviation = Math.max(stats.reductionMaxDeviation, result.maxDeviation)
+      current[i] = result.points
       return withPoints(c, result.points)
     })
     stats.reductionApplied = true

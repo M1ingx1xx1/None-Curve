@@ -9,6 +9,7 @@
 // the side midpoints — where every point already touches its box — is unchanged. Amount blends
 // linearly between the original and the rectangle.
 
+import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { signedArea } from './flatten'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
@@ -38,8 +39,11 @@ export interface SquaringStats {
   /** Contours squared less than asked because the full amount would make them invalid. */
   reduced: number
   /** Contours that kept their previous points because even a small amount was invalid. */
-  fallbacks: { reason: 'collapsed' | 'flipped' | 'crossings' }[]
+  fallbacks: { reason: SquaringFailure }[]
 }
+
+/** Why squaring a contour was invalid; 'contours': it would cross another contour, or leave or enter one. */
+export type SquaringFailure = 'collapsed' | 'flipped' | 'crossings' | 'contours'
 
 /** Bisection steps when searching for the largest valid amount, and the smallest share worth using. */
 const REDUCE_STEPS = 8
@@ -56,7 +60,9 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
   if (amount === 0) return { polygon, stats }
   stats.applied = true
 
-  const contours = polygon.contours.map((contour): PolygonContour => {
+  const current = polygon.contours.map((c) => c.points)
+  const layout = new ContourLayout(current.slice())
+  const contours = polygon.contours.map((contour, index): PolygonContour => {
     const box = boundingBox(contour.points)
     if (!box || contour.points.length < 3) return contour
     const weight = params.scope === 'all' ? 1 : roundnessWeight(contour.points, box)
@@ -67,7 +73,8 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
     const k = amount * weight
     // The contour's own crossings, counted once for all the checks below.
     const crossings = lazy(() => countSelfCrossings(contour.points))
-    const check = (after: readonly Point[]) => validate(contour.points, after, crossings)
+    const check = (after: readonly Point[]) =>
+      validate(contour.points, after, crossings) ?? (layout.keeps(current, index, after) ? null : 'contours')
     let points = squareContour(contour.points, box, k)
     const reason = check(points)
     if (reason) {
@@ -94,6 +101,7 @@ export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { 
       points = check(safer) ? best : safer
     } else if (weight >= 0.999) stats.squared++
     else stats.partial++
+    current[index] = points
     return { points, clockwise: signedArea(points) < 0 }
   })
 
@@ -179,11 +187,7 @@ function squareContour(points: readonly Point[], box: Box, k: number): Point[] {
   return out
 }
 
-function validate(
-  before: readonly Point[],
-  after: readonly Point[],
-  beforeCrossings: () => number,
-): 'collapsed' | 'flipped' | 'crossings' | null {
+function validate(before: readonly Point[], after: readonly Point[], beforeCrossings: () => number): SquaringFailure | null {
   if (after.length < 3) return 'collapsed'
   for (let i = 0; i < after.length; i++) {
     const a = after[i]
