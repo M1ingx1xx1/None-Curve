@@ -5,8 +5,11 @@
 //   1. Request the official CSS2 stylesheet (fonts.googleapis.com/css2, no API key) for every
 //      weight/style. The API returns only the styles that exist, plus one @font-face per subset.
 //   2. Pick the face for the chosen weight, style, and subset, and download its file from
-//      fonts.gstatic.com (WOFF2 in modern browsers).
-//   3. Parse the bytes with the same parser as local files.
+//      fonts.gstatic.com (WOFF2 in modern browsers). A variable family serves one file for every
+//      weight; asked for a single weight, Google serves a static file made for that weight instead,
+//      so the chosen weight is requested on its own.
+//   3. Parse the bytes with the same parser as local files (which applies the weight itself if the
+//      file is still variable).
 //
 // The full, searchable catalog requires the Google Fonts Developer API and an API key, which cannot be
 // kept secret in a static GitHub Pages build. A curated list plus free-text family names is used instead.
@@ -52,7 +55,7 @@ export interface GoogleFamilyInfo {
   faces: GoogleFace[]
   weights: Record<FontStyle, number[]>
   subsets: string[]
-  /** True when several weights are served from one file, i.e. a variable font. */
+  /** True when several weights are served from one file, i.e. a variable font. Every weight can still be loaded. */
   variable: boolean
 }
 
@@ -66,9 +69,9 @@ export interface GoogleFontRequest {
 const CSS2_ENDPOINT = 'https://fonts.googleapis.com/css2'
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900]
 
-export function css2Url(family: string): string {
-  const styles = [0, 1].flatMap((ital) => WEIGHTS.map((w) => `${ital},${w}`)).join(';')
-  return `${CSS2_ENDPOINT}?family=${encodeURIComponent(family).replace(/%20/g, '+')}:ital,wght@${styles}`
+/** CSS2 URL for these styles of a family (every weight, upright and italic, by default). */
+export function css2Url(family: string, styles = [0, 1].flatMap((ital) => WEIGHTS.map((w) => `${ital},${w}`))): string {
+  return `${CSS2_ENDPOINT}?family=${encodeURIComponent(family).replace(/%20/g, '+')}:ital,wght@${styles.join(';')}`
 }
 
 const familyCache = new Map<string, GoogleFamilyInfo>()
@@ -165,13 +168,27 @@ export function defaultWeight(weights: number[]): number {
   return weights.reduce((best, w) => (Math.abs(w - 400) < Math.abs(best - 400) ? w : best), weights[0])
 }
 
+/**
+ * The faces Google serves when asked for one weight and style only: static files made for that weight,
+ * when Google can make them. On failure the variable file is used and weighted on load.
+ */
+async function fetchStaticFace(request: GoogleFontRequest, signal: AbortSignal): Promise<GoogleFace[]> {
+  try {
+    const response = await fetch(css2Url(request.family, [`${request.italic ? 1 : 0},${request.weight}`]), { signal })
+    return response.ok ? parseFontFaces(await response.text()) : []
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    return []
+  }
+}
+
 /** Downloads the font binary for one face and parses it into the shared font model. */
 export async function loadGoogleFont(request: GoogleFontRequest, signal: AbortSignal): Promise<LoadedFont> {
   const info = await fetchGoogleFamily(request.family, signal)
   const style: FontStyle = request.italic ? 'italic' : 'normal'
-  const face = info.faces.find(
-    (f) => f.style === style && f.weight === request.weight && f.subset === request.subset,
-  )
+  const matches = (f: GoogleFace) => f.style === style && f.weight === request.weight && f.subset === request.subset
+  let face = info.faces.find(matches)
+  if (face && info.variable) face = (await fetchStaticFace(request, signal)).find(matches) ?? face
   if (!face) {
     throw new FontLoadError(
       'api',

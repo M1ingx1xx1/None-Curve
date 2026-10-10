@@ -49,7 +49,7 @@ function checksum(data: Uint8Array): number {
   return sum
 }
 
-function writeTables(flavor: number, tables: Map<string, Uint8Array>): ArrayBuffer {
+export function writeTables(flavor: number, tables: Map<string, Uint8Array>): ArrayBuffer {
   const tags = [...tables.keys()].sort()
   const count = tags.length
   const maxPower = 2 ** Math.floor(Math.log2(count))

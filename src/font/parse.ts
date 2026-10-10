@@ -6,6 +6,7 @@ import type { GlyphRef, Point, SourceContour, SourceGlyph } from '../geometry/ty
 import { FontLoadError } from './errors'
 import type { FontFormat, FontInfo, FontMetrics, FontNameKey, FontSource, LoadedFont, VariationAxis } from './model'
 import { sniffFontFormat } from './sniff'
+import { woff2ToTrueType } from './woff2'
 
 let loadId = 0
 
@@ -34,10 +35,58 @@ export async function parseFont(bytes: Uint8Array, source: FontSource, signal: A
 
   if (!font.numGlyphs) throw new FontLoadError('no-glyphs', 'The font contains no glyphs.')
 
-  return buildLoadedFont(font, format, source, bytes)
+  // A Google font loaded at a weight is normally a static file Google made for that weight; when it is
+  // still the variable file, the weight is applied here (the geometry worker does the same).
+  const weight = source.kind === 'google' ? source.weight : null
+  const axis = font.variationAxes?.wght
+  if (weight !== null && axis && weight !== axis.default) {
+    const value = Math.min(axis.max, Math.max(axis.min, weight))
+    const instance = instanceAt(fontkit, font, bytes, { wght: value })
+    if (instance) return buildLoadedFont(instance, format, source, bytes, { wght: value })
+  }
+  return buildLoadedFont(font, format, source, bytes, null)
 }
 
-function buildLoadedFont(font: Font, format: FontFormat, source: FontSource, bytes: Uint8Array): LoadedFont {
+/**
+ * The font with these axis values applied, or null if fontkit cannot apply them. fontkit can only vary
+ * TrueType files, so a WOFF2 file is first rebuilt as TrueType.
+ */
+function instanceAt(fontkit: typeof import('fontkit'), font: Font, bytes: Uint8Array, settings: Record<string, number>): Font | null {
+  try {
+    let base = font
+    if (font.type === 'WOFF2') {
+      const trueType = woff2ToTrueType(fontkit.create(bytes as unknown as Buffer))
+      if (!trueType) return null
+      base = fontkit.create(trueType as unknown as Buffer) as Font
+    }
+    const instance = base.getVariation(settings)
+    void instance.getGlyph(0).path // fails here, not later, if the variation data cannot be read
+    return instance
+  } catch {
+    return null
+  }
+}
+
+const WEIGHT_NAMES: Record<number, string> = {
+  100: 'Thin',
+  200: 'ExtraLight',
+  300: 'Light',
+  400: 'Regular',
+  500: 'Medium',
+  600: 'SemiBold',
+  700: 'Bold',
+  800: 'ExtraBold',
+  900: 'Black',
+}
+
+function buildLoadedFont(
+  colourFont: Font,
+  format: FontFormat,
+  source: FontSource,
+  bytes: Uint8Array,
+  instance: Record<string, number> | null,
+): LoadedFont {
+  const font = useOutlineGlyphs(colourFont)
   const metrics: FontMetrics = {
     unitsPerEm: font.unitsPerEm,
     ascender: font.ascent,
@@ -87,15 +136,32 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource, byt
     unicode: firstCodePoint.get(index) ?? null,
   })
 
+  // An instance made here still carries the variable file's default style name and weight class.
+  const italic = source.kind === 'google' && source.italic
+  // Named from the weight when this app applied it, or when a Google file at another weight than
+  // 400 still calls itself Regular (Playwrite at 300).
+  const weight = instance?.wght ?? (source.kind === 'google' && source.weight !== 400 ? source.weight : null)
+  const ownName = typographicName(font, 'preferredSubfamily') || font.subfamilyName || 'Regular'
+  const styleName =
+    weight !== null && (instance || ownName === 'Regular' || ownName === 'Italic')
+      ? `${WEIGHT_NAMES[Math.round(weight / 100) * 100] ?? `W${weight}`}${italic ? ' Italic' : ''}`.replace('Regular Italic', 'Italic')
+      : ownName
+  const info = readFontInfo(font)
+  if (instance) {
+    if (info.os2) info.os2.weightClass = Math.round(instance.wght)
+    info.macStyle = instance.wght >= 700 ? info.macStyle | 1 : info.macStyle & ~1
+  }
+
   return {
     id: `font-${++loadId}`,
     source,
     format,
     bytes,
-    familyName: font.familyName || 'Untitled',
-    styleName: font.subfamilyName || 'Regular',
+    familyName: typographicName(font, 'preferredFamily') || font.familyName || 'Untitled',
+    styleName,
     metrics,
-    info: readFontInfo(font),
+    info,
+    instance,
     glyphCount: font.numGlyphs,
     characters,
     listAllGlyphs,
@@ -103,8 +169,21 @@ function buildLoadedFont(font: Font, format: FontFormat, source: FontSource, byt
     hasCharacter: (cp) => mappedCodePoints.has(cp),
     hasKerning: safeFeatures(font).includes('kern') || hasTable(font, 'kern'),
     shapeLine(text) {
-      const run = font.layout(text, NO_LIGATURES)
       const chars = [...text]
+      let run: ReturnType<Font['layout']>
+      try {
+        run = font.layout(text, NO_LIGATURES)
+      } catch {
+        // Some fonts have layout tables fontkit cannot read (Iosevka Charon): set the text one glyph
+        // per character with the plain advance widths, without kerning.
+        return chars.map((char) => {
+          const cp = char.codePointAt(0)!
+          const glyph = safeGlyph(() => font.glyphForCodePoint(cp))
+          const id = glyph?.id ?? 0
+          const xAdvance = safeGlyph(() => font.getGlyph(id))?.advanceWidth ?? 0
+          return { index: id, codePoints: [cp], xAdvance, xOffset: 0, yOffset: 0, missing: id === 0 }
+        })
+      }
       // With ligatures off, glyphs map to characters one to one unless shaping composed or
       // decomposed something; only then fall back to fontkit's (shared) code points.
       const oneToOne = run.glyphs.length === chars.length
@@ -146,6 +225,41 @@ function isControlCharacter(cp: number): boolean {
 }
 
 /** Keeps one glyph per character so the specimen and font export stay character-for-character. */
+/**
+ * Makes the font hand out plain outline glyphs. For colour fonts fontkit's getGlyph returns colour
+ * glyphs built from layers or bitmaps, which it cannot read for COLR version 1 (Nabla, Honk, the
+ * "Ink" families) and which have no outline to edit; the outline glyph underneath is what this app uses.
+ */
+function useOutlineGlyphs(font: Font): Font {
+  const internals = font as unknown as {
+    directory: { tables: Record<string, unknown> }
+    _glyphs: Record<number, Glyph | undefined>
+    _getBaseGlyph?: (id: number, characters?: number[]) => Glyph | null | undefined
+  }
+  const tables = internals.directory?.tables ?? {}
+  if ((tables.COLR || tables.sbix) && internals._getBaseGlyph) {
+    const base = internals._getBaseGlyph.bind(font)
+    // Colour glyphs made so far would be handed out from the cache.
+    internals._glyphs = {}
+    // fontkit's WOFF2 version returns nothing for a glyph it has already made, so read the cache too.
+    font.getGlyph = ((id: number, characters?: number[]) => base(id, characters) ?? internals._glyphs[id] ?? null) as Font['getGlyph']
+  }
+  return font
+}
+
+/**
+ * The typographic family or style name (name IDs 16 and 17) when the font has one. A static weight
+ * such as Google's "Roboto" at 900 is named "Roboto Black" / "Regular" for old apps and "Roboto" /
+ * "Black" here.
+ */
+function typographicName(font: Font, key: 'preferredFamily' | 'preferredSubfamily'): string | null {
+  try {
+    return (font as unknown as { getName(key: string): string | null }).getName(key)
+  } catch {
+    return null
+  }
+}
+
 const NO_LIGATURES = { liga: false, clig: false, dlig: false, hlig: false, calt: false, rlig: false }
 
 /** fontkit decodes bit fields as objects of named flags; these are the names in bit order. */
