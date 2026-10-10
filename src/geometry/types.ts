@@ -119,7 +119,7 @@ export interface RandomAnchorParams {
 /** Experimental Noise: crumples the letter along straight creases of a seeded triangle mesh. */
 export interface NoiseParams {
   enabled: boolean
-  /** 0–1: how far lattice points move, as a share of the safe maximum (30% of the facet size). */
+  /** 0–2: how far lattice points move, as a share of the safe maximum (30% of the facet size); above 1, a second pass. */
   amount: number
   /** Lattice cell size as a fraction of the em; creases fall about 40% of it apart along the outline. */
   facet: number
@@ -128,7 +128,7 @@ export interface NoiseParams {
 /** Experimental Ripple: polygonal waves spreading from a point, along the straight creases of a ring mesh. */
 export interface RippleParams {
   enabled: boolean
-  /** 0–1: how far the rings move, as a share of the safe maximum (40% of the ring spacing). */
+  /** 0–1: how far the rings move, as a share of the safe maximum (48% of the ring spacing). */
   amount: number
   /** Distance from one crest to the next, as a fraction of the em; rings fall half of it apart. */
   wavelength: number
@@ -146,7 +146,7 @@ export interface WindParams {
   enabled: boolean
   /** Where the wind blows to, in degrees counter-clockwise from the right (0 = right, 90 = up). */
   direction: number
-  /** 0–1: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
+  /** 0–3: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
   strength: number
   /** Width of each gust band across the wind, as a fraction of the em. */
   gust: number

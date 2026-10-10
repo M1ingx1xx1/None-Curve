@@ -9,11 +9,13 @@
 //
 // No lattice point moves more than 30% of the cell size. A triangle whose corners each move less
 // than that keeps about 15% of its area or more and cannot flip, so the warp is always one-to-one:
-// Noise never needs to be weakened to keep the letter valid.
+// Noise never needs to be weakened to keep the letter valid. Amounts above 100% crumple the result
+// again on the same lattice (100% then the rest): two one-to-one warps in a row are one-to-one too,
+// and the folds deepen without the pattern jumping as the amount passes 100%.
 
 import { hashInts } from './distortion'
 import type { NoiseParams, Point } from './types'
-import type { Warp } from './warp'
+import { chainWarps, type Warp } from './warp'
 
 export const NOISE_LIMITS = {
   /**
@@ -22,7 +24,9 @@ export const NOISE_LIMITS = {
    * rather than as a wobbly curve at any text size.
    */
   minFacet: 0.08,
-  maxFacet: 0.6,
+  maxFacet: 1,
+  /** Above 1, a second pass on the same lattice crumples the letter further. */
+  maxAmount: 2,
   /** Largest lattice-point movement at 100% Amount, as a fraction of the facet size. */
   maxMove: 0.3,
 } as const
@@ -35,10 +39,17 @@ export function noiseIsOn(params: NoiseParams): boolean {
   return params.enabled && params.amount > 0
 }
 
-/** The Noise warp at `scale` × its strength. */
+/** The Noise warp at `scale` × its strength: one pass up to 100%, then a second for the rest. */
 export function noiseWarp(params: NoiseParams, seed: number, unitsPerEm: number, scale = 1): Warp {
+  const amount = clamp(finite(params.amount, 0), 0, NOISE_LIMITS.maxAmount) * scale
+  const once = noisePass(params, seed, unitsPerEm, Math.min(1, amount))
+  return amount > 1 ? chainWarps(once, noisePass(params, seed, unitsPerEm, amount - 1)) : once
+}
+
+/** One pass of the Noise warp at `amount` (0–1) of the safe maximum. */
+function noisePass(params: NoiseParams, seed: number, unitsPerEm: number, amount: number): Warp {
   const size = clamp(finite(params.facet, 0.18), NOISE_LIMITS.minFacet, NOISE_LIMITS.maxFacet) * unitsPerEm
-  const reach = clamp(finite(params.amount, 0), 0, 1) * NOISE_LIMITS.maxMove * size * scale
+  const reach = amount * NOISE_LIMITS.maxMove * size
   // The square lattice looks the same every quarter turn, so a quarter turn of angles covers all.
   const angle = (hashInts(seed, CHANNEL.angle) / UINT) * (Math.PI / 2)
   const cos = Math.cos(angle)

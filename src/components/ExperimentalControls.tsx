@@ -121,6 +121,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
   const update = (patch: Partial<NoiseParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
+  const amountHint = useHint()
   const facetHint = useHint()
 
   return (
@@ -145,11 +146,13 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           label="Amount"
           value={params.amount}
           min={0}
-          max={1}
-          step={0.05}
+          max={NOISE_LIMITS.maxAmount}
+          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
+          hint={amountHint}
+          hintText="How far the folds move the outline. Above 100% the letters are crumpled a second time along the same folds, for deeper, sharper creases."
           onChange={(amount) => update({ amount })}
         />
         <RangeField
@@ -158,7 +161,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           value={params.facet}
           min={NOISE_LIMITS.minFacet}
           max={NOISE_LIMITS.maxFacet}
-          step={0.01}
+          step={0.02}
           display={percent(params.facet)}
           unit="% em"
           valueText={`${percent(params.facet)} percent of the em`}
@@ -205,7 +208,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           value={params.amount}
           min={0}
           max={1}
-          step={0.05}
+          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -217,7 +220,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           value={params.wavelength}
           min={RIPPLE_LIMITS.minWavelength}
           max={RIPPLE_LIMITS.maxWavelength}
-          step={0.01}
+          step={0.02}
           display={percent(params.wavelength)}
           unit="% em"
           valueText={`${percent(params.wavelength)} percent of the em`}
@@ -244,7 +247,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           value={params.centerX}
           min={RIPPLE_LIMITS.minCenter}
           max={RIPPLE_LIMITS.maxCenter}
-          step={0.05}
+          step={0.1}
           display={`${percent(params.centerX)}%`}
           valueText={`${percent(params.centerX)} percent across the letter`}
           disabled={off}
@@ -258,7 +261,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           value={params.centerY}
           min={RIPPLE_LIMITS.minCenter}
           max={RIPPLE_LIMITS.maxCenter}
-          step={0.05}
+          step={0.1}
           display={`${percent(params.centerY)}%`}
           valueText={`${percent(params.centerY)} percent up the letter`}
           disabled={off}
@@ -270,7 +273,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           value={params.fade}
           min={0}
           max={1}
-          step={0.05}
+          step={0.1}
           display={`${percent(params.fade)}%`}
           valueText={`${percent(params.fade)} percent`}
           disabled={off}
@@ -316,8 +319,8 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           label="Direction"
           value={params.direction}
           min={0}
-          max={355}
-          step={5}
+          max={345}
+          step={15}
           display={`${Math.round(params.direction)}°`}
           valueText={`${Math.round(params.direction)} degrees`}
           disabled={off}
@@ -331,12 +334,12 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           value={params.strength}
           min={0}
           max={WIND_LIMITS.maxStrength}
-          step={0.05}
+          step={0.1}
           display={`${percent(params.strength)}%`}
           valueText={`${percent(params.strength)} percent`}
           disabled={off}
           hint={strengthHint}
-          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the wind."
+          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the wind, at 300% three times as far."
           onChange={(strength) => update({ strength })}
         />
         <RangeField
@@ -345,7 +348,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           value={params.gust}
           min={WIND_LIMITS.minGust}
           max={WIND_LIMITS.maxGust}
-          step={0.01}
+          step={0.02}
           display={percent(params.gust)}
           unit="% em"
           valueText={`${percent(params.gust)} percent of the em`}
@@ -360,7 +363,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           value={params.gustiness}
           min={0}
           max={1}
-          step={0.05}
+          step={0.1}
           display={`${percent(params.gustiness)}%`}
           valueText={`${percent(params.gustiness)} percent`}
           disabled={off}

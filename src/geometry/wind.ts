@@ -19,7 +19,7 @@ import type { Warp } from './warp'
 
 export const WIND_LIMITS = {
   /** Strength: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
-  maxStrength: 1,
+  maxStrength: 3,
   /** Band (gust) sizes, as fractions of the em. */
   minGust: 0.06,
   maxGust: 0.5,
