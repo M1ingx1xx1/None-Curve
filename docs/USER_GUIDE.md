@@ -196,7 +196,7 @@ These are in the **Geometry** panel (top left). The controls are applied in a fi
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the Geometry panel (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
+Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the Geometry panel (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself, or push the hole of an **A**, **B**, or **e** out of the letter so it shows as a solid blob), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
 ### Curve flattening — how curves become straight lines
 
@@ -243,6 +243,7 @@ Tip: after squaring, add a little **Anchor reduction** (for example 2) to clean 
   - **90°** — only horizontal and vertical lines.
   - **45°** — also diagonals.
   - **30°** / **15°** — finer steps.
+- Where straightening would move part of a letter too far, that part gets small stair steps instead, so letters stay in place.
 - When both are on, snapping happens first, so angle lock may move some points slightly off the grid.
 - **Reset grid & angles** turns both off.
 
@@ -254,7 +255,7 @@ Moves the points of the outline in a controlled, repeatable way.
 - **Noise frequency** — how often the edge wobbles. Low = slow, gentle waves; high = quick, jittery roughness.
 - **Normal bias** — the direction of movement. 0 % slides points along the edge; 100 % pushes the edge in and out.
 - **Seed** — a number that picks one particular random pattern. The same seed always gives exactly the same result, so you can come back to a version you liked. **Next variant** tries the next pattern.
-- **Reset distortion** turns it off.
+- **Reset distortion** turns it off but keeps your seed.
 
 Distortion can make text harder to read — use it with care.
 
@@ -388,7 +389,7 @@ They would have no effect right now. The note above them says why — for exampl
 It goes where the text cursor last was. Click in the text box where you want it, then click the character.
 
 **A yellow note says some contours "kept their previous shape".**
-That setting would have made part of a letter collapse or cross over itself, so the app kept the last good version for that part. Try a gentler value.
+That setting would have made part of a letter collapse, cross over itself, or run into another part of the letter (such as its hole), so the app kept the last good version for that part. Try a gentler value.
 
 **A letter shows as a dashed red box.**
 The font does not contain that character, or (for Google Fonts) it is in another character subset. Load a different subset or font.

@@ -32,8 +32,9 @@ export default function DistortionControls({
   const frequencyHint = useHint()
   const biasHint = useHint()
   const seedHint = useHint()
+  // Reset keeps the seed, so a variant the user liked is not lost.
   const isDefault = (Object.keys(DEFAULT_DISTORTION) as (keyof DistortionParams)[]).every(
-    (k) => params[k] === DEFAULT_DISTORTION[k],
+    (k) => k === 'seed' || params[k] === DEFAULT_DISTORTION[k],
   )
 
   return (
@@ -172,13 +173,14 @@ export default function DistortionControls({
         {stats && stats.clampedVertices > 0 && (
           <p className="field-hint">
             {stats.clampedVertices} {stats.clampedVertices === 1 ? 'vertex moves' : 'vertices move'} less than the
-            amplitude to protect short edges and sharp turns.
+            amplitude so no edge collapses or folds back.
           </p>
         )}
         {stats && stats.reducedContours > 0 && (
           <p className="font-warning">
-            {stats.reducedContours} {stats.reducedContours === 1 ? 'contour uses' : 'contours use'} a smaller amplitude
-            because the full amount reversed it or made it cross itself.
+            {stats.reducedContours} {stats.reducedContours === 1 ? 'contour uses' : 'contours use'} a lower amplitude
+            where the full amount made {stats.reducedContours === 1 ? 'it' : 'them'} cross{' '}
+            {stats.reducedContours === 1 ? 'itself' : 'themselves'} or another contour.
           </p>
         )}
         {stats && stats.fallbackContours > 0 && (
@@ -188,7 +190,7 @@ export default function DistortionControls({
           </p>
         )}
 
-        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_DISTORTION)}>
+        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_DISTORTION, seed: params.seed })}>
           <Icon name="reset" />
           Reset distortion
         </button>

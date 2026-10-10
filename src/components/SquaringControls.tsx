@@ -1,5 +1,5 @@
 import type { Dispatch } from 'react'
-import type { SquaringParams, SquaringScope, SquaringStats } from '../geometry/squaring'
+import type { SquaringFailure, SquaringParams, SquaringScope, SquaringStats } from '../geometry/squaring'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 
@@ -22,11 +22,14 @@ const scopes: [SquaringScope, string][] = [
   ['all', 'All contours'],
 ]
 
-const reasonText = {
-  collapsed: 'collapsed',
-  flipped: 'reversed direction',
-  crossings: 'crossed itself',
-} as const
+/** What squaring made the contour(s) do, after "made it" / "made them". */
+const reasonText = (reason: SquaringFailure, one: boolean) =>
+  ({
+    collapsed: 'collapse',
+    flipped: 'reverse',
+    crossings: one ? 'cross itself' : 'cross themselves',
+    contours: 'move across another contour',
+  })[reason]
 
 export default function SquaringControls({ params, stats, pending, disabled, dispatch }: SquaringControlsProps) {
   const update = (patch: Partial<SquaringParams>) => dispatch({ type: 'updateParams', group: 'squaring', patch })
@@ -120,8 +123,9 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
         )}
         {stats && stats.fallbacks.length > 0 && (
           <p className="font-warning">
-            {stats.fallbacks.length} contour{stats.fallbacks.length === 1 ? '' : 's'} kept the previous shape because squaring{' '}
-            {[...new Set(stats.fallbacks.map((f) => reasonText[f.reason]))].join(' or ')} it.
+            {stats.fallbacks.length} contour{stats.fallbacks.length === 1 ? '' : 's'} kept the previous shape: even a small amount
+            of squaring made {stats.fallbacks.length === 1 ? 'it' : 'them'}{' '}
+            {[...new Set(stats.fallbacks.map((f) => reasonText(f.reason, stats.fallbacks.length === 1)))].join(' or ')}.
           </p>
         )}
       </div>

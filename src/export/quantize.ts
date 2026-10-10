@@ -1,5 +1,6 @@
 import { simplifyClosed } from '../geometry/anchors'
-import { findSelfCrossings, type Crossing } from '../geometry/crossings'
+import { ContourLayout } from '../geometry/contourLayout'
+import { findRingCrossings, findSelfCrossings, type Crossing } from '../geometry/crossings'
 import { signedArea } from '../geometry/flatten'
 import type { Point, PolygonGlyph } from '../geometry/types'
 
@@ -37,8 +38,10 @@ const NEGLIGIBLE_AREA = 4
  * fonts), or whose parts nearly touch, cannot avoid that at this precision, and the difference is
  * smaller than the rounding step. Rounding crossings are first repaired by removing one of the
  * vertices involved; if a new crossing remains, the contour is simplified very slightly (below the
- * rounding step) and tried again. A contour too small to show that collapses is left out. Throws
- * ExportError naming the glyph only when nothing works; `advice` (for example "Use a higher
+ * rounding step) and tried again. Every result must also sit against the glyph's other contours as
+ * before: no contour moving into or out of another, and no new crossing between two contours except
+ * where they already ran within two rounding steps of each other. A contour too small to show that
+ * collapses is left out. Throws ExportError naming the glyph only when nothing works; `advice` (for example "Use a higher
  * precision.") is appended to that message. Output is y-up font units.
  */
 export function quantizePolygon(polygon: PolygonGlyph, decimals: number, label: string, advice = ''): Point[][] {
@@ -46,35 +49,66 @@ export function quantizePolygon(polygon: PolygonGlyph, decimals: number, label: 
     throw new ExportError(`Precision must be a whole number from 0 to 6 (got ${decimals}).`)
   }
   const step = 10 ** -decimals
-  const out: Point[][] = []
-  for (const contour of polygon.contours) {
+  const places = decimals === 0 ? 'whole units' : `${decimals} decimal place${decimals === 1 ? '' : 's'}`
+  // Contours as they stand: rounded once done, unrounded until then (null: left out). Each rounded
+  // contour must sit against the others as the unrounded ones do.
+  const unrounded = polygon.contours.map((c) => c.points)
+  const current: (readonly Point[] | null)[] = unrounded.slice()
+  const layout = new ContourLayout(unrounded)
+  for (let k = 0; k < polygon.contours.length; k++) {
+    const contour = polygon.contours[k]
     for (const p of contour.points) {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new ExportError(`${label} has a non-finite coordinate.`)
     }
     const area = signedArea(contour.points)
     const direction = Math.sign(area)
     const original = new Original(contour.points)
+    const fits = (points: readonly Point[]) => fitsLayout(k, points, current, unrounded, layout, step)
 
-    let failure: 'collapse' | 'cross' = 'collapse'
+    let failure: 'collapse' | 'cross' | 'contours' = 'collapse'
     let result: Point[] | null = null
     for (const tolerance of [0, ...RETRY_TOLERANCES]) {
       const source = tolerance === 0 ? contour.points : simplifyClosed(contour.points, tolerance * step).points
-      const attempt = roundContour(source, decimals, direction, step, original)
+      const attempt = roundContour(source, decimals, direction, step, original, fits)
       if (Array.isArray(attempt)) {
         result = attempt
         break
       }
       failure = attempt
     }
-    if (result) out.push(result)
-    else if (failure === 'collapse' && Math.abs(area) < NEGLIGIBLE_AREA * step * step) continue
+    if (result) current[k] = result
+    else if (failure === 'collapse' && Math.abs(area) < NEGLIGIBLE_AREA * step * step) current[k] = null
     else {
-      const places = decimals === 0 ? 'whole units' : `${decimals} decimal place${decimals === 1 ? '' : 's'}`
-      const what = failure === 'collapse' ? 'a contour collapses or flips' : 'a contour crosses itself'
-      throw new ExportError(`${label}: ${what} when its points are rounded to ${places}.${advice ? ` ${advice}` : ''}`)
+      const what = { collapse: 'a contour collapses or flips', cross: 'a contour crosses itself', contours: 'a contour crosses another' }
+      throw new ExportError(`${label}: ${what[failure]} when its points are rounded to ${places}.${advice ? ` ${advice}` : ''}`)
     }
   }
-  return out
+  return current.filter((c): c is Point[] => c !== null)
+}
+
+/**
+ * True when contour k, rounded to `points`, sits against the other contours as before. A new
+ * crossing with another contour is accepted where both unrounded contours ran within two rounding
+ * steps of it: contours that nearly touch cannot avoid that at this precision.
+ */
+function fitsLayout(
+  k: number,
+  points: readonly Point[],
+  current: readonly (readonly Point[] | null)[],
+  unrounded: readonly (readonly Point[])[],
+  layout: ContourLayout,
+  step: number,
+): boolean {
+  const radius = 2 * step
+  const near = (at: Point, ring: readonly Point[]) =>
+    ring.some((p, i) => distanceToSegment(at, p, ring[(i + 1) % ring.length]) <= radius)
+  for (let m = 0; m < current.length; m++) {
+    const other = current[m]
+    if (m === k || !other || layout.pairKept(k, m, points, other)) continue
+    const found = findRingCrossings(points, other)
+    if (found.length === 0 || !found.every((c) => near(c.at, unrounded[k]) && near(c.at, unrounded[m]))) return false
+  }
+  return true
 }
 
 /** The unrounded contour, for telling rounding noise from real damage. */
@@ -112,14 +146,18 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
 }
 
-/** One attempt: round, clean, then repair new crossings. Returns the contour or why it failed. */
+/**
+ * One attempt: round, clean, then repair new crossings. Returns the contour or why it failed; `fits`
+ * checks it against the glyph's other contours.
+ */
 function roundContour(
   points: readonly Point[],
   decimals: number,
   direction: number,
   step: number,
   original: Original,
-): Point[] | 'collapse' | 'cross' {
+  fits: (points: readonly Point[]) => boolean,
+): Point[] | 'collapse' | 'cross' | 'contours' {
   const rounded = clean(points.map((p) => ({ x: roundTo(p.x, decimals), y: roundTo(p.y, decimals) })))
   if (!healthy(rounded, direction)) return 'collapse'
   // Repair any crossing rounding added (cleaner outlines), then accept what is only rounding noise.
@@ -132,10 +170,13 @@ function roundContour(
     out = repaired.points
     added = repaired.added
   }
+  let failure: 'cross' | 'contours' = 'cross'
   for (const candidate of out === rounded ? [out] : [out, rounded]) {
-    if (addedCrossings(candidate, original, step, true).length === 0) return candidate
+    if (addedCrossings(candidate, original, step, true).length > 0) continue
+    if (fits(candidate)) return candidate
+    failure = 'contours'
   }
-  return 'cross'
+  return failure
 }
 
 const healthy = (points: readonly Point[], direction: number) => {

@@ -15,7 +15,7 @@ import type { DerivedGeometry, GeometryParams, SourceGlyph } from './types'
 export function deriveGeometry(source: SourceGlyph, params: GeometryParams): DerivedGeometry {
   const flattened = flattenGlyph(source, params.flatten)
   // Random anchors sample the original curves too, so they replace Flatten's polygon rather than follow it.
-  const randomized = applyRandomAnchors(source, flattened.polygon, params.random, params.flatten)
+  const randomized = applyRandomAnchors(source, flattened, params.random)
   const squared = applySquaring(randomized.polygon, params.squaring)
   const anchored = applyAnchorControls(squared.polygon, params.anchors)
   const constrained = applyConstraints(anchored.polygon, params.grid)
