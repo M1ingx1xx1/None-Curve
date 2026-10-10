@@ -354,7 +354,7 @@ export default function ExportDialog(props: ExportDialogProps) {
                 <p className="export-summary">
                   {plan.glyphs.length} glyph{plan.glyphs.length === 1 ? '' : 's'} plus .notdef, every one processed with the
                   current pipeline.
-                  {font.axes.length > 0 && ' Variable font: the default instance shown on the canvas is exported.'}
+                  {font.axes.length > 0 && ` Variable font: the instance shown on the canvas (${font.instance ? Object.entries(font.instance).map(([tag, value]) => `${tag} ${value}`).join(', ') : 'default'}) is exported.`}
                 </p>
                 {plan.missing.length > 0 && <p className="font-warning">Not in this font, left out: {plan.missing.join(' ')}</p>}
                 {plan.unsupported.length > 0 && (

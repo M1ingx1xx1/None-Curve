@@ -101,7 +101,7 @@ Choose **Google Fonts**. In the **Family** box you can:
 
 After choosing a font, set:
 
-- **Weight** — how bold it is (400 is regular, 700 is bold). Some fonts are "variable": they appear with one default weight, and the weight menu is turned off.
+- **Weight** — how bold it is (400 is regular, 700 is bold). This works for every font, including "variable" fonts that keep all their weights in one file.
 - **Italic** — if the font has an italic version.
 - **Character subset** — Google splits fonts by language (for example `latin`, `latin-ext`, `cyrillic`). Only one subset is loaded at a time, so letters from other languages may be missing.
 
@@ -392,9 +392,6 @@ That setting would have made part of a letter collapse, cross over itself, or ru
 
 **A letter shows as a dashed red box.**
 The font does not contain that character, or (for Google Fonts) it is in another character subset. Load a different subset or font.
-
-**The weight menu is grey for some Google fonts.**
-That font is "variable"; it loads in its default weight.
 
 **Will my results change if I reload the page?**
 Settings are not saved between visits. Within a session, the same settings and seed always give the same result. Export what you want to keep.

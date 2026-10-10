@@ -122,6 +122,8 @@ export interface LoadedFont {
   /** Every glyph in the font by glyph index, including unmapped ones. Built on first call. */
   listAllGlyphs(): GlyphRef[]
   axes: VariationAxis[]
+  /** Axis values the outlines use when they were applied on load (a variable file at a chosen weight), else null. */
+  instance: Record<string, number> | null
   /** True when the font's character map has a glyph for this code point. */
   hasCharacter(codePoint: number): boolean
   /** True when the font has kerning (GPOS kern feature or a legacy kern table). */
