@@ -1,6 +1,7 @@
 import { applyAnchorControls } from './anchors'
 import { applyConstraints } from './constraints'
 import { applyDistortion } from './distortion'
+import { applyExperimental } from './experimental'
 import { flattenGlyph } from './flatten'
 import { applyRandomAnchors } from './randomAnchors'
 import { applySquaring } from './squaring'
@@ -8,9 +9,10 @@ import type { DerivedGeometry, GeometryParams, SourceGlyph } from './types'
 
 /**
  * Source curves + parameters → canonical polygon, always rebuilt from the original curves.
- * Fixed order: Flatten (or experimental Random anchors) → Squaring → Anchor spacing → Anchor reduction → Grid snapping →
- * Angle lock → Vertex distortion. Squaring runs right after flattening so reduction can then drop the
- * collinear points left on the new straight sides. Distortion is last, so it moves vertices off the grid and off locked angles.
+ * Fixed order: Flatten (or Random anchors) → Squaring → Anchor spacing → Anchor reduction → Grid snapping →
+ * Angle lock → Vertex distortion → Experimental effects. Squaring runs right after flattening so reduction can then drop the
+ * collinear points left on the new straight sides. Distortion and the Experimental effects come last, so they move vertices
+ * off the grid and off locked angles.
  */
 export function deriveGeometry(source: SourceGlyph, params: GeometryParams): DerivedGeometry {
   const flattened = flattenGlyph(source, params.flatten)
@@ -20,7 +22,8 @@ export function deriveGeometry(source: SourceGlyph, params: GeometryParams): Der
   const anchored = applyAnchorControls(squared.polygon, params.anchors)
   const constrained = applyConstraints(anchored.polygon, params.grid)
   const distorted = applyDistortion(constrained.polygon, params.distortion)
-  const polygon = distorted.polygon
+  const experimental = applyExperimental(distorted.polygon, params.experimental)
+  const polygon = experimental.polygon
   return {
     source,
     polygon,
@@ -31,5 +34,6 @@ export function deriveGeometry(source: SourceGlyph, params: GeometryParams): Der
     anchors: anchored.stats,
     constraints: constrained.stats,
     distortion: distorted.stats,
+    experimental: experimental.stats,
   }
 }

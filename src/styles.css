@@ -1131,8 +1131,20 @@ input[type='range']:disabled {
   color: var(--muted);
 }
 
-.geometry-panel .section-head {
-  flex-wrap: wrap;
+/* Geometry / Experimental tabs: each panel lays out its groups like the panel itself. */
+.geometry-tabs {
+  margin: -8px -16px 0;
+  padding: 0 16px;
+}
+
+.geometry-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.geometry-tab-panel[hidden] {
+  display: none;
 }
 
 /* ---- Slider with a number box (Typography) ---- */
@@ -1953,16 +1965,8 @@ input[type='range']:disabled {
   gap: 6px;
 }
 
-.tag-experimental {
-  margin-left: 6px;
-  padding: 1px 6px;
-  border: 1px solid var(--primary-strong);
-  color: var(--primary-strong);
-  font-size: 0.65rem;
-  letter-spacing: 0.06em;
-}
-
 .random-anchors .group-body > .button-small,
+.experimental .group-body > .button-small,
 .distortion .group-body > .button-small,
 .grid-controls .group-body > .button-small {
   align-self: flex-start;

@@ -50,10 +50,10 @@ export interface GeometryState {
  */
 export function useGeometry(state: AppState, text: string): GeometryState {
   const { font, selectedGlyph } = state.document
-  const { flatten, random, squaring, anchors, grid, distortion, typography, artboard } = state.params
+  const { flatten, random, squaring, anchors, grid, distortion, experimental, typography, artboard } = state.params
   const params = useMemo<GeometryParams>(
-    () => ({ flatten, random, squaring, anchors, grid, distortion }),
-    [flatten, random, squaring, anchors, grid, distortion],
+    () => ({ flatten, random, squaring, anchors, grid, distortion, experimental }),
+    [flatten, random, squaring, anchors, grid, distortion, experimental],
   )
   const key = useMemo(() => paramsKey(params), [params])
 

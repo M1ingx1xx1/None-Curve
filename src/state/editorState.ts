@@ -29,6 +29,12 @@ export const initialState: AppState = {
     anchors: { spacing: 0, simplify: 0 },
     grid: { snap: false, size: 10, angleLock: false, angleStep: 45 },
     distortion: { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 },
+    experimental: {
+      seed: 1,
+      noise: { enabled: false, amount: 0.7, facet: 0.18 },
+      ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0 },
+      wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
+    },
     view: initialView,
     typography: DEFAULT_TYPOGRAPHY,
     palette: DEFAULT_PALETTE,

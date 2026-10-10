@@ -46,7 +46,7 @@ The screen is split into two rows and five areas:
 └──────────────────────────╨──────────────────────────╨────────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the **Geometry** controls that shape the letters. Scroll to see every control.
+1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the controls that shape the letters, in two tabs: **Geometry** and **Experimental**. Scroll to see every control.
 2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
@@ -163,7 +163,7 @@ If a new font fails to load, the previous font stays on screen.
 
 - Click a letter on the canvas to select it (clicking anywhere in the letter's own space is enough). It changes colour wherever it appears. The colour is worked out from your text and background colours so that it stands out and is still easy to read — for black text on cream paper it is a vermilion red. Pointing at a letter colours it the same way. Inserting a character from the Glyphs list selects it too.
 - Click an empty part of the canvas, or press Escape, to remove the highlight. Dragging the canvas around does not remove it.
-- The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter — or, after you removed the highlight, the letter you selected last. The **Statistics** line at the top of the Geometry panel always says which letter that is, for example "Statistics: l U+006C".
+- The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter — or, after you removed the highlight, the letter you selected last. The **Statistics** line at the top of each tab always says which letter that is, for example "Statistics: l U+006C".
 - The preview never shows the highlight, because it shows exactly what will be exported.
 - To look closely, zoom in on the canvas.
 
@@ -190,13 +190,13 @@ If the text is too big for the canvas, a red note appears on the big canvas; the
 
 ## 8. The shaping controls
 
-These are in the **Geometry** panel (top left). The controls are applied in a fixed order, top to bottom, so later steps work on the result of earlier ones:
+These are in the tools panel (top left), in two tabs. The **Geometry** tab is applied in a fixed order, top to bottom, so later steps work on the result of earlier ones; the **Experimental** tab comes after all of it:
 
-**Curve flattening → Squaring → Anchors → Grid & angles → Distortion**
+**Curve flattening → Squaring → Anchors → Grid & angles → Distortion → Experimental**
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
 
-Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the Geometry panel (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself, or push the hole of an **A**, **B**, or **e** out of the letter so it shows as a solid blob), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
+Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the tools panel, just below the tabs (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself, or push the hole of an **A**, **B**, or **e** out of the letter so it shows as a solid blob), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
 ### Curve flattening — how curves become straight lines
 
@@ -259,9 +259,9 @@ Moves the points of the outline in a controlled, repeatable way.
 
 Distortion can make text harder to read — use it with care.
 
-### Random anchors (experimental) — a different look every time, but repeatable
+### Random anchors — a different look every time, but repeatable
 
-At the very bottom of the tools panel. Normally the app places points on the curves at regular spacing (Curve flattening). With **Use random anchors** on, it places them at random spots on the letter's original outline instead — the points always sit on the real letter, only *where* they sit is random. The later controls (Squaring, Anchors, Grid & angles, Distortion) still apply on top.
+At the very bottom of the Geometry tab. Normally the app places points on the curves at regular spacing (Curve flattening). With **Use random anchors** on, it places them at random spots on the letter's original outline instead — the points always sit on the real letter, only *where* they sit is random. The later controls (Squaring, Anchors, Grid & angles, Distortion) still apply on top.
 
 While random anchors are on, the **Curve flattening** controls are greyed out with a note, because random anchors replace them — changing them would do nothing. Turn random anchors off to use them again.
 
@@ -277,6 +277,38 @@ While random anchors are on, the **Curve flattening** controls are greyed out wi
 - **Reset random anchors** turns it off and restores the other settings, but keeps your seed.
 
 The seed is also shown in the status line at the bottom and in the export dialog, so it is recorded with what you export.
+
+### Experimental tab — effects you can stack
+
+Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. Each one folds the letters along **straight creases**: it adds corners but never curves, and no combination can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. They always run in the same order: **Noise**, then **Ripple**, then **Wind**.
+
+**Noise — crumpled paper**
+
+- **Use noise** — turns it on.
+- **Amount** — how strongly the letters are crumpled. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds.
+- **Facet size** — the size of the folds, as a share of the em (the font's design square). Small facets give many small folds; large facets give a few big ones that can bend whole strokes. The smallest size still keeps the folds far enough apart to read as corners.
+- The numbers show how far the outline moved at most (**Max move**) and how many corners the folds added (**Creases**).
+
+**Ripple — polygonal waves**
+
+- **Use ripple** — turns it on.
+- **Amount** — how far the waves push the outline in and out. Around 50 % the letters stay readable; 100 % tears them into sharp, broken shapes.
+- **Wavelength** — the distance from one wave to the next, as a share of the em. Short waves give many fine zigzags; long waves bend whole strokes.
+- **Sides** — the shape of the rings: 3 gives triangles, 4 squares, 8 octagons, up to 12. The rings always sit on a flat side.
+- **Center X / Center Y** — where the waves start, as a share of each letter's width and height (50 % / 50 % is the middle of the letter). Values below 0 % or above 100 % put the center outside the letter, so the waves sweep across it from one side.
+- **Fade** — how much the waves die down away from the center. At 100 % they are gone by the far edge of the letter.
+
+**Wind — letters pulled out by the wind**
+
+- **Use wind** — turns it on.
+- **Direction** — where the wind blows to: 0° to the right, 90° up, 180° to the left, 270° down.
+- **Strength** — how much longer the letters get. The side facing the wind stays where it is; the further downwind a part of the letter lies, the further it is pulled. At 100 % a part is pulled as far again as it lies from the side facing the wind, so letters can reach into their neighbours.
+- **Gust size** — the width of the bands the gusts pull, as a share of the em. With a level wind (0° or 180°) every letter on a line shares the same bands, so the streaks run straight through the text.
+- **Gustiness** — how different the bands are. At 0 % every band is pulled equally and the letters are simply stretched; at 100 % some bands barely move while others are dragged far, leaving ragged, straight-edged streaks.
+
+**Seed** — one number for all the effects on this tab: it picks Noise's folds and Wind's gusts (Ripple has no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
+
+Every copy of a letter gets the same folds, so an exported font looks exactly like the canvas.
 
 ### Typography tab — size, spacing, and alignment
 
@@ -326,8 +358,17 @@ Fixed segments 3 with merging, then Distortion → **Noise amplitude** 10–30, 
 **Random, hand-cut look**
 Random anchors → **Use random anchors** on, **Density** 3–5, **Randomness** 100 %, **Keep sharp corners** on. Press **Shuffle** until you like it, then **Copy** the seed.
 
+**Crumpled paper**
+Experimental tab → **Use noise** on, **Amount** 70–100 %, **Facet size** 15–25 %. For bold, chunky folds, combine it with a large Curve flattening **Tolerance** (40 or more). Press **Next variant** until you like the folds.
+
+**Polygonal ripples**
+Experimental tab → **Use ripple** on, **Amount** 50 %, **Wavelength** 25–35 %, **Sides** 6 or 8. For hard, triangular shock waves try **Sides** 3 with a large Curve flattening **Tolerance**; for a wave sweeping in from a corner, set **Center X** and **Center Y** to 0 %.
+
+**Blown away**
+Experimental tab → **Use wind** on, **Strength** 30 %, **Gust size** 10–15 %, **Gustiness** 60–100 %. Raise **Tracking** in the Typography tab if the letters run into each other, and press **Next variant** for different gusts.
+
 **Back to the original**
-Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Squaring, Anchors, Grid & angles, and Distortion (each has a reset button). Or simply choose **Original** in the canvas toolbar to look at the untouched font.
+Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Squaring, Anchors, Grid & angles, Distortion, and the Experimental effects (each has a reset button). Or simply choose **Original** in the canvas toolbar to look at the untouched font.
 
 ---
 
@@ -413,6 +454,7 @@ No. Local fonts stay on your computer. Google fonts are downloaded from Google; 
 | **Control point (off-curve point)** | A point that pulls the curve toward it without lying on it. |
 | **Vertex** | A corner of the new straight-line shape. |
 | **Polygon** | A shape made only of straight lines. |
+| **Crease** | A straight line along which an Experimental effect folds the outline; the only place it adds a corner. |
 | **Em / Units per em** | The invisible design square of a font and its size in font units (often 1000 or 2048). |
 | **Font unit (u)** | The measuring unit inside a font. All sizes in the controls use it. |
 | **Baseline** | The line letters sit on. |

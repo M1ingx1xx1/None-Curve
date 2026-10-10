@@ -5,6 +5,7 @@ import type { AnchorStats } from './anchors'
 import type { ConstraintStats } from './constraints'
 import type { BreakRule } from './curveRuns'
 import type { DistortionStats } from './distortion'
+import type { ExperimentalStats } from './experimental'
 import type { RandomAnchorStats } from './randomAnchors'
 import type { SquaringParams, SquaringStats } from './squaring'
 import type { FlattenStats } from './flatten'
@@ -102,7 +103,7 @@ export interface DistortionParams {
   seed: number
 }
 
-/** Experimental: seeded random anchors on the original curves, used instead of Flatten's sampling. */
+/** Seeded random anchors on the original curves, used instead of Flatten's sampling. */
 export interface RandomAnchorParams {
   enabled: boolean
   /** Anchors per 1000 font units of outline length. */
@@ -115,6 +116,53 @@ export interface RandomAnchorParams {
   seed: number
 }
 
+/** Experimental Noise: crumples the letter along straight creases of a seeded triangle mesh. */
+export interface NoiseParams {
+  enabled: boolean
+  /** 0–1: how far lattice points move, as a share of the safe maximum (30% of the facet size). */
+  amount: number
+  /** Lattice cell size as a fraction of the em; creases fall about 40% of it apart along the outline. */
+  facet: number
+}
+
+/** Experimental Ripple: polygonal waves spreading from a point, along the straight creases of a ring mesh. */
+export interface RippleParams {
+  enabled: boolean
+  /** 0–1: how far the rings move, as a share of the safe maximum (40% of the ring spacing). */
+  amount: number
+  /** Distance from one crest to the next, as a fraction of the em; rings fall half of it apart. */
+  wavelength: number
+  /** Sides of the ring polygons (3–12). */
+  sides: number
+  /** Centre as a fraction of the glyph's ink box (0 = left / bottom, 1 = right / top); may lie outside it. */
+  centerX: number
+  centerY: number
+  /** 0–1: how much the waves die down toward the farthest point of the glyph (1: to nothing). */
+  fade: number
+}
+
+/** Experimental Wind: letters drawn out along the wind, dragged further in gusts, along straight creases. */
+export interface WindParams {
+  enabled: boolean
+  /** Where the wind blows to, in degrees counter-clockwise from the right (0 = right, 90 = up). */
+  direction: number
+  /** 0–1: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
+  strength: number
+  /** Width of each gust band across the wind, as a fraction of the em. */
+  gust: number
+  /** 0–1: how much the bands differ (0 = every band at full strength). */
+  gustiness: number
+}
+
+/** The Experimental tab: effects that run after Geometry and can all be on at once. */
+export interface ExperimentalParams {
+  /** Integer seed shared by every effect; the same seed always gives the same result. */
+  seed: number
+  noise: NoiseParams
+  ripple: RippleParams
+  wind: WindParams
+}
+
 export interface GeometryParams {
   flatten: FlattenParams
   random: RandomAnchorParams
@@ -122,6 +170,7 @@ export interface GeometryParams {
   anchors: AnchorParams
   grid: GridParams
   distortion: DistortionParams
+  experimental: ExperimentalParams
 }
 
 // ---- Canonical polygon geometry (single source of truth for canvas and export) ----
@@ -148,6 +197,7 @@ export interface DerivedGeometry {
   anchors: AnchorStats
   constraints: ConstraintStats
   distortion: DistortionStats
+  experimental: ExperimentalStats
 }
 
 /** Geometry pipeline entry point: source curves + params → canonical polygon. See pipeline.ts. */
