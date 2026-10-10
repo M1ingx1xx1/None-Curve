@@ -18,7 +18,7 @@ An experimental web app for turning font curves into editable polygon shapes. Lo
 | Squaring (round O → square O), anchor spacing and reduction, grid snapping, angle lock, deterministic distortion | ✅ Implemented |
 | Random anchors on the original curves with a reproducible seed | 🧪 Experimental |
 | Live text preview with advance widths, kerning, multiple lines, and missing-character marks | ✅ Implemented |
-| Canvas (artboard) with size, aspect presets, and 1×–4× export multiplier; typography (size, padding, tracking, line height, slant, alignment, letter case); colour presets and custom colours | ✅ Implemented |
+| Canvas (artboard) with size, aspect presets, and 1×–4× export multiplier; typography (size, tracking, line height, slant, alignment, letter case); colour presets and custom colours | ✅ Implemented |
 | SVG and PNG export of the canvas, optionally with the preview's blur and inverted colours | ✅ Implemented |
 | OpenType font export (CFF, .otf), verified after writing | ✅ Implemented — see [limits](#font-file) |
 | TTF / WOFF / WOFF2 output; exporting kerning and OpenType features | ❌ Not supported |
@@ -88,15 +88,15 @@ Text that runs past the canvas edge stays visible on the canvas with a warning; 
 
 `src/specimen/artboard.ts` and `src/specimen/scene.ts`. These settings change the layout and the SVG/PNG export, not the glyph geometry or the font file.
 
-- **Size** (4–1000 px, default 48): the em in canvas pixels; changing the canvas size does not change it. **Fit text** sets the largest whole-pixel size at which the outlines, slant included, fit inside the padding on both axes.
-- **Padding** (0–5 cap heights, default 1): the gap the position anchors and Fit text keep to every canvas edge, measured in the height of a capital letter at the current size (the font's cap height, or 0.7 em if the font does not give one), so the margin grows and shrinks with the text. Fit text solves size and padding together.
+- **Size** (4–1000 px, default 48): the em in canvas pixels; changing the canvas size does not change it. **Fit text** sets the largest whole-pixel size at which the outlines, slant included, fit inside the margin on both axes.
+- **Margin**: the position anchors and Fit text keep 25 canvas pixels between the outlines and every canvas edge, whatever the font size (`EDGE_MARGIN_PX` in `src/specimen/artboard.ts`). There is no control for it.
 - **Tracking** (−200–1000 thousandths of an em): added between glyphs on top of advances and kerning, not after a line's last glyph.
 - **Line height** (0.5–3 ×): multiple of the font's line spacing (ascender − descender + line gap).
 - **Slant** (−30°–30°): a skew around each glyph's own baseline (x′ = x + tan(slant) · y); positive leans right.
 - **Align** Left / Center / Right (icon buttons): aligns the lines with each other inside the block.
-- **Position**: where the block sits on the canvas. Nine anchors (a 3 × 3 grid: corners, edge middles, centre) place the outlines' box (slant included; not the line box, so side bearings and ascender space do not leave a gap) against the left padding, centred, or against the right padding, and against the top padding, centred, or against the bottom padding — by default the letters sit one cap height from the edges and corners. An anchor also sets **Align** to its column (left column left, middle column centre, right column right); Align can still be changed afterwards. The default is left, vertically centred. The chosen anchor (and Free when on) glows in the primary mint. **Free** lets you drag the text on the canvas (drags that start elsewhere still pan); the position is stored as a share of the room the canvas leaves beside and above the outlines' box, so the text stops at the canvas edges and stays inside when its size or the canvas changes. Pressing Free puts the text back at the default position and alignment (left, vertically centred) and then lets you drag it; pressing it again resets it there.
+- **Position**: where the block sits on the canvas. Nine anchors (a 3 × 3 grid: corners, edge middles, centre) place the outlines' box (slant included; not the line box, so side bearings and ascender space do not leave a gap) against the left margin, centred, or against the right margin, and against the top margin, centred, or against the bottom margin — the letters sit 25 px from the edges and corners. An anchor also sets **Align** to its column (left column left, middle column centre, right column right); Align can still be changed afterwards. The default is left, vertically centred. The chosen anchor (and Free when on) glows in the primary mint. **Free** lets you drag the text on the canvas (drags that start elsewhere still pan); the position is stored as a share of the room the canvas leaves beside and above the outlines' box, so the text stops at the canvas edges and stays inside when its size or the canvas changes. Pressing Free puts the text back at the default position and alignment (left, vertically centred) and then lets you drag it; pressing it again resets it there.
 - **Letter case** (**AA** / **Aa** / **aa**, right of the Text title): **All caps**, **Title case** (first letter of every word upper case, the rest lower case), or **Lower**; press the active one again for the text as typed. The typed text is never changed; the canvas, the preview, the exports, and the font file's "Specimen characters" use the converted text.
-- **Reset typography** restores the defaults (4 %, 1 cap height, 0, 1, 0°, left-aligned, positioned left and vertically centred) and keeps the letter case.
+- **Reset typography** restores the defaults (4 %, 0, 1, 0°, left-aligned, positioned left and vertically centred) and keeps the letter case.
 
 ### Color
 
