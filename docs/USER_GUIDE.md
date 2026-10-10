@@ -285,15 +285,15 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 **Noise — crumpled paper**
 
 - **Use noise** — turns it on.
-- **Amount** — how strongly the letters are crumpled. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds.
+- **Amount** — how strongly the letters are crumpled, up to 200 %. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds; above that the letters are crumpled a second time along the same folds, until whole strokes are bent and twisted.
 - **Facet size** — the size of the folds, as a share of the em (the font's design square). Small facets give many small folds; large facets give a few big ones that can bend whole strokes. The smallest size still keeps the folds far enough apart to read as corners.
 - The numbers show how far the outline moved at most (**Max move**) and how many corners the folds added (**Creases**).
 
 **Ripple — polygonal waves**
 
 - **Use ripple** — turns it on.
-- **Amount** — how far the waves push the outline in and out. Around 50 % the letters stay readable; 100 % tears them into sharp, broken shapes.
-- **Wavelength** — the distance from one wave to the next, as a share of the em. Short waves give many fine zigzags; long waves bend whole strokes.
+- **Amount** — how far the waves push the outline in and out. Around 50 % the letters stay readable; 100 % squeezes strokes between the rings into thin slivers and tears the letters into sharp, broken shapes.
+- **Wavelength** — the distance from one wave to the next, as a share of the em (up to 200 %). Short waves give many fine zigzags; long waves bend whole strokes or swell the whole letter.
 - **Sides** — the shape of the rings: 3 gives triangles, 4 squares, 8 octagons, up to 12. The rings always sit on a flat side.
 - **Center X / Center Y** — where the waves start, as a share of each letter's width and height (50 % / 50 % is the middle of the letter). Values below 0 % or above 100 % put the center outside the letter, so the waves sweep across it from one side.
 - **Fade** — how much the waves die down away from the center. At 100 % they are gone by the far edge of the letter.
@@ -302,7 +302,7 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 
 - **Use wind** — turns it on.
 - **Direction** — where the wind blows to: 0° to the right, 90° up, 180° to the left, 270° down.
-- **Strength** — how much longer the letters get. The side facing the wind stays where it is; the further downwind a part of the letter lies, the further it is pulled. At 100 % a part is pulled as far again as it lies from the side facing the wind, so letters can reach into their neighbours.
+- **Strength** — how much longer the letters get. The side facing the wind stays where it is; the further downwind a part of the letter lies, the further it is pulled. At 100 % a part is pulled as far again as it lies from the side facing the wind, at 300 % three times as far, so letters reach into their neighbours and beyond.
 - **Gust size** — the width of the bands the gusts pull, as a share of the em. With a level wind (0° or 180°) every letter on a line shares the same bands, so the streaks run straight through the text.
 - **Gustiness** — how different the bands are. At 0 % every band is pulled equally and the letters are simply stretched; at 100 % some bands barely move while others are dragged far, leaving ragged, straight-edged streaks.
 

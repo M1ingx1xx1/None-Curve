@@ -9,8 +9,8 @@
 // linearly with their triangle (see warp.ts). The amplitude can fade with distance from the centre.
 // The ring just outside the glyph stays put and everything beyond it is left alone.
 //
-// Rings never pass each other (each moves less than 40% of the ring spacing, so neighbouring rings
-// stay at least 20% of it apart), which keeps every triangle the same way round: the warp is always
+// Rings never pass each other (each moves less than 45% of the ring spacing, so neighbouring rings
+// stay at least 10% of it apart), which keeps every triangle the same way round: the warp is always
 // one-to-one, so Ripple never needs to be weakened to keep the letter valid.
 
 import type { Point, PolygonGlyph, RippleParams } from './types'
@@ -19,14 +19,19 @@ import type { Warp } from './warp'
 export const RIPPLE_LIMITS = {
   /** Wavelengths, as fractions of the em: rings fall half a wavelength apart. */
   minWavelength: 0.08,
-  maxWavelength: 1,
+  maxWavelength: 2,
   minSides: 3,
   maxSides: 12,
   /** Centre, as a fraction of the glyph's ink box; it may lie outside the letter. */
   minCenter: -0.5,
   maxCenter: 1.5,
-  /** Largest ring movement at 100% Amount, as a fraction of the ring spacing (half a wavelength). */
-  maxMove: 0.4,
+  /**
+   * Largest ring movement at 100% Amount, as a fraction of the ring spacing (half a wavelength). Rings
+   * stay apart below 0.5; at 0.45 neighbouring rings come within 10% of the spacing of each other.
+   * Closer still, strokes between them get thinner than a font unit and no longer survive rounding
+   * for font export.
+   */
+  maxMove: 0.45,
 } as const
 
 export interface Box {

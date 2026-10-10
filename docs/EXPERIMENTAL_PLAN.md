@@ -41,10 +41,10 @@ What this means for the effects: Ripple waves are zigzags (a triangle wave) on c
 
 Crumples the letter like paper.
 
-- **Mesh:** a square lattice with cells of **Facet size** (8–60% of the em, default 18%), turned by an angle taken from the seed. Each square is split into two triangles along one of its diagonals, also chosen by the seed, so the creases do not line up in a grid.
+- **Mesh:** a square lattice with cells of **Facet size** (8–100% of the em, default 18%), turned by an angle taken from the seed. Each square is split into two triangles along one of its diagonals, also chosen by the seed, so the creases do not line up in a grid.
 - **Movement:** every lattice point moves by a random vector from the seed, up to **Amount** × 30% of the facet size. Points between lattice points move linearly with their triangle.
 - **Why 30%:** if no corner of a triangle moves more than 30% of the cell size, the triangle keeps at least about 15% of its area and never flips. That guarantees the warp is one-to-one, so Noise never needs to be weakened to stay valid.
-- **Controls:** Use noise, Amount (0–100%, default 70%), Facet size (% of the em), and the shared seed. Statistics: largest move and creases added.
+- **Controls:** Use noise, Amount (0–200%, default 70%; above 100% the result is crumpled again on the same lattice, see Phase 4), Facet size (% of the em), and the shared seed. Statistics: largest move and creases added.
 - **Measured:** on the Latin glyphs of Arial, New York, and Georgia, alone and on top of 11 Geometry settings, no new crossing and no weakened contour; across 9720 random combinations of Geometry and Noise, the same, and every glyph exports. One curve-like run remains in New York, where two parts of the outline are too close to remove the crease. Noise roughly doubles the geometry time. While testing, two older export problems showed up and were fixed: rounding to whole units now retries in the reverse contour order, and zero-width spikes left by heavy Geometry settings are dropped before warping.
 - **Difference from Distortion:** Distortion moves each contour along its own length, independently of the others. Noise moves the plane, so a counter and the outline around it fold together, and the folds are straight creases.
 
@@ -54,8 +54,8 @@ Waves spreading from a point.
 
 - **Mesh:** concentric regular polygons with a flat side at the bottom, around a centre given as a fraction of the glyph's ink box, with a ring every half wavelength measured across the sides. Rays through the polygon corners cut the rings into cells, each split into two triangles.
 - **Movement:** every ring moves outward or inward as a whole, in turn, so it stays a regular polygon and the outline zigzags where it crosses the rings (a triangle wave). The amplitude can fade linearly toward the farthest point of the glyph.
-- **Validity:** the warp is one-to-one as long as neighbouring rings never pass each other, that is, while the amplitude stays below half the ring spacing. It is capped at 40% of the spacing, so rings stay at least 20% of it apart. The ring just outside the glyph stays put and everything beyond is left alone.
-- **Controls:** Use ripple, Amount (default 50%), Wavelength (8–100% of the em, default 30%), Sides (3–12, default 8), Center X and Y (−50% to 150% of the ink box, default the middle), Fade. Ripple uses no randomness.
+- **Validity:** the warp is one-to-one as long as neighbouring rings never pass each other, that is, while the amplitude stays below half the ring spacing. It is capped at 45% of the spacing, so rings stay at least 10% of it apart (40% and 20% before Phase 4). The ring just outside the glyph stays put and everything beyond is left alone.
+- **Controls:** Use ripple, Amount (default 50%), Wavelength (8–200% of the em, default 30%), Sides (3–12, default 8), Center X and Y (−50% to 150% of the ink box, default the middle), Fade. Ripple uses no randomness.
 - **Measured:** on the Latin glyphs of Arial, New York, and Georgia, alone, on top of 9 Geometry settings, and stacked with Noise: no new crossing, no weakened contour, and every glyph exports; 5 curve-like runs remain in New York, all where two parts of the outline are less than one unit apart. Across 19,440 random combinations of Geometry, Noise, and Ripple settings, nothing crosses and every glyph exports. At its defaults Ripple adds about 30 vertices per glyph (about 100 at the shortest wavelength); With Noise and Ripple both on, computing the geometry takes four to five times as long as Geometry alone (about 0.4 ms per glyph).
 - **Found while testing:** a segment passing exactly through the centre crossed every ray at once and lost its creases; it is now split at the centre. And Ripple used to keep Noise's creases as fixed vertices, so the two together could still form curve-like runs (69–93 per font); creases are now marked across effects.
 - **Later:** one wave across a whole line of text. Each letter would then depend on its position, so the geometry cache, the worker, and export would all have to change. Not in Phase 2.
@@ -67,10 +67,22 @@ Letters pulled by the wind.
 - **Mesh:** bands that run with the wind, one Gust size apart and anchored at the glyph origin (so with a level wind every letter on a line shares the same gusts), cut into square cells, each split into two triangles along a diagonal chosen by the seed.
 - **Movement:** every point moves along the wind by Strength × its band's gust × its distance downwind of the glyph's upwind edge. The edge facing the wind stays put and crisp, and the letter is drawn out more the further downwind it reaches; each band's gust is a random share of the full strength (from the seed), varied by Gustiness, so the trailing side breaks into ragged, straight-edged streaks. (This replaces the earlier idea of a separate shift plus stretch: one rule gives both.)
 - **Validity:** gusts are never negative and the movement only grows downwind, so every triangle is stretched along the wind and never squeezed: its area ratio is at least 1. Wind is one-to-one at any strength, with no cap needed.
-- **Controls:** Use wind, Direction (0° right, 90° up, in 5° steps), Strength (0–100%, default 30%), Gust size (6–50% of the em, default 12%), Gustiness (0–100%, default 60%), and the shared seed.
+- **Controls:** Use wind, Direction (0° right, 90° up, in 15° steps), Strength (0–300%, default 30%), Gust size (6–50% of the em, default 12%), Gustiness (0–100%, default 60%), and the shared seed.
 - **Measured:** on the Latin glyphs of Arial, New York, and Georgia, alone, on top of Geometry settings, and with Noise and Ripple: no new crossing, no weakened contour, and every glyph exports; two curve-like runs remain in New York when all three effects are pushed hard, both where the outline is less than one unit from itself. Across 19,440 random combinations of all settings, nothing crosses, no contour is weakened, and every glyph exports. At its defaults Wind adds about 10 vertices per glyph; all three effects together make the geometry five to seven times slower than Geometry alone (about 0.5 ms per glyph).
 - **Found while testing:** a strong Wind can squeeze a sharp spike left by heavy Distortion so thin that rounding makes its two sides cross, although the warp keeps them apart. A crossing between two edges still exactly as the warp mapped them, whose input edges are less than 0.05 units apart, is now recognised as rounding instead of weakening the contour.
 - **Later:** streaks that trail from the leeward side of each stroke on its own (not only of the letter as a whole), and fragments blowing off. They are not one-to-one maps, so they would need their own crossing repair. Not in Phase 3.
+
+### 4.4 More extreme ranges (Phase 4)
+
+The effects could go further than the first ranges allowed. Two levers, used where each is safe:
+
+- **Higher maxima.** Noise and Ripple were capped by their safety limits, so their maxima cannot simply grow:
+  - **Noise:** Amount now goes to 200%. Above 100%, the result is crumpled a second time on the same lattice by the rest. Two one-to-one warps in a row are one-to-one, and the same lattice deepens the same folds, so the pattern does not jump as the slider passes 100%. Facet size now goes to 100% of the em.
+  - **Ripple:** a second pass does not add up (the rings have already moved, so the second push partly cancels), so the single-pass limit is raised instead, from 40% to 45% of the ring spacing: neighbouring rings come within 10% of the spacing, squeezing strokes into slivers. (48% was tried first: rings within 4% squeezed some New York strokes thinner than a font unit, and those glyphs could no longer be rounded for font export.) Wavelength now goes to 200% of the em, so the waves (and their amplitude) can be far larger.
+  - **Wind** had no safety limit: Strength now goes to 300%.
+- **Bigger steps.** Every slider moves in about 10–20 steps from end to end: Amount, Strength, Gustiness, Center, and Fade in 10% steps; Facet size, Wavelength, and Gust size in 2% of the em; Direction in 15°.
+- **Checked:** the chained Noise and the new Ripple limit keep every mesh triangle the same way round (exact images match densely sampled ones). On the Latin glyphs of Arial, New York, and Georgia at the new maxima, alone, on top of Geometry settings, and all three at once (63 font and setting combinations), and across 29,160 random combinations: no new crossing, no weakened contour, and every glyph exports; one curve-like run remains (New York ç, where the outline is under a unit from itself).
+- **Found while testing:** at full strength, Ripple can squeeze an accent or a stroke end into a sliver thinner than a font unit, which rounding to whole units for font export cannot keep. Such a contour (narrower on average than one unit: twice its area over its perimeter) is now left out on its own, like a contour too small to show, instead of the glyph failing to export.
 
 ## 5. Interface
 
@@ -97,6 +109,7 @@ Letters pulled by the wind.
 | 1 | Experimental tab, shared warp framework (creases, mapping, checks), Noise, Random anchors no longer experimental | Done |
 | 2 | Ripple on the shared framework | Done |
 | 3 | Wind on the shared framework | Done |
+| 4 | More extreme ranges and bigger slider steps (section 4.4) | Done |
 | Later | Text-wide Ripple, Wind streaks and fragments, Slice, Frankenstein | Separate plan |
 
 Each phase ends with the verification in section 6 and is shipped on its own.

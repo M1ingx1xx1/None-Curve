@@ -304,6 +304,29 @@ interface Warped {
 }
 
 /**
+ * `second` applied after `first`. One-to-one when both are, and still linear on every piece where both
+ * are, so its creases are those of `first` plus those of `second` on each straight piece `first` makes.
+ */
+export function chainWarps(first: Warp, second: Warp): Warp {
+  return {
+    map: (p) => second.map(first.map(p)),
+    creases(a, b) {
+      const at = (t: number) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+      const cuts = [0, ...first.creases(a, b), 1]
+      const out: number[] = []
+      for (let k = 0; k + 1 < cuts.length; k++) {
+        const t0 = cuts[k]
+        const t1 = cuts[k + 1]
+        if (k > 0) out.push(t0)
+        // `first` is linear on this piece, so a position along its image is the same share along the piece.
+        for (const s of second.creases(first.map(at(t0)), first.map(at(t1)))) out.push(t0 + (t1 - t0) * s)
+      }
+      return out
+    },
+  }
+}
+
+/**
  * The exact image of a closed contour: every vertex mapped, plus a vertex wherever an edge crosses a
  * crease. `marks` flags the input vertices that earlier effects added at creases.
  */

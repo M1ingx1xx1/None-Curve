@@ -27,6 +27,10 @@ const MAX_REPAIRS = 12
 /** A contour smaller than this many square rounding steps is too small to show; if rounding
     collapses it, it is left out instead of the whole glyph. */
 const NEGLIGIBLE_AREA = 4
+/** Likewise a contour narrower on average than this many rounding steps (twice its area over its
+    perimeter): a sliver that strong effects can squeeze out of a stroke cannot be drawn at this
+    precision, however long it is. */
+const NEGLIGIBLE_WIDTH = 1
 
 /**
  * Rounds every contour to `decimals` places and makes sure rounding did not damage it. Each contour
@@ -98,10 +102,22 @@ function roundInOrder(
       failure = attempt
     }
     if (result) current[k] = result
-    else if (failure === 'collapse' && Math.abs(area) < NEGLIGIBLE_AREA * step * step) current[k] = null
+    else if (failure === 'collapse' && negligible(contour.points, area, step)) current[k] = null
     else return failure
   }
   return current as (Point[] | null)[]
+}
+
+/** Too small or too thin to show at this precision (see NEGLIGIBLE_AREA and NEGLIGIBLE_WIDTH). */
+function negligible(points: readonly Point[], area: number, step: number): boolean {
+  if (Math.abs(area) < NEGLIGIBLE_AREA * step * step) return true
+  let perimeter = 0
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % points.length]
+    perimeter += Math.hypot(b.x - a.x, b.y - a.y)
+  }
+  return perimeter > 0 && (2 * Math.abs(area)) / perimeter < NEGLIGIBLE_WIDTH * step
 }
 
 /**
