@@ -277,7 +277,6 @@ export default function FlattenControls({
             </div>
           </dl>
         )}
-        {stats && pending && <p className="field-hint">Updating…</p>}
         {showWarning && (
           <p className="font-warning">
             Some edges stray more than 1% of the em from the curve. Add segments or switch to Adaptive.

@@ -1,5 +1,5 @@
 // The artboard: a fixed-size image (width × height pixels) that the text is set on, with font size,
-// padding, alignment, and colours. Shared by the canvas, the preview, and SVG/PNG export, so all three
+// alignment, and colours. Shared by the canvas, the preview, and SVG/PNG export, so all three
 // place the text identically. No React, no DOM.
 
 import type { SpecimenScene } from './scene'
@@ -7,7 +7,7 @@ import type { SpecimenScene } from './scene'
 export type TextAlign = 'left' | 'center' | 'right'
 export type TextCase = 'none' | 'upper' | 'lower' | 'title'
 
-/** Where the text block sits on the artboard: one of nine anchors (inside the padding), or Free. */
+/** Where the text block sits on the artboard: one of nine anchors (inside the margin), or Free. */
 export type TextAnchor =
   | 'top-left'
   | 'top'
@@ -41,9 +41,6 @@ export const TEXT_ANCHORS: TextAnchor[] = [
 export interface TypographyParams {
   /** Font size: the em in artboard pixels. */
   size: number
-  /** Space kept free between the text and every canvas edge by the anchors and Fit text, in cap
-      heights of the text at its current size (1 = as tall as a capital letter), so it follows the size. */
-  padding: number
   /** Extra space between glyphs, in thousandths of an em. */
   tracking: number
   /** Line spacing as a multiple of the font's own line spacing. */
@@ -83,7 +80,6 @@ export interface ArtboardParams {
 export const TYPOGRAPHY_LIMITS = {
   minSize: 4,
   maxSize: 1000,
-  maxPadding: 5,
   minTracking: -200,
   maxTracking: 1000,
   minLineHeight: 0.5,
@@ -95,7 +91,6 @@ export const ARTBOARD_LIMITS = { min: 100, max: 4000, scales: [1, 2, 3, 4] as co
 
 export const DEFAULT_TYPOGRAPHY: TypographyParams = {
   size: 48,
-  padding: 1,
   tracking: 0,
   lineHeight: 1,
   slant: 0,
@@ -105,6 +100,9 @@ export const DEFAULT_TYPOGRAPHY: TypographyParams = {
   freeY: 0.5,
   textCase: 'none',
 }
+
+/** Space the anchors and Fit text keep between the text and every canvas edge, in canvas pixels. */
+export const EDGE_MARGIN_PX = 25
 
 export const DEFAULT_ARTBOARD: ArtboardParams = { width: 1200, height: 800, scale: 1 }
 
@@ -155,8 +153,8 @@ export interface ArtboardLayout {
 }
 
 /**
- * The box the text is placed by: where its outlines are (slant included), so at an anchor with no
- * padding the letters themselves would touch the canvas edges. Without outlines (only spaces), the lines' box.
+ * The box the text is placed by: where its outlines are (slant included), so at an anchor the letters
+ * themselves sit the margin away from the canvas edges. Without outlines (only spaces), the lines' box.
  */
 export function textBox(scene: SpecimenScene) {
   if (scene.ink) {
@@ -168,9 +166,9 @@ export function textBox(scene: SpecimenScene) {
 
 /**
  * Places the text block on the artboard. The em is `size` pixels, which fixes the scale between font
- * units and pixels. At an anchor the outlines' box sits against the left padding,
- * in the middle, or against the right padding, and against the top padding, in the middle, or against
- * the bottom padding (the padding is the gap left to the canvas edges); the lines are already aligned inside
+ * units and pixels. At an anchor the outlines' box sits against the left margin, in the middle, or
+ * against the right margin, and against the top margin, in the middle, or against the bottom margin
+ * (EDGE_MARGIN_PX from the canvas edges, whatever the font size); the lines are already aligned inside
  * the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
  */
 export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
@@ -178,7 +176,7 @@ export function layoutArtboard(scene: SpecimenScene, typography: TypographyParam
   const unitsPerPx = unitsPerEm / emPx
   const width = artboard.width * unitsPerPx
   const height = artboard.height * unitsPerPx
-  const pad = clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) * scene.capHeight
+  const pad = EDGE_MARGIN_PX * unitsPerPx
   const { position } = typography
   const box = textBox(scene)
   if (position === 'free') {
@@ -237,18 +235,15 @@ export function moveFreeText(
 const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 /**
- * The font size (pixels per em) at which the outlines, slant included, fit inside the padding on both
- * axes. The padding grows with the size (it is in cap heights), so both are solved together: the text
- * and its padding on both sides fill the artboard. Rounded down to a whole pixel so it never overflows.
+ * The font size (pixels per em) at which the outlines, slant included, fit inside the margin on both
+ * axes: the text fills the artboard less EDGE_MARGIN_PX on each side. Rounded down to a whole pixel so
+ * it never overflows.
  */
 export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): number {
   const box = textBox(scene)
-  // Everything in ems: the text box plus a padding on each side.
-  const margin = (2 * clamp(typography.padding, 0, TYPOGRAPHY_LIMITS.maxPadding) * scene.capHeight) / unitsPerEm
-  const blockWidth = box.width / unitsPerEm + margin
-  const blockHeight = box.height / unitsPerEm + margin
   if (!(box.width > 0 && box.height > 0)) return typography.size
-  const emPx = Math.min(artboard.width / blockWidth, artboard.height / blockHeight)
+  const room = (side: number) => Math.max(1, side - 2 * EDGE_MARGIN_PX)
+  const emPx = Math.min((room(artboard.width) * unitsPerEm) / box.width, (room(artboard.height) * unitsPerEm) / box.height)
   return clamp(Math.floor(emPx), TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
 }
 

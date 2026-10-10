@@ -81,7 +81,7 @@ export default function TypographyControls({ params, artboard, font, scene, disa
             type="button"
             className="button-small"
             disabled={!canFit}
-            title="Largest size at which the whole text fits inside the padding"
+            title="Largest size at which the whole text fits inside the canvas margin"
             onClick={() => {
               if (font && scene) update({ size: fitTextSize(scene, params, artboard, font.metrics.unitsPerEm) })
             }}
@@ -90,18 +90,6 @@ export default function TypographyControls({ params, artboard, font, scene, disa
             Fit text
           </button>
         </div>
-        <SliderField
-          id="type-padding"
-          label="Padding"
-          value={params.padding}
-          min={0}
-          max={TYPOGRAPHY_LIMITS.maxPadding}
-          step={0.1}
-          unit="× cap"
-          valueText={`${params.padding} times the height of a capital letter`}
-          onChange={(padding) => update({ padding })}
-        />
-
         <SliderField
           id="type-tracking"
           label="Tracking"

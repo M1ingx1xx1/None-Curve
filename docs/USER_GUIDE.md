@@ -283,13 +283,12 @@ The seed is also shown in the status line at the bottom and in the export dialog
 The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
 
 - **Size** — the letter size in pixels (how tall one em is on the canvas). It stays the same when you change the canvas size. You can drag the slider or type a number.
-- **Fit text** — makes the text as large as possible while still fitting inside the padding.
-- **Padding** — the gap kept between the text and the canvas edges, counted in capital-letter heights: 1 means the gap is as tall as a capital letter. Because it is tied to the letters, it grows when you make the text bigger. Set it to 0 to let the letters touch the edges.
+- **Fit text** — makes the text as large as possible while keeping a 25-pixel gap to the canvas edges.
 - **Tracking** — extra space between letters. Negative values pull letters closer.
 - **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.
 - **Slant** — leans the letters, like a quick italic. Positive leans right, negative leans left.
 - **Align** — the three buttons with lines line up the lines of text on the left, in the centre, or on the right.
-- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The text moves there, keeping the **Padding** gap (one capital-letter height) to the edges, and its lines line up to match: dots on the left line up left, in the middle centred, on the right line up right. The chosen dot glows. Click **Free** to place the text yourself: it first goes back to the starting position, then you drag it on the big canvas (click Free again any time to send it back). It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
+- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The text moves there, keeping a 25-pixel gap to the edges, and its lines line up to match: dots on the left line up left, in the middle centred, on the right line up right. The chosen dot glows. Click **Free** to place the text yourself: it first goes back to the starting position, then you drag it on the big canvas (click Free again any time to send it back). It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
 - **Reset typography** puts these back to their starting values.
 
 ### Color tab — text and background colours
