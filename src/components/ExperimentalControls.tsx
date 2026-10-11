@@ -21,7 +21,7 @@ interface ExperimentalControlsProps {
 
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
-  noise: { enabled: false, amount: 0.7, facet: 0.18 },
+  noise: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
   wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
 }
@@ -126,6 +126,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
   const introHint = useHint()
   const amountHint = useHint()
   const facetHint = useHint()
+  const turnHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -172,6 +173,20 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           hint={facetHint}
           hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
           onChange={(facet) => update({ facet })}
+        />
+        <RangeField
+          id="noise-turn"
+          label="Turn"
+          value={params.turn ?? 0}
+          min={0}
+          max={345}
+          step={15}
+          display={`${Math.round(params.turn ?? 0)}°`}
+          valueText={`${Math.round(params.turn ?? 0)} degrees`}
+          disabled={off}
+          hint={turnHint}
+          hintText="Turns the way every fold moves, keeping the creases where they are. At 180° the paper is crumpled the opposite way."
+          onChange={(turn) => update({ turn })}
         />
 
         <EffectStats stats={stats} pending={pending} effect="noise" />
