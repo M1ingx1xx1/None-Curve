@@ -1,8 +1,9 @@
 import type { Dispatch, ReactNode } from 'react'
+import { CURL_LIMITS } from '../geometry/curl'
 import { EXPERIMENTAL_LIMITS, experimentalFolds, type ExperimentalStats } from '../geometry/experimental'
 import { NOISE_LIMITS } from '../geometry/noise'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
-import type { ExperimentalParams, NoiseParams, RippleParams, WindParams } from '../geometry/types'
+import type { CurlParams, ExperimentalParams, NoiseParams, RippleParams, WindParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import { WIND_LIMITS } from '../geometry/wind'
 import type { Action } from '../state/editorState'
@@ -23,6 +24,7 @@ export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
   noise: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
+  curl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
 }
 
@@ -44,7 +46,7 @@ export default function ExperimentalControls({ params, stats, pending, disabled,
     <>
       <div className="panel-notice panel-intro">
         <p className="field-title">
-          <span>Runs after Geometry: Noise → Ripple → Wind. Effects can be on together.</span>
+          <span>Runs after Geometry: Noise → Ripple → Curl → Wind. Effects can be on together.</span>
           <HintButton hint={introHint} topic="Experimental effects" />
         </p>
         {statistics}
@@ -58,6 +60,7 @@ export default function ExperimentalControls({ params, stats, pending, disabled,
 
       <NoiseGroup params={params.noise} stats={stats?.noise ?? null} pending={pending} disabled={disabled} onChange={(noise) => update({ noise })} />
       <RippleGroup params={params.ripple} stats={stats?.ripple ?? null} pending={pending} disabled={disabled} onChange={(ripple) => update({ ripple })} />
+      <CurlGroup params={params.curl} stats={stats?.curl ?? null} pending={pending} disabled={disabled} onChange={(curl) => update({ curl })} />
       <WindGroup params={params.wind} stats={stats?.wind ?? null} pending={pending} disabled={disabled} onChange={(wind) => update({ wind })} />
 
       <fieldset className="group experimental" disabled={disabled}>
@@ -92,7 +95,7 @@ export default function ExperimentalControls({ params, stats, pending, disabled,
               </button>
             </div>
             <HintText hint={seedHint}>
-              Picks Noise’s folds and Wind’s gusts; Ripple has no randomness. The same seed and settings always produce
+              Picks Noise’s folds and Wind’s gusts; Ripple and Curl have no randomness. The same seed and settings always produce
               the same letters.
             </HintText>
           </div>
@@ -324,6 +327,94 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
   )
 }
 
+function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<CurlParams>) {
+  const update = (patch: Partial<CurlParams>) => onChange({ ...params, ...patch })
+  const off = disabled || !params.enabled
+  const introHint = useHint()
+  const amountHint = useHint()
+  const pinHint = useHint()
+  const ringsHint = useHint()
+
+  return (
+    <fieldset className="group experimental" disabled={disabled}>
+      <legend>
+        Curl <HintButton hint={introHint} topic="Curl" />
+      </legend>
+      {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
+      <div className="group-body">
+        <HintText hint={introHint}>
+          Swirls each letter around its middle. The swirl is built from rings of straight-sided polygons that each turn as
+          a whole, so strokes bend only along straight creases. Runs after Ripple.
+        </HintText>
+
+        <div className="field field-toggle">
+          <input id="curl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="curl-enabled">Use curl</label>
+        </div>
+
+        <RangeField
+          id="curl-amount"
+          label="Amount"
+          value={params.amount}
+          min={-CURL_LIMITS.maxAmount}
+          max={CURL_LIMITS.maxAmount}
+          step={0.1}
+          display={`${percent(params.amount)}%`}
+          valueText={`${percent(params.amount)} percent`}
+          disabled={off}
+          hint={amountHint}
+          hintText="How far the swirl turns; below 0% it turns clockwise. Above 100% either way, the rings turn past each other and the letter folds onto itself."
+          onChange={(amount) => update({ amount })}
+        />
+        <div className="field field-toggle">
+          <input
+            id="curl-pinned"
+            type="checkbox"
+            checked={params.pinned}
+            disabled={off}
+            aria-describedby={pinHint.id}
+            onChange={(e) => update({ pinned: e.target.checked })}
+          />
+          <label htmlFor="curl-pinned">Pin top and bottom</label>
+          <HintButton hint={pinHint} topic="Pin top and bottom" />
+        </div>
+        <HintText hint={pinHint}>
+          On: the top and bottom of the letter stay put and the middle turns. Off: the middle stays put and the outside
+          turns, the top and bottom with it.
+        </HintText>
+        <RangeField
+          id="curl-rings"
+          label="Rings"
+          value={params.rings}
+          min={CURL_LIMITS.minRings}
+          max={CURL_LIMITS.maxRings}
+          step={1}
+          display={params.rings}
+          valueText={`${params.rings} rings`}
+          disabled={off}
+          hint={ringsHint}
+          hintText="Rings from the middle of the letter to its top and bottom. Fewer rings give bigger, chunkier facets."
+          onChange={(rings) => update({ rings })}
+        />
+        <RangeField
+          id="curl-sides"
+          label="Sides"
+          value={params.sides}
+          min={CURL_LIMITS.minSides}
+          max={CURL_LIMITS.maxSides}
+          step={1}
+          display={params.sides}
+          valueText={`${params.sides} sides`}
+          disabled={off}
+          onChange={(sides) => update({ sides })}
+        />
+
+        <EffectStats stats={stats} pending={pending} effect="curl" />
+      </div>
+    </fieldset>
+  )
+}
+
 function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<WindParams>) {
   const update = (patch: Partial<WindParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
@@ -343,7 +434,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
         <HintText hint={introHint}>
           Draws the letters out in the wind’s direction. The side facing the wind stays put; the further downwind, the
           more the outline is pulled, and gusts pull some bands further than others, leaving ragged, straight-edged
-          streaks. Runs after Ripple.
+          streaks. Runs after Curl.
         </HintText>
 
         <div className="field field-toggle">

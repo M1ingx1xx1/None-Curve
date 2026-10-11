@@ -131,13 +131,14 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 
 ### P2: Experimental effects (stackable)
 
-Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumpled paper), **Ripple** (waves from a point), and **Wind** (pulled along a direction), built in that order. Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
+Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumpled paper), **Ripple** (waves from a point), and **Wind** (pulled along a direction), built in that order, then **Curl** (a swirl around each letter's middle). Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
 
 - **No curves, also to the eye:** every effect is a piecewise-linear warp of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible.
-- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Wind, each on the previous result.
+- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Curl → Wind, each on the previous result.
 - **Always valid:** up to 100%, every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
-- **Folds for unreadable extremes:** above 100% (Noise to 500%, Ripple to 400%, Wind Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports.
+- **Folds for unreadable extremes:** above 100% (Noise to 500%, Ripple to 400%, Curl to ±400%, Wind Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports.
 - **Petals:** Ripple can bend its rings into a flower, one straight-edged petal per side (0–300%). Petals is one-to-one at any depth, so it never folds on its own; folding still comes only from Ripple Amount above 100%.
+- **Curl:** rings of straight-sided polygons each turn as a whole about the letter's middle, either with the top and bottom pinned (the middle twists) or as a whole (the top and bottom swing round too). Up to 100% either way it is one-to-one; beyond, it folds like the other effects.
 - **Repeatable:** one shared seed for the tab; effects work in glyph coordinates, so every copy of a letter has the same shape and fonts can be exported.
 - Random anchors moves out of "experimental" and stays in the Geometry tab.
 
@@ -166,7 +167,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 2. **Geometry and grid:** Grid snapping, grid size, angle locking, fixed-anchor behavior.
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed.
 4. **Export:** SVG settings, font glyph coverage, and font metadata.
-5. **Experimental** (its own tab beside Geometry): Noise, Ripple, and Wind, stackable, with one shared seed.
+5. **Experimental** (its own tab beside Geometry): Noise, Ripple, Curl, and Wind, stackable, with one shared seed.
 
 ### Tool hierarchy
 
@@ -305,7 +306,7 @@ Delivery order: local audio analysis → static aggregate mappings → distinct 
 | P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
-| P2 Experimental effects | Implemented: Noise, Ripple (with petals), and Wind, stackable, with folds beyond 100% |
+| P2 Experimental effects | Implemented: Noise, Ripple (with petals), Curl, and Wind, stackable, with folds beyond 100% |
 | Section 11 Sound-driven carving | Not implemented |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.
