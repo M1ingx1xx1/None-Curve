@@ -146,6 +146,19 @@ export interface RippleParams {
 }
 
 /** Experimental Wind: letters drawn out along the wind, dragged further in gusts, along straight creases. */
+/** Experimental Curl: a swirl around the middle of each letter, along the straight creases of a ring mesh. */
+export interface CurlParams {
+  enabled: boolean
+  /** -4 to 4: how far the rings turn, as a share of the safe maximum (above 1 either way, the letter folds); negative turns clockwise. */
+  amount: number
+  /** Rings from the centre to half the ink box's height (2–12): fewer give bigger, chunkier facets. */
+  rings: number
+  /** Sides of the ring polygons (3–12). */
+  sides: number
+  /** True: the outside (head and foot) stays put and the middle turns. False: the middle stays put and the outside turns with it. */
+  pinned: boolean
+}
+
 export interface WindParams {
   enabled: boolean
   /** Where the wind blows to, in degrees counter-clockwise from the right (0 = right, 90 = up). */
@@ -164,6 +177,7 @@ export interface ExperimentalParams {
   seed: number
   noise: NoiseParams
   ripple: RippleParams
+  curl: CurlParams
   wind: WindParams
 }
 

@@ -1,3 +1,4 @@
+import { curlIsOn } from './curl'
 import { experimentalFolds } from './experimental'
 import { noiseIsOn } from './noise'
 import { rippleIsOn } from './ripple'
@@ -39,6 +40,10 @@ export function describePipeline(params: GeometryParams): string[] {
     steps.push(
       `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}`,
     )
+  }
+  if (curlIsOn(experimental.curl)) {
+    const c = experimental.curl
+    steps.push(`curl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`)
   }
   if (windIsOn(experimental.wind)) {
     const w = experimental.wind

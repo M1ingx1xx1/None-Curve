@@ -2,14 +2,14 @@
 
 **English** · [中文](EXPERIMENTAL_PLAN.zh.md)
 
-**Status:** Phases 1–6 (Noise, Ripple, Wind, more extreme ranges, folds, petals) built and verified  
+**Status:** Phases 1–7 (Noise, Ripple, Wind, more extreme ranges, folds, petals, curl) built and verified  
 **Scope:** A new **Experimental** tab beside **Geometry** in the tools panel, holding creative effects that can all be applied to the same letters at once.
 
 ## 1. Goals
 
-- One tab, **Experimental**, for all creative effects: Noise, Ripple, and Wind. There is no separate tab per effect.
+- One tab, **Experimental**, for all creative effects: Noise, Ripple, Curl, and Wind. There is no separate tab per effect.
 - The effects **stack**: any combination can be on at the same time, and the result is always a valid letter that exports.
-- Each effect is built and shipped on its own, in this order: **Noise → Ripple → Wind**.
+- Each effect is built and shipped on its own, in this order: **Noise → Ripple → Wind**, then **Curl** (Phase 7), which runs between Ripple and Wind.
 - Random anchors (in the Geometry tab) is no longer experimental: its "Experimental" tag is removed.
 
 ## 2. Highest rule: no curves
@@ -28,7 +28,7 @@ What this means for the effects: Ripple waves are zigzags (a triangle wave) on c
 
 ## 3. Stacking
 
-- **Fixed order, last in the pipeline.** Experimental effects run after the whole Geometry pipeline (after Distortion), always as Noise → Ripple → Wind. Each takes the previous effect's result. The pipeline is still rebuilt from the original curves for every change, so turning an effect off simply removes it.
+- **Fixed order, last in the pipeline.** Experimental effects run after the whole Geometry pipeline (after Distortion), always as Noise → Ripple → Curl → Wind. Each takes the previous effect's result. The pipeline is still rebuilt from the original curves for every change, so turning an effect off simply removes it.
 - **Valid by construction.** Up to 100%, each warp keeps every triangle the same way round (it never flips or flattens one), which makes it a one-to-one map of the plane. A one-to-one map cannot make an outline cross itself, push a counter out of its letter, or merge separate parts. Applying several such maps one after another is again one-to-one, so **any combination of effects within 100% is valid** and keeps every letter arranged as it was.
 - **Folds beyond 100%.** Past their safe range, effects may fold the letter onto itself; the overlaps are then merged into one clean outline (section 4.5), so the result is still valid and exports, only no longer arranged like the original letter.
 - **Checked anyway.** After each effect, every contour is still checked for self-crossings and against the glyph's other contours, as every Geometry step does. All contours start as their exact images, which are valid together; each is then replaced by its tidied image (faint creases and curve-like runs removed) only if that is valid against the others. A crossing counts only where the input's edges neither crossed nor touched, because heavy Geometry settings can leave outlines lying on top of themselves; nor between two edges still exactly as the warp mapped them whose input edges are less than 0.05 units apart, which only rounding can cross (a strong Wind can squeeze a sharp spike that thin). If rounding ever breaks an exact image, that contour is retried at 1/2 down to 1/16 strength, and if nothing works the glyph is left as it was; the panel says so.
@@ -126,10 +126,26 @@ Ripple's rings were always regular polygons. Petals bends every ring into a flow
   - Whole fonts written as OTF and read back pass with Petals at 300%, alone and with Amount at 400%. With every effect at its maximum at once, all three fonts exceed the 1,000,000-point limit, and the message suggests exporting only the characters in the text.
   - Ripple with Petals adds about 0.3 ms per glyph to the geometry; every effect at its maximum at once takes about 20 ms per glyph.
 
+### 4.7 Curl (Phase 7)
+
+Swirls each letter around the centre of its ink box.
+
+- **Mesh:** the one Ripple uses: concentric regular polygons with **Sides** (3–12, default 8) and a flat side at the bottom (so with an even number of sides also a flat top), rays through the corners, each cell split into two triangles. The outermost of the **Rings** (2–12, default 6) lies half the ink box's height from the centre, so the top and bottom of the letter sit on it. (For a flat glyph such as a hyphen it lies at least 5% of the em out, so the glyph still turns.)
+- **Movement:** instead of moving out and in, every ring turns as a whole about the centre, so it stays a regular polygon. Points in between move linearly with their triangle, so strokes bend only along straight creases and the swirl is built from straight pieces. **Pin top and bottom** picks one of two ways to turn:
+  - **Pinned** (on, the default): the outermost ring and everything beyond it stay put, and the rings turn more toward the centre. The top and bottom of the letter stay where they are and the middle twists.
+  - **Whole** (off): the centre stays put, the rings turn more toward the outside, and everything beyond the outermost ring turns with it as one piece. The top and bottom swing round too.
+- **Validity:** neighbouring rings turn by the same step relative to each other. Turned too far, the triangles between them flip, and the further out the ring, the smaller the step that does it. At 100% the step is 90% of the largest that keeps every triangle the same way round, worked out for the Sides and Rings in use, with the cell diagonals laid along the swirl (whichever of the two diagonal directions lets the rings turn further). So up to 100% either way Curl is one-to-one: no crossings, and counters stay inside. How far the swirl turns at 100% depends on Sides and Rings: from about 30° with 3 sides to well over a full turn with 12 sides and many rings. Above 100% either way, triangles flip, the letter folds, and the overlaps are merged (section 4.5); Curl counts as folding when Amount is beyond ±100%.
+- **Still no curves.** The warp is piecewise-linear: the creases are the ring sides, the rays, and the cell diagonals inside the rings. Beyond the outermost ring nothing creases (pinned: it is unchanged; whole: it turns rigidly as one piece). Creases are tidied as for every effect (faint ones removed, curve-like runs broken). Like Ripple and Wind, Curl places itself by the ink box of what it receives.
+- **Controls:** Use curl, Amount (−400% to 400%, default 60%, in 10% steps; below 0% it turns clockwise), Pin top and bottom (default on), Rings (2–12, default 6), Sides (3–12, default 8). Curl uses no randomness, so the shared seed does not affect it. Statistics as in the other groups (largest move, creases added); the pipeline summary lists "curl N% (pinned|whole), R rings, S sides".
+- **Checked:**
+  - Mesh: exact images match densely sampled ones (within 1e-11 units), the map is continuous across every crease, and over 24,000 random points at up to ±100% (both modes, 3–12 sides, 2–12 rings) no triangle flips.
+  - On the Latin glyphs of Arial, New York, and Georgia (12 settings each: ±30–100%, pinned and whole, 2–12 rings, 3–12 sides, on top of Geometry settings, and stacked with Noise, Ripple, and Wind): no new crossing, no weakened contour, and every glyph exports. One curve-like run that needs a crease remains (New York č with very fine flattening, where the outline comes within 0.7 units of itself).
+  - Beyond 100% (±200% to ±400%, both modes, 2–12 rings, 3–12 sides, and all four effects folding at once): no crossing and no export failure. Curve-like runs not formed by the input's own vertices appear only with the coarsest mesh at 300% (2 rings, 3 sides; 6–11 per font, every one five vertices long, where a crossing extends four of the input's own vertices) and at most 2 per font otherwise. Whole fonts written as OTF and read back pass at 100% with 12 rings and 12 sides, and at 400% whole.
+
 ## 5. Interface
 
 - The Geometry panel gets two tabs: **Geometry** and **Experimental**. The chosen tab is remembered in the browser. **Show all explanations** stays above the tabs and applies to both.
-- The Experimental tab, from top to bottom: a short line on the order (Noise → Ripple → Wind, after Geometry); one group per effect, each with its own on/off control; the shared seed; and **Reset experimental**.
+- The Experimental tab, from top to bottom: a short line on the order (Noise → Ripple → Curl → Wind, after Geometry); one group per effect, each with its own on/off control; the shared seed; and **Reset experimental**.
 - Each group shows its statistics (largest move, vertices added) and warnings, like the Geometry groups. When an effect goes beyond 100%, the intro also shows how many crossings were merged and how many slivers were dropped.
 - The pipeline summary in the status bar and export notes lists the active effects.
 - English-only labels, short, with explanations folded behind ⓘ buttons.
@@ -154,6 +170,7 @@ Ripple's rings were always regular polygons. Petals bends every ring into a flow
 | 4 | More extreme ranges and bigger slider steps (section 4.4) | Done |
 | 5 | Folds beyond 100%, with overlaps merged (section 4.5) | Done |
 | 6 | Petals: flower-shaped Ripple (section 4.6) | Done |
+| 7 | Curl: swirl, pinned or whole (section 4.7) | Done |
 | Later | Text-wide Ripple, Wind streaks and fragments, Slice, Frankenstein | Separate plan |
 
 Each phase ends with the verification in section 6 and is shipped on its own.

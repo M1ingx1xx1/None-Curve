@@ -280,9 +280,9 @@ The seed is also shown in the status line at the bottom and in the export dialog
 
 ### Experimental tab — effects you can stack
 
-Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. Each one folds the letters along **straight creases**: it adds corners but never curves. Up to 100 %, no combination can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. They always run in the same order: **Noise**, then **Ripple**, then **Wind**.
+Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. Each one folds the letters along **straight creases**: it adds corners but never curves. Up to 100 %, no combination can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. They always run in the same order: **Noise**, then **Ripple**, then **Curl**, then **Wind**.
 
-**Beyond 100 % — folds.** Noise, Ripple, and Wind's Gustiness go past 100 %. There the letters fold over themselves like paper crushed flat: strokes land on other strokes, holes fill in or open up, and the letters stop being readable. Wherever parts overlap they are merged into one clean shape, still made only of straight lines, so the font still exports. While an effect is past 100 %, the top of the tab shows how many places were merged (**Crossings merged**) and how many specks too small to show were dropped (**Slivers dropped**).
+**Beyond 100 % — folds.** Noise, Ripple, Curl, and Wind's Gustiness go past 100 % (Curl in both directions). There the letters fold over themselves like paper crushed flat: strokes land on other strokes, holes fill in or open up, and the letters stop being readable. Wherever parts overlap they are merged into one clean shape, still made only of straight lines, so the font still exports. While an effect is past 100 %, the top of the tab shows how many places were merged (**Crossings merged**) and how many specks too small to show were dropped (**Slivers dropped**).
 
 **Noise — crumpled paper**
 
@@ -302,6 +302,14 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 - **Fade** — how much the waves die down away from the center. At 100 % they are gone by the far edge of the letter.
 - **Petals** — turns the rings into a flower with straight-edged petals, one per side, so **Sides** sets how many petals there are (3 gives a three-leaf shape). Small values give a faceted flower inside round letters like **o** and **e**; at 100 % and above, up to 300 %, the whole letter becomes a large flower, and the notches between the petals pinch strokes into hairlines. Petals alone never folds the letter; combine it with **Amount** above 100 % for folded, chaotic blossoms.
 
+**Curl — swirls**
+
+- **Use curl** — turns it on.
+- **Amount** — how far the letters swirl around their middle, from −400 % to 400 %. Below 0 % the swirl turns clockwise instead. Around 60 % the letters get a clear twist; at 100 % the swirl turns as far as it can while every letter keeps its shape. How far that is depends on **Sides** and **Rings**: about a twelfth of a turn with 3 sides, more than a full turn with 12 sides and many rings. Beyond 100 % either way, the rings turn past each other and the letters fold onto themselves.
+- **Pin top and bottom** — on (the default): the top and bottom of each letter stay where they are and the middle twists. Off: the middle stays where it is and the outside turns instead, so the top and bottom swing round too and the whole letter spins.
+- **Rings** — how many rings the swirl is made of, from the middle of the letter out to its top and bottom (2–12). Fewer rings give bigger, chunkier facets; more rings give a finer swirl of many small straight pieces.
+- **Sides** — the shape of the rings: 3 gives triangles, 4 squares, 8 octagons, up to 12. More sides let the swirl turn further before the letters fold.
+
 **Wind — letters pulled out by the wind**
 
 - **Use wind** — turns it on.
@@ -310,7 +318,7 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 - **Gust size** — the width of the bands the gusts pull, as a share of the em. With a level wind (0° or 180°) every letter on a line shares the same bands, so the streaks run straight through the text.
 - **Gustiness** — how different the bands are. At 0 % every band is pulled equally and the letters are simply stretched; at 100 % some bands barely move while others are dragged far, leaving ragged, straight-edged streaks; above 100 % (up to 200 %) some gusts blow backwards, tearing the letters apart.
 
-**Seed** — one number for all the effects on this tab: it picks Noise's folds and Wind's gusts (Ripple has no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
+**Seed** — one number for all the effects on this tab: it picks Noise's folds and Wind's gusts (Ripple and Curl have no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
 
 Every copy of a letter gets the same folds, so an exported font looks exactly like the canvas.
 
@@ -370,6 +378,9 @@ Experimental tab → **Use ripple** on, **Amount** 50 %, **Wavelength** 25–35 
 
 **Faceted flowers**
 Experimental tab → **Use ripple** on, **Amount** 0–30 %, **Petals** 40–60 %, **Sides** 5 (or 4 for a four-leaf look). For wild blossoms, raise **Petals** to 100–200 % and **Amount** to 200 % or more.
+
+**Whirlpool letters**
+Experimental tab → **Use curl** on, **Amount** 60–100 %, **Pin top and bottom** on for a twist inside the letter (off to spin the whole letter), **Rings** 4–6, **Sides** 8. Push **Amount** past 100 % for folded, shredded swirls.
 
 **Blown away**
 Experimental tab → **Use wind** on, **Strength** 30 %, **Gust size** 10–15 %, **Gustiness** 60–100 %. Raise **Tracking** in the Typography tab if the letters run into each other, and press **Next variant** for different gusts.
