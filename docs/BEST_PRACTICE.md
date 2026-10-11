@@ -23,4 +23,4 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - When you change one edition, update the other in the same change so they stay in step.
 - In Chinese documents, refer to interface elements by their English labels (the UI is English), with a Chinese explanation where helpful.
 
-Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_GUIDE.zh.md`, `docs/PRD.md` / `docs/PRD.zh.md`, `docs/PHASE.md` / `docs/PHASE.zh.md`, `docs/BEST_PRACTICE.md` / `docs/BEST_PRACTICE.zh.md`.
+Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_GUIDE.zh.md`, `docs/PRD.md` / `docs/PRD.zh.md`, `docs/PHASE.md` / `docs/PHASE.zh.md`, `docs/BEST_PRACTICE.md` / `docs/BEST_PRACTICE.zh.md`, `docs/EXPERIMENTAL_PLAN.md` / `docs/EXPERIMENTAL_PLAN.zh.md`, `docs/SOUND_PLAN.md` / `docs/SOUND_PLAN.zh.md`.

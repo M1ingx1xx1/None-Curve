@@ -1,9 +1,11 @@
-import { useState, type Dispatch } from 'react'
+import { memo, useState, type Dispatch } from 'react'
 import { RANDOM_ANCHOR_LIMITS, type RandomAnchorStats } from '../geometry/randomAnchors'
 import type { RandomAnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
+import LiveMarker from './LiveMarker'
+import { sameControlProps } from './sameControlProps'
 
 interface RandomAnchorControlsProps {
   params: RandomAnchorParams
@@ -27,7 +29,7 @@ function pickSeed(current: number): number {
   return seed
 }
 
-export default function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: RandomAnchorControlsProps) {
+function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: RandomAnchorControlsProps) {
   const update = (patch: Partial<RandomAnchorParams>) => dispatch({ type: 'updateParams', group: 'random', patch })
   // Seeds used before the current one in this session, newest first, so a good result can be found again.
   const [history, setHistory] = useState<number[]>([])
@@ -96,18 +98,21 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
               <span className="unit">/1000 u</span>
             </output>
           </div>
-          <input
-            id="random-density"
-            type="range"
-            min={RANDOM_ANCHOR_LIMITS.minDensity}
-            max={RANDOM_ANCHOR_LIMITS.maxDensity}
-            step={1}
-            value={params.density}
-            disabled={off}
-            aria-valuetext={`${params.density} anchors per 1000 font units`}
-            aria-describedby={densityHint.id}
-            onChange={(e) => update({ density: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="random-density"
+              type="range"
+              min={RANDOM_ANCHOR_LIMITS.minDensity}
+              max={RANDOM_ANCHOR_LIMITS.maxDensity}
+              step={1}
+              value={params.density}
+              disabled={off}
+              aria-valuetext={`${params.density} anchors per 1000 font units`}
+              aria-describedby={densityHint.id}
+              onChange={(e) => update({ density: Number(e.target.value) })}
+            />
+            <LiveMarker target="random.density" />
+          </span>
           <HintText hint={densityHint}>
             About how many anchors per 1000 font units of outline. Low values give rough, faceted letters; every contour
             keeps at least 3 anchors.
@@ -122,17 +127,20 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
             </span>
             <output htmlFor="random-randomness">{percent}%</output>
           </div>
-          <input
-            id="random-randomness"
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={params.randomness}
-            disabled={off}
-            aria-valuetext={`${percent} percent`}
-            onChange={(e) => update({ randomness: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="random-randomness"
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={params.randomness}
+              disabled={off}
+              aria-valuetext={`${percent} percent`}
+              onChange={(e) => update({ randomness: Number(e.target.value) })}
+            />
+            <LiveMarker target="random.randomness" />
+          </span>
         </div>
 
         <div className="field field-toggle">
@@ -237,3 +245,6 @@ export default function RandomAnchorControls({ params, stats, pending, disabled,
     </fieldset>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(RandomAnchorControls, sameControlProps)

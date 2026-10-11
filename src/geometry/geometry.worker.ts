@@ -39,16 +39,20 @@ async function compute(request: Extract<WorkerRequest, { type: 'compute' }>) {
   } catch {
     return
   }
+  // Live frames (parameters Sound is driving) use the live cache; the flag goes back with the results.
+  const live = request.live === true
   let batch: GlyphResult[] = []
   let started = performance.now()
   const flush = () => {
-    if (batch.length) post({ type: 'results', requestId: request.requestId, fontId: request.fontId, key: request.key, results: batch })
+    if (batch.length) {
+      post({ type: 'results', requestId: request.requestId, fontId: request.fontId, key: request.key, results: batch, ...(live ? { live } : {}) })
+    }
     batch = []
   }
   for (const index of request.indices) {
     if (latestRequest !== request.requestId) return // superseded: the page wants other settings now
     try {
-      const { source: _source, ...geometry } = glyphGeometry(font, index, request.params, request.key)
+      const { source: _source, ...geometry } = glyphGeometry(font, index, request.params, request.key, live)
       batch.push({ index, geometry })
     } catch (error) {
       batch.push({ index, error: error instanceof Error ? error.message : String(error) })

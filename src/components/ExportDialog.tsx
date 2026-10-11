@@ -15,6 +15,7 @@ import { specimenToSvg, type SvgLook } from '../export/svg'
 import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
+import { useLiveStatus } from '../sound/live'
 import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen } from '../specimen/scene'
 import { exportPolygonLookup } from '../state/geometryClient'
@@ -74,6 +75,8 @@ async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
 export default function ExportDialog(props: ExportDialogProps) {
   const { open, onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale } = props
   const { params, paramsKey, pending, precision, onPrecisionChange, onExported } = props
+  // While Sound drives the letters the canvas shows live shapes, but exports use the sliders (SOUND_PLAN §9).
+  const { driving: soundLive } = useLiveStatus()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const firstRef = useRef<HTMLInputElement>(null)
   const [format, setFormat] = useState<Format>('svg')
@@ -238,6 +241,9 @@ export default function ExportDialog(props: ExportDialogProps) {
               Exports use the final polygons shown on the canvas: {fontName}, pipeline {pipeline.join(' → ')}. Nothing is
               downloaded until you press the download button.
             </p>
+            {soundLive && (
+              <p className="font-warning">Sound is moving the letters: exports use the sliders. To export the live look, press Freeze.</p>
+            )}
 
             <fieldset className="export-formats">
               <legend>Format</legend>

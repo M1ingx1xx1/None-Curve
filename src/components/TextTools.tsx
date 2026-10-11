@@ -13,8 +13,10 @@ interface TextToolsProps {
   palette: PaletteParams
   artboard: ArtboardParams
   font: LoadedFont | null
-  /** The laid-out text, for Fit text and the free position. */
+  /** The laid-out text, for whether Fit text can run. */
   scene: SpecimenScene | null
+  /** The text with the sliders' own outlines (never a live Sound frame), measured by Fit text and Free. */
+  sliderScene: () => SpecimenScene | null
   dispatch: Dispatch<Action>
   /** Glyphs tab: inserts a character into the text at the cursor. */
   onInsertGlyph: (glyph: GlyphRef, text: string) => void
@@ -44,7 +46,7 @@ function readTab(): Tab {
  * canvas (Typography), characters to insert (Glyphs), and its colours (Color). Every tab stays
  * mounted, so switching keeps local state such as the glyph search or a hex value being typed.
  */
-export default function TextTools({ typography, palette, artboard, font, scene, dispatch, onInsertGlyph }: TextToolsProps) {
+export default function TextTools({ typography, palette, artboard, font, scene, sliderScene, dispatch, onInsertGlyph }: TextToolsProps) {
   const [tab, setTab] = useState<Tab>(readTab)
   const ids = useId()
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ typography: null, glyphs: null, color: null })
@@ -98,7 +100,15 @@ export default function TextTools({ typography, palette, artboard, font, scene, 
       </div>
 
       <div className="text-tools-panel text-tools-scroll" {...panel('typography')}>
-        <TypographyControls params={typography} artboard={artboard} font={font} scene={scene} disabled={!font} dispatch={dispatch} />
+        <TypographyControls
+          params={typography}
+          artboard={artboard}
+          font={font}
+          scene={scene}
+          sliderScene={sliderScene}
+          disabled={!font}
+          dispatch={dispatch}
+        />
       </div>
       <div className="text-tools-panel" {...panel('glyphs')}>
         <GlyphPanel font={font} onInsert={onInsertGlyph} />

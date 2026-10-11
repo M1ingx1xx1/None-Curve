@@ -1,4 +1,4 @@
-import type { Dispatch, ReactNode } from 'react'
+import { memo, type Dispatch, type ReactNode } from 'react'
 import { CURL_LIMITS } from '../geometry/curl'
 import { EXPERIMENTAL_LIMITS, experimentalFolds, type ExperimentalStats } from '../geometry/experimental'
 import { NOISE_LIMITS } from '../geometry/noise'
@@ -9,6 +9,8 @@ import { WIND_LIMITS } from '../geometry/wind'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
+import LiveMarker from './LiveMarker'
+import { sameControlProps } from './sameControlProps'
 
 interface ExperimentalControlsProps {
   params: ExperimentalParams
@@ -35,7 +37,7 @@ const percent = (v: number) => Math.round(v * 100)
  * Each folds the letter along straight creases, so it adds corners but never curves. Beyond 100% an
  * effect folds the letter onto itself, and the overlaps are merged into one outline.
  */
-export default function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics }: ExperimentalControlsProps) {
+function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics }: ExperimentalControlsProps) {
   const update = (patch: Partial<ExperimentalParams>) => dispatch({ type: 'updateParams', group: 'experimental', patch })
   const introHint = useHint()
   const seedHint = useHint()
@@ -150,6 +152,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
 
         <RangeField
           id="noise-amount"
+          target="experimental.noise.amount"
           label="Amount"
           value={params.amount}
           min={0}
@@ -164,6 +167,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
         />
         <RangeField
           id="noise-facet"
+          target="experimental.noise.facet"
           label="Facet size"
           value={params.facet}
           min={NOISE_LIMITS.minFacet}
@@ -179,6 +183,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
         />
         <RangeField
           id="noise-turn"
+          target="experimental.noise.turn"
           label="Turn"
           value={params.turn ?? 0}
           min={0}
@@ -227,6 +232,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
 
         <RangeField
           id="ripple-amount"
+          target="experimental.ripple.amount"
           label="Amount"
           value={params.amount}
           min={0}
@@ -241,6 +247,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         />
         <RangeField
           id="ripple-wavelength"
+          target="experimental.ripple.wavelength"
           label="Wavelength"
           value={params.wavelength}
           min={RIPPLE_LIMITS.minWavelength}
@@ -256,6 +263,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         />
         <RangeField
           id="ripple-sides"
+          target="experimental.ripple.sides"
           label="Sides"
           value={params.sides}
           min={RIPPLE_LIMITS.minSides}
@@ -268,6 +276,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         />
         <RangeField
           id="ripple-center-x"
+          target="experimental.ripple.centerX"
           label="Center X"
           value={params.centerX}
           min={RIPPLE_LIMITS.minCenter}
@@ -282,6 +291,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         />
         <RangeField
           id="ripple-center-y"
+          target="experimental.ripple.centerY"
           label="Center Y"
           value={params.centerY}
           min={RIPPLE_LIMITS.minCenter}
@@ -294,6 +304,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         />
         <RangeField
           id="ripple-fade"
+          target="experimental.ripple.fade"
           label="Fade"
           value={params.fade}
           min={0}
@@ -308,6 +319,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         />
         <RangeField
           id="ripple-petals"
+          target="experimental.ripple.petals"
           label="Petals"
           value={params.petals ?? 0}
           min={0}
@@ -354,6 +366,7 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
 
         <RangeField
           id="curl-amount"
+          target="experimental.curl.amount"
           label="Amount"
           value={params.amount}
           min={-CURL_LIMITS.maxAmount}
@@ -384,6 +397,7 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
         </HintText>
         <RangeField
           id="curl-rings"
+          target="experimental.curl.rings"
           label="Rings"
           value={params.rings}
           min={CURL_LIMITS.minRings}
@@ -398,6 +412,7 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
         />
         <RangeField
           id="curl-sides"
+          target="experimental.curl.sides"
           label="Sides"
           value={params.sides}
           min={CURL_LIMITS.minSides}
@@ -444,6 +459,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
 
         <RangeField
           id="wind-direction"
+          target="experimental.wind.direction"
           label="Direction"
           value={params.direction}
           min={0}
@@ -458,6 +474,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
         />
         <RangeField
           id="wind-strength"
+          target="experimental.wind.strength"
           label="Strength"
           value={params.strength}
           min={0}
@@ -472,6 +489,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
         />
         <RangeField
           id="wind-gust"
+          target="experimental.wind.gust"
           label="Gust size"
           value={params.gust}
           min={WIND_LIMITS.minGust}
@@ -487,6 +505,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
         />
         <RangeField
           id="wind-gustiness"
+          target="experimental.wind.gustiness"
           label="Gustiness"
           value={params.gustiness}
           min={0}
@@ -508,6 +527,8 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
 
 interface RangeFieldProps {
   id: string
+  /** The Sound target this slider is ("experimental.noise.amount"), for its live marker. */
+  target: string
   label: string
   value: number
   min: number
@@ -522,8 +543,8 @@ interface RangeFieldProps {
   onChange: (value: number) => void
 }
 
-/** A labelled slider with its value; an optional ⓘ explanation. */
-function RangeField({ id, label, value, min, max, step, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+/** A labelled slider with its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
+function RangeField({ id, target, label, value, min, max, step, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
   return (
     <div className="field">
       <div className="field-head">
@@ -536,18 +557,21 @@ function RangeField({ id, label, value, min, max, step, display, unit, valueText
           {unit && <span className="unit">{unit}</span>}
         </output>
       </div>
-      <input
-        id={id}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        aria-valuetext={valueText}
-        aria-describedby={hint?.id}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
+      <span className="live-slider">
+        <input
+          id={id}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          disabled={disabled}
+          aria-valuetext={valueText}
+          aria-describedby={hint?.id}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <LiveMarker target={target} />
+      </span>
       {hint && hintText && <HintText hint={hint}>{hintText}</HintText>}
     </div>
   )
@@ -598,3 +622,6 @@ function EffectStats({ stats, pending, effect }: { stats: WarpStats | null; pend
     </>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(ExperimentalControls, sameControlProps)

@@ -16,8 +16,9 @@ You can:
 - Type any text and see it rebuilt live as you move the sliders.
 - Look at one letter closely, with its original curve points.
 - Save a letter or your text as an **SVG** image, or turn the reshaped letters into a new **font file** (`.otf`).
+- Play an audio file or use the microphone and let the sound move the letters live — for example, outlines that roughen when the music gets loud, or petals that open on the bass.
 
-Everything happens inside your web browser. Your font files are never uploaded anywhere.
+Everything happens inside your web browser. Your font and audio files are never uploaded anywhere.
 
 ---
 
@@ -25,6 +26,7 @@ Everything happens inside your web browser. Your font files are never uploaded a
 
 - A recent web browser (Chrome, Edge, Firefox, or Safari) on a computer. A phone works, but a larger screen is much more comfortable.
 - Either a font file on your computer (`.ttf`, `.otf`, `.woff`, or `.woff2`) **or** an internet connection to load a font from Google Fonts.
+- Optional, for the **Sound** tab: an audio file (such as an MP3) or a microphone.
 - The app's web address — for example `https://m1ingx1xx1.github.io/None-Curve/` — or ask whoever set up the project for it.
 
 ---
@@ -46,7 +48,7 @@ The screen is split into two rows and five areas:
 └──────────────────────────╨──────────────────────────╨────────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import font** button, information about the loaded font, and the controls that shape the letters, in two tabs: **Geometry** and **Experimental**. Scroll to see every control.
+1. **Tools (top left)** — the **Import font** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control.
 2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
@@ -190,7 +192,7 @@ If the text is too big for the canvas, a red note appears on the big canvas; the
 
 ## 8. The shaping controls
 
-These are in the tools panel (top left), in two tabs. The **Geometry** tab is applied in a fixed order, top to bottom, so later steps work on the result of earlier ones; the **Experimental** tab comes after all of it:
+These are in the tools panel (top left), in two tabs. (The third tab, **Sound**, does not shape the letters itself: it moves the letters with the sound, as if it were moving the sliders of these two tabs (the sliders themselves stay where you put them, and a thin line on each shows where the sound has taken it); see [Sound tab](#sound-tab--letters-that-move-with-the-sound) below.) The **Geometry** tab is applied in a fixed order, top to bottom, so later steps work on the result of earlier ones; the **Experimental** tab comes after all of it:
 
 **Curve flattening → Squaring → Anchors → Grid & angles → Distortion → Experimental**
 
@@ -322,6 +324,84 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 
 Every copy of a letter gets the same folds, so an exported font looks exactly like the canvas.
 
+### Sound tab — letters that move with the sound
+
+The third tab, next to **Experimental**. It plays an audio file or listens to the microphone and measures the sound as it goes: how loud it is, how much bass, middle, and treble it has, how bright it sounds, and where the beats fall. It can also move the letters with the sound: you connect a reading, such as loudness, to a slider, such as Distortion's **Noise amplitude**, and while the music plays the letters roughen when it gets loud and calm down when it gets quiet (see **Mappings** below).
+
+The sound only ever moves sliders, and only within their own range, so every shape you see is one you could also make by hand with the sliders — built from straight lines, like everything else in the app.
+
+Your audio stays in your browser: a file is read on your computer and never uploaded, and the microphone is only used while you listen.
+
+**Source** — where the sound comes from:
+
+- **Off** — the default: nothing plays and nothing listens.
+- **File** — an audio file from your computer.
+  - **Choose file** — pick the file. Most common formats work (MP3, WAV, AAC, OGG, or FLAC, depending on your browser), up to 512 MB. Its name and length (minutes:seconds) appear beside the button; a long name is cut short, and pointing at it shows it in full.
+  - **Play** / **Pause** — plays the file through your speakers or headphones. **Play** and **Position** stay greyed out until you have chosen a file.
+  - **Loop** — starts the file again from the beginning when it ends. It is on at the start.
+  - **Position** — drag to jump to another part of the file. The number shows where you are and the total length, for example "0:42 / 3:15".
+- **Microphone** — the sound around you, for example music playing in the room, your voice, or clapping.
+  - Choosing **Microphone** shows the **Start listening** button; the microphone turns on only when you click it. The first time, your browser asks whether this page may use the microphone: click **Allow**.
+  - **Stop listening** turns the microphone off; **Start listening** turns it on again.
+  - While it listens, **Listening** shows next to the button, and **Microphone on** shows in the status line at the bottom, so you can see it from every tab. On a narrow screen, such as a phone, it floats at the bottom right of the screen instead.
+  - If the microphone stops by itself (it was unplugged, or the browser's permission was taken away), the status line says **No microphone**.
+  - The microphone's sound is only measured, never played back, so it cannot howl through your speakers.
+  - **Stop listening**, switching to **Off** or **File**, and closing the page all turn the microphone off.
+- Switching to **Off** stops the file and the microphone. Switching back to **File** keeps the file you chose, paused.
+- If a file plays or the microphone listens but nothing is heard for 3 seconds, the tab says **No sound detected.** Check the volume and that the microphone is not muted, or raise **Sensitivity** (below).
+
+**Levels** — what the sound is like right now. Each reading has a bar. The bars are empty while nothing plays or listens, and with Sound off the numbers show "—".
+
+- **Level** — how loud the sound is overall. The number is in decibels (dB): the bar is empty at −60 dB and full at 0 dB, the loudest a recording can be. It shows "—" when it is silent.
+- **Low**, **Mid**, **High** — how much bass (below 250 Hz: bass drum, bass guitar), middle (250–2000 Hz: voices and most instruments), and treble (above 2000 Hz: cymbals, hiss, "s" sounds) there is, in percent. Each one is compared with its own loudest moment of the last few seconds, so the bars adapt to the music: a full bar means "as strong as this part of the sound has recently been", not "very loud".
+- **Brightness** — where the energy sits: dull, bass-heavy sound reads low; hiss and cymbals read high.
+- **Beat** and **Kick** — two small lights that flash briefly. **Beat** flashes on every new sound that starts suddenly: a drum hit, a clap, a plucked note. **Kick** flashes on sudden bass: mostly the bass drum, the deep "boom" of most dance and pop music, and sometimes a sudden low bass note. Every Kick also flashes Beat, even when other sound drowns out the drum. A hi-hat, for example, flashes Beat but not Kick. With reduced motion turned on in your computer's settings, the lights still flash, just without fading.
+- Very quiet sound counts as silence: all the bars drop to empty and no lights flash, so background noise does not make them flicker.
+
+**Mappings** — which sliders the sound moves, and how far. Each mapping connects one reading to one slider.
+
+- **Drive letters** — the main switch. The sound moves the letters only while this is ticked **and** a file plays or the microphone listens. Untick it to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts unticked and the tab says "Off because your system asks for reduced motion."; tick it if you want the letters to move anyway. If you turn on reduce motion while the page is open, it unticks itself.
+- **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a slider that no row uses yet. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
+- Each row has:
+  - **Feature** — the reading that drives it: **Level**, **Low**, **Mid**, **High**, or **Brightness**, the same as the meters above.
+  - **Target** — the slider it moves, named after its group and its label, for example "Ripple · Petals". The list has two parts, **Geometry** and **Experimental**, in the same order as the tabs.
+  - **Depth** — how far the slider moves, from −100 % to +100 %. At +100 % the strongest sound takes the slider the whole length of its track; at +50 %, half of it. Negative values move it the other way, so louder sound turns the value down. 0 % does nothing.
+  - A tick box that switches the row on or off without deleting it, and an **×** button that removes it.
+- **How far a slider moves:** it starts from where you left it. If a slider sits a quarter of the way along and Depth is +50 %, full sound takes it to three quarters; silence leaves it where it is. It never goes past either end of its track, and it moves in the same steps as the slider itself. Two rows on the same slider add up.
+- Some sliders change faster towards one end, like **Tolerance**. The sound still takes them evenly along the track, just as your hand would.
+- If a row's slider has no effect right now, a grey note under the row tells you what to do, for example "Turn on Noise to hear this." when the Noise effect is off, or "Turn on Snap to grid to hear this." for **Grid size**. The sound never turns an effect or a switch on for you.
+- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Noise, Ripple, Curl, and Wind. Seeds, switches, and choices (such as **Mode** or **Allowed directions**) cannot be driven.
+- Mappings are not saved: like your other settings, they last until you close the page.
+
+**While the sound moves the letters:**
+
+- **Your sliders stay where you put them.** On each driven slider, a thin coloured line moves along the track to show where the sound has taken it right now. When you pause, the file ends, you untick **Drive letters**, or you switch the source to **Off**, the letters go back exactly to your slider settings and the lines disappear.
+- **Live · N fps** — shown in the Sound tab and in the status line at the bottom: how many new shapes a second the app can keep up with (fps means frames per second). The app draws the next shape as soon as the last one is ready, at most 30 a second, so heavy settings and long texts give fewer.
+- **No flashing:** a slider never swings back and forth more than 3 times a second (counting only swings of a tenth of its track or more). When the music would make it do that (fast drums with a short **Smoothing**, for example), the slider waits a moment before it swings again.
+- If that falls below about 8 a second, the tab says "Too slow to follow the sound: try fewer effects or a shorter text." Turning off some Experimental effects, using a shorter text, or choosing lighter settings helps.
+- **Freeze** — copies what the letters look like right now into the sliders and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters. Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound.
+- **Exports always use the sliders**, never the moving letters. To save a moment of the music, press **Freeze** first, then **Export…**. While the sound is moving the letters, the export dialog reminds you of this. **Fit text** and **Free** (in the Typography tab) also measure the letters as your sliders make them, as exports do.
+
+**Analysis** — how the sound is measured:
+
+- **Sensitivity** — boosts or cuts the input before measuring, for quiet or loud sources (−24 to +24 dB, default 0 dB). Raise it for a quiet room or a distant microphone, which also helps the Beat and Kick lights catch quiet hits; lower it if the bars are always full.
+- **Smoothing** — how slowly the readings fall back after a sound: short is jumpy, long is calm. They always rise at once (20–1000 ms, default 150 ms).
+- **Reset sound** — puts Sensitivity and Smoothing back to 0 dB and 150 ms. It is greyed out when they already are.
+
+**If something goes wrong**, a message appears under the source (pointing at it may show the browser's own technical detail):
+
+| Message | What it means | What to do |
+|---|---|---|
+| This browser cannot analyse sound. | Your browser cannot measure sound. | Use a recent Chrome, Edge, Firefox, or Safari. |
+| This browser cannot use the microphone. | Your browser cannot open a microphone here. | Try another browser, or use a file. |
+| This file is not audio this browser can play. | The file is not audio, is damaged, or is in a format this browser does not know. | Try an MP3 or WAV file, or another browser. |
+| This file has no length. | The file is empty. | Choose another file. |
+| This file is too large (over 512 MB). | The file is too big to open. | Use a shorter or compressed file, such as an MP3. |
+| Microphone access was refused. Allow it in the browser’s site settings, then try again. | You or the browser said no to the microphone. | Open the site settings (usually the icon at the left of the address bar), allow the microphone, then click **Start listening**. |
+| No microphone found. | No microphone is connected, or it was unplugged while listening. | Connect one, then try again. |
+| The microphone could not be opened; another app may be using it. | Another program, such as a video call, may be using it. | Close that program, then try again. |
+| The microphone needs a secure page (https or localhost). | The page was opened from an address starting with `http://`. | Open the app's `https://` address. |
+
 ### Typography tab — size, spacing, and alignment
 
 The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
@@ -388,6 +468,12 @@ Experimental tab → **Use wind** on, **Strength** 30 %, **Gust size** 10–15 %
 **Unreadable, shattered letters**
 Experimental tab → **Use noise** at 300–500 %, or **Use ripple** at 200–400 %, or **Use wind** with **Gustiness** 150–200 %. Combine them for total chaos, and press **Next variant** until the shapes surprise you. Exporting a whole large font with every effect at its maximum can exceed the file's point limit; export only the characters in the text instead.
 
+**Letters that pulse with the music**
+Sound tab → **File** → **Choose file** → **Play**. Under **Mappings**, click **Add mapping** (Level → Distortion · Noise amplitude, +50 %): loud passages roughen the letters, quiet ones smooth them. For a stronger effect raise **Depth**, or start Distortion's **Noise amplitude** a little higher. Press **Freeze** at a moment you like, then export it.
+
+**Petals that open on the bass**
+Experimental tab → **Use ripple** on, **Amount** 0–30 %, **Petals** 0–20 %, **Sides** 5. Sound tab → **Add mapping**, then set **Feature** to **Low**, **Target** to **Ripple · Petals**, and **Depth** to +30 %. For a shiver on the cymbals as well, turn on **Use noise** and add **High** → **Noise · Amount**.
+
 **Back to the original**
 Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Squaring, Anchors, Grid & angles, Distortion, and the Experimental effects (each has a reset button). Or simply choose **Original** in the canvas toolbar to look at the untouched font.
 
@@ -396,6 +482,8 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 ## 10. Saving your work (Export)
 
 Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button.
+
+Exports always use your slider settings. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see.
 
 ### As an image (SVG or PNG)
 
@@ -458,8 +546,17 @@ The font does not contain that character, or (for Google Fonts) it is in another
 **Will my results change if I reload the page?**
 Settings are not saved between visits. Within a session, the same settings and seed always give the same result. Export what you want to keep.
 
+**The letters do not move with the music.**
+In the Sound tab, check that the file is playing (or the microphone is listening), that **Drive letters** is ticked, and that there is at least one mapping that is ticked and has a **Depth** other than 0 %. If a grey note sits under the row, do what it says — for example, "Turn on Noise to hear this." means the Noise effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**.
+
+**The sliders do not move while the letters do.**
+That is on purpose: your sliders keep your settings, and the thin line on each driven slider shows where the sound has taken it. Press **Freeze** to copy the current look into the sliders.
+
+**My export does not look like the moving letters.**
+Exports use the sliders, not the sound. Press **Freeze** at the moment you want, then export.
+
 **Does anything get uploaded?**
-No. Local fonts stay on your computer. Google fonts are downloaded from Google; nothing is sent anywhere else.
+No. Local fonts and audio files stay on your computer, and the microphone's sound is only measured in your browser. Google fonts are downloaded from Google; nothing is sent anywhere else.
 
 ---
 
@@ -477,6 +574,11 @@ No. Local fonts stay on your computer. Google fonts are downloaded from Google; 
 | **Polygon** | A shape made only of straight lines. |
 | **Crease** | A straight line along which an Experimental effect folds the outline; the only place it adds a corner. |
 | **Fold** | What an Experimental effect does beyond 100 %: parts of a letter land on top of other parts. Overlaps are merged into one straight-edged shape. |
+| **Decibel (dB)** | A unit of loudness. In the Sound tab, 0 dB is the loudest a recording can be and lower (negative) numbers are quieter. |
+| **Onset** | The moment a new sound starts, such as a drum hit; the **Beat** light flashes on it. |
+| **Mapping** | In the Sound tab, a connection from one sound reading (such as **Level**) to one slider, whose value then follows the sound (the slider itself stays put; a thin line shows the live value). |
+| **Depth** | How far a mapping moves its slider when the reading is at its strongest, as a share of the slider's track. |
+| **fps (frames per second)** | How many new shapes a second the app can keep up with while the sound moves the letters. |
 | **Em / Units per em** | The invisible design square of a font and its size in font units (often 1000 or 2048). |
 | **Font unit (u)** | The measuring unit inside a font. All sizes in the controls use it. |
 | **Baseline** | The line letters sit on. |

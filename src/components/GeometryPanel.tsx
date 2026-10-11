@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
 import { formatCodePoint } from '../font/model'
 import type { GlyphRef } from '../geometry/types'
+import { useLiveDriving } from '../sound/live'
 import type { Action } from '../state/editorState'
 import type { DerivedGeometryState } from '../state/useDerivedGeometry'
 import type { AppState } from '../state/types'
@@ -11,6 +12,7 @@ import FlattenControls from './FlattenControls'
 import GridControls from './GridControls'
 import { HintButton, HintText, useHint } from './Hint'
 import RandomAnchorControls from './RandomAnchorControls'
+import SoundControls from './SoundControls'
 import SquaringControls from './SquaringControls'
 
 interface GeometryPanelProps {
@@ -22,11 +24,12 @@ interface GeometryPanelProps {
   onShowAllHintsChange: (showAll: boolean) => void
 }
 
-type Tab = 'geometry' | 'experimental'
+type Tab = 'geometry' | 'experimental' | 'sound'
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'geometry', label: 'Geometry' },
   { id: 'experimental', label: 'Experimental' },
+  { id: 'sound', label: 'Sound' },
 ]
 
 const TAB_KEY = 'none-curve:geometry-tab'
@@ -41,19 +44,26 @@ function readTab(): Tab {
 }
 
 /**
- * Top left, below import: the parameters that change the glyph outlines, in two tabs — the Geometry
- * pipeline in its order, and the Experimental effects that run after it. Typography and colours are
+ * Top left, below import: the parameters that change the glyph outlines, in three tabs — the Geometry
+ * pipeline in its order, the Experimental effects that run after it, and Sound, which listens to a
+ * file or the microphone and drives the other two tabs' sliders live (it needs no font; it reads the
+ * slider values to say which mappings act, and Freeze writes into them). Typography and colours are
  * set in the panel beside the text input. Explanations are folded behind ⓘ buttons; warnings,
- * statistics, and notes about disabled controls always stay visible. Both tabs stay mounted.
+ * statistics, and notes about disabled controls always stay visible. All tabs stay mounted.
  */
 export default function GeometryPanel({ state, dispatch, derived, showAllHints, onShowAllHintsChange }: GeometryPanelProps) {
-  const { font } = state.document
+  const { font, selectedGlyph } = state.document
   const geometry = derived.result.kind === 'ready' ? derived.result.geometry : null
   const unitsPerEm = font?.metrics.unitsPerEm ?? null
-  const common = { pending: derived.pending, disabled: !font, dispatch }
+  // While Sound drives the letters the statistics keep changing, also when a quiet moment shows the
+  // sliders' own shape: aria-busy holds back their announcements until Sound stops driving.
+  const driving = useLiveDriving()
+  const common = { pending: derived.pending || driving, disabled: !font, dispatch }
+  // The same element while the glyph stays, so the memoized Experimental controls skip live frames.
+  const statistics = useMemo(() => font && <StatisticsTarget glyph={selectedGlyph} />, [font, selectedGlyph])
   const ids = useId()
   const [tab, setTab] = useState<Tab>(readTab)
-  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ geometry: null, experimental: null })
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ geometry: null, experimental: null, sound: null })
 
   useEffect(() => {
     try {
@@ -109,7 +119,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
       </div>
 
       <div {...panel('geometry')}>
-        <PipelineIntro glyph={font ? state.document.selectedGlyph : undefined} />
+        <PipelineIntro glyph={font ? selectedGlyph : undefined} />
         <FlattenControls
           params={state.params.flatten}
           stats={geometry?.flatten ?? null}
@@ -133,9 +143,13 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
         <ExperimentalControls
           params={state.params.experimental}
           stats={geometry?.experimental ?? null}
-          statistics={font && <StatisticsTarget glyph={state.document.selectedGlyph} />}
+          statistics={statistics}
           {...common}
         />
+      </div>
+
+      <div {...panel('sound')}>
+        <SoundControls params={state.params} dispatch={dispatch} />
       </div>
     </aside>
   )

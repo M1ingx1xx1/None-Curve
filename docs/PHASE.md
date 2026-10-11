@@ -15,7 +15,7 @@ Load font → Parse glyph outlines → Flatten curves → Adjust geometry
           → Inspect in viewport → Export SVG or font
 ```
 
-The font editor is the primary product and receives roughly 70% of product and design focus. Sound-driven carving is a secondary extension, receiving roughly 30%; it operates on the font editor’s polygon geometry and never gates the core font workflow. This is a planning allocation, not a literal screen-area requirement. The default landing workspace remains the font editor.
+The font editor is the primary product and receives roughly 70% of product and design focus. Sound is a secondary extension, receiving roughly 30%; it drives the font editor’s existing geometry parameters and never gates the core font workflow. This is a planning allocation, not a literal screen-area requirement. The default landing workspace remains the font editor.
 
 A key product distinction: “polygon-only” means the exported glyph outlines use straight-line segments. SVG can represent that directly with `M` and `L` commands. Font-file generation is a separate engineering challenge: it must convert the edited polygons into valid font glyphs and preserve required font metadata and metrics.
 
@@ -251,7 +251,7 @@ Avoid presenting internal library vocabulary directly in the designer interface 
 │ Glyph selection      │ Source skeleton / current polygon     │
 │ Deconstruction       │ Outline / filled rendering            │
 │ Geometry and grid    │ Guides and specimen preview            │
-│ Distortion / carving │ Updates as controls change             │
+│ Distortion / Sound   │ Updates as controls change             │
 │ Export options       │                                       │
 ├──────────────────────┴───────────────────────────────────────┤
 │ Preview mode · zoom · selected glyph · processing status      │
@@ -330,7 +330,7 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 
 # Phase D: Step-by-Step Implementation Roadmap
 
-> **Implementation status:** Milestones 1–3 are complete, including the specimen, SVG export, and OTF generation with read-back verification (a Web Worker was not needed). Milestone 4's GitHub Pages workflow is in place (Vite `base` instead of a Webpack public path). Phase E (sound → carving) has not started. See “Feature status” in the README.
+> **Implementation status:** Milestones 1–3 are complete, including the specimen, SVG export, and OTF generation with read-back verification. The geometry pipeline runs in a Web Worker (`src/geometry/geometry.worker.ts`, `src/state/geometryClient.ts`). Milestone 4's GitHub Pages workflow is in place (Vite `base` instead of a Webpack public path). Phase E (sound-reactive geometry) is in progress: phases 1 (sources, features, meters) and 2 (continuous mappings, live scheduler, live markers, Freeze) are built; see [SOUND_PLAN.md](SOUND_PLAN.md). See “Feature status” in the README.
 
 ## Milestone 1: MVP
 
@@ -390,26 +390,43 @@ OTF generation requires more than writing paths: the output needs valid glyph re
 
 ---
 
-# Phase E: Sound → Carving Logic → Letterform
+# Phase E: Sound-reactive geometry
 
-> **Implementation status:** planned, not implemented.
+> **Implementation status:** in progress. Phases 1 and 2 are built: steps 1 and 2; continuous mappings from step 3 (slider position + Depth × feature, clamped and rounded to the slider's step); step 4 (at most one geometry request in flight, capped at 30 fps, with a separate live cache, and a flash limit on continuous mappings); and from step 5 Source, meters, Sensitivity, Smoothing, Reset sound, the mapping list with Drive letters, Freeze, live slider markers, and "Live · N fps" in the Sound tab and the status bar. Event mappings (Jump, Step, Kick) and their rate limit from step 3, presets from step 5, and step 6 are not implemented yet. See [SOUND_PLAN.md](SOUND_PLAN.md).
 
-This is the secondary product track (roughly 30% of planned product focus). Complete the core font editor milestones first; sound carving extends the existing glyph workflow and must remain optional.
+This is the secondary product track (roughly 30% of planned product focus). The Sound tab drives the existing Geometry and Experimental parameters with live sound. It must remain optional, and the font tool must work exactly as before when it is off.
 
-Follow [PRD section 11](PRD.md#11-sound-driven-carved-letterforms-new-product-direction) while extending the existing geometry engine.
+Follow [PRD section 11](PRD.md#11-sound-reactive-geometry-new-product-direction) and the detailed [sound plan](SOUND_PLAN.md).
 
-1. **Audio/features:** Add AudioSource, AnalysisConfig, and FeatureFrame (timestamp, raw/normalized values, validity, pitch confidence). Decode browser-supported audio locally; analyze RMS, pitch, onsets, duration, band energy, and texture proxies in background work. Retain input fingerprint and analysis version.
-2. **Mapping:** Add MappingRule and CarvingParameters with bounds, strength, direction, response curve, smoothing, and toggles. Apply the PRD base/contribution/clamp rules and expose contributions and constraint reasons.
-3. **Geometry:** Rebuild base polygons from read-only source glyphs; apply thickness/expansion, terminal extension, notches, roughness, and erosion, then validate closure, counters, winding, and intersections. Version a fixed order and disclose where existing snapping/jitter occur. Define Depth, Pressure, and Width separately to avoid duplicated weight amplification.
-4. **Time assignment:** Deliver aggregate-selection mode first, followed by stable arc-length and text-instance assignment. Font contours do not imply a stroke skeleton; extension needs explicit points/directions or a validated detection strategy.
-5. **State/performance:** Separate source audio, feature cache, mapping configuration, derived geometry, and recipe. Reject stale jobs using task IDs. Key feature caches by audio fingerprint/configuration and geometry caches additionally by glyph, selection, mapping, seed, and algorithm version.
-6. **UI/delivery:** Keep carving controls in the left panel and the live glyph canvas visible on the right. Add audio timeline, feature inspection, mapping editor, source/base/result comparison, validity feedback, and JSON recipes. Live microphone mode is later work and is not required for static audio generation.
+1. **Audio engine:** File and Microphone sources through Web Audio, decoded and analysed locally. The microphone starts only on an explicit click and is released on stop.
+2. **Features:** pure functions over each analyser frame:
+   - Level (RMS).
+   - Low / Mid / High band energy.
+   - Brightness (spectral centroid).
+   - Beat and Kick (spectral-flux onsets with an adaptive threshold).
+   - A fast attack, an adjustable release, and a silence gate.
+3. **Modulation:** a pure function from slider values, features, and mappings to live parameters, with quantisation to slider steps and clamping. Continuous mappings add Depth × feature to the slider's position (0–1 along the slider as drawn), so a log-scaled slider such as Tolerance moves evenly along its track. Event mappings are Jump (seeds), Step (choices), and Kick (leap and fall back), rate-limited to 3 per second by default.
+4. **Live scheduling:**
+   - At most one geometry request is in flight, so the frame rate adapts to the cost, capped at 30 fps.
+   - The pipeline is unchanged; live requests carry a `live` flag so the worker keeps their results apart.
+   - Live frames have a separate small cache.
+5. **UI:** a third tab, **Sound**, with:
+   - Source, meters, Sensitivity, and Smoothing.
+   - A mapping list with presets.
+   - Freeze and Reset sound.
+   - Live markers on the driven sliders.
+   - "Live · N fps" in the status bar.
+6. **Later:** Pitch and Balance; video recording.
 
 ```text
-Local audio → decode/analyze → raw/normalized features + validity
-                            → aggregate/time assignment → contributions → carving parameters
-Read-only font → flatten/resample → base polygons → carving → quality validation
-                                                           → canonical geometry → preview/SVG/font snapshot
+Audio file / microphone → Web Audio analyser → features (Level, Low/Mid/High, Brightness, Beat, Kick)
+Slider values + features + mappings → live parameters (rounded to slider steps, clamped)
+Live parameters → existing geometry pipeline (worker) → canvas        Freeze → slider values → export
 ```
 
-Acceptance: independently verify mapping directions, invalid pitch, silence, determinism, cancellation/stale results, complex counters, extreme-parameter constraints, final preview/export equivalence, and recipe replay. Finish static aggregation before temporal assignment; material rendering does not substitute for geometry completion.
+Acceptance:
+- Synthetic signals give the expected features.
+- Switching Sound off, switching a mapping off, or setting Depth to 0 restores the slider values exactly.
+- Frames stay valid and free of curves, because each frame is an ordinary parameter set.
+- The frame rate is measured with each preset.
+- Freeze followed by Export reproduces the frozen look.
