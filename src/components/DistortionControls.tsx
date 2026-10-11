@@ -1,10 +1,12 @@
 import { memo, type Dispatch } from 'react'
 import { DISTORTION_LIMITS, type DistortionStats } from '../geometry/distortion'
 import type { DistortionParams } from '../geometry/types'
+import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import LiveSeed from './LiveSeed'
 import { sameControlProps } from './sameControlProps'
 
 interface DistortionControlsProps {
@@ -17,7 +19,6 @@ interface DistortionControlsProps {
 }
 
 export const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 }
-const MAX_SEED = 999_999
 
 function DistortionControls({
   params,
@@ -34,6 +35,8 @@ function DistortionControls({
   const frequencyHint = useHint()
   const biasHint = useHint()
   const seedHint = useHint()
+  // The statistics come from the letters as shown, so while Sound moves the seed on they belong to its live seed.
+  const shownSeed = useLiveSeed('distortion.seed') ?? params.seed
   // Reset keeps the seed, so a variant the user liked is not lost.
   const isDefault = (Object.keys(DEFAULT_DISTORTION) as (keyof DistortionParams)[]).every(
     (k) => k === 'seed' || params[k] === DEFAULT_DISTORTION[k],
@@ -143,16 +146,17 @@ function DistortionControls({
               id="distortion-seed"
               type="number"
               min={0}
-              max={MAX_SEED}
+              max={DISTORTION_LIMITS.maxSeed}
               step={1}
               value={params.seed}
               aria-describedby={seedHint.id}
               onChange={(e) => {
                 const value = Math.trunc(Number(e.target.value))
-                if (Number.isFinite(value)) update({ seed: Math.min(MAX_SEED, Math.max(0, value)) })
+                if (Number.isFinite(value)) update({ seed: Math.min(DISTORTION_LIMITS.maxSeed, Math.max(0, value)) })
               }}
             />
-            <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (MAX_SEED + 1) })}>
+            <LiveSeed target="distortion.seed" />
+            <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (DISTORTION_LIMITS.maxSeed + 1) })}>
               <Icon name="next" />
               Next variant
             </button>
@@ -166,7 +170,7 @@ function DistortionControls({
           <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
             <div>
               <dt>Seed</dt>
-              <dd>{params.seed}</dd>
+              <dd>{shownSeed}</dd>
             </div>
             <div>
               <dt>Vertices</dt>

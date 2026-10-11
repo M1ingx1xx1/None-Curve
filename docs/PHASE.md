@@ -330,7 +330,7 @@ Use compact, high-contrast controls with visible labels, numeric values, and res
 
 # Phase D: Step-by-Step Implementation Roadmap
 
-> **Implementation status:** Milestones 1–3 are complete, including the specimen, SVG export, and OTF generation with read-back verification. The geometry pipeline runs in a Web Worker (`src/geometry/geometry.worker.ts`, `src/state/geometryClient.ts`). Milestone 4's GitHub Pages workflow is in place (Vite `base` instead of a Webpack public path). Phase E (sound-reactive geometry) is in progress: phases 1 (sources, features, meters) and 2 (continuous mappings, live scheduler, live markers, Freeze) are built; see [SOUND_PLAN.md](SOUND_PLAN.md). See “Feature status” in the README.
+> **Implementation status:** Milestones 1–3 are complete, including the specimen, SVG export, and OTF generation with read-back verification. The geometry pipeline runs in a Web Worker (`src/geometry/geometry.worker.ts`, `src/state/geometryClient.ts`). Milestone 4's GitHub Pages workflow is in place (Vite `base` instead of a Webpack public path). Phase E (sound-reactive geometry) is in progress: phases 1 (sources, features, meters) and 2 (continuous mappings, live scheduler, live markers, Freeze) are built, and so are, from phases 3 and 4, seeds that jump with the sound, targets that switch themselves on, and 20 features (Pitch and Balance among them); see [SOUND_PLAN.md](SOUND_PLAN.md). See “Feature status” in the README.
 
 ## Milestone 1: MVP
 
@@ -392,41 +392,55 @@ OTF generation requires more than writing paths: the output needs valid glyph re
 
 # Phase E: Sound-reactive geometry
 
-> **Implementation status:** in progress. Phases 1 and 2 are built: steps 1 and 2; continuous mappings from step 3 (slider position + Depth × feature, clamped and rounded to the slider's step); step 4 (at most one geometry request in flight, capped at 30 fps, with a separate live cache, and a flash limit on continuous mappings); and from step 5 Source, meters, Sensitivity, Smoothing, Reset sound, the mapping list with Drive letters, Freeze, live slider markers, and "Live · N fps" in the Sound tab and the status bar. Event mappings (Jump, Step, Kick) and their rate limit from step 3, presets from step 5, and step 6 are not implemented yet. See [SOUND_PLAN.md](SOUND_PLAN.md).
+> **Implementation status:** in progress. Phases 1 and 2 are built: steps 1 and 2; continuous mappings from step 3 (slider position + Depth × feature, clamped and rounded to the slider's step); step 4 (at most one geometry request in flight, capped at 30 fps, with a separate live cache, and a flash limit on continuous mappings); and from step 5 Source, meters, Sensitivity, Smoothing, Reset sound, the mapping list with Drive letters, Freeze, live slider markers, and "Live · N fps" in the Sound tab and the status bar. Also built, from phases 3 and 4: 20 features with Pitch and Balance (step 2) and the stereo branch they need (step 1); Jump mappings on the three seeds, with Rate and their flash limit, and Kick through the Beat and Kick pulses (step 3); targets that switch themselves on, compact meters, and live seeds (step 5). Step mappings (Allowed directions, Sides, Rings) from step 3, presets from step 5, measuring the live SVG redraw, and video recording from step 6 are not implemented yet. See [SOUND_PLAN.md](SOUND_PLAN.md).
 
 This is the secondary product track (roughly 30% of planned product focus). The Sound tab drives the existing Geometry and Experimental parameters with live sound. It must remain optional, and the font tool must work exactly as before when it is off.
 
 Follow [PRD section 11](PRD.md#11-sound-reactive-geometry-new-product-direction) and the detailed [sound plan](SOUND_PLAN.md).
 
 1. **Audio engine:** File and Microphone sources through Web Audio, decoded and analysed locally. The microphone starts only on an explicit click and is released on stop.
-2. **Features:** pure functions over each analyser frame:
-   - Level (RMS).
-   - Low / Mid / High band energy.
-   - Brightness (spectral centroid).
-   - Beat and Kick (spectral-flux onsets with an adaptive threshold).
-   - A fast attack, an adjustable release, and a silence gate.
-3. **Modulation:** a pure function from slider values, features, and mappings to live parameters, with quantisation to slider steps and clamping. Continuous mappings add Depth × feature to the slider's position (0–1 along the slider as drawn), so a log-scaled slider such as Tolerance moves evenly along its track. Event mappings are Jump (seeds), Step (choices), and Kick (leap and fall back), rate-limited to 3 per second by default.
+   - After the 20 Hz high-pass, a stereo measuring branch (an up-mix to two channels, a channel splitter, and two analysers) gives the left and right channels; a mono source reads as centred. The left and right reads are checked against the mixed-down block and read again if the audio thread rendered in between; otherwise the last pair that agreed is held. The speakers and the microphone routing are unchanged.
+2. **Features:** pure functions over each analyser frame, 20 in six groups (`FEATURES` in `src/sound/mapping.ts`):
+   - Loudness: Level (RMS) and Swell (Level smoothed slowly: rise 300 ms, fall 2 s).
+   - Bands: Low / Mid / High band energy.
+   - Narrow bands: Sub 20–60 Hz, Bass 60–250 Hz, Low mid 250–500 Hz, High mid 2–4 kHz, Presence 4–6 kHz, Air 6–20 kHz, each against its own recent loudest moment, like Low / Mid / High.
+   - Tone: Brightness (spectral centroid); Noisiness (spectral flatness up to the frame's real bandwidth, the highest bin within 60 dB of the loudest but at least 1 kHz, so lossy files read right; −24 dB reads 0 and −3 dB reads 1); Pitch (YIN on the samples decimated to at most 24 kHz, 55 Hz → 0 to 1760 Hz → 1 on a log scale, holding the last note while unvoiced and 0 in silence).
+   - Rhythm: Beat and Kick (spectral-flux onsets with an adaptive threshold), each with a pulse that jumps to 1 on an onset and falls back with the release time; Change (how much the spectrum is changing: how far the spectral flux rises above its recent median, against the largest such rise lately but never against less than a quarter of the frame's compressed spectrum, so steady sound, noise included, stays near 0); Pace (Beat onsets a second over the last 2 s, ÷ 8).
+   - Stereo: Balance (−1 left to +1 right, the only two-sided feature) and Width (side RMS over mid RMS: mono 0, wide stereo about 1).
+   - A fast attack, an adjustable release, and a silence gate (Swell and Pitch have their own fixed times).
+   - Cost: about 90 µs per frame at 48 kHz (about 35 µs before the new features).
+3. **Modulation:** a pure function from slider values, features, and mappings to live parameters, with quantisation to slider steps and clamping. Continuous mappings add Depth × feature to the slider's position (0–1 along the slider as drawn), so a log-scaled slider such as Tolerance moves evenly along its track. Event mappings are Jump (seeds), Step (choices), and Kick (leap and fall back), limited to 3 flashes a second.
+   - Jump: the three seeds (Distortion · Seed, Random anchors · Seed, Experimental Seed) are targets of kind `jump` (`src/sound/jumps.ts`). Depth is the Rate (0–100%): with Beat or Kick a seed moves on by one on every onset at Rate 100% (50%: every other onset, 25%: every fourth); with any other feature it jumps at up to 4.8 times a second × Rate × the feature's value. At most 6 jump frames fall in any 1.25 s (all seeds jumping in one frame count once), the same accounting as the slider flash limit; extra jumps are skipped. Seeds stay whole numbers in their field's range (0–999 999), wrapping to 0, so every live frame is still a set of values the panel can produce.
+   - Kick: the Beat and Kick pulses on any slider.
+   - Step: not implemented yet.
+   - Each target also says what it needs to act and how to switch that on (`activate`), for the Sound tab's auto-activation.
 4. **Live scheduling:**
    - At most one geometry request is in flight, so the frame rate adapts to the cost, capped at 30 fps.
    - The pipeline is unchanged; live requests carry a `live` flag so the worker keeps their results apart.
    - Live frames have a separate small cache.
+   - The seeds' jumps are counted while Sound can drive. Pausing, stopping, or turning Drive letters off returns the seeds to their fields' values exactly (playing again starts from them); the flash window is kept across that. Freeze writes the live seeds into the seed fields.
+   - Measured in the worker (Arial, 24 distinct glyphs): a seed jump recomputes every glyph in about 2–3.5 ms; Level → Noise amplitude 2.4 ms a frame, three mappings together 12 ms, every Experimental effect on 37–41 ms (24–27 fps).
 5. **UI:** a third tab, **Sound**, with:
-   - Source, meters, Sensitivity, and Smoothing.
-   - A mapping list with presets.
+   - Source, meters, Sensitivity, and Smoothing. The meters are one compact line per feature (label, bar, number) in the six groups, each group with an ⓘ; Balance fills from the centre and reads "L 40" / "R 40" / "C", Pitch reads in Hz, and Beat and Kick are pulse bars in place of the old lights (they still work with reduced motion).
+   - A mapping list with presets. The Feature list is grouped like the meters; targets read "Section · Label", or just "Seed" for the Experimental seed; on a seed, Depth reads Rate. Picking a target whose setting is off switches it on and says so under the row ("Turned on Ripple."); nothing is switched off again. A row whose setting was turned off later says why, with Enable. With the keyboard, a target applies on Enter or when focus leaves the list. Add mapping prefers a target that already acts.
    - Freeze and Reset sound.
-   - Live markers on the driven sliders.
+   - Live markers on the driven sliders, and a small live number beside a driven seed field.
    - "Live · N fps" in the status bar.
-6. **Later:** Pitch and Balance; video recording.
+6. **Later:** video recording.
+
+Pipeline:
 
 ```text
-Audio file / microphone → Web Audio analyser → features (Level, Low/Mid/High, Brightness, Beat, Kick)
-Slider values + features + mappings → live parameters (rounded to slider steps, clamped)
-Live parameters → existing geometry pipeline (worker) → canvas        Freeze → slider values → export
+Audio file / microphone → Web Audio analysers (mixed down; left and right) → 20 features (Loudness, Bands, Narrow bands, Tone, Rhythm, Stereo)
+Slider values + seeds + features + mappings → live parameters (rounded to slider steps, clamped; seeds moved on by their jumps)
+Live parameters → existing geometry pipeline (worker) → canvas        Freeze → slider values and seeds → export
 ```
 
 Acceptance:
 - Synthetic signals give the expected features.
-- Switching Sound off, switching a mapping off, or setting Depth to 0 restores the slider values exactly.
+- The test track `test-audio/sound-test.wav` (42 s, 16-bit stereo, 44.1 kHz) reads as each section should: 0–26 s as before (kick only, kick and hats, a rising chord, silence, a full mix fading, hats at 16 a second), then a single-note melody A2 → A5 and back (26–32 s, Pitch), hats switching hard left and hard right every half second over a quiet centred bass (32–38 s, Balance), and wide uncorrelated noise fading out (38–42 s, Width).
+- Switching Sound off, switching a mapping off, or setting Depth to 0 restores the slider values exactly; pausing restores the seeds exactly.
+- Beat → Distortion · Seed on the test track jumps on every beat of the kick-only part (1.89 a second) and is held to about 4.3–4.5 a second at 8 beats a second.
 - Frames stay valid and free of curves, because each frame is an ordinary parameter set.
 - The frame rate is measured with each preset.
 - Freeze followed by Export reproduces the frozen look.

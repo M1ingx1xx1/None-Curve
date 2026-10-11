@@ -16,7 +16,7 @@ You can:
 - Type any text and see it rebuilt live as you move the sliders.
 - Look at one letter closely, with its original curve points.
 - Save a letter or your text as an **SVG** image, or turn the reshaped letters into a new **font file** (`.otf`).
-- Play an audio file or use the microphone and let the sound move the letters live — for example, outlines that roughen when the music gets loud, or petals that open on the bass.
+- Play an audio file or use the microphone and let the sound move the letters live — for example, outlines that roughen when the music gets loud, petals that open on the bass, or points that jump to new places on every beat.
 
 Everything happens inside your web browser. Your font and audio files are never uploaded anywhere.
 
@@ -192,7 +192,7 @@ If the text is too big for the canvas, a red note appears on the big canvas; the
 
 ## 8. The shaping controls
 
-These are in the tools panel (top left), in two tabs. (The third tab, **Sound**, does not shape the letters itself: it moves the letters with the sound, as if it were moving the sliders of these two tabs (the sliders themselves stay where you put them, and a thin line on each shows where the sound has taken it); see [Sound tab](#sound-tab--letters-that-move-with-the-sound) below.) The **Geometry** tab is applied in a fixed order, top to bottom, so later steps work on the result of earlier ones; the **Experimental** tab comes after all of it:
+These are in the tools panel (top left), in two tabs. (The third tab, **Sound**, does not shape the letters itself: it moves the letters with the sound, as if it were moving the sliders and seeds of these two tabs (they themselves stay where you put them; a thin line on each slider, or a small number beside each seed, shows where the sound has taken it); see [Sound tab](#sound-tab--letters-that-move-with-the-sound) below.) The **Geometry** tab is applied in a fixed order, top to bottom, so later steps work on the result of earlier ones; the **Experimental** tab comes after all of it:
 
 **Curve flattening → Squaring → Anchors → Grid & angles → Distortion → Experimental**
 
@@ -326,9 +326,9 @@ Every copy of a letter gets the same folds, so an exported font looks exactly li
 
 ### Sound tab — letters that move with the sound
 
-The third tab, next to **Experimental**. It plays an audio file or listens to the microphone and measures the sound as it goes: how loud it is, how much bass, middle, and treble it has, how bright it sounds, and where the beats fall. It can also move the letters with the sound: you connect a reading, such as loudness, to a slider, such as Distortion's **Noise amplitude**, and while the music plays the letters roughen when it gets loud and calm down when it gets quiet (see **Mappings** below).
+The third tab, next to **Experimental**. It plays an audio file or listens to the microphone and measures the sound as it goes: how loud it is, how much bass, middle, and treble it has, how bright or noisy it sounds, which note is playing, where the beats fall and how fast they come, and where the sound sits between left and right. It can also move the letters with the sound: you connect a reading, such as loudness, to a slider, such as Distortion's **Noise amplitude**, and while the music plays the letters roughen when it gets loud and calm down when it gets quiet. You can also connect a reading to a **seed**, so that the points of the letters jump to new places on every beat (see **Mappings** and **Seeds** below).
 
-The sound only ever moves sliders, and only within their own range, so every shape you see is one you could also make by hand with the sliders — built from straight lines, like everything else in the app.
+The sound only ever moves sliders and seeds, and only within their own range, so every shape you see is one you could also make by hand with the sliders and seed boxes — built from straight lines, like everything else in the app.
 
 Your audio stays in your browser: a file is read on your computer and never uploaded, and the microphone is only used while you listen.
 
@@ -350,42 +350,83 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 - Switching to **Off** stops the file and the microphone. Switching back to **File** keeps the file you chose, paused.
 - If a file plays or the microphone listens but nothing is heard for 3 seconds, the tab says **No sound detected.** Check the volume and that the microphone is not muted, or raise **Sensitivity** (below).
 
-**Levels** — what the sound is like right now. Each reading has a bar. The bars are empty while nothing plays or listens, and with Sound off the numbers show "—".
+**Levels** — what the sound is like right now: 20 readings in six groups, each on one line with its name, a bar, and a number. Click the **ⓘ** next to a group's name for a short explanation. While nothing plays or listens, the bars are empty and the numbers show "—". Most numbers are percentages: a full bar is 100 %.
 
-- **Level** — how loud the sound is overall. The number is in decibels (dB): the bar is empty at −60 dB and full at 0 dB, the loudest a recording can be. It shows "—" when it is silent.
-- **Low**, **Mid**, **High** — how much bass (below 250 Hz: bass drum, bass guitar), middle (250–2000 Hz: voices and most instruments), and treble (above 2000 Hz: cymbals, hiss, "s" sounds) there is, in percent. Each one is compared with its own loudest moment of the last few seconds, so the bars adapt to the music: a full bar means "as strong as this part of the sound has recently been", not "very loud".
-- **Brightness** — where the energy sits: dull, bass-heavy sound reads low; hiss and cymbals read high.
-- **Beat** and **Kick** — two small lights that flash briefly. **Beat** flashes on every new sound that starts suddenly: a drum hit, a clap, a plucked note. **Kick** flashes on sudden bass: mostly the bass drum, the deep "boom" of most dance and pop music, and sometimes a sudden low bass note. Every Kick also flashes Beat, even when other sound drowns out the drum. A hi-hat, for example, flashes Beat but not Kick. With reduced motion turned on in your computer's settings, the lights still flash, just without fading.
-- Very quiet sound counts as silence: all the bars drop to empty and no lights flash, so background noise does not make them flicker.
+- **Loudness**
+  - **Level** — how loud the sound is overall. The number is in decibels (dB): the bar is empty at −60 dB and full at 0 dB, the loudest a recording can be. It shows "—" when it is silent.
+  - **Swell** — Level, slowed down: it takes about a third of a second to rise and a few seconds to sink, so it follows the big shape of the music — a quiet verse, a loud chorus — rather than every hit. Good for big, calm movements.
+- **Bands** — **Low**, **Mid**, **High**: how much bass (below 250 Hz: bass drum, bass guitar), middle (250–2000 Hz: voices and most instruments), and treble (above 2000 Hz: cymbals, hiss, "s" sounds) there is. Each one is compared with its own loudest moment of the last few seconds, so the bars adapt to the music: a full bar means "as strong as this part of the sound has recently been", not "very loud".
+- **Narrow bands** — finer slices, each compared with its own loudest moment in the same way (1 kHz is 1000 Hz):
+  - **Sub** (20–60 Hz) — the deepest rumble, felt more than heard.
+  - **Bass** (60–250 Hz) — bass drum and bass guitar.
+  - **Low mid** (250–500 Hz) — the warm body of voices and instruments.
+  - **High mid** (2–4 kHz) — the bite of voices, guitars, and snare drums.
+  - **Presence** (4–6 kHz) — the clarity and edge of voices and instruments.
+  - **Air** (above 6 kHz) — cymbals, hiss, and breath.
+- **Tone**
+  - **Brightness** — where the energy sits: dull, bass-heavy sound reads low; hiss and cymbals read high.
+  - **Noisiness** — how much the sound is like noise rather than clear notes: a held note or chord reads near 0 %; hiss, cymbals, and drums read high.
+  - **Pitch** — the note being played or sung. It is made for one note at a time, such as a voice or a melody. The number is in hertz (Hz): the higher the number, the higher the note (440 Hz is the A that orchestras tune to). The bar is empty at 55 Hz (the lowest A of a bass guitar) and full at 1760 Hz, five octaves higher; each octave takes a fifth of the bar. Between notes (for example during a drum hit) it keeps the last note; in silence it drops back and shows "—".
+- **Rhythm**
+  - **Beat** and **Kick** — bars that jump to full at once and fall back, as fast as **Smoothing** (below) sets. **Beat** jumps on every new sound that starts suddenly: a drum hit, a clap, a plucked note. **Kick** jumps on sudden bass: mostly the bass drum, the deep "boom" of most dance and pop music, and sometimes a sudden low bass note. Every Kick also makes Beat jump, even when other sound drowns out the drum. A hi-hat, for example, makes Beat jump but not Kick. They work the same with reduced motion turned on in your computer's settings.
+  - **Change** — how much the sound is changing right now: near 0 % on a steady sound, such as a held note, a hum, or steady hiss, and high on every attack — drum hits, new notes, sudden changes. It is compared with the biggest change of the last few seconds.
+  - **Pace** — how many beats came in the last two seconds, as beats a second: 8 a second fill the bar, 4 a second fill half. Every Beat counts, so fast hi-hats count too.
+- **Stereo** — where the sound sits between the left and right speakers. This needs a stereo source, so it is mainly for files: a microphone that records a single channel (mono) always reads "C" for Balance and 0 % for Width.
+  - **Balance** — the side the sound leans to: "C" when it is centred, "L 40" when it leans 40 % to the left, "R 40" when it leans 40 % to the right ("L 100": only the left speaker plays). Its bar grows from the middle towards that side. It is the only reading that goes both ways.
+  - **Width** — how wide the sound is spread: 0 % when both speakers play the same (mono), around 100 % when the left and right are completely different.
+- Very quiet sound counts as silence: the readings fall back to empty (Swell and Pace more slowly), Balance returns to the middle, and Beat and Kick do not jump, so background noise does not make them flicker.
 
-**Mappings** — which sliders the sound moves, and how far. Each mapping connects one reading to one slider.
+**Mappings** — which sliders and seeds the sound moves, and how. Each mapping connects one reading to one slider or seed.
 
 - **Drive letters** — the main switch. The sound moves the letters only while this is ticked **and** a file plays or the microphone listens. Untick it to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts unticked and the tab says "Off because your system asks for reduced motion."; tick it if you want the letters to move anyway. If you turn on reduce motion while the page is open, it unticks itself.
-- **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a slider that no row uses yet. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
+- **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a target that no row uses yet — one that already has an effect, if there is one. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
 - Each row has:
-  - **Feature** — the reading that drives it: **Level**, **Low**, **Mid**, **High**, or **Brightness**, the same as the meters above.
-  - **Target** — the slider it moves, named after its group and its label, for example "Ripple · Petals". The list has two parts, **Geometry** and **Experimental**, in the same order as the tabs.
-  - **Depth** — how far the slider moves, from −100 % to +100 %. At +100 % the strongest sound takes the slider the whole length of its track; at +50 %, half of it. Negative values move it the other way, so louder sound turns the value down. 0 % does nothing.
+  - **Feature** — the reading that drives it: any of the 20 readings above, listed in the same six groups.
+  - **Target** — what it moves. A slider is named after its group and its label, for example "Ripple · Petals". There are also three seeds: "Distortion · Seed", "Random anchors · Seed", and just "Seed" for the Experimental tab's seed. The list has two parts, **Geometry** and **Experimental**, in the same order as the tabs.
+  - **Depth** — for a slider: how far it moves, from −100 % to +100 %. At +100 % the strongest sound takes the slider the whole length of its track; at +50 %, half of it. Negative values move it the other way, so louder sound turns the value down. 0 % does nothing. **Balance** goes both ways: with a positive Depth, sound on the right turns the value up and sound on the left turns it down.
+  - **Rate** — for a seed, the same slider reads **Rate** instead, from 0 % to 100 %: how often the seed jumps (see **Seeds** below). 0 % does nothing.
   - A tick box that switches the row on or off without deleting it, and an **×** button that removes it.
 - **How far a slider moves:** it starts from where you left it. If a slider sits a quarter of the way along and Depth is +50 %, full sound takes it to three quarters; silence leaves it where it is. It never goes past either end of its track, and it moves in the same steps as the slider itself. Two rows on the same slider add up.
 - Some sliders change faster towards one end, like **Tolerance**. The sound still takes them evenly along the track, just as your hand would.
-- If a row's slider has no effect right now, a grey note under the row tells you what to do, for example "Turn on Noise to hear this." when the Noise effect is off, or "Turn on Snap to grid to hear this." for **Grid size**. The sound never turns an effect or a switch on for you.
-- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Noise, Ripple, Curl, and Wind. Seeds, switches, and choices (such as **Mode** or **Allowed directions**) cannot be driven.
+- **Settings switched on for you.** Many targets only have an effect while another setting is on: Ripple's sliders need **Use ripple**, **Grid size** needs **Snap to grid**, and so on. When you pick such a target (or **Add mapping** adds one), the app switches that setting on and says what it changed in a note under the row, for example "Turned on Ripple." or "Set Noise amplitude to 40.":
+  - a Noise, Ripple, Curl, or Wind slider turns its effect on;
+  - the Experimental **Seed** turns on Noise when neither Noise nor Wind is on (Ripple and Curl have no randomness);
+  - **Grid size** turns on **Snap to grid**;
+  - Distortion's **Noise frequency**, **Normal bias**, and **Seed** set **Noise amplitude** to 40 when it is 0 (at 0, Distortion is off);
+  - Random anchors' **Density**, **Randomness**, and **Seed** turn on **Use random anchors**; the Seed also sets **Randomness** to 100 % when it is 0 %;
+  - the Curve flattening sliders turn random anchors off (they replace flattening) and set what they need: **Tolerance** sets **Mode** to Adaptive, **Segments per curve** sets it to Fixed segments, and **Corner angle** turns on **Merge joined curves** — for example "Turned off Random anchors. Set Mode to Adaptive." (Corner angle shows little on its own; see Curve flattening.)
+- Changing a row to another target, or removing it, never switches anything off again. The note stays until you change the row's target or remove the row. If you go through the **Target** list with the arrow keys, only the target you settle on switches anything on, when you press Enter or move on to another control; a pick with the mouse or a finger counts at once.
+- If the setting is off again later — you switched it off yourself, or another row needed a different Mode (Tolerance needs Adaptive, Segments per curve needs Fixed segments) — a grey note under the row says why, for example "Turn on Ripple to hear this.", and an **Enable** button next to it switches the setting on again.
+- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Noise, Ripple, Curl, and Wind — and the three seeds. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
 - Mappings are not saved: like your other settings, they last until you close the page.
+
+**Seeds** — points that jump to new places. A seed picks one random pattern (see Distortion, Random anchors, and the Experimental tab). When the sound drives a seed, each jump moves it on by one — 1234 becomes 1235 — and because every seed is a completely different pattern, every point of the outline lands somewhere new at once. After 999 999 it starts again at 0.
+
+- **Rate** — how often the seed jumps:
+  - with **Beat** or **Kick**, it counts hits: at 100 % the seed moves on at every hit, at 50 % at every other hit, at 25 % at every fourth;
+  - with any other reading, it jumps more often the higher the reading is: up to about 5 times a second at 100 % when the bar is full, half as often when the bar is half full. For Balance, either side counts.
+  - The **ⓘ** next to **Rate** explains this too.
+- **Never too fast:** all seeds together jump at most about 5 times a second, and seeds that jump at the same moment count as one jump, so the letters cannot flash. With fast drums some hits are then skipped; they are not saved up for later.
+- **Your seed stays in its box.** Next to a driven seed's box, a small number in the colour of the live lines shows the seed the letters use right now (the live seed). The **Seed** in the Distortion and Random anchors statistics, and the status line at the bottom, show the live seed too. When the sound stops moving the letters — you pause, the file ends, or you untick **Drive letters** or the row — the letters go back to the seed in the box, and the next **Play** starts from it again. To keep a seed you like, press **Freeze**: it writes the live seed into the box.
+- **Try it — anchors that jump on the beat:**
+  1. Choose **File** → **Choose file**, pick a song with clear drums, and press **Play**.
+  2. Click **Add mapping**.
+  3. Set **Feature** to **Beat** and **Target** to **Distortion · Seed**. If **Noise amplitude** was 0, the note "Set Noise amplitude to 40." appears under the row: the outline is now rough, so there is something to move.
+  4. The row's slider now reads **Rate**: set it to 100 %. The rough outline takes a new shape on every beat. For the bass drum only, choose **Kick**; for calmer jumps, lower the Rate.
 
 **While the sound moves the letters:**
 
-- **Your sliders stay where you put them.** On each driven slider, a thin coloured line moves along the track to show where the sound has taken it right now. When you pause, the file ends, you untick **Drive letters**, or you switch the source to **Off**, the letters go back exactly to your slider settings and the lines disappear.
+- **Your sliders stay where you put them.** On each driven slider, a thin coloured line moves along the track to show where the sound has taken it right now (a driven seed shows its live seed beside its box instead; see **Seeds** above). When you pause, the file ends, you untick **Drive letters**, or you switch the source to **Off**, the letters go back exactly to your slider settings and seeds, and the lines and live seeds disappear.
 - **Live · N fps** — shown in the Sound tab and in the status line at the bottom: how many new shapes a second the app can keep up with (fps means frames per second). The app draws the next shape as soon as the last one is ready, at most 30 a second, so heavy settings and long texts give fewer.
-- **No flashing:** a slider never swings back and forth more than 3 times a second (counting only swings of a tenth of its track or more). When the music would make it do that (fast drums with a short **Smoothing**, for example), the slider waits a moment before it swings again.
+- **No flashing:** a slider never swings back and forth more than 3 times a second (counting only swings of a tenth of its track or more). When the music would make it do that (fast drums with a short **Smoothing**, for example), the slider waits a moment before it swings again. Seeds have the same kind of limit (see **Seeds** above).
 - If that falls below about 8 a second, the tab says "Too slow to follow the sound: try fewer effects or a shorter text." Turning off some Experimental effects, using a shorter text, or choosing lighter settings helps.
-- **Freeze** — copies what the letters look like right now into the sliders and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters. Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound.
-- **Exports always use the sliders**, never the moving letters. To save a moment of the music, press **Freeze** first, then **Export…**. While the sound is moving the letters, the export dialog reminds you of this. **Fit text** and **Free** (in the Typography tab) also measure the letters as your sliders make them, as exports do.
+- **Freeze** — copies what the letters look like right now into the sliders and seed boxes and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters. Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound.
+- **Exports always use the sliders and seed boxes**, never the moving letters. To save a moment of the music, press **Freeze** first, then **Export…**. While the sound is moving the letters, the export dialog reminds you of this. **Fit text** and **Free** (in the Typography tab) also measure the letters as your sliders make them, as exports do.
 
 **Analysis** — how the sound is measured:
 
-- **Sensitivity** — boosts or cuts the input before measuring, for quiet or loud sources (−24 to +24 dB, default 0 dB). Raise it for a quiet room or a distant microphone, which also helps the Beat and Kick lights catch quiet hits; lower it if the bars are always full.
-- **Smoothing** — how slowly the readings fall back after a sound: short is jumpy, long is calm. They always rise at once (20–1000 ms, default 150 ms).
+- **Sensitivity** — boosts or cuts the input before measuring, for quiet or loud sources (−24 to +24 dB, default 0 dB). Raise it for a quiet room or a distant microphone, which also helps Beat and Kick catch quiet hits; lower it if the bars are always full.
+- **Smoothing** — how slowly the readings fall back after a sound: short is jumpy, long is calm (20–1000 ms, default 150 ms). Most readings rise at once, and Beat and Kick fall back at this speed too; Swell and Pitch keep their own speed.
 - **Reset sound** — puts Sensitivity and Smoothing back to 0 dB and 150 ms. It is greyed out when they already are.
 
 **If something goes wrong**, a message appears under the source (pointing at it may show the browser's own technical detail):
@@ -472,7 +513,10 @@ Experimental tab → **Use noise** at 300–500 %, or **Use ripple** at 200–40
 Sound tab → **File** → **Choose file** → **Play**. Under **Mappings**, click **Add mapping** (Level → Distortion · Noise amplitude, +50 %): loud passages roughen the letters, quiet ones smooth them. For a stronger effect raise **Depth**, or start Distortion's **Noise amplitude** a little higher. Press **Freeze** at a moment you like, then export it.
 
 **Petals that open on the bass**
-Experimental tab → **Use ripple** on, **Amount** 0–30 %, **Petals** 0–20 %, **Sides** 5. Sound tab → **Add mapping**, then set **Feature** to **Low**, **Target** to **Ripple · Petals**, and **Depth** to +30 %. For a shiver on the cymbals as well, turn on **Use noise** and add **High** → **Noise · Amount**.
+Experimental tab → **Use ripple** on, **Amount** 0–30 %, **Petals** 0–20 %, **Sides** 5. Sound tab → **Add mapping**, then set **Feature** to **Low**, **Target** to **Ripple · Petals**, and **Depth** to +30 %. For a shiver on the cymbals as well, add **High** → **Noise · Amount** (this turns on Noise for you).
+
+**Anchors that jump on the beat**
+Sound tab → **File** → **Choose file** → **Play**. Click **Add mapping**, set **Feature** to **Beat**, **Target** to **Distortion · Seed** (if **Noise amplitude** was 0, it is set to 40 for you), and **Rate** to 100 %: the rough outline takes a new shape on every beat. For points that move along the letter itself, choose **Random anchors · Seed** instead (this turns on random anchors); for the bass drum only, choose **Kick**. Press **Freeze** when you like a shape.
 
 **Back to the original**
 Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Squaring, Anchors, Grid & angles, Distortion, and the Experimental effects (each has a reset button). Or simply choose **Original** in the canvas toolbar to look at the untouched font.
@@ -483,7 +527,7 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button.
 
-Exports always use your slider settings. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see.
+Exports always use your slider settings and seeds. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see.
 
 ### As an image (SVG or PNG)
 
@@ -526,7 +570,7 @@ Turn on **Merge joined curves** (Fixed segments mode). Without it, each small pi
 Turn on **Merge through straight lines** (under Merge joined curves). Without it, Corner angle only affects joints between two curves, which are almost always smooth already.
 
 **I liked a random-anchor result. How do I get it back?**
-Write down (or **Copy**) its seed. Later, load the same font, set the same Random anchors settings, and type the seed into the **Seed** box. Within one visit you can also click it under **Previous**.
+Write down (or **Copy**) its seed. Later, load the same font, set the same Random anchors settings, and type the seed into the **Seed** box. Within one visit you can also click it under **Previous**. If the sound picked it, press **Freeze** first: that writes the live seed into the box.
 
 **Why don't I see the skeleton points or green vertices?**
 They only appear when letters are big enough. Zoom in on the canvas.
@@ -547,10 +591,13 @@ The font does not contain that character, or (for Google Fonts) it is in another
 Settings are not saved between visits. Within a session, the same settings and seed always give the same result. Export what you want to keep.
 
 **The letters do not move with the music.**
-In the Sound tab, check that the file is playing (or the microphone is listening), that **Drive letters** is ticked, and that there is at least one mapping that is ticked and has a **Depth** other than 0 %. If a grey note sits under the row, do what it says — for example, "Turn on Noise to hear this." means the Noise effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**.
+In the Sound tab, check that the file is playing (or the microphone is listening), that **Drive letters** is ticked, and that there is at least one mapping that is ticked and has a **Depth** (or **Rate**) other than 0 %. If a grey note sits under the row, click **Enable** next to it — for example, "Turn on Noise to hear this." means the Noise effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**.
 
-**The sliders do not move while the letters do.**
-That is on purpose: your sliders keep your settings, and the thin line on each driven slider shows where the sound has taken it. Press **Freeze** to copy the current look into the sliders.
+**The sliders and seeds do not move while the letters do.**
+That is on purpose: your sliders and seed boxes keep your settings. The thin line on each driven slider shows where the sound has taken it, and the small number beside a driven seed's box is the live seed. When the sound stops, the letters go back to your settings. Press **Freeze** to copy the current look into the sliders and seed boxes.
+
+**A setting switched itself on when I picked a target.**
+That target only has an effect while that setting is on, so the app switched it on and said so under the row (for example "Turned on Ripple."). It stays on when you change the row's target or remove the row; switch it off yourself if you do not want it.
 
 **My export does not look like the moving letters.**
 Exports use the sliders, not the sound. Press **Freeze** at the moment you want, then export.
@@ -575,9 +622,10 @@ No. Local fonts and audio files stay on your computer, and the microphone's soun
 | **Crease** | A straight line along which an Experimental effect folds the outline; the only place it adds a corner. |
 | **Fold** | What an Experimental effect does beyond 100 %: parts of a letter land on top of other parts. Overlaps are merged into one straight-edged shape. |
 | **Decibel (dB)** | A unit of loudness. In the Sound tab, 0 dB is the loudest a recording can be and lower (negative) numbers are quieter. |
-| **Onset** | The moment a new sound starts, such as a drum hit; the **Beat** light flashes on it. |
-| **Mapping** | In the Sound tab, a connection from one sound reading (such as **Level**) to one slider, whose value then follows the sound (the slider itself stays put; a thin line shows the live value). |
+| **Onset** | The moment a new sound starts, such as a drum hit; the **Beat** bar jumps to full on it. |
+| **Mapping** | In the Sound tab, a connection from one sound reading (such as **Level**) to one slider or seed, whose value then follows the sound (the slider or seed box itself stays put; a thin line on the slider, or a small number beside the seed box, shows the live value). |
 | **Depth** | How far a mapping moves its slider when the reading is at its strongest, as a share of the slider's track. |
+| **Rate** | How often a mapping moves its seed on to the next one, from 0 to 100 %. |
 | **fps (frames per second)** | How many new shapes a second the app can keep up with while the sound moves the letters. |
 | **Em / Units per em** | The invisible design square of a font and its size in font units (often 1000 or 2048). |
 | **Font unit (u)** | The measuring unit inside a font. All sizes in the controls use it. |

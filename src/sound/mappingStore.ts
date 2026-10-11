@@ -2,7 +2,7 @@
 // with hooks. Not saved: like the sliders, mappings last for the visit.
 
 import { useSyncExternalStore } from 'react'
-import type { ContinuousFeature, Mapping } from './mapping'
+import type { FeatureId, Mapping } from './mapping'
 
 export const MAPPING_LIMITS = {
   /** Mappings the Sound tab holds at most. */
@@ -54,7 +54,7 @@ class MappingStore {
   }
 
   /** Adds a mapping (ignored at the limit); returns its id, or null. */
-  add(feature: ContinuousFeature, target: string, depth = 0.5): string | null {
+  add(feature: FeatureId, target: string, depth = 0.5): string | null {
     if (this.state.mappings.length >= MAPPING_LIMITS.maxMappings) return null
     const id = `m${this.nextId++}`
     this.set({ mappings: [...this.state.mappings, { id, enabled: true, feature, target, depth: clampDepth(depth) }] })

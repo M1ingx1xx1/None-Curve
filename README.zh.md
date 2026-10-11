@@ -23,8 +23,8 @@
 | 导出画布的 SVG 与 PNG，可选带上预览的模糊与反色 | ✅ 已实现 |
 | 导出 OpenType 字体（CFF，.otf），导出后自动校验 | ✅ 已实现——见[限制](#字体文件) |
 | TTF / WOFF / WOFF2 输出；导出字偶距与 OpenType 特性 | ❌ 不支持 |
-| Sound 标签页：本地音频文件或麦克风，实时测量（响度、低 / 中 / 高频带、亮度、节拍、底鼓）并以电平表显示；最多 8 个映射让响度、各频带和亮度实时移动 Geometry 和 Experimental 的滑块，带滑块上的实时值标记、实时帧率、闪烁限制和 Freeze | 🧪 实验性——开发中，见[声音](#声音第-1-和第-2-阶段) |
-| 声音事件：锚点踩着节拍跳动（Beat / Kick → Jump、Step、Kick）、预设；Pitch 和 Balance | ⏳ 规划中，尚未实现 |
+| Sound 标签页：本地音频文件或麦克风，实时测量（20 个特征：响度与缓变响度、频带与窄频带、亮度、噪声度、音高、节拍与底鼓脉冲、变化、速度，以及文件的立体声声像与宽度）并以紧凑的电平表显示；最多 8 个映射实时移动 Geometry 和 Experimental 的滑块，并让三个种子跳变（锚点随声音跳到新位置），选择目标时会打开它需要的设置；带滑块上的实时值标记、实时种子、实时帧率、闪烁限制和 Freeze | 🧪 实验性——开发中，见[声音](#声音) |
+| 声音事件：Step 映射（Allowed directions、Sides、Rings）、预设 | ⏳ 规划中，尚未实现 |
 
 ## 文档
 
@@ -62,7 +62,7 @@ npm run preview   # 预览生产构建：http://localhost:4173/None-Curve/
 
 双线是拖动手柄。每个手柄只移动两侧区域之间的分界线，两侧加起来的大小始终不变：上下两行始终正好填满标题栏和状态栏之间的窗口高度（页面不会滚动）；功能区和画布平分上面一行的宽度；下面一行的排版 / 字形 / 颜色标签页、文字输入和预览加起来始终等于这一行的宽度（最小宽度依次为 260、180、200 像素）。每个手柄就是那条 1 像素的分隔线本身（和标题栏、状态栏的边线一样用低调的边框色），另有 9 像素宽的隐形拖动区域。可以拖动手柄，或让手柄获得焦点后用方向键调整（Home / End 跳到两端）；双击恢复默认。每个区域都保留最小尺寸，分隔比例会记在浏览器里。上下两行各自独立调整，所以它们的竖向分界线不一定对齐。
 
-- **左上——功能区：** 最上方是 **Import font** 和字体信息，下面是 **Geometry（几何）**、**Experimental（实验）** 和 **Sound（声音）** 三个标签页。**Geometry** 按流水线顺序排列全部几何参数（展平、方形化、锚点、网格与角度、扰动），最后是随机锚点；**Experimental** 放在它之后运行、可以同时打开的效果（Noise、Ripple、Curl、Wind）；**Sound** 播放本地音频文件或通过麦克风收音，显示实时电平表，并通过映射让声音移动另外两个标签页的滑块；被驱动的滑块保留自己的值，并用一条细标记显示实时值（见[声音](#声音第-1-和第-2-阶段)）。浏览器会记住当前选中的标签页。参数区的统计数字针对当前选中的字形。当前不起作用的控件会变灰：随机锚点开启时整个曲线展平组变灰；随机程度为 0% 时随机种子变灰。各项说明默认收起在标签旁的 ⓘ 按钮后面（点击或轻触展开，因此触屏和键盘都能用；收起时文字仍作为控件的读屏描述）；面板内容上方的 **Show all explanations** 可以一次展开全部（包括排版和颜色标签页里的说明），并会记在浏览器里。警告、统计数字以及“为什么这个控件变灰”的说明始终显示。
+- **左上——功能区：** 最上方是 **Import font** 和字体信息，下面是 **Geometry（几何）**、**Experimental（实验）** 和 **Sound（声音）** 三个标签页。**Geometry** 按流水线顺序排列全部几何参数（展平、方形化、锚点、网格与角度、扰动），最后是随机锚点；**Experimental** 放在它之后运行、可以同时打开的效果（Noise、Ripple、Curl、Wind）；**Sound** 播放本地音频文件或通过麦克风收音，显示实时电平表，并通过映射让声音移动另外两个标签页的滑块，或让它们的种子跳变；被驱动的滑块保留自己的值，并用一条细标记显示实时值；被驱动的种子输入框保留自己的种子，并在旁边显示实时种子（见[声音](#声音)）。浏览器会记住当前选中的标签页。参数区的统计数字针对当前选中的字形。当前不起作用的控件会变灰：随机锚点开启时整个曲线展平组变灰；随机程度为 0% 时随机种子变灰。各项说明默认收起在标签旁的 ⓘ 按钮后面（点击或轻触展开，因此触屏和键盘都能用；收起时文字仍作为控件的读屏描述）；面板内容上方的 **Show all explanations** 可以一次展开全部（包括排版和颜色标签页里的说明），并会记在浏览器里。警告、统计数字以及“为什么这个控件变灰”的说明始终显示。
 - **右上——结果画布：** 显示画布（画板）及其上输入框里的文字，使用当前字体、全部参数、排版设置和颜色。画布下方的 **Canvas size** 可以展开或收起画布尺寸抽屉（见[画布尺寸](#画布尺寸)），展开状态会被记住。它的轮廓视图与图层开关（Original / Flattened / Compare、Fill、Skeleton、Vertices、Metrics）也同时作用于预览；缩放与平移只影响画布。每个字形的点击范围是它的字框（字宽 × 上伸到下伸），所以小字也很容易点中。点击字形即可选中它（统计数字随之切换），并把它在文中的每一处都换成高亮色（鼠标悬停时也一样）。高亮色由文字颜色和背景颜色计算得出：在背景上仍然易读的颜色中（对比度至少等于文字本身的对比度，最高要求 4.5 : 1，最低不低于 3 : 1），选出在色相和色度上与文字颜色差别最大的一个（OKLab），偏向鲜艳的颜色，避免亮度往背景方向褪，并且色相与配色的色相相差不超过 40°（文字本身已经很鲜艳、40° 内拉不开差别时放宽到 90°；先取文字的色相，文字无色时取背景的，都无色时取橙色）。米色纸上的黑字会高亮为朱红；彩色文字会高亮为相邻色相中更鲜艳的颜色。点击画布空白处（拖动结束时不算）或按 Esc 取消高亮；统计数字仍显示最后选中的字形，Geometry 面板顶部的 **Statistics** 一行会写明是哪个字形（字符和编码）。预览从不显示高亮。
 - **左下——文字工具：** 三个标签页（会记在浏览器里，可用方向键切换；始终保持加载，切换时不会丢失局部状态）：**Typography（排版）**——文字在画布上如何排布（见[排版](#排版)）；**Glyphs（字形）**——见下条；**Color（颜色）**——文字与背景的颜色。
 - **Glyphs 标签页：** 可搜索的字符网格，列出字体映射的所有字符，用作插入器：点击字符会把它插入到文字输入框的光标处（有选中文字时替换选中部分），并选中该字形。输入框从未获得焦点时，字符追加到末尾。没有对应字符的字形（连字、替代字形）和控制字符无法输入，因此不列出。字形列表窄于 280 像素时，格子会缩小并只显示字符本身；超过这个宽度时重新显示 Unicode 编码（编码始终保留在每个格子的悬停提示里）。
@@ -115,7 +115,7 @@ npm run preview   # 预览生产构建：http://localhost:4173/None-Curve/
 
 ### 性能
 
-- **几何 Worker**（`src/geometry/geometry.worker.ts`、`src/state/geometryClient.ts`）：几何流水线在 Web Worker 中运行，Worker 自己打开一份字体，页面从不需要等它。先算选中的字形（统计数字），再按阅读顺序算文字中的字形；结果约每 40 毫秒分批返回，并合并显示（每 50 毫秒最多重绘一次）。新的参数会在字形之间打断旧的计算。新形状到达之前，画布继续显示该字形之前的形状，画布角标显示 “Updating N…”（声音驱动字母时，实时帧一帧接一帧替换，不显示角标；此时角标只计还没有任何形状的字形）。最近四组参数的结果会保留，退回之前的设置时立即可见（声音驱动的实时帧单独保存，所以一首歌不会把它们挤掉；见[声音](#声音第-1-和第-2-阶段)）。浏览器不支持 Worker、或 Worker 打不开字体时，仍在页面上计算。导出使用 Worker 已有的结果，只补算缺少的字形。
+- **几何 Worker**（`src/geometry/geometry.worker.ts`、`src/state/geometryClient.ts`）：几何流水线在 Web Worker 中运行，Worker 自己打开一份字体，页面从不需要等它。先算选中的字形（统计数字），再按阅读顺序算文字中的字形；结果约每 40 毫秒分批返回，并合并显示（每 50 毫秒最多重绘一次）。新的参数会在字形之间打断旧的计算。新形状到达之前，画布继续显示该字形之前的形状，画布角标显示 “Updating N…”（声音驱动字母时，实时帧一帧接一帧替换，不显示角标；此时角标只计还没有任何形状的字形）。最近四组参数的结果会保留，退回之前的设置时立即可见（声音驱动的实时帧单独保存，所以一首歌不会把它们挤掉；见[声音](#声音)）。浏览器不支持 Worker、或 Worker 打不开字体时，仍在页面上计算。导出使用 Worker 已有的结果，只补算缺少的字形。
 - **文字排版**拆成两步：排字（`shapeSpecimen`，只在文字或排版设置变化时重算）和放置多边形（`placePolygons`，结果到达时重算）。路径字符串和倾斜后的范围按多边形缓存，画布上每个字形都是记忆化组件，所以重复出现的字母只生成一次轮廓，没有变化的字形不会重绘。
 - **Free 位置拖动**只用 SVG 变换移动文字，松手时才提交一次位置，拖动过程中页面不重新渲染。
 - **相交检测**（`src/geometry/crossings.ts`）：每个步骤对每个轮廓、每次重试都要检测。现在按 x 排序扫描线段，只比较包围盒重叠的线段对；交点数一超过原有数量就停止；每个轮廓自身的交点数只算一次。15 000 个点的轮廓（Anchor spacing 1）检测只需几毫秒，而不是几秒。两个轮廓之间的检查（`src/geometry/contourLayout.ts`）先比较包围盒，只看重叠区域内的线段；每对轮廓原来的位置关系，每一步只算一次。
@@ -283,48 +283,81 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - 先点 **Build & verify**，再点 **Download .otf**。文件会用 fontkit 重新打开并逐字形比对（文件签名、族名、字形数、每个映射、每个字宽、每个轮廓的每个点及方向），再交给浏览器字体引擎加载（`FontFace`，OTS 校验）。任一检查失败都不会提供下载。无法安全保存的字形会被排除并列出，并说明字体只能保存整数字体单位（不适用任何精度设置）。
 - 不包含：TTF / WOFF / WOFF2 输出；字偶距、连字及其他 OpenType 排版特性；hinting；可变轴（可变字体导出画布上显示的实例）；只能通过排版特性访问的字形；U+FFFF 以上的字符。坐标取整到字体单位。
 
-## 声音（第 1 和第 2 阶段）
+## 声音
 
-代码在 `src/sound/`，显示在 **Sound** 标签页（`src/components/SoundControls.tsx`）；计划见 [docs/SOUND_PLAN.zh.md](docs/SOUND_PLAN.zh.md)。第 1 阶段负责播放或收音、测量并显示电平表。第 2 阶段在文件播放或麦克风收音期间，让连续特征（Level、Low、Mid、High、Brightness）移动 Geometry 和 Experimental 标签页的滑块。Beat 和 Kick 事件（Jump、Step、Kick）和预设属于第 3 阶段；Pitch 和 Balance 属于第 4 阶段。
+代码在 `src/sound/`，显示在 **Sound** 标签页（`src/components/SoundControls.tsx`）；计划见 [docs/SOUND_PLAN.zh.md](docs/SOUND_PLAN.zh.md)。第 1 阶段负责播放或收音、测量并显示电平表。第 2 阶段在文件播放或麦克风收音期间，让特征移动 Geometry 和 Experimental 标签页的滑块。第 3 阶段已完成一部分：三个种子成为随声音跳变的目标，每个锚点都会落到新的位置；Beat 和 Kick 成为映射可以跟随的特征；选择目标时会打开它需要的设置。第 4 阶段的 Pitch 和 Balance 也已完成，特征一共 20 个。第 3 阶段还剩 Step 映射（Allowed directions、Sides、Rings）和预设。
 
 - **来源：** **Off**（关闭，默认）、**File**（文件：Choose file、Play / Pause、Loop、Position）和 **Microphone**（麦克风：Start listening / Stop listening；选中它只会显示这两个按钮，只有点 Start listening 才会打开麦克风）。麦克风收音期间，标签页显示 **Listening**，状态栏显示 **Microphone on**。
-- **电平表：** Level、Low、Mid、High、Brightness 五个条形表（`role="meter"`），以及 Beat 和 Kick 两盏指示灯，每次亮 120 ms。它们由每帧回调直接写入 DOM，不为每一帧设置 React 状态；数字每秒最多更新约 10 次。开启 `prefers-reduced-motion` 时，指示灯直接亮灭，不带过渡。
+- **电平表**（**Levels** 分组）：每个特征一行紧凑的电平表（名称、条形、数字），分在六个小标题下：**Loudness**、**Bands**、**Narrow bands**、**Tone**、**Rhythm** 和 **Stereo**，每组都有一个 ⓘ，用通俗的话解释组里的电平表。数字的显示方式：Level 用 dB，Pitch 用 Hz，Balance 显示偏向哪一侧（“L 40”、“R 40”，离中间不到 5% 时显示 “C”），其他特征都用百分比；没有读数时显示 “—”。Balance 的条形从中间向左或向右填充。**Beat** 和 **Kick** 是脉冲条：每次起音跳到满格，再按 **Smoothing** 回落；它们取代了原来的指示灯。每个条形都是 `role="meter"`（Balance 为 −100 到 100），读屏读出的值与显示的一致（“40 percent left”、“Centre”、“No reading”）。电平表由每帧回调直接写入 DOM，不为每一帧设置 React 状态：条形每帧更新，数字每秒最多更新约 10 次，读屏的值每秒最多 4 次。条形的变化不带过渡，所以开启 `prefers-reduced-motion` 时看起来也一样。
 - **Mappings**（映射，位于 Levels 和 Analysis 之间）：
   - **Drive letters**（驱动字母）：只有它打开、并且文件正在播放或麦克风正在收音时，声音才会移动字母。默认打开；如果系统要求减少动态效果（`prefers-reduced-motion`），它默认关闭，标签页会显示 “Off because your system asks for reduced motion.”（这句提示也是开关的描述）。访问期间才开启减少动态效果时，它也会自动关闭；关闭减少动态效果时，开关保持原样。
-  - 最多 8 行（`MAPPING_LIMITS.maxMappings`），每行有 **Feature**（特征：Level、Low、Mid、High、Brightness）、**Target**（目标，分为 Geometry / Experimental 两组，名称为“分组 · 标签”，例如 “Distortion · Noise amplitude”）、**Depth**（深度，−100% 到 +100%，每档 5%）、开关（“Use mapping 1”、“Use mapping 2”……）和删除按钮（“Remove mapping 1”……；删除后键盘焦点移到下一行的删除按钮，没有下一行时移到上一行的，都没有时移到 Add mapping）。**Add mapping** 添加 Level → Distortion · Noise amplitude，Depth 为 +50%（这个目标已被使用时，改为还没有任何一行使用的第一个目标）；已有 8 行时按钮变灰、不再添加（仍可获得焦点，用 `aria-disabled`），标签页显示 “Up to 8 mappings.”。映射不会保存：和滑块一样，只在本次访问有效。
-  - 如果某行的目标当前不起作用，该行下方会说明原因：“Turn on Noise to hear this.”（Ripple、Curl、Wind 和 Random anchors 同理）、“Set Mode to Adaptive to hear this.”（Tolerance）、“Set Mode to Fixed segments to hear this.”（Segments per curve）、“Turn on Merge joined curves to hear this.”（Corner angle）、“Turn on Snap to grid to hear this.”（Grid size），以及 “Random anchors replace flattening: turn them off to hear this.”（Curve flattening 的各个滑块）。这样的行不移动任何值；这句说明也是 Target 下拉框的描述。
-- **目标**（`mapping.ts` 中的 `TARGETS`）：两个标签页里的每个连续滑块，按面板顺序排列，范围、档位和刻度都与该滑块完全相同。
-  - Geometry：Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchors 的 Anchor spacing 和 Anchor reduction；Grid & angles 的 Grid size；Distortion 的 Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness。
-  - Experimental：Noise 的 Amount、Facet size 和 Turn；Ripple 的 Amount、Wavelength、Sides、Center X、Center Y、Fade 和 Petals；Curl 的 Amount、Rings 和 Sides；Wind 的 Direction、Strength、Gust size 和 Gustiness。
-  - 不是目标的：各个种子（第 3 阶段作为事件目标）、开关和选项（Mode、Break merged curves at、Applies to、Allowed directions）。声音从不打开或关闭任何步骤。
-- **调制**（`modulate`，纯函数）：对于每个目标，只要至少有一个映射是打开的、Depth 不为 0、并且目标所在的步骤或效果是开着的，实时位置 = 滑块位置（沿显示出来的滑块，0–1）+ 这些映射的 Depth × 特征之和，截断到 0–1，再换算回数值并取整到滑块的档位。位置沿滑块计算，所以对数刻度的 Tolerance 是沿滑块均匀移动，而不是按字体单位均匀移动。同一目标上的多个映射先相加再截断。没有任何作用时（没有映射、全部关闭、Depth 为 0、所有特征为 0，或所有目标都不起作用），直接返回滑块值本身（同一个对象），所以字母会完全恢复。因此每个实时帧都是滑块能调出来的一组参数（没有新几何，帧与帧之间不做补间）。
-- **实时调度**（`useLiveParams`，在 `App.tsx` 中调用一次）：文件正在播放或麦克风正在收音、Drive letters 打开、并且有映射在移动一个起作用的目标时，声音就在驱动字母。每个测量帧都会被调制，但只有当新的实时参数和上一次发出的不同、当前没有几何请求在处理、并且距上一次至少 33 ms 时，才会把它交给几何计算。所以帧率随计算量变化，上限 30 fps。画布显示最新的形状，而且每个实时帧要等它的所有字形都到齐才显示（`geometryClient.ts` 会先留住实时帧的结果，直到请求完成），所以一帧里不会混有两组参数。画布和预览上的吸附网格跟随实时的 Grid size，状态栏的 View 一行描述的是当前显示的参数。Export 对话框仍然使用滑块值，Typography 中的 **Fit text** 和 **Free** 也一样：它们测量的是滑块值下的字母（`useDerivedGeometry.ts` 中的 `sliderScene`）；拖动自由位置的文字时使用当前显示的字母，所以文字停在松手的位置。声音停止驱动时（暂停、Off、Drive letters 关闭，或没有映射起作用），画布立即回到滑块值，标记也随之消失。
-- **闪烁限制**（`live.ts` 中的 `FlashLimiter`，`LIVE_LIMITS.maxFlashes` 和 `flashSwing`）：被驱动的滑块在任意一秒内最多折返 6 次（3 次闪烁），每次折返至少是滑道的 10%。折返按显示出来的滑块位置（取整到档位之后）在 1.25 秒内计数，所以稍晚到达屏幕的帧也守这个限制。再多的折返会让这个滑块保持上一个值，直到这段时间过去。保持的值都是滑块片刻之前给出的值，标记和 Freeze 使用的也是屏幕上的这些值。
+  - 最多 8 行（`MAPPING_LIMITS.maxMappings`），每行有 **Feature**（特征：20 个特征，按电平表的分组排列）、**Target**（目标，分为 Geometry / Experimental 两组，名称为“分组 · 标签”，例如 “Distortion · Noise amplitude”；Experimental 标签页的种子只叫 “Seed”）、**Depth**（深度，−100% 到 +100%，每档 5%）、开关（“Use mapping 1”、“Use mapping 2”……）和删除按钮（“Remove mapping 1”……；删除后键盘焦点移到下一行的删除按钮，没有下一行时移到上一行的，都没有时移到 Add mapping）。目标是种子时，Depth 滑块改称 **Rate**（频率，0–100%，每档 5%，有自己的 ⓘ；见下面的“种子”），某行改选种子时，负的 Depth 会变成正值。**Add mapping** 添加 Level → Distortion · Noise amplitude，Depth 为 +50%（这个目标已被使用时，改为还没有任何一行使用、并且已经起作用的第一个目标，没有的话取还没被使用的第一个目标），并像选择目标时一样打开它需要的设置；已有 8 行时不再添加（仍可获得焦点，用 `aria-disabled`），标签页显示 “Up to 8 mappings.”。映射不会保存：和滑块一样，只在本次访问有效。
+  - **打开目标需要的设置：** 选择一个在当前设置下不起作用的目标时，会自动改好它需要的设置（打开它所在的步骤或效果、设置 Mode，或者为 Curve flattening 的滑块关闭 Random anchors），并在该行下方说明，例如 “Turned on Ripple.”、“Set Noise amplitude to 40.” 或 “Turned off Random anchors. Set Mode to Adaptive.”（规则见下表）。这条提示是一个状态行，一直保留到该行的目标再次改变或该行被删除。把某行换到别的目标、或删除该行，都不会关闭任何设置。用键盘在 Target 列表中移动时（方向键，或在收起的列表上打字），只有按回车或焦点离开列表时才会打开设置，所以途经的目标不会改变任何设置；用鼠标或手指选择时立即生效。
+  - 只要某行的目标当前不起作用（例如之后又关掉了它需要的设置），行下方就改为说明原因（说明见下表；这句说明也是 Target 下拉框的描述）。旁边的 **Enable** 按钮（“Enable, mapping 1”……）做出与选择该目标时相同的改动，显示提示，并把键盘焦点交给该行的 Target。在此之前，这一行不移动任何值。
+- **目标**（`mapping.ts` 中的 `TARGETS`），按面板顺序排列：两个标签页里的每个连续滑块，范围、档位和刻度都与该滑块完全相同；以及三个种子，取种子输入框自己范围内的整数（0–999,999）。
+  - Geometry：Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchors 的 Anchor spacing 和 Anchor reduction；Grid & angles 的 Grid size；Distortion 的 Noise amplitude、Noise frequency、Normal bias 和 **Seed**；Random anchors 的 Density、Randomness 和 **Seed**。
+  - Experimental：Noise 的 Amount、Facet size 和 Turn；Ripple 的 Amount、Wavelength、Sides、Center X、Center Y、Fade 和 Petals；Curl 的 Amount、Rings 和 Sides；Wind 的 Direction、Strength、Gust size 和 Gustiness；以及共用的 **Seed**。
+  - 不是目标的：开关和选项（Mode、Break merged curves at、Applies to、Allowed directions）。播放期间声音从不打开或关闭任何步骤；只有选择目标、Add mapping 或 Enable 会打开设置，而且只打开一次。
+
+每个目标起作用需要的条件（`inactive` 给出说明，`activate` 给出改动和提示）。只改动缺少的设置，按表中顺序进行，提示把每项改动的句子连在一起：
+
+| 目标 | 需要的条件（缺少时行下方的说明） | 选择该目标或点 Enable 时（提示） |
+|---|---|---|
+| Curve flattening · Tolerance | 关闭 Random anchors（“Random anchors replace flattening: turn them off to hear this.”），然后 Mode 为 Adaptive（“Set Mode to Adaptive to hear this.”） | “Turned off Random anchors.” “Set Mode to Adaptive.” |
+| Curve flattening · Segments per curve | 关闭 Random anchors，然后 Mode 为 Fixed segments（“Set Mode to Fixed segments to hear this.”） | “Turned off Random anchors.” “Set Mode to Fixed segments.” |
+| Curve flattening · Corner angle | 关闭 Random anchors，然后打开 Merge joined curves，两种 Mode 都可以（“Turn on Merge joined curves to hear this.”） | “Turned off Random anchors.” “Turned on Merge joined curves.” |
+| Grid & angles · Grid size | 打开 Snap to grid（“Turn on Snap to grid to hear this.”） | “Turned on Snap to grid.” |
+| Distortion · Noise frequency、Normal bias 和 Seed | Noise amplitude 大于 0（“Set Noise amplitude above 0 to hear this.”） | Noise amplitude 设为 40：“Set Noise amplitude to 40.” |
+| Random anchors · Density 和 Randomness | 打开 Random anchors（“Turn on Random anchors to hear this.”） | “Turned on Random anchors.” |
+| Random anchors · Seed | 打开 Random anchors，然后 Randomness 大于 0%（“Set Randomness above 0% to hear this.”） | “Turned on Random anchors.” Randomness 设为 100%：“Set Randomness to 100%.” |
+| Noise、Ripple、Curl、Wind 的滑块 | 打开所在的效果（“Turn on Noise to hear this.”，Ripple、Curl、Wind 同理） | “Turned on Noise.”（同理） |
+| Seed（Experimental） | 打开 Noise 或 Wind，因为 Ripple 和 Curl 没有随机性（“Turn on Noise or Wind to hear this.”） | 打开 Noise：“Turned on Noise.” |
+| Squaring · Amount、Anchors · Anchor spacing 和 Anchor reduction、Distortion · Noise amplitude | 无：始终起作用 | — |
+
+- **调制**（`modulate`，纯函数）：对于每个滑块目标，只要至少有一个映射是打开的、Depth 不为 0、并且目标所在的步骤或效果是开着的，实时位置 = 滑块位置（沿显示出来的滑块，0–1）+ 这些映射的 Depth × 特征之和，截断到 0–1，再换算回数值并取整到滑块的档位。位置沿滑块计算，所以对数刻度的 Tolerance 是沿滑块均匀移动，而不是按字体单位均匀移动。同一目标上的多个映射先相加再截断。Balance 是唯一的双向特征（−1 到 1）：Depth 为正时，声音偏左让滑块向下，偏右让滑块向上；其他特征都在 0–1 之间。没有任何作用时（没有映射、全部关闭、Depth 为 0、所有特征为 0、没有种子前进，或所有目标都不起作用），直接返回滑块值本身（同一个对象），所以字母会完全恢复。因此每个实时帧都是滑块和种子输入框能调出来的一组参数（没有新几何，帧与帧之间不做补间）。
+- **种子**（跳变目标；`jumps.ts` 中的 `JumpTracker`，纯函数式）：映射到种子时不参与上面的求和，而是每跳变一次，种子就前进 1（超过 999,999 后回到 0），所以每个锚点（Distortion、Random anchors）或每处翻折和阵风（Experimental）都会落到新的位置。该行的 **Rate** 决定跳变的频率；Depth 的正负不起作用。
+  - 跟随 **Beat** 或 **Kick** 时，种子按起音计数：Rate 100% 每次起音前进一次，50% 每隔一次，25% 每四次。
+  - 跟随其他特征时，每秒最多跳变 4.8 × Rate × 特征值次（Balance 偏向哪一侧都算）。两帧间隔超过 100 ms 时按 100 ms 计算，所以卡顿之后不会一下子放出一串跳变。
+  - **闪烁限制：** 任意 1.25 秒内最多 6 个跳变帧（同一帧里一起跳变的种子只算一次），也就是每秒 3 次闪烁，与下面滑块的闪烁限制计法相同。超出限制的跳变直接跳过，不会推迟。
+  - 只有声音能够驱动字母、并且种子的目标起作用时才计算跳变。暂停、停止或关闭 Drive letters 时，每个种子都回到它输入框里的值（完全恢复），再次播放时从这个值开始；闪烁计数窗口会保留，回到原值也算一次，所以快速暂停再播放不会放出第二串跳变。不再被驱动的种子（映射关闭、被删除或换了目标）在下一帧回到输入框里的值。
+  - 种子被驱动期间，它的输入框旁边会出现一个小的实时数字（`src/components/LiveSeed.tsx`，悬停提示为 “Live seed”，对读屏软件隐藏，每秒最多更新约 15 次），Distortion 和 Random anchors 的统计数字也显示实时种子。输入框本身保留自己的值。
+- **实时调度**（`useLiveParams`，在 `App.tsx` 中调用一次）：文件正在播放或麦克风正在收音、Drive letters 打开、并且有映射作用在一个起作用的目标（滑块或种子）上时，声音就在驱动字母。每个测量帧先让被驱动的种子前进（如果有跳变），再进行调制，但只有当新的实时参数和上一次发出的不同、当前没有几何请求在处理、并且距上一次至少 33 ms 时，才会把它交给几何计算。所以帧率随计算量变化，上限 30 fps。画布显示最新的形状，而且每个实时帧要等它的所有字形都到齐才显示（`geometryClient.ts` 会先留住实时帧的结果，直到请求完成），所以一帧里不会混有两组参数。画布和预览上的吸附网格跟随实时的 Grid size，状态栏的 View 一行描述的是当前显示的参数。Export 对话框仍然使用滑块值，Typography 中的 **Fit text** 和 **Free** 也一样：它们测量的是滑块值下的字母（`useDerivedGeometry.ts` 中的 `sliderScene`）；拖动自由位置的文字时使用当前显示的字母，所以文字停在松手的位置。声音停止驱动时（暂停、Off、Drive letters 关闭，或没有映射起作用），画布立即回到滑块值和种子输入框里的值，标记和实时种子也随之消失。
+- **闪烁限制**（`live.ts` 中的 `FlashLimiter`，`LIVE_LIMITS.maxFlashes` 和 `flashSwing`；种子有自己的限制，见上文）：被驱动的滑块在任意一秒内最多折返 6 次（3 次闪烁），每次折返至少是滑道的 10%。折返按显示出来的滑块位置（取整到档位之后）在 1.25 秒内计数，所以稍晚到达屏幕的帧也守这个限制。再多的折返会让这个滑块保持上一个值，直到这段时间过去。保持的值都是滑块片刻之前给出的值，标记和 Freeze 使用的也是屏幕上的这些值。
 - **实时缓存：** 实时请求带有 `live: true`（`protocol.ts`）。Worker 把它们的结果放进每款字体单独的、更小的缓存（600 个字形或 200 000 个点；`cache.ts` 中的 `glyphGeometry(…, live)`），页面也只保留最近两组实时参数的结果（`geometryClient.ts`），所以一首歌从不挤掉正常编辑时的结果。
-- **实时值标记**（`src/components/LiveMarker.tsx`）：每个目标滑块都包在一个 `.live-slider` 里；声音驱动它时，轨道上一条细细的强调色竖线显示实时位置，并与滑块按钮应在的位置对齐。标记每秒最多更新约 15 次，对读屏软件隐藏。滑块本身保留自己的值。
+- **实时值标记**（`src/components/LiveMarker.tsx`）：每个目标滑块都包在一个 `.live-slider` 里；声音驱动它时，轨道上一条细细的强调色竖线显示实时位置，并与滑块按钮应在的位置对齐。标记每秒最多更新约 15 次，对读屏软件隐藏。滑块本身保留自己的值。（种子则显示实时数字，见上面的“种子”。）
 - **帧率：** 声音驱动字母期间，标签页和状态栏（在 **Microphone on** 之前）显示 “Live · N fps”，N 是几何计算每秒能跟上的实时结果数（1000 ms ÷ 从发出一帧到它最后一个结果的平滑耗时，最多 30），所以实时值不变时它也保持稳定。连续 2 秒低于 8 fps 时，标签页提示 “Too slow to follow the sound: try fewer effects or a shorter text.”。
-- **Freeze**（冻结；声音驱动字母时可用，否则用 `aria-disabled` 变灰，仍保留键盘焦点）：把屏幕上的实时值写入滑块（每个改变了的参数组更新一次），并让声音暂停（暂停文件或停止收音），所以冻结的样子会留在屏幕上，可以导出。如果按下时字母正好和滑块一致（例如两次鼓点之间），它只会暂停声音。导出（SVG、PNG、OTF）始终使用滑块值，从不使用实时音频；声音驱动字母期间，Export 对话框会说明这一点，并指向 Freeze。
-- **分析：** **Sensitivity**（灵敏度，−24 到 +24 dB，测量前加到输入上）、**Smoothing**（平滑，即释放时间常数，20–1000 ms，默认 150 ms）和 **Reset sound**。
+- **Freeze**（冻结；声音驱动字母时可用，否则用 `aria-disabled` 变灰，仍保留键盘焦点）：把屏幕上的实时值写入滑块、把实时种子写入种子输入框（每个改变了的参数组更新一次），并让声音暂停（暂停文件或停止收音），所以冻结的样子会留在屏幕上，可以导出。如果按下时字母正好和滑块一致（例如两次鼓点之间），它只会暂停声音。导出（SVG、PNG、OTF）始终使用滑块值，从不使用实时音频；声音驱动字母期间，Export 对话框会说明这一点，并指向 Freeze。
+- **分析：** **Sensitivity**（灵敏度，−24 到 +24 dB，测量前加到输入上）、**Smoothing**（平滑，即释放时间常数，20–1000 ms，默认 150 ms；Beat 和 Kick 脉冲回落的快慢也由它决定）和 **Reset sound**。
+- **测试音轨：** `test-audio/sound-test.wav`（42 秒，16 位立体声，44.1 kHz，完全由程序合成），每一段对应一种读数。先是居中、左右声道相同的部分：只有底鼓（0–4 秒）、底鼓加踩镲（4–8 秒）、底鼓加一个渐强的和弦（8–12 秒）、静音（12–15.5 秒）、逐渐变弱的完整混音（15.5–21.5 秒）、只有每秒 16 下的踩镲（21.5–26 秒）。然后是每半秒一个音的单音旋律，A2 → A5 再回来（26–32 秒，用于 Pitch）；每半秒在最左和最右之间切换的踩镲，下面是居中的轻柔低音（32–38 秒，用于 Balance）；以及左右声道互不相关、逐渐减弱的宽声场噪声（38–42 秒，用于 Width）。
+- **实测：** 测量一帧（`FeatureExtractor.process`）在 48 kHz 下约需 90 µs，加入新特征之前约 35 µs。在几何 Worker 中（Node、Arial、默认文字里的 24 个不同字形），种子跳变一次、重算所有字形约需 2–3.5 ms；滑块实时帧的耗时与以前相同（Level → Distortion · Noise amplitude 约 2.4 ms；Level → Distortion · Noise amplitude、Level → Noise · Amount 和 Low → Ripple · Petals 同时使用约 12 ms；所有实验效果都打开时 37–41 ms，24–27 fps）。在测试音轨上，Beat → Distortion · Seed 在只有底鼓的一段每秒跳变 1.89 次（等于节拍的速度），在每秒 8 拍的部分被限制在每秒约 4.3–4.5 次。
 
 模块：
 
-- `types.ts`：共用类型、`SOUND_LIMITS`（下面的测量参数和文件大小上限；分析器的 dB 范围和播放进度的更新频率在 `engine.ts` 中设定）、`SILENT_FRAME` 和初始状态。
-- `features.ts`：`FeatureExtractor`，纯函数式（不依赖 DOM 和 Web Audio），所以可以用合成信号测试。每一帧接收分析器的频谱（fftSize / 2 个频点，单位 dBFS；第 k 个频点的中心频率是 k × 采样率 / fftSize）和时域采样。
-  - **Level（响度）：** 去掉均值（直流偏移）后采样 RMS 的 20 log10，加上 Sensitivity；−60 dB 读作 0，0 dB 读作 1。加上 Sensitivity 后低于 −60 dB 的帧算作静音：所有连续特征读作 0，也不触发起音。
-  - **Low / Mid / High（低 / 中 / 高频）：** 中心频率落在 20–250 Hz、250–2000 Hz、2000 Hz 到奈奎斯特频率的频点的能量（线性幅度的平方和），换算成 dB 并加上 Sensitivity。每个频带各自记录一个滑动最大值：遇到更大的值立即跟上，否则能量每 3 秒减半。频带在最大值处读作 1，在最大值以下 40 dB 处或 −68 dB 处（取较高者）读作 0。−68 dB 是换算到频带上的静音阈值：经 Blackman 窗处理的频谱里，频带能量比 RMS 电平低约 8 dB。所以即使另一个频带很响，低于静音阈值的底噪也读作 0。
+- `types.ts`：共用类型（包含所有特征的 `FeatureFrame`、`StereoSamples`）、`SOUND_LIMITS`（下面的测量参数和文件大小上限；分析器的 dB 范围和播放进度的更新频率在 `engine.ts` 中设定）、`SILENT_FRAME` 和初始状态。
+- `features.ts`：`FeatureExtractor`，纯函数式（不依赖 DOM 和 Web Audio），所以可以用合成信号测试。每一帧接收分析器的频谱（fftSize / 2 个频点，单位 dBFS；第 k 个频点的中心频率是 k × 采样率 / fftSize）、时域采样（各声道混合后的），以及左右声道各自的采样；除了返回的那一帧，不分配任何内存。
+  - **Level（响度）：** 去掉均值（直流偏移）后采样 RMS 的 20 log10，加上 Sensitivity；−60 dB 读作 0，0 dB 读作 1。加上 Sensitivity 后低于 −60 dB 的帧算作静音：所有连续特征回落到 0（Pace 随节拍移出它的时间窗口而回落），也不触发起音。
+  - **Swell（缓变响度）：** 用自己的时间常数平滑的 Level，上升 300 ms、下降 2 秒，不受 Smoothing 影响。
+  - **频带：** **Low**、**Mid**、**High**（20–250 Hz、250–2000 Hz、2000 Hz 到奈奎斯特频率），以及窄频带 **Sub**（20–60 Hz）、**Bass**（60–250 Hz）、**Low mid**（250–500 Hz）、**High mid**（2–4 kHz）、**Presence**（4–6 kHz）和 **Air**（6–20 kHz，或到奈奎斯特频率为止）：中心频率落在该频带内的频点的能量（线性幅度的平方和），换算成 dB 并加上 Sensitivity。九个频带各自记录一个滑动最大值：遇到更大的值立即跟上，否则能量每 3 秒减半。频带在最大值处读作 1，在最大值以下 40 dB 处或 −68 dB 处（取较高者）读作 0。−68 dB 是换算到频带上的静音阈值：经 Blackman 窗处理的频谱里，频带能量比 RMS 电平低约 8 dB。所以即使另一个频带很响，低于静音阈值的底噪也读作 0。
   - **Brightness（亮度）：** 频谱质心（20 Hz 到 20 kHz 频点按幅度加权的平均频率，所以高采样率下的超声底噪不计入），按对数刻度，100 Hz → 0，8 kHz → 1。
-  - **平滑：** 每个连续特征用一阶滤波器跟随目标值，a = 1 − exp(−dt / τ)，上升时 τ 为 10 ms，下降时为 Smoothing。重置后的第一帧直接取目标值。
-  - **Beat / Kick（节拍 / 底鼓）：** 频谱通量，即 20 Hz 以上频点压缩幅度 ln(1 + 1000 g m) 的上升量之和，其中 g = 10^(Sensitivity / 20)（Kick 只算 20–150 Hz）。通量超过最近一秒的中位数 × 1.5（Kick 为 × 3，因为它的频点很少，稳定的噪声也会让它跳动）再加一个很小的固定下限（`fluxFloor`、`kickFluxFloor`），同时超过上一次起音通量的一半（以 120 ms 的时间常数衰减，所以军鼓、拍手或混响的噪声尾巴不会再次触发），距上一次起音至少 100 ms，当前帧不是静音，并且已经积累了至少 250 ms 的历史（所以重置后不会立刻触发）时，算作一次起音。每次 Kick 也算作一次 Beat（仍受 Beat 的 100 ms 间隔限制），所以宽频声音下的底鼓也会点亮 Beat。起音每秒最多判断约 60 次（在刷新率更高的屏幕上，与大约 1/60 秒前的频谱比较），所以在任何刷新率下这些下限的含义都相同。两帧间隔超过 500 ms（标签页被隐藏过）时，起音历史重新开始，但平滑和频带最大值保留。
+  - **Noisiness（噪声度）：** 从 20 Hz 到该帧实际带宽的频点上，功率的频谱平坦度（几何平均 ÷ 算术平均），单位 dB：−24 dB 读作 0，−3 dB 读作 1。实际带宽截止在比最响频点低不到 60 dB 的最高频点（至少 1 kHz，最多 20 kHz），因为有损编码器会切掉频谱的顶端（常在 16 kHz），空着的顶端曾让白噪声读作 0.02 而不是 1。在合成信号上实测：纯音和和弦读作 0，锯齿波最多 0.26，踩镲约 0.85，粉红噪声 0.82–0.86，白噪声 1；像有损编码器那样做低通后，结果相差不超过 0.06。
+  - **Pitch（音高）：** 在降采样到最多 24 kHz（每段取平均）的采样上用 YIN 求基频：在 1/1760 秒到 1/55 秒之间，取第一个累积均值归一化差值低于 0.15 的延迟，继续走到它的局部最小值，再用抛物线插值细化。55 Hz 读作 0，1760 Hz 读作 1，按对数刻度（5 个八度）。找不到这样的延迟的帧（无音高：噪声、鼓）保持上一个音；静音时归 0。它双向都以 30 ms 跟随，静音时按释放时间回落到 0。
+  - **平滑：** 每个连续特征用一阶滤波器跟随目标值，a = 1 − exp(−dt / τ)，上升时 τ 为 10 ms，下降时为 Smoothing；Swell 和 Pitch 有自己的时间常数（见上），Balance 上升和下降都按 Smoothing。重置后的第一帧直接取目标值。
+  - **Beat / Kick（节拍 / 底鼓）：** 频谱通量，即 20 Hz 以上频点压缩幅度 ln(1 + 1000 g m) 的上升量之和，其中 g = 10^(Sensitivity / 20)（Kick 只算 20–150 Hz）。通量超过最近一秒的中位数 × 1.5（Kick 为 × 3，因为它的频点很少，稳定的噪声也会让它跳动）再加一个很小的固定下限（`fluxFloor`、`kickFluxFloor`），同时超过上一次起音通量的一半（以 120 ms 的时间常数衰减，所以军鼓、拍手或混响的噪声尾巴不会再次触发），距上一次起音至少 100 ms，当前帧不是静音，并且已经积累了至少 250 ms 的历史（所以重置后不会立刻触发）时，算作一次起音。每次 Kick 也算作一次 Beat（仍受 Beat 的 100 ms 间隔限制），所以宽频声音下的底鼓也会触发 Beat。起音每秒最多判断约 60 次（在刷新率更高的屏幕上，与大约 1/60 秒前的频谱比较），所以在任何刷新率下这些下限的含义都相同。两帧间隔超过 500 ms（标签页被隐藏过）时，起音历史重新开始，但平滑和频带最大值保留。特征 **Beat** 和 **Kick**（`beatPulse`、`kickPulse`）是脉冲：起音的那一帧为 1，之后按释放时间指数回落。
+  - **Change（变化）：** 最近一次判断起音时的全频带通量比 Beat 最近一秒的中位数高出多少，与最近这种高出量的最大值相比（这个滑动最大值像频带的最大值一样每 3 秒减半），但比较的基准从不低于 `fluxFloor`，也不低于这一帧压缩后频谱的四分之一（通量所比较的那些压缩幅度之和）；静音时它回落到 0。中位数去掉了持续噪声始终带有的通量，四分之一的下限让持续声音自身的抖动无论持续多久都保持很低：持续的声音接近 0，纯音和噪声都一样（110 Hz 锯齿波、和弦、白噪声或粉红噪声持续 25 秒都低于 0.15；55 Hz 锯齿波的嗡声与帧率形成拍频，约为 0.28）；安静之后的起音很高；响亮噪声之上的起音只显示一点。
+  - **Pace（速度）：** 最近 2 秒内的 Beat 起音数，换算成每秒次数，再除以 8（每秒 8 次读作 1）。
+  - **Balance（声像）：** 左右声道 RMS（去掉直流偏移）的 (R − L) / (R + L)，从 −1（左）到 +1（右）。**Width（宽度）：** 侧信号 (L − R) / 2 的 RMS 除以中信号 (L + R) / 2 的 RMS，截断到 0–1：单声道读作 0，左右互不相关时约为 1。静音时、或没有两个声道时，两者都读作 0。文件按立体声测量；麦克风通常是单声道，所以读作居中、宽度为 0。
 - `engine.ts`：`SoundEngine`，以及页面上唯一的实例 `getSoundEngine()`。
-  - 一个 `AudioContext`，在第一次用户操作时创建，每次开始播放或收音时恢复运行，没有播放也没有收音 2 秒后暂停。一个 `AnalyserNode`（44.1 和 48 kHz 下 FFT 大小 2048，88.2 和 96 kHz 下加倍，使分析窗口保持约 43 ms；本身不做平滑；−100 到 0 dB），输入先经过一个 20 Hz 高通滤波器，去掉被测量信号里的直流偏移（不影响播放）；每次切换来源或换新文件时重置特征提取器。
-  - **文件：** 在代码中创建（不放进页面）的 `HTMLAudioElement` 播放一个对象 URL（`URL.createObjectURL`），经 `MediaElementAudioSourceNode` 送入分析器和扬声器。超过 512 MB 的文件和空文件（0 字节）不读取，直接拒绝。播放进度通过 `timeupdate` 更新（每秒约 4 次），从不逐帧更新。
-  - **麦克风：** 调用 `getUserMedia`，关闭回声消除、降噪和自动增益，只接到分析器，从不接到扬声器，所以不会产生回授。只有点 Start listening 才会打开，选择来源时从不打开。需要安全页面（https 或 localhost）。Stop listening、切换来源、设备被拔出以及关闭页面（`pagehide`）都会停止所有音轨。
+  - 一个 `AudioContext`，在第一次用户操作时创建，每次开始播放或收音时恢复运行，没有播放也没有收音 2 秒后暂停。来源先接到一个 20 Hz 高通滤波器，去掉被测量信号里的直流偏移（不影响播放）。之后，一个 `AnalyserNode` 接收各声道混合后的声音（44.1 和 48 kHz 下 FFT 大小 2048，88.2 和 96 kHz 下加倍，使分析窗口保持约 43 ms；本身不做平滑；−100 到 0 dB）；另有一条立体声支路为 Balance 和 Width 测量：一个按扬声器规则输出正好两个声道的增益节点（单声道变成完全相同的左右声道，多于两个声道时混合成两个）、一个声道分离器，以及左右各一个分析器（FFT 大小相同，不做平滑）。每次切换来源或换新文件时重置特征提取器。
+  - **读取一帧：** 三个分析器是先后读取的，音频线程可能在两次读取之间渲染（在 Chrome 中最多每 300 帧有一次），让其中一块数据稍稍落后，单声道来源在这一帧就会读成很宽。所以每一帧都会检查混合后的采样是否等于左右采样的平均值，不一致就重读，最多 3 次；都不一致时，Balance 和 Width 使用上一次一致的左右采样。多于两个声道的来源永远不会一致（分析器按别的权重混合），所以保持一帧之后，直接使用读到的采样。
+  - **文件：** 在代码中创建（不放进页面）的 `HTMLAudioElement` 播放一个对象 URL（`URL.createObjectURL`），经 `MediaElementAudioSourceNode` 送入测量支路和扬声器。超过 512 MB 的文件和空文件（0 字节）不读取，直接拒绝。播放进度通过 `timeupdate` 更新（每秒约 4 次），从不逐帧更新。
+  - **麦克风：** 调用 `getUserMedia`，关闭回声消除、降噪和自动增益，只接到测量支路，从不接到扬声器，所以不会产生回授。只有点 Start listening 才会打开，选择来源时从不打开。需要安全页面（https 或 localhost）。Stop listening、切换来源、设备被拔出以及关闭页面（`pagehide`）都会停止所有音轨。
   - 文件播放或麦克风收音期间，每个动画帧都测量特征；停止时发出一帧静音，让电平表归零。连续 3 秒没有声音时，状态会报告（“No sound detected.”）。
   - 错误类型：`unsupported`、`decode`、`empty`、`too-large`、`permission`、`no-device`、`device-busy` 和 `insecure`，在标签页中各有各的提示。
 - `useSound.ts`：`useSoundEngine`（操作）、`useSoundState`（`useSyncExternalStore`；只在状态变化时重新渲染，不逐帧渲染）和 `useSoundFrames`（每测量一帧调用一次的回调）。
-- `mapping.ts`：`CONTINUOUS_FEATURES`、`TARGETS` 和 `targetById`（每个目标带有范围、档位、`get` / `set`、`toSlider` / `fromSlider`，以及 `inactive`，即它当前不起作用的原因）、`Mapping` 和 `modulate`。纯函数式：不依赖 React、DOM 和 Web Audio。
+- `mapping.ts`：`FEATURES`（每个特征带有名称、分组，以及它是否双向、在种子上是否按起音计数）、`FEATURE_GROUPS`、`featureById` 和 `featureValue`；`TARGETS` 和 `targetById`（每个目标带有类型 `slider` 或 `jump`、范围、档位、`get` / `set`、`toSlider` / `fromSlider`、`inactive`，即它当前不起作用的原因，以及 `activate`，即让它起作用的改动和提示）；`applyPatches`、`seedAfter`、`Mapping` 和 `modulate`。纯函数式：不依赖 React、DOM 和 Web Audio。
+- `jumps.ts`：`JUMP_LIMITS` 和 `JumpTracker`：根据测量帧计算被驱动种子的跳变次数，并让它们遵守闪烁限制。纯函数式：不依赖 React、DOM 和 Web Audio。
 - `mappingStore.ts`：映射列表和 Drive letters，放在 React 状态之外的一个小 store 里，用 `useMappingState` 读取（页面打开期间跟随 `prefers-reduced-motion` 的变化）；`MAPPING_LIMITS`。
-- `live.ts`：`LiveScheduler`（帧调度，可通过注入依赖测试）和 `FlashLimiter`；`useLiveParams`（页面上的调度器）、`useLivePosition`（单个目标的标记；只在取整后的位置变化时重新渲染）、`useLiveStatus`（driving、fps、slow、differs；只在其中之一变化时重新渲染）、`useLiveDriving`（只有 driving）和 `freezeLive`。
+- `live.ts`：`LiveScheduler`（帧调度和种子的跳变，可通过注入依赖测试）和 `FlashLimiter`；`useLiveParams`（页面上的调度器）、`useLivePosition`（单个目标的标记；只在取整后的位置变化时重新渲染）、`useLiveSeed`（单个种子的实时值，供 `LiveSeed` 使用）、`useLiveStatus`（driving、fps、slow、differs；只在其中之一变化时重新渲染）、`useLiveDriving`（只有 driving）和 `freezeLive`。
 - **隐私：** 不联网。文件通过对象 URL 在浏览器中读取，从不上传；麦克风的声音只被测量，从不录制或回放，而且只在收音期间打开麦克风。
 
 ## 开发
@@ -337,7 +370,7 @@ src/
 ├── components/            界面：左上 ToolHead（ImportMenu、FontStatus）+ GeometryPanel（其中 Sound 标签页是 SoundControls），
 │                          右上 CanvasViewport / SpecimenView，左下 TextTools = TypographyControls +
 │                          GlyphPanel / GlyphPicker + ColorControls，右下 InputPanel = TextPanel + TextPreview，
-│                          StatusBar + ThemeToggle；共用 GlyphLayers、Icon、LiveMarker、usePanZoom、useSplit
+│                          StatusBar + ThemeToggle；共用 GlyphLayers、Icon、LiveMarker、LiveSeed、usePanZoom、useSplit
 ├── font/                  字体加载与解析：本地文件、Google Fonts、Google Fonts 链接解析、
 │                          格式识别、fontkit 适配、排版、字形搜索
 ├── state/                 文档与参数状态、reducer、导入（useFontImport）、
@@ -347,12 +380,12 @@ src/
 │                          共享缓存、Worker、SVG 路径工具
 ├── specimen/              用最终多边形、字宽和字偶距排布文字（预览与导出共用）
 ├── sound/                 Sound 标签页：共用类型与限制、特征提取（纯函数）、Web Audio 引擎、React hooks、
-│                          目标与调制（纯函数）、映射 store、实时调度
+│                          特征、目标与调制（纯函数）、种子跳变（纯函数）、映射 store、实时调度
 ├── export/                SVG 序列化、精度校验、OpenType 写入、改写（sfnt.ts）与回读校验
 └── styles.css
 ```
 
-- 状态分三层：文档状态和参数状态在 `src/state/`，派生几何（不存入 reducer）在几何 Worker 中计算，由 `useGeometry`（`src/state/useDerivedGeometry.ts`）组装。文字和排版设置通过 `useDeferredValue` 延后处理，打字时界面保持流畅。声音驱动字母期间，`useLiveParams`（`src/sound/live.ts`）交给 `useGeometry` 的是实时参数而不是滑块值；reducer 里的参数（即滑块）只在 Freeze 时改变。React 组件只负责显示和派发操作，几何算法只放在 `src/geometry/`。
+- 状态分三层：文档状态和参数状态在 `src/state/`，派生几何（不存入 reducer）在几何 Worker 中计算，由 `useGeometry`（`src/state/useDerivedGeometry.ts`）组装。文字和排版设置通过 `useDeferredValue` 延后处理，打字时界面保持流畅。声音驱动字母期间，`useLiveParams`（`src/sound/live.ts`）交给 `useGeometry` 的是实时参数而不是滑块值；Sound 只在 Freeze 时、以及选择目标、Add mapping 或 Enable 打开目标需要的设置时，才改变 reducer 里的参数（即滑块和种子输入框）。React 组件只负责显示和派发操作，几何算法只放在 `src/geometry/`。
 - 项目约定（例如网页界面只用英文、中英文档分开）见 [docs/BEST_PRACTICE.zh.md](docs/BEST_PRACTICE.zh.md)。
 
 ## 部署到 GitHub Pages
@@ -366,10 +399,11 @@ src/
 
 ## 后续规划：声音
 
-第 1、2 阶段已完成：**Sound** 标签页可以播放本地音频文件或通过麦克风收音，实时显示响度、低 / 中 / 高频带能量、亮度、节拍和底鼓的电平表，并用最多 8 个映射让响度、各频带和亮度移动 Geometry 和 Experimental 的滑块。每一帧都是普通、有效、只有直边的结果，**Freeze** 可以留住某一刻用于导出（见[声音](#声音第-1-和第-2-阶段)）。
+第 1、2、4 阶段已完成，第 3 阶段完成了一部分：**Sound** 标签页可以播放本地音频文件或通过麦克风收音，实时显示六组共 20 个特征的电平表（响度、频带、窄频带、带音高的音色、带节拍和底鼓脉冲的节奏，以及立体声的声像和宽度），并用最多 8 个映射移动 Geometry 和 Experimental 的滑块、让三个种子跳变，于是锚点踩着节拍跳到新位置。选择目标时会打开它需要的设置。每一帧都是普通、有效、只有直边的结果，**Freeze** 可以留住某一刻用于导出（见[声音](#声音)）。
 
-从第 3 阶段开始规划，**尚未实现**：
-- Beat 和 Kick 事件：**Jump**（种子前进一个，所以锚点、翻折或阵风踩着节拍跳到新位置）、**Step**（换到几个可选值中的下一个，例如角度步长）和 **Kick**（跃起后回落），默认每秒最多跳变 3 次，以免闪烁。
+第 3 阶段中**尚未实现**的部分：
+- **Step** 事件映射：每次 Beat 或 Kick 时换到几个可选值中的下一个，例如 Allowed directions（角度步长）、Sides 或 Rings。
 - 预设：Anchor jump、Resample、Bass bloom、Shiver、Whirl 和 Grid pulse。
-- 第 4 阶段：Pitch 和 Balance。以后：视频录制。
+- 在浏览器中测量实时重绘 SVG 的耗时。
+- 以后：视频录制。
 - 详见[声音计划](docs/SOUND_PLAN.zh.md)、[产品需求文档](docs/PRD.zh.md)和[实施计划](docs/PHASE.zh.md)。

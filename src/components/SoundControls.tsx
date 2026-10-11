@@ -1,8 +1,22 @@
-import { memo, useId, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode } from 'react'
 import type { GeometryParams } from '../geometry/types'
 import type { SoundEngine } from '../sound/engine'
+import { JUMP_LIMITS } from '../sound/jumps'
 import { freezeLive, useLiveStatus } from '../sound/live'
-import { CONTINUOUS_FEATURES, TARGETS, targetById, type ContinuousFeature, type Mapping, type TargetSpec } from '../sound/mapping'
+import {
+  FEATURE_GROUPS,
+  FEATURES,
+  TARGETS,
+  featureById,
+  featureValue,
+  targetById,
+  type Activation,
+  type FeatureGroup,
+  type FeatureId,
+  type FeatureSpec,
+  type Mapping,
+  type TargetSpec,
+} from '../sound/mapping'
 import { MAPPING_LIMITS, mappingStore, useMappingState } from '../sound/mappingStore'
 import {
   DEFAULT_FEATURE_SETTINGS,
@@ -45,11 +59,10 @@ const errorMessage = (error: SoundError, microphone: boolean) =>
 const TEXT_INTERVAL_MS = 100
 /** Screen readers get new meter values at most this often (ms). */
 const ARIA_INTERVAL_MS = 250
-/** How long Beat and Kick stay lit after an onset (ms). */
-const LIGHT_MS = 120
-
-/** NaN reads as 0. */
-const clamp01 = (v: number) => (v > 0 ? (v < 1 ? v : 1) : 0)
+/** Balance reads "C" (centred) while it leans less than this far to either side. */
+const BALANCE_CENTRE = 0.05
+/** Bars are drawn to a thousandth of their length (under a pixel), so a bar that holds still costs no style change. */
+const barScale = (value: number) => Math.round(value * 1000) / 1000
 
 /** "−18 dB" with a real minus sign; `signed` also puts "+" before positive values. */
 function formatDb(db: number, signed = false): string {
@@ -284,13 +297,25 @@ function SourceGroup({ engine, state }: { engine: SoundEngine; state: SoundState
   )
 }
 
-type MeterKey = 'level' | 'low' | 'mid' | 'high' | 'brightness'
-type LightKey = 'beat' | 'kick'
+/** Pitch's scale (log): the bar is empty at the low note and full at the high one. */
+const { pitchLowHz, pitchHighHz } = SOUND_LIMITS
+const pitchHz = (pitch: number) => pitchLowHz * (pitchHighHz / pitchLowHz) ** pitch
 
-const meterKeys: MeterKey[] = ['level', 'low', 'mid', 'high', 'brightness']
-const lightKeys: LightKey[] = ['beat', 'kick']
+/** Each group's ⓘ explanation, in plain words. */
+const groupHelp: Record<FeatureGroup, string> = {
+  Loudness: `Level is how loud the sound is now, from ${formatDb(SOUND_LIMITS.floorDb)} (empty bar) to ${formatDb(SOUND_LIMITS.ceilingDb)} (full). Swell follows it slowly, for big, calm movements.`,
+  Bands:
+    'Energy below 250 Hz (Low), 250–2000 Hz (Mid), and above 2000 Hz (High), each compared with its own loudest moment of the last few seconds.',
+  'Narrow bands':
+    'Finer slices, each compared with its own loudest moment: Sub 20–60 Hz, Bass 60–250 Hz, Low mid 250–500 Hz, High mid 2–4 kHz, Presence 4–6 kHz, Air above 6 kHz.',
+  Tone: `Brightness: dull, bass-heavy sound reads low; hiss and cymbals read high. Noisiness: hiss and drums read high, clear notes low. Pitch: the note being played or sung, from ${pitchLowHz} Hz (empty bar) to ${pitchHighHz} Hz (full); it holds between notes.`,
+  Rhythm: `Beat jumps to full on every onset, Kick only on sudden bass such as the bass drum; both fall back with Smoothing. Change: how fast the sound is changing. Pace: how many beats a second (${SOUND_LIMITS.paceMaxPerSecond} fill the bar).`,
+  Stereo: 'Balance: where the sound sits, from left to right. Width: how wide it spreads. Files only; the microphone reads as centred.',
+}
 
-interface MeterNodes {
+/** A feature's meter elements, filled in by its refs. */
+interface Meter {
+  feature: FeatureSpec
   bar: HTMLElement | null
   fill: HTMLElement | null
   output: HTMLOutputElement | null
@@ -299,66 +324,67 @@ interface MeterNodes {
 /** Nothing is running (Sound off, or the file paused or ended): the engine then sends SILENT_FRAME. */
 const isIdle = (frame: FeatureFrame) => frame === SILENT_FRAME || frame.time <= 0
 
-/** A meter's number: Level in dB after Sensitivity, matching its bar; the others in percent; "—" with nothing to read. */
-function readout(key: MeterKey, frame: FeatureFrame): string {
+/**
+ * A meter's number: Level in dB after Sensitivity, matching its bar; Pitch in Hz ("—" in silence, like
+ * Level, and once its bar is empty); Balance as the side it leans to ("L 40", "R 40", or "C" in the
+ * middle); the rest in percent; "—" with nothing to read.
+ */
+function readout(feature: FeatureSpec, frame: FeatureFrame): string {
   if (isIdle(frame)) return '—'
-  if (key === 'level') {
-    if (frame.silent) return '—'
-    const { floorDb, ceilingDb } = SOUND_LIMITS
-    return formatDb(floorDb + clamp01(frame.level) * (ceilingDb - floorDb))
+  const value = featureValue(frame, feature.id)
+  switch (feature.id) {
+    case 'level': {
+      if (frame.silent) return '—'
+      const { floorDb, ceilingDb } = SOUND_LIMITS
+      return formatDb(floorDb + value * (ceilingDb - floorDb))
+    }
+    case 'pitch':
+      return frame.silent || barScale(value) === 0 ? '—' : `${Math.round(pitchHz(value))} Hz`
+    case 'balance':
+      return Math.abs(value) < BALANCE_CENTRE ? 'C' : `${value < 0 ? 'L' : 'R'} ${Math.round(Math.abs(value) * 100)}`
+    default:
+      return `${Math.round(value * 100)}%`
   }
-  return `${Math.round(clamp01(frame[key]) * 100)}%`
+}
+
+/** The same for screen readers: Balance in words, and "No reading" for "—". */
+function spokenReadout(feature: FeatureSpec, frame: FeatureFrame, text: string): string {
+  if (text === '—') return 'No reading'
+  if (feature.id !== 'balance') return text
+  const value = featureValue(frame, feature.id)
+  return Math.abs(value) < BALANCE_CENTRE ? 'Centre' : `${Math.round(Math.abs(value) * 100)} percent ${value < 0 ? 'left' : 'right'}`
 }
 
 /**
  * Writes measured frames straight into the meter elements, outside React (a re-render per frame would
  * be wasted work): the bars every frame, the numbers at most 10 times a second, the values for screen
  * readers at most 4 times. A trailing update makes sure the last frame — usually the silent one sent
- * when playback stops — is always shown in full.
+ * when playback stops — is always shown in full. Values that did not change are not written again.
  */
 class MeterBoard {
-  readonly meters: Record<MeterKey, MeterNodes> = {
-    level: { bar: null, fill: null, output: null },
-    low: { bar: null, fill: null, output: null },
-    mid: { bar: null, fill: null, output: null },
-    high: { bar: null, fill: null, output: null },
-    brightness: { bar: null, fill: null, output: null },
-  }
-  readonly lights: Record<LightKey, HTMLElement | null> = { beat: null, kick: null }
+  /** One meter per feature, in FEATURES order. */
+  readonly meters: readonly Meter[] = FEATURES.map((feature) => ({ feature, bar: null, fill: null, output: null }))
   private latest: FeatureFrame = SILENT_FRAME
   private textAt = -Infinity
   private ariaAt = -Infinity
   private trailing: ReturnType<typeof setTimeout> | undefined
-  private lightTimers: Record<LightKey, ReturnType<typeof setTimeout> | undefined> = { beat: undefined, kick: undefined }
 
   /** Shows one frame. A stable arrow function, so it can be handed to useSoundFrames as it is. */
   readonly show = (frame: FeatureFrame): void => {
     this.latest = frame
-    for (const key of meterKeys) {
-      const fill = this.meters[key].fill
-      if (fill) fill.style.transform = `scaleX(${clamp01(frame[key])})`
+    for (const { feature, fill } of this.meters) {
+      if (!fill) continue
+      // Balance runs −1–1: its fill starts at the centre, and a negative scale mirrors it to the left.
+      const transform = `scaleX(${barScale(featureValue(frame, feature.id))})`
+      if (fill.style.transform !== transform) fill.style.transform = transform
     }
-    for (const key of lightKeys) if (frame[key]) this.flash(key)
     this.updateReadouts()
   }
 
-  /** Cancels the timers and puts the lights out (the elements are going away). */
+  /** Cancels the trailing update (the elements are going away). */
   stop(): void {
     clearTimeout(this.trailing)
     this.trailing = undefined
-    for (const key of lightKeys) {
-      clearTimeout(this.lightTimers[key])
-      this.lightTimers[key] = undefined
-      this.lights[key]?.classList.remove('is-on')
-    }
-  }
-
-  private flash(key: LightKey): void {
-    const light = this.lights[key]
-    if (!light) return
-    light.classList.add('is-on')
-    clearTimeout(this.lightTimers[key])
-    this.lightTimers[key] = setTimeout(() => light.classList.remove('is-on'), LIGHT_MS)
   }
 
   private updateReadouts(): void {
@@ -366,13 +392,14 @@ class MeterBoard {
     const textDue = now - this.textAt >= TEXT_INTERVAL_MS
     const ariaDue = now - this.ariaAt >= ARIA_INTERVAL_MS
     if (textDue || ariaDue) {
-      for (const key of meterKeys) {
-        const { bar, output } = this.meters[key]
-        const text = readout(key, this.latest)
-        if (textDue && output) output.textContent = text
+      for (const { feature, bar, output } of this.meters) {
+        const text = readout(feature, this.latest)
+        if (textDue && output && output.textContent !== text) output.textContent = text
         if (ariaDue && bar) {
-          bar.setAttribute('aria-valuenow', String(Math.round(clamp01(this.latest[key]) * 100)))
-          bar.setAttribute('aria-valuetext', text === '—' ? 'No reading' : text)
+          const value = String(Math.round(featureValue(this.latest, feature.id) * 100))
+          const spoken = spokenReadout(feature, this.latest, text)
+          if (bar.getAttribute('aria-valuenow') !== value) bar.setAttribute('aria-valuenow', value)
+          if (bar.getAttribute('aria-valuetext') !== spoken) bar.setAttribute('aria-valuetext', spoken)
         }
       }
       if (textDue) this.textAt = now
@@ -392,15 +419,11 @@ class MeterBoard {
 }
 
 /**
- * Meters for every feature, fed straight from the engine's frames. Memoised without props, so the
- * file position ticking in the rest of the tab never re-renders it.
+ * Meters for every feature, fed straight from the engine's frames, under a small heading per group.
+ * Memoised without props, so the file position ticking in the rest of the tab never re-renders it.
  */
 const LevelsGroup = memo(function LevelsGroup() {
   const [board] = useState(() => new MeterBoard())
-  const levelHint = useHint()
-  const bandsHint = useHint()
-  const brightnessHint = useHint()
-  const lightsHint = useHint()
 
   useSoundFrames(board.show)
   // Start from "nothing measured" before the first paint (the elements render empty).
@@ -409,85 +432,69 @@ const LevelsGroup = memo(function LevelsGroup() {
     return () => board.stop()
   }, [board])
 
-  /**
-   * A labelled bar with its number. `help` is the ⓘ explanation that describes it; the meter that
-   * carries the explanation (Low, for the three bands) also gets its button and text.
-   */
-  const meter = (key: MeterKey, label: string, help?: HintState, explanation?: { topic: string; text: string }) => (
-    <div className="field">
-      <div className="field-head">
-        <span className="field-title">
-          <span className="field-label">{label}</span>
-          {help && explanation && <HintButton hint={help} topic={explanation.topic} />}
-        </span>
-        {/* Hidden from screen readers: an output is a live region, and the meter carries the same value. */}
-        <output
-          aria-hidden="true"
-          ref={(el) => {
-            board.meters[key].output = el
-          }}
-        />
-      </div>
-      <div
-        ref={(el) => {
-          board.meters[key].bar = el
-        }}
-        className="sound-meter"
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-describedby={help?.id}
-      >
-        <div
-          ref={(el) => {
-            board.meters[key].fill = el
-          }}
-          className="sound-meter-fill"
-        />
-      </div>
-      {help && explanation && <HintText hint={help}>{explanation.text}</HintText>}
-    </div>
-  )
-
   return (
     <fieldset className="group sound">
       <legend>Levels</legend>
       <div className="group-body">
-        {meter('level', 'Level', levelHint, { topic: 'Level', text: 'Loudness (RMS), from −60 dB (empty bar) to 0 dB (full).' })}
-        {meter('low', 'Low', bandsHint, {
-          topic: 'Low, Mid, and High',
-          text: 'Energy below 250 Hz, 250–2000 Hz, and above 2000 Hz, each compared with its own loudest moment of the last few seconds.',
-        })}
-        {meter('mid', 'Mid', bandsHint)}
-        {meter('high', 'High', bandsHint)}
-        {meter('brightness', 'Brightness', brightnessHint, {
-          topic: 'Brightness',
-          text: 'Where the energy sits: dull, bass-heavy sound reads low; hiss and cymbals read high.',
-        })}
-
-        <div className="field">
-          <div className="sound-lights">
-            {lightKeys.map((key) => (
-              <span key={key} className="sound-light-item">
-                <span
-                  ref={(el) => {
-                    board.lights[key] = el
-                  }}
-                  className="sound-light"
-                  aria-hidden="true"
-                />
-                {key === 'beat' ? 'Beat' : 'Kick'}
-              </span>
-            ))}
-            <HintButton hint={lightsHint} topic="Beat and Kick" />
-          </div>
-          <HintText hint={lightsHint}>Beat lights on every onset; Kick only on sudden bass, such as the bass drum.</HintText>
-        </div>
+        {FEATURE_GROUPS.map((group) => (
+          <MeterGroup key={group} group={group} meters={board.meters.filter((m) => m.feature.group === group)} />
+        ))}
       </div>
     </fieldset>
   )
 })
+
+/**
+ * One group's meters, each on one line: label, bar, and number. Beat and Kick are pulses: their bars
+ * jump to full on each onset and fall back. The group's ⓘ explanation describes every meter in it.
+ */
+function MeterGroup({ group, meters }: { group: FeatureGroup; meters: readonly Meter[] }) {
+  const hint = useHint()
+  const titleId = useId()
+
+  return (
+    <div className="meter-group" role="group" aria-labelledby={titleId}>
+      <span className="field-title meter-group-title">
+        <span id={titleId}>{group}</span>
+        <HintButton hint={hint} topic={group} />
+      </span>
+      {meters.map((meter) => (
+        <div key={meter.feature.id} className="meter-row">
+          {/* Hidden from screen readers: the meter carries the same name. */}
+          <span className="meter-label" aria-hidden="true">
+            {meter.feature.label}
+          </span>
+          <div
+            ref={(el) => {
+              meter.bar = el
+            }}
+            className={meter.feature.bipolar ? 'sound-meter sound-meter-bipolar' : 'sound-meter'}
+            role="meter"
+            aria-label={meter.feature.label}
+            aria-valuemin={meter.feature.bipolar ? -100 : 0}
+            aria-valuemax={100}
+            aria-describedby={hint.id}
+          >
+            <div
+              ref={(el) => {
+                meter.fill = el
+              }}
+              className="sound-meter-fill"
+            />
+          </div>
+          {/* Hidden from screen readers: an output is a live region, and the meter carries the same value. */}
+          <output
+            aria-hidden="true"
+            ref={(el) => {
+              meter.output = el
+            }}
+          />
+        </div>
+      ))}
+      <HintText hint={hint}>{groupHelp[group]}</HintText>
+    </div>
+  )
+}
 
 /** Depth as a signed percentage with a real minus sign: "+40%", "−20%", "0%". */
 function formatDepth(depth: number): string {
@@ -495,23 +502,45 @@ function formatDepth(depth: number): string {
   return `${n < 0 ? '−' : n > 0 ? '+' : ''}${Math.abs(n)}%`
 }
 
-/** What Add mapping adds: Level → Distortion's amount (Noise amplitude) at +50%, or the first target no mapping uses yet. */
+/**
+ * What Add mapping adds: Level → Distortion's amount (Noise amplitude) at +50%, or the first target no
+ * mapping uses yet. A target that already acts comes first, so adding a row switches nothing another
+ * row needs (Tolerance and Segments per curve each need their own Mode).
+ */
 const DEFAULT_TARGET = 'distortion.amount'
 const DEFAULT_DEPTH = 0.5
 
-function nextTarget(mappings: readonly Mapping[]): string | undefined {
+function nextTarget(mappings: readonly Mapping[], params: GeometryParams): string | undefined {
   const used = new Set(mappings.map((m) => m.target))
   if (!used.has(DEFAULT_TARGET) && targetById(DEFAULT_TARGET)) return DEFAULT_TARGET
-  return TARGETS.find((t) => !used.has(t.id))?.id ?? TARGETS[0]?.id
+  const free = TARGETS.filter((t) => !used.has(t.id))
+  return (free.find((t) => t.inactive(params) === null) ?? free[0] ?? TARGETS[0])?.id
 }
 
-/** The targets of one tab as options, "Section · Label" (e.g. "Distortion · Noise amplitude"). */
+/** The targets of one tab as options, "Section · Label" (e.g. "Distortion · Noise amplitude"), or the label alone when both are the same ("Seed"). */
 const targetOptions = (tab: TargetSpec['tab']) =>
   TARGETS.filter((t) => t.tab === tab).map((t) => (
     <option key={t.id} value={t.id}>
-      {`${t.section} · ${t.label}`}
+      {t.section === t.label ? t.label : `${t.section} · ${t.label}`}
     </option>
   ))
+
+/** The features as options, grouped as the meters are. */
+const featureOptions = FEATURE_GROUPS.map((group) => (
+  <optgroup key={group} label={group}>
+    {FEATURES.filter((f) => f.group === group).map((f) => (
+      <option key={f.id} value={f.id}>
+        {f.label}
+      </option>
+    ))}
+  </optgroup>
+))
+
+/** Applies an activation's changes to the sliders, as Freeze does. */
+function applyActivation(activation: Activation, dispatch: Dispatch<Action>): void {
+  // `group` and `patch` always match; TypeScript cannot pair a union key with its value here.
+  for (const { group, patch } of activation.patches) dispatch({ type: 'updateParams', group, patch } as Action)
+}
 
 /**
  * The mappings: which feature moves which slider and how far, the Drive letters switch over all of
@@ -525,15 +554,37 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   const freezeHint = useHint()
   const limitId = useId()
   const reducedId = useId()
+  // What picking a target switched on, by mapping id, shown under its row until the row's target changes again.
+  const [notices, setNotices] = useState<ReadonlyMap<string, string>>(new Map())
   const reducedNote = reducedMotion && !drive
   const full = mappings.length >= MAPPING_LIMITS.maxMappings
   const addBlocked = full || TARGETS.length === 0
 
+  const setNotice = (id: string, notice: string | null) =>
+    setNotices((current) => {
+      if ((current.get(id) ?? null) === notice) return current
+      const next = new Map(current)
+      if (notice === null) next.delete(id)
+      else next.set(id, notice)
+      return next
+    })
+
+  /**
+   * Switches on what `target` needs to act (its step, effect or mode) and says so under the row; with
+   * nothing to switch, clears the row's notice. Leaving a target never switches anything off again.
+   */
+  const activate = (id: string, target: TargetSpec | undefined) => {
+    const activation = target?.activate(params) ?? null
+    if (activation) applyActivation(activation, dispatch)
+    setNotice(id, activation?.notice ?? null)
+  }
+
   const addMapping = () => {
     if (addBlocked) return
     // From the store, not this render: two quick clicks must not both pick the same target.
-    const target = nextTarget(mappingStore.getState().mappings)
-    if (target) mappingStore.add('level', target, DEFAULT_DEPTH)
+    const target = nextTarget(mappingStore.getState().mappings, params)
+    const id = target ? mappingStore.add('level', target, DEFAULT_DEPTH) : null
+    if (target && id) activate(id, targetById(target))
   }
 
   return (
@@ -569,7 +620,15 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
         {mappings.length > 0 && (
           <ul className="mapping-list">
             {mappings.map((mapping, index) => (
-              <MappingRow key={mapping.id} mapping={mapping} index={index} params={params} />
+              <MappingRow
+                key={mapping.id}
+                mapping={mapping}
+                index={index}
+                params={params}
+                notice={notices.get(mapping.id) ?? null}
+                onActivate={(target) => activate(mapping.id, target)}
+                onRemove={() => setNotice(mapping.id, null)}
+              />
             ))}
           </ul>
         )}
@@ -627,14 +686,56 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   )
 }
 
-/** One mapping: Feature → Target, Depth, on/off, and remove; a note below when its target does nothing now. */
-function MappingRow({ mapping, index, params }: { mapping: Mapping; index: number; params: GeometryParams }) {
+/** What Rate means on a seed, from the jump limits (jumps.ts). */
+const rateHelp =
+  'How often the seed moves on; each new seed is a new variant. With Beat or Kick, 100% moves on at every onset and 50% ' +
+  `at every other one. With other features, it moves on faster the higher they read, up to about ${Math.round(JUMP_LIMITS.maxRate)} ` +
+  `times a second at 100%. All seeds together jump at most about ${Math.round(JUMP_LIMITS.maxJumps / (JUMP_LIMITS.windowMs / 1000))} times a second.`
+
+interface MappingRowProps {
+  mapping: Mapping
+  index: number
+  params: GeometryParams
+  /** What picking this row's target switched on ("Turned on Ripple."), or null. */
+  notice: string | null
+  /** Switches on what `target` needs to act and sets the row's notice (see MappingsGroup). */
+  onActivate: (target: TargetSpec | undefined) => void
+  /** The row is being removed. */
+  onRemove: () => void
+}
+
+/**
+ * One mapping: Feature → Target, Depth (Rate on a seed), on/off, and remove. Below it, what picking the
+ * target switched on; or, while the target does nothing now, why, with Enable.
+ */
+function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: MappingRowProps) {
   const id = useId()
+  const rateHint = useHint()
+  const targetSelect = useRef<HTMLSelectElement>(null)
   const n = index + 1
+  const feature = featureById(mapping.feature)
   const target = targetById(mapping.target)
   const inactive = target?.inactive(params) ?? null
-  const depthPercent = Math.round(mapping.depth * 100)
+  const canEnable = inactive !== null && (target?.activate(params) ?? null) !== null
+  // A seed jumps at a Rate (0–100%) instead of moving by a signed Depth.
+  const jump = target?.kind === 'jump'
+  const amountPercent = Math.round((jump ? Math.abs(mapping.depth) : mapping.depth) * 100)
+  // The notice fills its status region only once the row is in the document, so a notice from Add
+  // mapping is announced too (a status region that arrives with its text is often not read out).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const shownNotice = mounted && !inactive ? notice : null
   const update = (patch: Partial<Omit<Mapping, 'id'>>) => mappingStore.update(mapping.id, patch)
+  // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
+  // what a target needs is switched on only once the choice is made, on Enter or on leaving the select; the
+  // settings passed on the way stay as they were. A pick with the mouse or a finger is made at once.
+  const keyboard = useRef(false)
+  const pendingTarget = useRef(false)
+  const commitTarget = (value: string) => {
+    if (!pendingTarget.current) return
+    pendingTarget.current = false
+    onActivate(targetById(value))
+  }
 
   return (
     <li className="mapping">
@@ -644,23 +745,43 @@ function MappingRow({ mapping, index, params }: { mapping: Mapping; index: numbe
             className="mapping-feature"
             aria-label={`Mapping ${n} feature`}
             value={mapping.feature}
-            onChange={(e) => update({ feature: e.target.value as ContinuousFeature })}
+            onChange={(e) => update({ feature: e.target.value as FeatureId })}
           >
-            {CONTINUOUS_FEATURES.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
+            {/* A feature this version does not know (none should exist) still shows, so the select stays truthful. */}
+            {!feature && (
+              <option value={mapping.feature} disabled>
+                {mapping.feature}
               </option>
-            ))}
+            )}
+            {featureOptions}
           </select>
           <span className="mapping-arrow" aria-hidden="true">
             →
           </span>
           <select
+            ref={targetSelect}
             className="mapping-target"
             aria-label={`Mapping ${n} target`}
             aria-describedby={inactive ? `${id}-inactive` : undefined}
             value={mapping.target}
-            onChange={(e) => update({ target: e.target.value })}
+            onPointerDown={() => (keyboard.current = false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitTarget(e.currentTarget.value)
+              else keyboard.current = true
+            }}
+            onBlur={(e) => commitTarget(e.currentTarget.value)}
+            onChange={(e) => {
+              const next = targetById(e.target.value)
+              // A seed's Rate is never negative: a negative Depth turns positive in the same update.
+              update(next?.kind === 'jump' && mapping.depth < 0 ? { target: e.target.value, depth: -mapping.depth } : { target: e.target.value })
+              if (keyboard.current) {
+                pendingTarget.current = true
+                // Nothing to switch on yet; this only clears the last target's notice.
+                onActivate(undefined)
+              } else {
+                onActivate(next)
+              }
+            }}
           >
             {/* A target this version does not know (none should exist) still shows, so the select stays truthful. */}
             {!target && (
@@ -674,21 +795,24 @@ function MappingRow({ mapping, index, params }: { mapping: Mapping; index: numbe
         </div>
         <div className="mapping-amount">
           <label htmlFor={`${id}-depth`} className="mapping-depth-label">
-            Depth<span className="visually-hidden">, mapping {n}</span>
+            {jump ? 'Rate' : 'Depth'}
+            <span className="visually-hidden">, mapping {n}</span>
           </label>
+          {jump && <HintButton hint={rateHint} topic="Rate" />}
           <input
             id={`${id}-depth`}
             type="range"
-            min={-100}
+            min={jump ? 0 : -100}
             max={100}
             step={5}
-            value={depthPercent}
-            aria-valuetext={`${depthPercent} percent`}
+            value={amountPercent}
+            aria-valuetext={`${amountPercent} percent`}
+            aria-describedby={jump ? rateHint.id : undefined}
             onChange={(e) => update({ depth: Number(e.target.value) / 100 })}
           />
           {/* Hidden from screen readers: an output is a live region, and the slider says the same. */}
           <output htmlFor={`${id}-depth`} className="mapping-depth" aria-hidden="true">
-            {formatDepth(mapping.depth)}
+            {jump ? `${amountPercent}%` : formatDepth(mapping.depth)}
           </output>
           <input
             type="checkbox"
@@ -709,6 +833,7 @@ function MappingRow({ mapping, index, params }: { mapping: Mapping; index: numbe
               const neighbour = (row?.nextElementSibling ?? row?.previousElementSibling)?.querySelector<HTMLButtonElement>('.mapping-remove')
               const next = neighbour ?? row?.closest('.group-body')?.querySelector<HTMLButtonElement>('.mapping-add')
               next?.focus()
+              onRemove()
               mappingStore.remove(mapping.id)
             }}
           >
@@ -716,11 +841,32 @@ function MappingRow({ mapping, index, params }: { mapping: Mapping; index: numbe
           </button>
         </div>
       </div>
+      {jump && <HintText hint={rateHint}>{rateHelp}</HintText>}
       {inactive && (
-        <p id={`${id}-inactive`} className="panel-notice">
-          {inactive}
-        </p>
+        <div className="panel-notice mapping-note">
+          <span id={`${id}-inactive`}>{inactive}</span>
+          {canEnable && (
+            <button
+              type="button"
+              className="button-small"
+              aria-label={`Enable, mapping ${n}`}
+              aria-describedby={`${id}-inactive`}
+              onClick={() => {
+                // The button goes once the target acts: hand focus to the row's Target first, so keyboard
+                // focus does not fall back to the page; the notice then says what changed.
+                targetSelect.current?.focus()
+                onActivate(target)
+              }}
+            >
+              Enable
+            </button>
+          )}
+        </div>
       )}
+      {/* Always in the document, so screen readers announce it when it fills; visually hidden while empty so it adds no gap. */}
+      <p className={shownNotice ? 'panel-notice' : 'visually-hidden'} role="status">
+        {shownNotice}
+      </p>
     </li>
   )
 }

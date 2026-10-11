@@ -1,10 +1,12 @@
 import { memo, useState, type Dispatch } from 'react'
 import { RANDOM_ANCHOR_LIMITS, type RandomAnchorStats } from '../geometry/randomAnchors'
 import type { RandomAnchorParams } from '../geometry/types'
+import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import LiveSeed from './LiveSeed'
 import { sameControlProps } from './sameControlProps'
 
 interface RandomAnchorControlsProps {
@@ -40,6 +42,8 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
   const introHint = useHint()
   const densityHint = useHint()
   const seedHint = useHint()
+  // The statistics come from the letters as shown, so while Sound moves the seed on they belong to its live seed.
+  const shownSeed = useLiveSeed('random.seed') ?? params.seed
   const percent = Math.round(params.randomness * 100)
   const isDefault = (Object.keys(DEFAULT_RANDOM) as (keyof RandomAnchorParams)[]).every(
     (k) => k === 'seed' || params[k] === DEFAULT_RANDOM[k],
@@ -178,6 +182,7 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
                 if (Number.isFinite(value)) update({ seed: Math.min(RANDOM_ANCHOR_LIMITS.maxSeed, Math.max(0, value)) })
               }}
             />
+            <LiveSeed target="random.seed" />
             <button type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(pickSeed(params.seed))}>
               <Icon name="shuffle" />
               Shuffle
@@ -212,7 +217,7 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
             <div>
               <dt>Seed</dt>
-              <dd>{params.seed}</dd>
+              <dd>{shownSeed}</dd>
             </div>
             <div>
               <dt>Anchors</dt>

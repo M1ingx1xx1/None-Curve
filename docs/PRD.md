@@ -243,34 +243,42 @@ The canvas is the primary feedback area and remains visible during editing. Load
 Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-driven carved letterforms" direction (new carving operators, a timeline, audio spread across the letters of a text, and recipe export), which is dropped.
 
 - **Concept:** a **Sound** tab beside Geometry and Experimental. Live sound, from a local audio file or from the microphone after an explicit start, drives the parameters that already exist in both tabs. The letters move with the music: anchors jump on the beat, outlines crumple when it gets loud, petals open on the bass.
-- **No new geometry:** sound only changes parameter values, within each slider's range. Every frame is a result the sliders could produce by hand, so it has straight edges only, is validated like every result, and can be exported. There is no tweening between frames.
-- **Features:**
-  - Level (short-time RMS).
-  - Low / Mid / High band energy (20–250 Hz, 250–2000 Hz, 2000 Hz – Nyquist).
-  - Brightness (spectral centroid).
-  - Beat and Kick (onsets).
-  - Later: Pitch, with confidence, and Balance.
-  - Each feature follows the sound with a fast attack and an adjustable release, behind a silence gate.
+- **No new geometry:** sound only changes parameter values, within each slider's range (a seed: whole numbers within its field's range). Every frame is a result the sliders and seed fields could produce by hand, so it has straight edges only, is validated like every result, and can be exported. There is no tweening between frames.
+- **Features:** 20, in six groups, listed the same way in the meters and in a mapping's Feature list:
+  - **Loudness:** Level (short-time RMS) and Swell (Level followed slowly: it rises over about 300 ms and falls over about 2 s).
+  - **Bands:** Low / Mid / High band energy (20–250 Hz, 250–2000 Hz, 2000 Hz – Nyquist).
+  - **Narrow bands:** Sub (20–60 Hz), Bass (60–250 Hz), Low mid (250–500 Hz), High mid (2–4 kHz), Presence (4–6 kHz), and Air (6–20 kHz). Like Low / Mid / High, each reads against its own recent loudest moment.
+  - **Tone:** Brightness (spectral centroid); Noisiness (spectral flatness, measured up to the sound's real bandwidth so lossy files read right: notes near 0, hiss and drums high); Pitch (the note being played or sung, 55 Hz to 1760 Hz on a log scale; it holds the last note between notes and reads 0 in silence).
+  - **Rhythm:** Beat and Kick (onsets), as pulses that jump to 1 on each onset and fall back with the Smoothing time; Change (how much the spectrum is changing: near 0 on steady sound, noise included, high on attacks); Pace (Beat onsets a second over the last 2 s; 8 a second reads 1).
+  - **Stereo:** Balance (left −1 to right +1, the only two-sided feature) and Width (mono 0, wide stereo about 1). In practice for files only: a mono microphone reads centred, with no width.
+  - Most features follow the sound with a fast attack and the adjustable release (Smoothing), behind a silence gate; Swell and Pitch have their own fixed times.
 - **Mappings:** up to 8 rows, each connecting one feature to one target.
   - **Continuous:** slider position (0–1 along the slider as drawn) + Depth × feature, clamped to the slider's ends and rounded to its step; contributions to one target add up before clamping. On an ordinary slider this is slider value + Depth × feature × the slider's range; a log-scaled slider such as Tolerance moves evenly along its track.
   - **Events** (Beat, Kick), in three kinds:
-    - **Jump:** a seed moves on, so anchors, folds, or gusts jump to new places.
+    - **Jump:** a seed moves on, so anchors, folds, or gusts jump to new places. The three seeds are targets, and a new seed puts every anchor somewhere new. On a seed, the row's slider reads **Rate** (0–100%): with Beat or Kick the seed moves on by one per onset (Rate 50% is every other onset, 25% every fourth); with any other feature it jumps at up to 4.8 times a second × Rate × the feature's value. Seeds stay whole numbers in their field's range (0–999 999), wrapping to 0.
     - **Step:** the next of a few choices, such as Allowed directions (the angle step).
-    - **Kick:** a leap that falls back.
-  - **Targets in the Geometry tab:** Distortion Seed, Noise amplitude, Noise frequency, and Normal bias; Random anchors Seed, Randomness, and Density; Curve flattening Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Allowed directions. The seeds and Allowed directions come with event mappings.
+    - **Kick:** a leap that falls back. Beat or Kick on any slider does this, through their pulses.
+  - **Targets in the Geometry tab:** Distortion Seed, Noise amplitude, Noise frequency, and Normal bias; Random anchors Seed, Randomness, and Density; Curve flattening Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Allowed directions. Allowed directions comes with Step mappings.
   - **Targets in the Experimental tab:** its sliders and the shared seed.
   - Switches are never targets.
+  - **Targets switch themselves on:** picking a target whose setting is off turns that setting on and says so under the row (for example "Turned on Ripple.", "Set Noise amplitude to 40.", or "Turned off Random anchors. Set Mode to Adaptive."). Switching the row to another target, or removing it, never turns anything off. If the user turns the setting off later, the row says why and offers **Enable**. With the keyboard, browsing the Target list applies a target only on Enter or when focus leaves the list; a pick with the mouse or a finger applies at once. **Add mapping** prefers a target that already acts.
+    - Curve flattening targets turn Random anchors off and set what they need: Tolerance the Adaptive Mode, Segments per curve the Fixed segments Mode, Corner angle Merge joined curves (in either Mode).
+    - Grid size turns on Snap to grid.
+    - Distortion Noise frequency, Normal bias, and Seed set Noise amplitude to 40 when it is 0.
+    - Random anchors targets turn Random anchors on; Seed also sets Randomness to 100% when it is 0%.
+    - Experimental effect sliders turn their effect on. The Experimental Seed turns on Noise when neither Noise nor Wind is on (Ripple and Curl have no randomness).
   - **Presets:** Anchor jump, Resample, Bass bloom, Shiver, Whirl, Grid pulse.
-- **Slider values preserved:**
-  - Sliders keep their own values, and a marker shows the live value.
-  - Switching Sound off, switching a mapping off, or setting Depth to 0 restores the slider value exactly.
-  - **Freeze** writes the live values into the sliders and pauses the sound.
+- **Slider and seed values preserved:**
+  - Sliders keep their own values, and a marker shows the live value. Seed fields keep their own seeds, and a small number beside a driven seed shows the live one; the Distortion and Random anchors statistics show the live seed too.
+  - Switching Sound off, switching a mapping off, or setting Depth to 0 restores the slider value exactly. Pausing, stopping, or turning Drive letters off returns the seeds to their fields' values exactly, and playing again starts from them.
+  - **Freeze** writes the live values into the sliders, and the live seeds into the seed fields, and pauses the sound.
   - Exports always use the slider values, never live audio.
 - **Performance:**
   - The pipeline is unchanged, with at most one request in flight; live requests carry a flag that keeps their results apart. The frame rate adapts to the cost, is capped at 30 fps, and is shown in the tab.
   - Live values are rounded to slider steps so they reuse cached results, and live frames have a separate cache.
+  - Measuring the 20 features takes about 90 µs per frame at 48 kHz. A seed jump recomputes every glyph in about 2–3.5 ms (Arial, 24 distinct glyphs).
 - **Safety:**
-  - Against flashing, a driven slider swings back and forth by 10% or more of its travel at most 3 times a second; a further swing waits until the second has passed. Beat-driven jumps get the same limit.
+  - Against flashing, a driven slider swings back and forth by 10% or more of its travel at most 3 times a second; a further swing keeps the slider's last value until the 1.25 s window has passed. Seed jumps get the same limit, counted the same way: at most 6 jump frames in any 1.25 s, so 3 flashes a second (seeds jumping in the same frame count once); a further jump is skipped. Pausing and playing again does not reset this count.
   - With reduced motion, Drive letters starts off (and switches off if reduced motion is turned on during the visit), and the Sound tab says why.
   - The microphone starts only on an explicit click and shows an indicator.
   - Audio never leaves the browser.
@@ -294,6 +302,6 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
 | P2 Experimental effects | Implemented: Noise, Ripple (with petals), Curl, and Wind, stackable, with folds beyond 100% |
-| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); event mappings, presets, and the rate limit (phase 3) and Pitch and Balance (phase 4) are not implemented yet; see [SOUND_PLAN.md](SOUND_PLAN.md) |
+| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, and targets that switch themselves on; Pitch and Balance (phase 4) built early, with 20 features in all and compact meters. Not implemented yet: Step mappings (Allowed directions, Sides, Rings), presets, and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.

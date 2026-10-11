@@ -243,34 +243,42 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 详细计划见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。本节取代之前的“声音驱动石刻字形”方向（新的石刻操作、时间轴、把音频分布到一段文字的各个字母上，以及配方导出），那个方向不再做。
 
 - **概念：** 在 Geometry 和 Experimental 旁边新增 **Sound** 标签页。实时声音（本地音频文件，或用户明确开始后的麦克风）驱动两个标签页里已有的参数，让字母随音乐而动：锚点踩着节拍跳动，声音变响时轮廓被揉皱，低音响起时花瓣张开。
-- **不新增几何：** 声音只改变参数值，而且只在每个滑块自己的范围内改变。每一帧都是手动拖滑块也能得到的结果，所以只有直边，像其他结果一样经过检查，并且可以导出。帧与帧之间不做补间。
-- **特征：**
-  - Level（短时 RMS）。
-  - Low / Mid / High 频带能量（20–250 Hz、250–2000 Hz、2000 Hz 到奈奎斯特频率）。
-  - Brightness（频谱质心）。
-  - Beat 和 Kick（起音）。
-  - 以后增加：Pitch（附带置信度）和 Balance。
-  - 每个特征都以快速的起音和可调的释放跟随声音，并经过静音门限。
+- **不新增几何：** 声音只改变参数值，而且只在每个滑块自己的范围内改变（种子：在其输入框范围内的整数）。每一帧都是手动拖滑块、填种子输入框也能得到的结果，所以只有直边，像其他结果一样经过检查，并且可以导出。帧与帧之间不做补间。
+- **特征：** 共 20 个，分六组；电平表和映射的 Feature 列表按同样方式排列：
+  - **Loudness（响度）：** Level（短时 RMS）和 Swell（缓慢跟随的 Level：约 300 ms 升起，约 2 s 回落）。
+  - **Bands（频带）：** Low / Mid / High 频带能量（20–250 Hz、250–2000 Hz、2000 Hz 到奈奎斯特频率）。
+  - **Narrow bands（窄频带）：** Sub（20–60 Hz）、Bass（60–250 Hz）、Low mid（250–500 Hz）、High mid（2–4 kHz）、Presence（4–6 kHz）和 Air（6–20 kHz）。和 Low / Mid / High 一样，每个频带都与自己最近最响的时刻相比。
+  - **Tone（音色）：** Brightness（频谱质心）；Noisiness（频谱平坦度，只量到声音实际的带宽，所以有损压缩的文件也读得准：乐音接近 0，嘶声和鼓声高）；Pitch（正在演奏或演唱的音高，55 Hz 到 1760 Hz，对数刻度；两个音之间保持上一个音，静音时为 0）。
+  - **Rhythm（节奏）：** Beat 和 Kick（起音），作为脉冲：每次起音跳到 1，再按 Smoothing 的时间回落；Change（频谱变化的多少：持续的声音接近 0，噪声也一样，起音时高）；Pace（最近 2 s 内每秒的 Beat 起音数；每秒 8 次读作 1）。
+  - **Stereo（立体声）：** Balance（左 −1 到右 +1，唯一的双向特征）和 Width（单声道为 0，很宽的立体声约为 1）。实际上只对文件有效：单声道麦克风读作居中、没有宽度。
+  - 大多数特征以快速的起音和可调的释放（Smoothing）跟随声音，并经过静音门限；Swell 和 Pitch 有自己固定的时间。
 - **映射：** 最多 8 行，每行把一个特征连接到一个目标。
   - **连续：** 滑块位置（沿滑块的绘制方向，0–1）+ Depth × 特征，截断到滑块两端，再取整到滑块的档位；同一目标上的多个作用先相加再截断。普通滑块相当于 滑块值 + Depth × 特征 × 滑块的范围，而对数刻度的滑块（如 Tolerance）沿滑道均匀移动。
   - **事件**（Beat、Kick），分三种：
-    - **Jump：** 种子前进一个，让锚点、翻折或阵风跳到新位置。
+    - **Jump：** 种子前进一个，让锚点、翻折或阵风跳到新位置。三个种子都是目标，新的种子让每个锚点落到新的地方。在种子上，这一行的滑块显示为 **Rate**（0–100%）：配 Beat 或 Kick 时，每次起音种子前进一个（Rate 50% 是每隔一次起音，25% 是每四次）；配其他特征时，每秒最多跳 4.8 次 × Rate × 特征值。种子始终是字段范围内（0–999 999）的整数，超过最大值后回到 0。
     - **Step：** 换到几个可选值中的下一个，例如 Allowed directions（角度步长）。
-    - **Kick：** 跃起后再回落。
-  - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。种子和 Allowed directions 随事件映射一起加入。
+    - **Kick：** 跃起后再回落。Beat 或 Kick 用在任意滑块上就是这样，靠的是它们的脉冲。
+  - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
   - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。
   - 开关从不作为目标。
+  - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标或手指选择则立即应用。**Add mapping** 优先选已经起作用的目标。
+    - Curve flattening 的目标会关闭 Random anchors，并设置各自需要的：Tolerance 需要 Adaptive 模式，Segments per curve 需要 Fixed segments 模式，Corner angle 需要 Merge joined curves（两种模式下都可以）。
+    - Grid size 打开 Snap to grid。
+    - Distortion 的 Noise frequency、Normal bias 和 Seed 在 Noise amplitude 为 0 时把它设为 40。
+    - Random anchors 的目标打开 Random anchors；Seed 还会在 Randomness 为 0% 时把它设为 100%。
+    - Experimental 的效果滑块打开各自的效果。Noise 和 Wind 都没打开时，Experimental 的 Seed 会打开 Noise（Ripple 和 Curl 没有随机性）。
   - **预设：** Anchor jump、Resample、Bass bloom、Shiver、Whirl、Grid pulse。
-- **保留滑块值：**
-  - 滑块保留自己的值，并用标记显示实时值。
-  - 关闭 Sound、关闭映射或 Depth 为 0 时，完全恢复滑块值。
-  - **Freeze** 把实时值写入滑块，并让声音暂停。
+- **保留滑块值和种子：**
+  - 滑块保留自己的值，并用标记显示实时值。种子字段保留自己的种子，被驱动的种子旁边用一个小数字显示实时种子；Distortion 和 Random anchors 的统计信息也显示实时种子。
+  - 关闭 Sound、关闭映射或 Depth 为 0 时，完全恢复滑块值。暂停、停止或关闭 Drive letters 时，种子完全回到字段中的值，再次播放时从这些值开始。
+  - **Freeze** 把实时值写入滑块、把实时种子写入种子字段，并让声音暂停。
   - 导出始终使用滑块值，从不使用实时音频。
 - **性能：**
   - 流程不变，同一时间最多只有一个请求在处理；实时请求带有标记，结果会分开保存。帧率随计算量自动调整，上限 30 fps，并显示在标签页中。
   - 实时值取整到滑块档位，以复用缓存结果；实时帧使用单独的缓存。
+  - 在 48 kHz 下，测量 20 个特征每帧约需 90 µs。种子跳一次会重新计算每个字形，约 2–3.5 ms（Arial，24 个不同字形）。
 - **安全：**
-  - 为防闪烁，被驱动的滑块每秒最多来回摆动 3 次（每次摆动至少是滑道的 10%）；再多的摆动要等这一秒过去。由节拍驱动的跳变也受同样的限制。
+  - 为防闪烁，被驱动的滑块每秒最多来回摆动 3 次（每次摆动至少是滑道的 10%）；再多的摆动会让滑块停在上一个值，直到 1.25 s 的窗口过去。种子跳变也受同样的限制，计数方式相同：任意 1.25 s 内最多 6 个跳变帧，即每秒 3 次闪烁（同一帧中一起跳的种子只算一次）；超出的跳变直接跳过。暂停后再播放不会重置这个计数。
   - 开启减少动态效果时，Drive letters（驱动字母）默认关闭（访问期间才开启减少动态效果时也会自动关闭），Sound 标签页会说明原因。
   - 麦克风只在用户明确点击后启用，并显示指示标记。
   - 音频不会离开浏览器。
@@ -294,6 +302,6 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 | P1 填充与样张 | 已实现：可编辑多行文本，保留字宽与字体自带字偶距，缺字明确标示 |
 | P2 字体文件导出 | 已实现：OpenType（CFF，.otf），字形范围可选，导出后用 fontkit 与浏览器字体引擎校验 |
 | P2 实验效果 | 已实现：Noise、Ripple（含花瓣）、Curl、Wind，可叠加，超过 100% 时可翻折 |
-| 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；事件映射、预设和频率限制（第 3 阶段）以及 Pitch 和 Balance（第 4 阶段）尚未实现；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
+| 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）以及会自己打开所需设置的目标已完成；Pitch 和 Balance（第 4 阶段）提前完成，特征共 20 个，电平表改为紧凑排列。尚未实现：Step 映射（Allowed directions、Sides、Rings）、预设，以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
 
 字体导出的边界（对应第 10 节待验证事项）：不输出 TTF / WOFF / WOFF2；不导出字偶距及其他 GPOS / GSUB 特性、hinting、变量轴（可变字体导出画布所示默认实例）；仅导出经字符映射可达的字形；U+FFFF 以上字符因写入器无法可靠映射而排除；坐标取整到字体单位。

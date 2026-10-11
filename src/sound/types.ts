@@ -18,6 +18,13 @@ export const SOUND_LIMITS = {
   lowBand: [20, 250],
   midBand: [250, 2000],
   highBand: [2000, Infinity],
+  /** The narrow bands' edges in Hz (Air stops at Nyquist when that is lower). Each reads like Low, Mid and High. */
+  subBand: [20, 60],
+  bassBand: [60, 250],
+  lowMidBand: [250, 500],
+  highMidBand: [2000, 4000],
+  presenceBand: [4000, 6000],
+  airBand: [6000, 20000],
   /** The kick detector listens to this band only (bass drum, and sudden low bass notes). */
   kickBand: [20, 150],
   /** Band readings are relative to each band's recent loudest value, over this many dB. */
@@ -27,11 +34,39 @@ export const SOUND_LIMITS = {
   /** Brightness: spectral centroid (Hz) that reads as 0 and as 1, on a log scale. */
   brightnessLowHz: 100,
   brightnessHighHz: 8000,
+  /**
+   * Noisiness: spectral flatness (geometric over arithmetic mean of the power, from minFeatureHz up to maxFeatureHz or
+   * the frame's real bandwidth, whichever is lower; features.ts) in dB that reads as 0 and as 1. Measured on the
+   * emulated analyser (48, 44.1 and 96 kHz): a pure tone or a chord of sines -58 to -126 dB (-68 dB over -90 dBFS
+   * hiss, -70 dB in 16 bits), a sawtooth -20 dB at 55 Hz and -21 dB at 110 Hz (-40 to -70 dB from 220 Hz up), a chord
+   * over -50 dBFS hiss -36 dB, brown noise -25 dB, pink noise -7 dB (frames -11 to -5), white noise -2.5 dB (-2.9 to
+   * -2.1), hi-hats -5 to -10 dB. So tones and chords read 0, a sawtooth at most 0.26 (55 Hz; 0.16 at 110 Hz), hi-hats
+   * about 0.85, pink noise 0.82–0.86 and white noise 1; the same within 0.06 low-passed at 19, 16 or 11 kHz (as lossy
+   * encoders do), and white noise through AAC at 64–256 kbps reads 1.
+   */
+  noisinessLowDb: -24,
+  noisinessHighDb: -3,
+  /**
+   * Pitch: fundamental (Hz) that reads as 0 and as 1, on a log scale (A1 to A6, 5 octaves). YIN runs on the
+   * samples decimated to at most pitchMaxRate (Hz); a lag counts as periodic below pitchThreshold (its
+   * cumulative-mean-normalised difference). Pitch follows with pitchSmoothingMs both ways (ms).
+   */
+  pitchLowHz: 55,
+  pitchHighHz: 1760,
+  pitchMaxRate: 24000,
+  pitchThreshold: 0.15,
+  pitchSmoothingMs: 30,
   /** Smoothing: rise time constant, and the default and range of the fall (release) time constant, in ms. */
   attackMs: 10,
   defaultReleaseMs: 150,
   minReleaseMs: 20,
   maxReleaseMs: 1000,
+  /** Swell: Level with these fixed rise and fall time constants (ms), whatever Smoothing says. */
+  swellAttackMs: 300,
+  swellReleaseMs: 2000,
+  /** Pace: Beat onsets counted over the last paceWindowMs, as onsets a second; paceMaxPerSecond reads as 1. */
+  paceWindowMs: 2000,
+  paceMaxPerSecond: 8,
   /**
    * Beats: flux must exceed the median of the last `fluxWindowMs` × `fluxFactor` (Kick: × `kickFluxFactor`) plus a
    * floor, at least `minBeatGapMs` apart.
@@ -57,7 +92,10 @@ export const SOUND_LIMITS = {
   fluxCompression: 1000,
   /**
    * Absolute flux added to the Beat threshold (flux is summed over every bin above minFeatureHz). At Sensitivity 0,
-   * steady tones give under 0.1 and a -40 dBFS bass-drum hit about 2.3, so 1 ignores numeric noise and keeps quiet hits.
+   * steady pure tones give under 0.06 and a -40 dBFS bass-drum hit about 2.3, so 1 ignores numeric noise and keeps quiet
+   * hits. Known limit: a steady low buzzy note (a sawtooth at 55–110 Hz) beats against the frame rate and can fire Beat
+   * several times a second.
+   * Change never judges the flux's rise above its median against less than this either.
    */
   fluxFloor: 1,
   /**
@@ -91,17 +129,46 @@ export const SOUND_LIMITS = {
   maxFrameGapMs: 500,
 } as const
 
-/** What the analyser measured in one frame. Continuous values are smoothed and run 0–1. */
+/** What the analyser measured in one frame. Continuous values are smoothed and run 0–1 (Balance -1–1). */
 export interface FeatureFrame {
   /** When the frame was measured (ms, performance.now()). */
   time: number
   /** Unsmoothed short-time RMS level in dBFS (-Infinity for digital silence), before Sensitivity. */
   levelDb: number
   level: number
+  /** Level with slow smoothing (SOUND_LIMITS.swellAttackMs, swellReleaseMs). */
+  swell: number
   low: number
   mid: number
   high: number
+  /** The narrow bands: 20–60 Hz, 60–250 Hz, 250–500 Hz, 2–4 kHz, 4–6 kHz, 6–20 kHz. */
+  sub: number
+  bass: number
+  lowMid: number
+  highMid: number
+  presence: number
+  air: number
   brightness: number
+  /** Spectral flatness: hiss and drums high, notes low. */
+  noisiness: number
+  /** The fundamental by YIN, 55 Hz → 0 to 1760 Hz → 1 on a log scale; holds the last note while unvoiced. */
+  pitch: number
+  /** 1 on a frame where `beat` fires, then falling with the release time. */
+  beatPulse: number
+  /** The same for `kick`. */
+  kickPulse: number
+  /**
+   * How fast the sound changes: the full-band spectral flux's rise above its median of the last
+   * SOUND_LIMITS.fluxWindowMs, against the largest such rise lately (at least a quarter of the frame's spectrum).
+   * High on attacks; low on steady sound, noise included, however long it lasts.
+   */
+  change: number
+  /** Beat onsets a second over the last SOUND_LIMITS.paceWindowMs, against paceMaxPerSecond. */
+  pace: number
+  /** Left -1 to right 1: the left and right RMS compared; 0 for mono, or without the channels. */
+  balance: number
+  /** Side RMS over mid RMS: 0 for mono (or without the channels), about 1 for unrelated left and right. */
+  width: number
   /** An onset in this frame: full-band flux above its threshold, or a Kick; at most one per minBeatGapMs. */
   beat: boolean
   /** An onset in the kick band (20–150 Hz) in this frame: a bass drum, or a sudden low bass note. */
@@ -115,13 +182,34 @@ export const SILENT_FRAME: FeatureFrame = {
   time: 0,
   levelDb: -Infinity,
   level: 0,
+  swell: 0,
   low: 0,
   mid: 0,
   high: 0,
+  sub: 0,
+  bass: 0,
+  lowMid: 0,
+  highMid: 0,
+  presence: 0,
+  air: 0,
   brightness: 0,
+  noisiness: 0,
+  pitch: 0,
+  beatPulse: 0,
+  kickPulse: 0,
+  change: 0,
+  pace: 0,
+  balance: 0,
+  width: 0,
   beat: false,
   kick: false,
   silent: true,
+}
+
+/** The left and right channels' time-domain samples (the same length; -1..1), for Balance and Width. */
+export interface StereoSamples {
+  left: Float32Array
+  right: Float32Array
 }
 
 export interface FeatureSettings {

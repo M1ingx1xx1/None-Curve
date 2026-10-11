@@ -10,6 +10,7 @@ import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import LiveSeed from './LiveSeed'
 import { sameControlProps } from './sameControlProps'
 
 interface ExperimentalControlsProps {
@@ -87,6 +88,7 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
                   if (Number.isFinite(value)) update({ seed: Math.min(EXPERIMENTAL_LIMITS.maxSeed, Math.max(0, value)) })
                 }}
               />
+              <LiveSeed target="experimental.seed" />
               <button
                 type="button"
                 className="button-small"

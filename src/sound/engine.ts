@@ -5,12 +5,17 @@
 // The graph:
 //
 //   <audio> → MediaElementAudioSourceNode ─┬→ destination (the speakers)
-//                                           └→ high-pass (20 Hz, measuring only) → AnalyserNode (no output)
-//   microphone → MediaStreamAudioSourceNode ──→ high-pass → AnalyserNode
+//                                           └→ high-pass (20 Hz, measuring only) ─┬→ AnalyserNode (no output)
+//   microphone → MediaStreamAudioSourceNode ──→ high-pass                          └→ up-mix to 2 channels
+//                                                    → ChannelSplitter ─┬→ AnalyserNode, left (no output)
+//                                                                       └→ AnalyserNode, right (no output)
 //
-// The analyser is a tap with nothing connected after it, so only the file reaches the speakers: the
+// The analysers are taps with nothing connected after them, so only the file reaches the speakers: the
 // microphone is measured, never played back, and cannot feed back however the sources are switched.
 // The high-pass removes DC offset (which some microphones have) from what is measured, not from playback.
+// The first analyser hears the channels mixed down (spectrum and samples); the left and right ones give
+// Balance and Width. A mono source is up-mixed to identical left and right, so it reads centred. The three
+// are read one after another, so each frame checks that their samples belong together (readSamples).
 //
 // The context is created lazily, inside the first call that comes from a user gesture (choosing File
 // or a file, Play, Start listening), because browsers keep a context made earlier suspended.
@@ -19,7 +24,7 @@
 // rejects, so the UI can call them from event handlers without awaiting.
 
 import { FeatureExtractor } from './features'
-import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundState } from './types'
+import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundState, StereoSamples } from './types'
 import { INITIAL_SOUND_STATE, SILENT_FRAME, SOUND_LIMITS } from './types'
 
 /** Position updates while playing are at least this far apart (ms): about 4 per second. */
@@ -30,6 +35,10 @@ const METADATA_TIMEOUT_MS = 30_000
 const LENGTH_PROBE_MS = 5_000
 /** How long (ms) nothing has to play or listen before the audio context is suspended, saving CPU and battery. */
 const IDLE_SUSPEND_MS = 2_000
+/** Reads of a frame's samples before Balance and Width hold their last values instead (readSamples). */
+const SAMPLE_READS = 3
+/** Mixed-down samples read together with the left and right ones equal their mean within this (float rounding). */
+const STEREO_MATCH = 1e-6
 
 /**
  * The analyser's FFT size for a sample rate: SOUND_LIMITS.fftSize at 44.1/48 kHz, scaled by powers of two so the
@@ -63,10 +72,21 @@ export class SoundEngine {
   private analyser: AnalyserNode | null = null
   /** The analyser's input: removes DC offset and rumble from what is measured (sources connect here). */
   private highpass: BiquadFilterNode | null = null
+  /** The stereo measuring branch: the high-passed sound as exactly two channels, split, one analyser each. */
+  private upmix: GainNode | null = null
+  private splitter: ChannelSplitterNode | null = null
+  private leftAnalyser: AnalyserNode | null = null
+  private rightAnalyser: AnalyserNode | null = null
   private extractor: FeatureExtractor | null = null
   /** Reused every frame, so the loop allocates nothing. */
   private spectrum = new Float32Array(0)
   private samples = new Float32Array(0)
+  /** The left and right analysers' samples, for Balance and Width. */
+  private stereo = { left: new Float32Array(0), right: new Float32Array(0) }
+  /** The last left and right samples that matched the mixed-down ones, held over a frame whose reads never did. */
+  private heldStereo = { left: new Float32Array(0), right: new Float32Array(0) }
+  /** The last frame's reads never matched (a source of more than two channels, or a torn read): read once, use as is. */
+  private stereoMismatched = false
 
   // File source. One element for the page's lifetime, and so one MediaElementAudioSourceNode: an
   // element can be connected to a context only once.
@@ -348,6 +368,14 @@ export class SoundEngine {
     this.highpass = null
     this.analyser?.disconnect()
     this.analyser = null
+    this.upmix?.disconnect()
+    this.upmix = null
+    this.splitter?.disconnect()
+    this.splitter = null
+    this.leftAnalyser?.disconnect()
+    this.leftAnalyser = null
+    this.rightAnalyser?.disconnect()
+    this.rightAnalyser = null
     this.extractor = null
     this.cancelIdleSuspend()
     const ctx = this.ctx
@@ -373,7 +401,7 @@ export class SoundEngine {
   // --- Graph -----------------------------------------------------------------------------------
 
   /**
-   * The context and analyser, created on first use; sources connect to `input`. Throws SoundFailure('unsupported')
+   * The context and analysers, created on first use; sources connect to `input`. Throws SoundFailure('unsupported')
    * without Web Audio.
    */
   private ensureGraph(): { ctx: AudioContext; input: AudioNode } {
@@ -388,9 +416,14 @@ export class SoundEngine {
     }
     let analyser: AnalyserNode
     let highpass: BiquadFilterNode
+    let upmix: GainNode
+    let splitter: ChannelSplitterNode
+    let left: AnalyserNode
+    let right: AnalyserNode
     try {
+      const fftSize = analyserFftSize(ctx.sampleRate)
       analyser = ctx.createAnalyser()
-      analyser.fftSize = analyserFftSize(ctx.sampleRate)
+      analyser.fftSize = fftSize
       // Raw frames: FeatureExtractor does its own smoothing, with separate attack and release.
       analyser.smoothingTimeConstant = 0
       analyser.minDecibels = -100
@@ -402,6 +435,22 @@ export class SoundEngine {
       // Web Audio reads a high-pass Q in dB: −3 dB is a Butterworth response (Q 0.707), with no peak.
       highpass.Q.value = 20 * Math.log10(Math.SQRT1_2)
       highpass.connect(analyser)
+      // Exactly two channels by the speaker rules: mono becomes identical left and right, more than two mix down.
+      upmix = ctx.createGain()
+      upmix.channelCount = 2
+      upmix.channelCountMode = 'explicit'
+      upmix.channelInterpretation = 'speakers'
+      splitter = ctx.createChannelSplitter(2)
+      left = ctx.createAnalyser()
+      right = ctx.createAnalyser()
+      for (const channel of [left, right]) {
+        channel.fftSize = fftSize
+        channel.smoothingTimeConstant = 0
+      }
+      highpass.connect(upmix)
+      upmix.connect(splitter)
+      splitter.connect(left, 0)
+      splitter.connect(right, 1)
     } catch (error) {
       ctx.close().catch(() => {})
       throw new SoundFailure('unsupported', describe(error))
@@ -409,9 +458,16 @@ export class SoundEngine {
     this.ctx = ctx
     this.analyser = analyser
     this.highpass = highpass
+    this.upmix = upmix
+    this.splitter = splitter
+    this.leftAnalyser = left
+    this.rightAnalyser = right
     this.extractor = new FeatureExtractor(ctx.sampleRate, analyser.fftSize)
     this.spectrum = new Float32Array(analyser.frequencyBinCount)
     this.samples = new Float32Array(analyser.fftSize)
+    this.stereo = { left: new Float32Array(left.fftSize), right: new Float32Array(right.fftSize) }
+    this.heldStereo = { left: new Float32Array(left.fftSize), right: new Float32Array(right.fftSize) }
+    this.stereoMismatched = false
     return { ctx, input: highpass }
   }
 
@@ -611,16 +667,16 @@ export class SoundEngine {
 
   private tick = (): void => {
     this.rafId = null
-    const { analyser, extractor } = this
-    if (!(this.state.playing || this.state.listening) || !analyser || !extractor) return
+    const { analyser, leftAnalyser, rightAnalyser, extractor } = this
+    if (!(this.state.playing || this.state.listening) || !analyser || !leftAnalyser || !rightAnalyser || !extractor) return
     // Scheduled first, so nothing below can stop the loop.
     this.rafId = requestAnimationFrame(this.tick)
     analyser.getFloatFrequencyData(this.spectrum)
-    analyser.getFloatTimeDomainData(this.samples)
+    const stereo = this.readSamples(analyser, leftAnalyser, rightAnalyser)
     const now = performance.now()
     let frame: FeatureFrame
     try {
-      frame = extractor.process(this.spectrum, this.samples, now, this.state.settings)
+      frame = extractor.process(this.spectrum, this.samples, now, this.state.settings, stereo)
     } catch (error) {
       if (!this.processFailed) console.error('Sound: measuring a frame failed', error)
       this.processFailed = true
@@ -628,6 +684,34 @@ export class SoundEngine {
     }
     this.trackSilence(frame.silent, now)
     this.emit(frame)
+  }
+
+  /**
+   * Reads the mixed-down samples into `samples` and returns the left and right ones. The three analysers are read
+   * one after another, and the audio thread can render between two reads (in Chrome up to one frame in 300),
+   * leaving one block a few render quanta behind: a mono source then reads as wide stereo for that frame. For one
+   * or two channels the mixed-down samples are the mean of left and right, so reads that do not match are read
+   * again, up to SAMPLE_READS times; when none match, the last left and right that did are returned, so Balance
+   * and Width hold for that frame. A source of more than two channels never matches (the analyser mixes it down by
+   * other weights), so after one held frame its reads are used as they are, once each, until one matches.
+   */
+  private readSamples(analyser: AnalyserNode, left: AnalyserNode, right: AnalyserNode): StereoSamples {
+    const { samples, stereo, heldStereo } = this
+    const reads = this.stereoMismatched ? 1 : SAMPLE_READS
+    for (let read = 0; read < reads; read++) {
+      analyser.getFloatTimeDomainData(samples)
+      left.getFloatTimeDomainData(stereo.left)
+      right.getFloatTimeDomainData(stereo.right)
+      if (isMixOf(samples, stereo.left, stereo.right)) {
+        this.stereoMismatched = false
+        heldStereo.left.set(stereo.left)
+        heldStereo.right.set(stereo.right)
+        return stereo
+      }
+    }
+    const hold = !this.stereoMismatched
+    this.stereoMismatched = true
+    return hold ? heldStereo : stereo
   }
 
   /** Raises `noSound` after silentNoticeMs of silence and drops it on the first sound; state changes only on change. */
@@ -655,6 +739,16 @@ export class SoundEngine {
       }
     }
   }
+}
+
+/** Whether every mixed-down sample is the mean of the left and right ones, as when all three were read at one moment. */
+function isMixOf(mixed: Float32Array, left: Float32Array, right: Float32Array): boolean {
+  const n = Math.min(mixed.length, left.length, right.length)
+  for (let i = 0; i < n; i++) {
+    const m = mixed[i]
+    if (!(Math.abs(m - (left[i] + right[i]) / 2) <= STEREO_MATCH * (1 + Math.abs(m)))) return false
+  }
+  return true
 }
 
 function soundError(kind: SoundErrorKind, detail = ''): SoundError {

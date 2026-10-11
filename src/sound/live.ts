@@ -1,8 +1,9 @@
 // Live sound-driven parameters: the scheduler that turns each measured frame into live geometry
 // parameters (at most one geometry request in flight), the live slider positions shown as markers,
-// the live frame rate, the flash limit, and Freeze (see docs/SOUND_PLAN.md §5, §8, §9, §10).
+// the live seeds, the live frame rate, the flash limit, and Freeze (see docs/SOUND_PLAN.md §5, §8, §9, §10).
 //
-// Every animation frame the engine measures, the mappings are applied to the slider values
+// Every animation frame the engine measures, the driven seeds' jumps are counted (JumpTracker, which
+// keeps them to the flash limit itself), the mappings are applied to the slider values and seeds
 // (modulate), and the flash limit holds back a driven slider that would turn back too often
 // (FlashLimiter). A new parameter set goes to React (and so to the geometry worker) only when it differs
 // from the last one, the previous one's results have all arrived, and at least 1/30 s has passed: the
@@ -15,12 +16,13 @@ import type { GeometryParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { geometryClient } from '../state/geometryClient'
 import { getSoundEngine } from './engine'
+import { JumpTracker } from './jumps'
 import { modulate, targetById, type Mapping, type Modulated } from './mapping'
 import { mappingStore } from './mappingStore'
 import { SILENT_FRAME, type FeatureFrame, type SoundState } from './types'
 
 export interface LiveStatus {
-  /** Sound is moving the letters now: a source runs, Drive letters is on, and a mapping acts. */
+  /** Sound is moving the letters now: a source runs, Drive letters is on, and a mapping acts (on a slider or a seed). */
   driving: boolean
   /**
    * Live frames per second the geometry keeps up with while driving: 1000 ms ÷ the smoothed time from
@@ -74,13 +76,18 @@ const FLASH_WINDOW_MS = 1250
 /** Live values held back by the flash limit, by target id. */
 type Holds = ReadonlyMap<string, number>
 
+/** Jumps of the driven seeds, by target id (JumpTracker). */
+type Jumps = ReadonlyMap<string, number>
+
+const NO_JUMPS: Jumps = new Map()
+
 /**
- * Keeps sound from flashing (SOUND_PLAN §10). On each driven slider, the live value may turn back by a
- * swing of at least flashSwing of the slider's travel at most 2 × maxFlashes times within
- * FLASH_WINDOW_MS. A further turn keeps the slider's last passed value until the window has passed.
- * Counted on the slider positions as shown (after rounding to the step), so a coarse slider flipping
- * one step back and forth counts too. A held value is one the slider produced a moment ago (§2), and
- * the markers and Freeze use the same values as the screen.
+ * Keeps sound from flashing (SOUND_PLAN §10; JumpTracker limits the seeds). On each driven slider, the
+ * live value may turn back by a swing of at least flashSwing of the slider's travel at most
+ * 2 × maxFlashes times within FLASH_WINDOW_MS. A further turn keeps the slider's last passed value
+ * until the window has passed. Counted on the slider positions as shown (after rounding to the step),
+ * so a coarse slider flipping one step back and forth counts too. A held value is one the slider
+ * produced a moment ago (§2), and the markers and Freeze use the same values as the screen.
  */
 export class FlashLimiter {
   /** Per target: the value and position last passed on, the extreme of the current swing, its direction (−1, 0, 1), and recent turn times. */
@@ -126,7 +133,7 @@ export class FlashLimiter {
       state.value = value
       state.position = position
     }
-    return { modulated: positions ? { params, positions } : modulated, holds }
+    return { modulated: positions ? { params, positions, seeds: modulated.seeds } : modulated, holds }
   }
 
   /** Forgets every slider (Sound stopped driving). */
@@ -169,15 +176,22 @@ export interface LiveDeps {
 
 type Listener = () => void
 
-/** Live slider positions by target, published at most markerRate times a second, each target to its own subscribers. */
-class PositionStore {
+/**
+ * Live values by target (slider positions, seeds), published at most markerRate times a second, each
+ * target to its own subscribers.
+ */
+class LiveValueStore {
   private shown = new Map<string, number>()
   private listeners = new Map<string, Set<Listener>>()
   private waiting: ReadonlyMap<string, number> | null = null
   private lastPublish = -Infinity
   private timer: unknown = null
 
-  constructor(private readonly deps: Pick<LiveDeps, 'now' | 'setTimer' | 'clearTimer'>) {}
+  /** `round` gives the value as shown, so subscribers hear only of changes they can see. */
+  constructor(
+    private readonly deps: Pick<LiveDeps, 'now' | 'setTimer' | 'clearTimer'>,
+    private readonly round: (value: number) => number,
+  ) {}
 
   get(targetId: string): number | null {
     return this.shown.get(targetId) ?? null
@@ -196,14 +210,16 @@ class PositionStore {
     }
   }
 
-  set(positions: ReadonlyMap<string, number>) {
-    this.waiting = positions
+  set(values: ReadonlyMap<string, number>) {
+    // Nothing shown, waiting or coming (e.g. no seed is driven): no timer every frame.
+    if (!values.size && !this.shown.size && !this.waiting?.size) return
+    this.waiting = values
     const wait = this.lastPublish + MARKER_MS - this.deps.now()
     if (wait <= 0) this.publish()
     else if (this.timer === null) this.timer = this.deps.setTimer(() => this.publish(), wait)
   }
 
-  /** Hides every marker at once. */
+  /** Hides every value at once. */
   clear() {
     this.waiting = new Map()
     this.publish()
@@ -219,8 +235,8 @@ class PositionStore {
     const changed: string[] = []
     for (const id of this.shown.keys()) if (!next.has(id)) changed.push(id)
     for (const id of changed) this.shown.delete(id)
-    for (const [id, position] of next) {
-      const rounded = Math.round(position * POSITION_GRID) / POSITION_GRID
+    for (const [id, value] of next) {
+      const rounded = this.round(value)
       if (this.shown.get(id) === rounded) continue
       this.shown.set(id, rounded)
       changed.push(id)
@@ -259,24 +275,29 @@ class StatusStore {
  * The live scheduler (see the file comment). Exported for tests; the page uses the hooks below.
  * Inputs: the slider values (setBase), the mappings (setMappings), each measured frame (setFrame),
  * source changes (sourceChanged), renders of its commits (rendered), and the geometry client going
- * idle (idle). Outputs: commits (deps.commit), positions, status.
+ * idle (idle). Outputs: commits (deps.commit), positions, seeds, status.
  */
 export class LiveScheduler {
-  readonly positions: PositionStore
+  readonly positions: LiveValueStore
+  /** Live seeds of the driven jump targets (whole numbers, published like the markers). */
+  readonly seeds: LiveValueStore
   readonly status = new StatusStore()
   private readonly flash = new FlashLimiter()
+  private readonly jumpTracker = new JumpTracker()
 
   private base: GeometryParams | null = null
   private baseKey = ''
   private frame: FeatureFrame = SILENT_FRAME
   private mappings: readonly Mapping[] = []
   private drive = false
+  /** The driven seeds' jumps so far (from jumpTracker). */
+  private jumps: Jumps = NO_JUMPS
 
   private driving = false
-  /** The newest modulated parameters (after the flash limit), the frame and held values they came from, and their key. */
-  private latest: { modulated: Modulated; frame: FeatureFrame; holds: Holds | null; key: string } | null = null
-  /** What React shows (or is about to): its key, the frame and held values it came from, and whether it is the sliders' own. */
-  private committed: { key: string; frame: FeatureFrame; holds: Holds | null; isBase: boolean } | null = null
+  /** The newest modulated parameters (after the flash limit), the frame, jumps and held values they came from, and their key. */
+  private latest: { modulated: Modulated; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; key: string } | null = null
+  /** What React shows (or is about to): its key, the frame, jumps and held values it came from, and whether it is the sliders' own. */
+  private committed: { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean } | null = null
   /** React holds a live commit (not null), so stopping must hand it null. */
   private holdsCommit = false
   /** The commit whose results have not all arrived yet. */
@@ -289,7 +310,8 @@ export class LiveScheduler {
   private slowSince: number | null = null
 
   constructor(private readonly deps: LiveDeps) {
-    this.positions = new PositionStore(deps)
+    this.positions = new LiveValueStore(deps, (position) => Math.round(position * POSITION_GRID) / POSITION_GRID)
+    this.seeds = new LiveValueStore(deps, (seed) => seed)
   }
 
   setBase(base: GeometryParams) {
@@ -307,6 +329,8 @@ export class LiveScheduler {
 
   setFrame(frame: FeatureFrame) {
     this.frame = frame
+    // Jumps are counted only while Sound can drive; stop() forgets them.
+    if (this.base && this.drive && this.deps.sourceRunning()) this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base)
     this.update()
   }
 
@@ -328,14 +352,14 @@ export class LiveScheduler {
   }
 
   /**
-   * The groups Freeze writes into the sliders, each as a whole group object: the frame on screen
-   * applied to the current slider values and mappings (what is shown, unless a slider moved since).
-   * Null when nothing differs.
+   * The groups Freeze writes into the sliders and seed fields, each as a whole group object: the frame
+   * and jumps on screen applied to the current slider values and mappings (what is shown, unless a
+   * slider moved since). Null when nothing differs.
    */
   freezeChanges(): Partial<GeometryParams> | null {
     const { base, committed } = this
     if (!this.driving || !base || !committed || committed.isBase) return null
-    const params = applyHolds(modulate(base, committed.frame, this.mappings).params, committed.holds)
+    const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps).params, committed.holds)
     if (params === base) return null
     const changes: Partial<GeometryParams> = {}
     let any = false
@@ -360,24 +384,25 @@ export class LiveScheduler {
   private update() {
     const base = this.base
     if (!base || !this.drive || !this.deps.sourceRunning()) return this.stop()
-    const unlimited = modulate(base, this.frame, this.mappings)
+    const unlimited = modulate(base, this.frame, this.mappings, this.jumps)
     // No enabled mapping with a Depth acts on an active target: Sound changes nothing.
-    if (unlimited.positions.size === 0) return this.stop()
+    if (unlimited.positions.size === 0 && unlimited.seeds.size === 0) return this.stop()
     if (!this.driving) {
       this.driving = true
       this.period = MIN_COMMIT_MS
       this.slowSince = null
       // The canvas shows the sliders' own parameters until the first live commit.
-      this.committed = { key: this.baseKey, frame: SILENT_FRAME, holds: null, isBase: true }
+      this.committed = { key: this.baseKey, frame: SILENT_FRAME, jumps: NO_JUMPS, holds: null, isBase: true }
     }
     const limited = this.flash.limit(unlimited, this.deps.now())
     const { holds } = limited
     let { modulated } = limited
     const key = modulated.params === base ? this.baseKey : paramsKey(modulated.params)
     // A held value can put every target back on its slider value: then it is the sliders' own (exact restore).
-    if (key === this.baseKey && modulated.params !== base) modulated = { params: base, positions: modulated.positions }
-    this.latest = { modulated, frame: this.frame, holds, key }
+    if (key === this.baseKey && modulated.params !== base) modulated = { ...modulated, params: base }
+    this.latest = { modulated, frame: this.frame, jumps: this.jumps, holds, key }
     this.positions.set(modulated.positions)
+    this.seeds.set(modulated.seeds)
     this.pump()
     this.publishStatus()
   }
@@ -391,7 +416,7 @@ export class LiveScheduler {
     const isBase = latest.modulated.params === this.base
     // Back to the sliders' own parameters while React already shows them: nothing to render.
     if (isBase && !this.holdsCommit) {
-      this.committed = { key: latest.key, frame: latest.frame, holds: latest.holds, isBase }
+      this.committed = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase }
       return
     }
     if (this.deps.isComputing()) return // idle() pumps again
@@ -405,7 +430,7 @@ export class LiveScheduler {
       return
     }
     const seq = ++this.seq
-    this.committed = { key: latest.key, frame: latest.frame, holds: latest.holds, isBase }
+    this.committed = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase }
     this.awaiting = { seq, at: now, rendered: false }
     this.lastCommitAt = now
     this.holdsCommit = !isBase
@@ -434,6 +459,9 @@ export class LiveScheduler {
   private stop() {
     if (this.timer !== null) this.deps.clearTimer(this.timer)
     this.timer = null
+    // Exact restore: the seeds go back to their fields' values, and playing again starts from them.
+    this.jumpTracker.reset()
+    this.jumps = NO_JUMPS
     if (!this.driving && !this.holdsCommit && !this.awaiting) {
       if (this.status.get().driving) this.publishStatus()
       return
@@ -444,6 +472,7 @@ export class LiveScheduler {
     this.awaiting = null
     this.flash.reset()
     this.positions.clear()
+    this.seeds.clear()
     if (this.holdsCommit) {
       this.holdsCommit = false
       this.deps.commit(null)
@@ -545,6 +574,13 @@ export function useLivePosition(targetId: string): number | null {
   return useSyncExternalStore(subscribe, () => positions.get(targetId))
 }
 
+/** The live seed of this jump target while Sound drives it, else null. Re-renders at most ~15×/s (a seed jumps at most 4.8×/s). */
+export function useLiveSeed(targetId: string): number | null {
+  const seeds = getScheduler().seeds
+  const subscribe = useCallback((listener: Listener) => seeds.subscribe(targetId, listener), [seeds, targetId])
+  return useSyncExternalStore(subscribe, () => seeds.get(targetId))
+}
+
 /** Live status for the Sound tab and the status bar; re-renders only when it changes (fps rounded). */
 export function useLiveStatus(): LiveStatus {
   const { status } = getScheduler()
@@ -558,9 +594,10 @@ export function useLiveDriving(): boolean {
 }
 
 /**
- * Writes the current live values into the sliders (the groups that differ) and pauses Sound (pauses the
- * file, stops listening), so the frozen look stays on screen. When the letters already match the
- * sliders (e.g. between two drum hits), it only pauses. Does nothing while Sound is not driving.
+ * Writes the current live values into the sliders and seed fields (the groups that differ) and pauses
+ * Sound (pauses the file, stops listening), so the frozen look stays on screen. When the letters
+ * already match the sliders (e.g. between two drum hits), it only pauses. Does nothing while Sound is
+ * not driving.
  */
 export function freezeLive(dispatch: Dispatch<Action>): void {
   const live = getScheduler()
