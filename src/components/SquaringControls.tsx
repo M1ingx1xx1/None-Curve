@@ -1,7 +1,9 @@
-import type { Dispatch } from 'react'
+import { memo, type Dispatch } from 'react'
 import type { SquaringFailure, SquaringParams, SquaringScope, SquaringStats } from '../geometry/squaring'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
+import LiveMarker from './LiveMarker'
+import { sameControlProps } from './sameControlProps'
 
 interface SquaringControlsProps {
   params: SquaringParams
@@ -31,7 +33,7 @@ const reasonText = (reason: SquaringFailure, one: boolean) =>
     contours: 'move across another contour',
   })[reason]
 
-export default function SquaringControls({ params, stats, pending, disabled, dispatch }: SquaringControlsProps) {
+function SquaringControls({ params, stats, pending, disabled, dispatch }: SquaringControlsProps) {
   const update = (patch: Partial<SquaringParams>) => dispatch({ type: 'updateParams', group: 'squaring', patch })
   const percent = Math.round(params.amount * 100)
   const introHint = useHint()
@@ -57,16 +59,19 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
             </span>
             <output htmlFor="squaring-amount">{percent > 0 ? `${percent}%` : 'Off'}</output>
           </div>
-          <input
-            id="squaring-amount"
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={params.amount}
-            aria-valuetext={percent > 0 ? `${percent} percent` : 'Off'}
-            onChange={(e) => update({ amount: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="squaring-amount"
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={params.amount}
+              aria-valuetext={percent > 0 ? `${percent} percent` : 'Off'}
+              onChange={(e) => update({ amount: Number(e.target.value) })}
+            />
+            <LiveMarker target="squaring.amount" />
+          </span>
           <div className="preset-row" role="group" aria-label="Squaring presets">
             {presets.map(([label, value]) => (
               <button
@@ -132,3 +137,6 @@ export default function SquaringControls({ params, stats, pending, disabled, dis
     </fieldset>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(SquaringControls, sameControlProps)

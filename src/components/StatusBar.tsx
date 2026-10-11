@@ -1,5 +1,9 @@
+import { useSyncExternalStore } from 'react'
 import { formatCodePoint } from '../font/model'
 import { describePipeline } from '../geometry/describe'
+import type { GeometryParams } from '../geometry/types'
+import { getSoundEngine } from '../sound/engine'
+import { useLiveStatus } from '../sound/live'
 import type { SpecimenScene } from '../specimen/scene'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
@@ -8,6 +12,8 @@ import ThemeToggle from './ThemeToggle'
 interface StatusBarProps {
   state: AppState
   glyphGeometry: GlyphGeometry
+  /** The geometry parameters the canvas shows (live while Sound drives the letters), which the View line describes. */
+  shownParams: GeometryParams
   scene: SpecimenScene | null
 }
 
@@ -18,9 +24,21 @@ const statusText: Record<AppState['document']['status']['kind'], string> = {
   error: 'Import failed',
 }
 
-export default function StatusBar({ state, glyphGeometry, scene }: StatusBarProps) {
+// Microphone state for the bar: listening, lost (unplugged, access withdrawn, or none found), or nothing to say.
+// Subscribed to this alone, so the bar does not re-render with the file position.
+type MicStatus = 'on' | 'lost' | 'off'
+const subscribeSound = (listener: () => void) => getSoundEngine().subscribeState(listener)
+const micStatus = (): MicStatus => {
+  const s = getSoundEngine().getState()
+  if (s.listening) return 'on'
+  return s.source === 'microphone' && s.error?.kind === 'no-device' ? 'lost' : 'off'
+}
+
+export default function StatusBar({ state, glyphGeometry, shownParams, scene }: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
+  const mic = useSyncExternalStore(subscribeSound, micStatus)
+  const live = useLiveStatus()
   let glyphInfo = '—'
   let advance: number | null = null
   let viewing = '—'
@@ -31,7 +49,8 @@ export default function StatusBar({ state, glyphGeometry, scene }: StatusBarProp
   }
   if (glyphGeometry.kind === 'ready') {
     advance = glyphGeometry.source.metrics.advanceWidth
-    const steps = describePipeline(state.params)
+    // The settings the canvas shows, so the method matches the vertex count beside it (also while Sound drives).
+    const steps = describePipeline(shownParams)
     const method = steps.join(' → ')
     const vertices = glyphGeometry.geometry ? `${glyphGeometry.geometry.vertexCount} vertices` : 'flattening failed'
     const target = `text (${scene?.glyphCount ?? 0} glyphs)`
@@ -51,6 +70,16 @@ export default function StatusBar({ state, glyphGeometry, scene }: StatusBarProp
       {/* Truncated to one line on wide screens; the full text is in the tooltip. */}
       <span className="statusbar-view" title={`View: ${viewing}`}>
         View: {viewing}
+      </span>
+      {/* While Sound drives the letters. Only "Live" is announced (when it starts), not every change of the frame rate. */}
+      <span className={live.driving ? undefined : 'visually-hidden'}>
+        <span role="status">{live.driving ? 'Live' : ''}</span>
+        {live.driving && ` · ${live.fps} fps`}
+      </span>
+      {/* Visible from every tab (on narrow screens it floats in view), so the microphone is never on unnoticed.
+          Always in the document and polite, so it is also announced from every tab when the microphone stops. */}
+      <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
+        {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}
       </span>
       <ThemeToggle />
     </footer>

@@ -1,9 +1,11 @@
-import type { Dispatch } from 'react'
+import { memo, type Dispatch } from 'react'
 import { ANCHOR_LIMITS, type AnchorStats } from '../geometry/anchors'
 import type { AnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
+import LiveMarker from './LiveMarker'
+import { sameControlProps } from './sameControlProps'
 
 interface AnchorControlsProps {
   params: AnchorParams
@@ -30,7 +32,7 @@ function Step({ label, value, active }: { label: string; value: number | string;
   )
 }
 
-export default function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch }: AnchorControlsProps) {
+function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch }: AnchorControlsProps) {
   const update = (patch: Partial<AnchorParams>) => dispatch({ type: 'updateParams', group: 'anchors', patch })
   const spacingOn = params.spacing > 0
   const reductionOn = params.simplify > 0
@@ -61,17 +63,20 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
               {spacingOn && <span className="unit">u</span>}
             </output>
           </div>
-          <input
-            id="anchor-spacing"
-            type="range"
-            min={0}
-            max={SPACING_MAX}
-            step={1}
-            value={params.spacing}
-            aria-valuetext={spacingOn ? `${params.spacing} font units` : 'Off'}
-            aria-describedby={spacingHint.id}
-            onChange={(e) => update({ spacing: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="anchor-spacing"
+              type="range"
+              min={0}
+              max={SPACING_MAX}
+              step={1}
+              value={params.spacing}
+              aria-valuetext={spacingOn ? `${params.spacing} font units` : 'Off'}
+              aria-describedby={spacingHint.id}
+              onChange={(e) => update({ spacing: Number(e.target.value) })}
+            />
+            <LiveMarker target="anchors.spacing" />
+          </span>
           <HintText hint={spacingHint}>
             Splits every polygon edge so no edge is longer than this{spacingOn ? emPercent(params.spacing, unitsPerEm) : ''}.
             New points sit on the existing edges, so the shape does not change. 0 turns it off.
@@ -89,17 +94,20 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
               {reductionOn && <span className="unit">u</span>}
             </output>
           </div>
-          <input
-            id="anchor-simplify"
-            type="range"
-            min={0}
-            max={SIMPLIFY_MAX}
-            step={0.5}
-            value={params.simplify}
-            aria-valuetext={reductionOn ? `${params.simplify} font units` : 'Off'}
-            aria-describedby={simplifyHint.id}
-            onChange={(e) => update({ simplify: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="anchor-simplify"
+              type="range"
+              min={0}
+              max={SIMPLIFY_MAX}
+              step={0.5}
+              value={params.simplify}
+              aria-valuetext={reductionOn ? `${params.simplify} font units` : 'Off'}
+              aria-describedby={simplifyHint.id}
+              onChange={(e) => update({ simplify: Number(e.target.value) })}
+            />
+            <LiveMarker target="anchors.simplify" />
+          </span>
           <HintText hint={simplifyHint}>
             Ramer–Douglas–Peucker: removes vertices that lie within this distance of the simplified outline
             {reductionOn ? emPercent(params.simplify, unitsPerEm) : ''}. Larger values remove more points and can erase
@@ -160,3 +168,6 @@ export default function AnchorControls({ params, stats, unitsPerEm, pending, dis
     </fieldset>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(AnchorControls, sameControlProps)

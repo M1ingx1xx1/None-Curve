@@ -1,9 +1,13 @@
-import type { Dispatch } from 'react'
+import { memo, type Dispatch } from 'react'
 import { DISTORTION_LIMITS, type DistortionStats } from '../geometry/distortion'
 import type { DistortionParams } from '../geometry/types'
+import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
+import LiveMarker from './LiveMarker'
+import LiveSeed from './LiveSeed'
+import { sameControlProps } from './sameControlProps'
 
 interface DistortionControlsProps {
   params: DistortionParams
@@ -15,9 +19,8 @@ interface DistortionControlsProps {
 }
 
 export const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 }
-const MAX_SEED = 999_999
 
-export default function DistortionControls({
+function DistortionControls({
   params,
   stats,
   finalVertices,
@@ -32,6 +35,8 @@ export default function DistortionControls({
   const frequencyHint = useHint()
   const biasHint = useHint()
   const seedHint = useHint()
+  // The statistics come from the letters as shown, so while Sound moves the seed on they belong to its live seed.
+  const shownSeed = useLiveSeed('distortion.seed') ?? params.seed
   // Reset keeps the seed, so a variant the user liked is not lost.
   const isDefault = (Object.keys(DEFAULT_DISTORTION) as (keyof DistortionParams)[]).every(
     (k) => k === 'seed' || params[k] === DEFAULT_DISTORTION[k],
@@ -60,16 +65,19 @@ export default function DistortionControls({
               {on && <span className="unit">u</span>}
             </output>
           </div>
-          <input
-            id="distortion-amount"
-            type="range"
-            min={0}
-            max={DISTORTION_LIMITS.maxAmount}
-            step={1}
-            value={params.amount}
-            aria-valuetext={on ? `${params.amount} font units` : 'Off'}
-            onChange={(e) => update({ amount: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="distortion-amount"
+              type="range"
+              min={0}
+              max={DISTORTION_LIMITS.maxAmount}
+              step={1}
+              value={params.amount}
+              aria-valuetext={on ? `${params.amount} font units` : 'Off'}
+              onChange={(e) => update({ amount: Number(e.target.value) })}
+            />
+            <LiveMarker target="distortion.amount" />
+          </span>
         </div>
 
         <div className="field">
@@ -80,17 +88,20 @@ export default function DistortionControls({
             </span>
             <output htmlFor="distortion-frequency">{params.frequency}</output>
           </div>
-          <input
-            id="distortion-frequency"
-            type="range"
-            min={DISTORTION_LIMITS.minFrequency}
-            max={DISTORTION_LIMITS.maxFrequency}
-            step={0.5}
-            value={params.frequency}
-            aria-valuetext={`${params.frequency} per 1000 font units`}
-            aria-describedby={frequencyHint.id}
-            onChange={(e) => update({ frequency: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="distortion-frequency"
+              type="range"
+              min={DISTORTION_LIMITS.minFrequency}
+              max={DISTORTION_LIMITS.maxFrequency}
+              step={0.5}
+              value={params.frequency}
+              aria-valuetext={`${params.frequency} per 1000 font units`}
+              aria-describedby={frequencyHint.id}
+              onChange={(e) => update({ frequency: Number(e.target.value) })}
+            />
+            <LiveMarker target="distortion.frequency" />
+          </span>
           <HintText hint={frequencyHint}>
             Noise features per 1000 font units of outline length (one bump about every {wavelength} u). Measured along
             the outline, so it does not depend on zoom or vertex count. Higher values give a rougher edge.
@@ -105,17 +116,20 @@ export default function DistortionControls({
             </span>
             <output htmlFor="distortion-bias">{Math.round(params.normalBias * 100)}%</output>
           </div>
-          <input
-            id="distortion-bias"
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={params.normalBias}
-            aria-valuetext={`${Math.round(params.normalBias * 100)} percent across the outline`}
-            aria-describedby={biasHint.id}
-            onChange={(e) => update({ normalBias: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="distortion-bias"
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={params.normalBias}
+              aria-valuetext={`${Math.round(params.normalBias * 100)} percent across the outline`}
+              aria-describedby={biasHint.id}
+              onChange={(e) => update({ normalBias: Number(e.target.value) })}
+            />
+            <LiveMarker target="distortion.normalBias" />
+          </span>
           <HintText hint={biasHint}>
             0% slides vertices along the outline (tangent); 100% pushes them in and out across it (normal). Values in
             between mix both.
@@ -132,16 +146,17 @@ export default function DistortionControls({
               id="distortion-seed"
               type="number"
               min={0}
-              max={MAX_SEED}
+              max={DISTORTION_LIMITS.maxSeed}
               step={1}
               value={params.seed}
               aria-describedby={seedHint.id}
               onChange={(e) => {
                 const value = Math.trunc(Number(e.target.value))
-                if (Number.isFinite(value)) update({ seed: Math.min(MAX_SEED, Math.max(0, value)) })
+                if (Number.isFinite(value)) update({ seed: Math.min(DISTORTION_LIMITS.maxSeed, Math.max(0, value)) })
               }}
             />
-            <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (MAX_SEED + 1) })}>
+            <LiveSeed target="distortion.seed" />
+            <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (DISTORTION_LIMITS.maxSeed + 1) })}>
               <Icon name="next" />
               Next variant
             </button>
@@ -155,7 +170,7 @@ export default function DistortionControls({
           <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
             <div>
               <dt>Seed</dt>
-              <dd>{params.seed}</dd>
+              <dd>{shownSeed}</dd>
             </div>
             <div>
               <dt>Vertices</dt>
@@ -198,3 +213,6 @@ export default function DistortionControls({
     </fieldset>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(DistortionControls, sameControlProps)

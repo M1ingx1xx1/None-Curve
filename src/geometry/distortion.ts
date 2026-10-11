@@ -13,6 +13,8 @@ export const DISTORTION_LIMITS = {
   maxAmount: 200,
   minFrequency: 0.5,
   maxFrequency: 50,
+  /** Largest seed the Seed field takes. */
+  maxSeed: 999_999,
   /**
    * The two ends of an edge may move toward each other along the edge by at most this fraction of its
    * length, so no edge can collapse or reverse. Movement across the edge is not limited: it only turns

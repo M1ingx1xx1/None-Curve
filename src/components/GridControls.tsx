@@ -1,9 +1,11 @@
-import type { Dispatch } from 'react'
+import { memo, type Dispatch } from 'react'
 import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geometry/constraints'
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
+import LiveMarker from './LiveMarker'
+import { sameControlProps } from './sameControlProps'
 
 interface GridControlsProps {
   params: GridParams
@@ -47,7 +49,7 @@ function describeFallbacks(stats: ConstraintStats, step: 'snap' | 'angle'): stri
   return parts.join('; ')
 }
 
-export default function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }: GridControlsProps) {
+function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }: GridControlsProps) {
   const update = (patch: Partial<GridParams>) => dispatch({ type: 'updateParams', group: 'grid', patch })
   const snapOn = params.snap && params.size > 0
   const snapFallback = stats ? describeFallbacks(stats, 'snap') : null
@@ -89,17 +91,20 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
               {params.size > 0 && <span className="unit">u</span>}
             </output>
           </div>
-          <input
-            id="grid-size"
-            type="range"
-            min={0}
-            max={GRID_MAX}
-            step={1}
-            value={params.size}
-            disabled={!params.snap}
-            aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
-            onChange={(e) => update({ size: Number(e.target.value) })}
-          />
+          <span className="live-slider">
+            <input
+              id="grid-size"
+              type="range"
+              min={0}
+              max={GRID_MAX}
+              step={1}
+              value={params.size}
+              disabled={!params.snap}
+              aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
+              onChange={(e) => update({ size: Number(e.target.value) })}
+            />
+            <LiveMarker target="grid.size" />
+          </span>
         </div>
         {stats?.snapApplied && (
           <p className="field-hint">
@@ -174,3 +179,6 @@ export default function GridControls({ params, stats, unitsPerEm, pending, disab
     </fieldset>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(GridControls, sameControlProps)

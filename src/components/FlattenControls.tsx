@@ -1,9 +1,11 @@
-import type { Dispatch } from 'react'
+import { memo, type Dispatch } from 'react'
 import type { BreakRule } from '../geometry/curveRuns'
 import type { FlattenStats } from '../geometry/flatten'
 import type { FlattenMode, FlattenParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'
+import LiveMarker from './LiveMarker'
+import { sameControlProps } from './sameControlProps'
 
 interface FlattenControlsProps {
   params: FlattenParams
@@ -46,7 +48,7 @@ function formatUnits(value: number): string {
 /** Fixed mode warns when the measured deviation exceeds 1% of the em. */
 const WARN_FRACTION = 0.01
 
-export default function FlattenControls({
+function FlattenControls({
   params,
   stats: flattenStats,
   unitsPerEm,
@@ -113,17 +115,20 @@ export default function FlattenControls({
                 <span className="unit">u</span>
               </output>
             </div>
-            <input
-              id="flatten-tolerance"
-              type="range"
-              min={0}
-              max={100}
-              step={0.5}
-              value={toSlider(params.tolerance)}
-              aria-valuetext={`${params.tolerance} font units`}
-              aria-describedby={toleranceHint.id}
-              onChange={(e) => update({ tolerance: fromSlider(Number(e.target.value)) })}
-            />
+            <span className="live-slider">
+              <input
+                id="flatten-tolerance"
+                type="range"
+                min={0}
+                max={100}
+                step={0.5}
+                value={toSlider(params.tolerance)}
+                aria-valuetext={`${params.tolerance} font units`}
+                aria-describedby={toleranceHint.id}
+                onChange={(e) => update({ tolerance: fromSlider(Number(e.target.value)) })}
+              />
+              <LiveMarker target="flatten.tolerance" />
+            </span>
             <HintText hint={toleranceHint}>
               Maximum distance between a curve and its straight edges, in font units
               {emPercent ? ` (${emPercent}% of the em)` : ''}. Smaller values follow the curve more closely and add
@@ -142,15 +147,18 @@ export default function FlattenControls({
               </span>
               <output htmlFor="flatten-segments">{params.segmentsPerCurve}</output>
             </div>
-            <input
-              id="flatten-segments"
-              type="range"
-              min={1}
-              max={32}
-              step={1}
-              value={params.segmentsPerCurve}
-              onChange={(e) => update({ segmentsPerCurve: Number(e.target.value) })}
-            />
+            <span className="live-slider">
+              <input
+                id="flatten-segments"
+                type="range"
+                min={1}
+                max={32}
+                step={1}
+                value={params.segmentsPerCurve}
+                onChange={(e) => update({ segmentsPerCurve: Number(e.target.value) })}
+              />
+              <LiveMarker target="flatten.segmentsPerCurve" />
+            </span>
           </div>
         )}
 
@@ -233,17 +241,20 @@ export default function FlattenControls({
                     <span className="unit">°</span>
                   </output>
                 </div>
-                <input
-                  id="flatten-corner"
-                  type="range"
-                  min={1}
-                  max={90}
-                  step={1}
-                  value={params.cornerAngle}
-                  aria-valuetext={`${params.cornerAngle} degrees`}
-                  aria-describedby={cornerHint.id}
-                  onChange={(e) => update({ cornerAngle: Number(e.target.value) })}
-                />
+                <span className="live-slider">
+                  <input
+                    id="flatten-corner"
+                    type="range"
+                    min={1}
+                    max={90}
+                    step={1}
+                    value={params.cornerAngle}
+                    aria-valuetext={`${params.cornerAngle} degrees`}
+                    aria-describedby={cornerHint.id}
+                    onChange={(e) => update({ cornerAngle: Number(e.target.value) })}
+                  />
+                  <LiveMarker target="flatten.cornerAngle" />
+                </span>
                 <HintText hint={cornerHint}>
                   Joints that turn by more than this are corners and always break; gentler joints are merged.
                   {params.mergeLines
@@ -318,3 +329,6 @@ export default function FlattenControls({
     </fieldset>
   )
 }
+
+// Live frames re-render the panel; a group skips them unless its own props or statistics change.
+export default memo(FlattenControls, sameControlProps)

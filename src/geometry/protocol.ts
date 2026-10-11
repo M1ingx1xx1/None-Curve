@@ -9,12 +9,16 @@ export type WorkerGeometry = Omit<DerivedGeometry, 'source'>
 export type WorkerRequest =
   /** Opens a font in the worker; later requests refer to it by id. */
   | { type: 'font'; fontId: string; bytes: Uint8Array; source: FontSource }
-  /** Computes these glyphs, in this order. A newer compute request stops this one between glyphs. */
-  | { type: 'compute'; requestId: number; fontId: string; params: GeometryParams; key: string; indices: number[] }
+  /**
+   * Computes these glyphs, in this order. A newer compute request stops this one between glyphs.
+   * `live` marks parameters Sound is driving: their results go to the worker's live cache.
+   */
+  | { type: 'compute'; requestId: number; fontId: string; params: GeometryParams; key: string; indices: number[]; live?: boolean }
 
 export type GlyphResult = { index: number; geometry: WorkerGeometry } | { index: number; error: string }
 
 export type WorkerResponse =
-  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[] }
+  /** `live` repeats the request's flag, so the page keeps live results apart too. */
+  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[]; live?: boolean }
   | { type: 'done'; requestId: number }
   | { type: 'font-error'; fontId: string; message: string }
