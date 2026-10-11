@@ -3,8 +3,12 @@
 //
 // The mesh is a square lattice with cells of the facet size (a fraction of the em), turned by an angle from the seed, each
 // square split into two triangles along a diagonal also chosen by the seed (so the creases do not
-// line up in a grid). Every lattice point moves by its own random vector from the seed; points in
-// between move linearly with their triangle (see warp.ts). The lattice is fixed in glyph coordinates,
+// line up in a grid). Every lattice point moves by its own random vector from the seed, all turned
+// by Turn; points in between move linearly with their triangle (see warp.ts).
+//
+// Turn changes only where the points go, not how far: the lattice, its creases, and the length of
+// every movement stay as they are, so the limits below hold at any turn. At 180° every point moves
+// the opposite way. The lattice is fixed in glyph coordinates,
 // so every copy of a letter gets the same shape.
 //
 // Up to 100% Amount, no lattice point moves more than 30% of the cell size. A triangle whose corners
@@ -47,6 +51,7 @@ export function noiseFolds(params: NoiseParams): boolean {
 /** The Noise warp at `scale` × its strength (1 = the safe maximum). */
 export function noiseWarp(params: NoiseParams, seed: number, unitsPerEm: number, scale = 1): Warp {
   const amount = clamp(finite(params.amount, 0), 0, NOISE_LIMITS.maxAmount) * scale
+  const turned = (finite(params.turn, 0) * Math.PI) / 180
   const size = clamp(finite(params.facet, 0.18), NOISE_LIMITS.minFacet, NOISE_LIMITS.maxFacet) * unitsPerEm
   const reach = amount * NOISE_LIMITS.maxMove * size
   // The square lattice looks the same every quarter turn, so a quarter turn of angles covers all.
@@ -57,7 +62,7 @@ export function noiseWarp(params: NoiseParams, seed: number, unitsPerEm: number,
   const toLattice = (p: Point) => ({ u: (p.x * cos + p.y * sin) / size, v: (p.y * cos - p.x * sin) / size })
   // Uniform over the disc of radius `reach`.
   const move = (i: number, j: number) => {
-    const turn = (hashInts(seed, CHANNEL.direction, i, j) / UINT) * 2 * Math.PI
+    const turn = (hashInts(seed, CHANNEL.direction, i, j) / UINT) * 2 * Math.PI + turned
     const r = reach * Math.sqrt(hashInts(seed, CHANNEL.distance, i, j) / UINT)
     return { x: r * Math.cos(turn), y: r * Math.sin(turn) }
   }
