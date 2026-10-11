@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode } from 'react'
-import { EXPERIMENTAL_LIMITS, type ExperimentalStats } from '../geometry/experimental'
+import { EXPERIMENTAL_LIMITS, experimentalFolds, type ExperimentalStats } from '../geometry/experimental'
 import { NOISE_LIMITS } from '../geometry/noise'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
 import type { ExperimentalParams, NoiseParams, RippleParams, WindParams } from '../geometry/types'
@@ -22,7 +22,7 @@ interface ExperimentalControlsProps {
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
   noise: { enabled: false, amount: 0.7, facet: 0.18 },
-  ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0 },
+  ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
   wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
 }
 
@@ -30,7 +30,8 @@ const percent = (v: number) => Math.round(v * 100)
 
 /**
  * The Experimental tab: effects that run after the whole Geometry pipeline and can all be on at once.
- * Each folds the letter along straight creases, so it adds corners but never curves.
+ * Each folds the letter along straight creases, so it adds corners but never curves. Beyond 100% an
+ * effect folds the letter onto itself, and the overlaps are merged into one outline.
  */
 export default function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics }: ExperimentalControlsProps) {
   const update = (patch: Partial<ExperimentalParams>) => dispatch({ type: 'updateParams', group: 'experimental', patch })
@@ -48,9 +49,11 @@ export default function ExperimentalControls({ params, stats, pending, disabled,
         </p>
         {statistics}
         <HintText hint={introHint}>
-          Each effect folds the letters along straight creases, so it adds corners but never curves, and any
-          combination keeps every letter valid. Statistics are for the selected glyph.
+          Each effect folds the letters along straight creases, so it adds corners but never curves. Up to 100%, any
+          combination keeps every letter as it was arranged. Beyond that, parts of a letter fold over other parts; the
+          overlaps are merged into one clean outline, so the letters still export. Statistics are for the selected glyph.
         </HintText>
+        {experimentalFolds(params) && <FoldStats stats={stats} pending={pending} />}
       </div>
 
       <NoiseGroup params={params.noise} stats={stats?.noise ?? null} pending={pending} disabled={disabled} onChange={(noise) => update({ noise })} />
@@ -152,7 +155,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
           hint={amountHint}
-          hintText="How far the folds move the outline. Above 100% the letters are crumpled a second time along the same folds, for deeper, sharper creases."
+          hintText="How far the folds move the outline. Above 100%, facets flip over their neighbours and the letter folds onto itself."
           onChange={(amount) => update({ amount })}
         />
         <RangeField
@@ -181,9 +184,11 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
   const update = (patch: Partial<RippleParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
+  const amountHint = useHint()
   const wavelengthHint = useHint()
   const centerHint = useHint()
   const fadeHint = useHint()
+  const petalsHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -207,11 +212,13 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           label="Amount"
           value={params.amount}
           min={0}
-          max={1}
+          max={RIPPLE_LIMITS.maxAmount}
           step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
+          hint={amountHint}
+          hintText="How far each ring moves. Above 100%, rings overtake each other and the letter folds onto itself."
           onChange={(amount) => update({ amount })}
         />
         <RangeField
@@ -281,6 +288,20 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           hintText="How much the waves die down away from the center. At 100% they are gone by the farthest point of the letter."
           onChange={(fade) => update({ fade })}
         />
+        <RangeField
+          id="ripple-petals"
+          label="Petals"
+          value={params.petals ?? 0}
+          min={0}
+          max={RIPPLE_LIMITS.maxPetals}
+          step={0.1}
+          display={`${percent(params.petals ?? 0)}%`}
+          valueText={`${percent(params.petals ?? 0)} percent`}
+          disabled={off}
+          hint={petalsHint}
+          hintText="Bends every ring into a flower with straight-edged petals, one per side. Above 100% the petals keep growing; the notches between them stay put."
+          onChange={(petals) => update({ petals })}
+        />
 
         <EffectStats stats={stats} pending={pending} effect="ripple" />
       </div>
@@ -295,6 +316,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
   const directionHint = useHint()
   const strengthHint = useHint()
   const gustHint = useHint()
+  const gustinessHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -339,7 +361,7 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           valueText={`${percent(params.strength)} percent`}
           disabled={off}
           hint={strengthHint}
-          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the wind, at 300% three times as far."
+          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the wind, at 800% eight times as far. Nothing moves more than 4 em."
           onChange={(strength) => update({ strength })}
         />
         <RangeField
@@ -362,11 +384,13 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           label="Gustiness"
           value={params.gustiness}
           min={0}
-          max={1}
+          max={WIND_LIMITS.maxGustiness}
           step={0.1}
           display={`${percent(params.gustiness)}%`}
           valueText={`${percent(params.gustiness)} percent`}
           disabled={off}
+          hint={gustinessHint}
+          hintText="How much the gusts differ from band to band. Above 100%, some gusts blow backwards and tear the letter."
           onChange={(gustiness) => update({ gustiness })}
         />
 
@@ -420,6 +444,23 @@ function RangeField({ id, label, value, min, max, step, display, unit, valueText
       />
       {hint && hintText && <HintText hint={hint}>{hintText}</HintText>}
     </div>
+  )
+}
+
+/** What merging the overlaps did, when an effect goes beyond 100%. */
+function FoldStats({ stats, pending }: { stats: ExperimentalStats | null; pending: boolean }) {
+  const folds = stats?.folds
+  return (
+    <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+      <div>
+        <dt>Crossings merged</dt>
+        <dd>{folds?.applied ? folds.crossings : '–'}</dd>
+      </div>
+      <div>
+        <dt>Slivers dropped</dt>
+        <dd>{folds?.applied ? folds.removed : '–'}</dd>
+      </div>
+    </dl>
   )
 }
 

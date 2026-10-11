@@ -200,6 +200,12 @@ export async function buildFontFile(
           throw new ExportError('coordinates fall outside the range a font can store (±32767)')
         }
       }
+      // Outlines are stored as steps from point to point, each at most 32767 units along either axis.
+      const xs = contours.flat().map((p) => p.x)
+      const ys = contours.flat().map((p) => p.y)
+      if (xs.length > 0 && Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) > INT16_MAX) {
+        throw new ExportError(`the glyph is more than ${INT16_MAX} units across, more than a font can store`)
+      }
       advance = Math.round(geometry.polygon.metrics.advanceWidth)
       if (!Number.isFinite(advance) || advance < 0 || advance > 65535) {
         throw new ExportError(`invalid advance width (${geometry.polygon.metrics.advanceWidth})`)
@@ -213,7 +219,7 @@ export async function buildFontFile(
     points += contours.reduce((n, c) => n + c.length, 0)
     if (points > MAX_EXPORT_POINTS) {
       throw new ExportError(
-        `The font would have more than ${MAX_EXPORT_POINTS.toLocaleString('en-US')} outline points (reached at ${entry.label}, glyph ${i + 1} of ${plan.glyphs.length}). Use a larger Anchor spacing, or export only the characters in the text.`,
+        `The font would have more than ${MAX_EXPORT_POINTS.toLocaleString('en-US')} outline points (reached at ${entry.label}, glyph ${i + 1} of ${plan.glyphs.length}). Use a larger Anchor spacing, weaker Experimental effects, or export only the characters in the text.`,
       )
     }
 
