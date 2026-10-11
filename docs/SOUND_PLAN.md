@@ -2,7 +2,7 @@
 
 **English** · [中文](SOUND_PLAN.zh.md)
 
-**Status:** Phases 1 (sources, features, meters) and 2 (continuous mappings, live scheduler, live markers, flash limit, Freeze) built. Phase 3 partly built (seeds that jump, 20 features with stereo, compact meters, targets that switch on what they need); Step mappings, presets and the live SVG redraw measurement still to do  
+**Status:** Phases 1 (sources, features, meters) and 2 (continuous mappings, live scheduler, live markers, flash limit, Freeze) built. Phase 3 partly built (seeds that jump, 20 features with stereo, compact meters, targets that switch on what they need, presets); Step mappings and the live SVG redraw measurement still to do  
 **Scope:** A new **Sound** tab beside **Geometry** and **Experimental**. Live sound (a local audio file or the microphone) drives the parameters that already exist in both tabs, so the letters move with the music: anchors jump on the beat, outlines crumple when it gets loud, petals open on the bass.
 
 ## 1. Goals
@@ -137,14 +137,19 @@ Switches (Use noise, Pin top and bottom, and so on) and the Curve flattening Mod
 
 ## 7. Presets
 
-Presets are starting points that fill in the mappings:
+Presets are starting points that fill in the mappings (`PRESETS` in `src/sound/presets.ts`). Choosing one in the **Preset** list only selects it; **Load** replaces the current mappings with the preset's and switches on what their targets need, row by row, each against the settings the rows before it left, so a setting is changed, and named, once. Each row shows its notice, as when a target is picked by hand (§5). Depth is in brackets; on a seed it is Rate.
 
-- **Anchor jump:** Beat → Distortion Seed (Jump); Level → Distortion · Noise amplitude (Depth 30%).
-- **Resample:** Beat → Random anchors Seed (Jump); Level → Randomness.
-- **Bass bloom:** Kick → Ripple Amount (Kick); Low → Ripple Petals.
-- **Shiver:** High → Noise Amount; Brightness → Noise Turn.
-- **Whirl:** Level → Curl Amount; Beat → Experimental Seed (Jump).
-- **Grid pulse:** Low → Grid size (stepped); Beat → Allowed directions (Step).
+| Preset | Mappings | What you see |
+|---|---|---|
+| **Anchor jump** | Beat → Distortion · Seed (Rate 100%); Level → Distortion · Noise amplitude (30%) | Anchors jump to new places on every beat and shake harder when it is loud |
+| **Resample** | Beat → Random anchors · Seed (Rate 100%); Bass → Random anchors · Density (30%) | Random anchors are drawn again on every beat; the bass adds more of them |
+| **Bass bloom** | Kick → Ripple · Amount (40%); Bass → Ripple · Petals (50%) | Ripples kick out on the bass drum; petals open with the bass |
+| **Shiver** | High → Noise · Amount (30%); Brightness → Noise · Turn (50%); Beat → Seed (Rate 50%) | Hiss and cymbals crumple the letters; brightness turns the folds; every other beat reshuffles them |
+| **Whirl** | Swell → Curl · Amount (20%); Kick → Curl · Amount (15%) | The letters swirl as the music swells and twist further on each kick |
+| **Gale** | Level → Wind · Strength (30%); Pace → Wind · Gustiness (50%); Beat → Seed (Rate 50%) | Loudness drags the letters out; busy passages make the gusts uneven; every other beat brings new gusts |
+| **Grid pulse** | Bass → Grid & angles · Grid size (30%); Level → Squaring · Amount (50%) | The bass snaps the letters to a coarser grid; loudness squares off the bowls |
+| **Low poly** | Level → Curve flattening · Tolerance (30%); Noisiness → Anchors · Anchor reduction (20%) | Loud passages get coarser and more angular; noisy sound drops anchors |
+| **Drift** | Balance → Ripple · Center X (40%); Pitch → Ripple · Sides (50%) | Ripples follow the sound from left to right (a stereo file, §4); higher notes give more sides |
 
 ## 8. Architecture and performance
 
@@ -156,6 +161,7 @@ Presets are starting points that fill in the mappings:
   - `mapping.ts`: the features (`FEATURES`, in six groups), the targets (sliders and seeds, each with what it needs to act and the changes that switch it on, `activate`), and slider values + features + mappings + jumps → live parameters (`modulate`, a pure function).
   - `jumps.ts`: `JumpTracker`, which counts the jumps of each driven seed from the measured frames and keeps them to the flash limit, and `JUMP_LIMITS` (pure, testable without audio).
   - `mappingStore.ts`: a small store, with a hook, for the mappings and the Drive letters switch; it follows `prefers-reduced-motion` while the page is open.
+  - `presets.ts`: the presets (`PRESETS`, §7), each with its name, the one line its ⓘ shows, and its mappings.
   - `live.ts`: frame timing (`LiveScheduler`, testable through injected dependencies, which owns the `JumpTracker`), the flash limit (`FlashLimiter`), the hooks for live parameters, live marker positions, live seeds (`useLiveSeed`) and the live status, and Freeze. The marker itself is `src/components/LiveMarker.tsx`, and the live seed beside a seed field is `src/components/LiveSeed.tsx`.
 - **Pipeline unchanged; live requests carry a `live` flag.** Live parameters go to the geometry worker as compute requests marked `live`, and the worker already drops a superseded request between glyphs. The flag only keeps live results in the separate live cache (below); the geometry is computed the same way. On the page, a live frame's results are held until its request is done, so each frame appears whole (§2).
 - **What follows the live parameters:** the letters, the snap grid drawn on the canvas, and the status bar's description. What keeps the slider values: the sliders, exports, and Fit text and Free in the Typography tab, which measure the slider letters, as exports do.
@@ -209,9 +215,10 @@ All labels are in English and short, with explanations behind ⓘ.
   - The bars move every frame, the numbers at most 10 times a second, and the values screen readers get at most 4 times a second.
 - **Sensitivity** (input gain) and **Smoothing** (release).
 - **Mappings:**
+  - **Preset** and **Load**, above the rows, with an ⓘ that lists each preset with one line. Choosing in the list only selects, so browsing it with the keyboard replaces nothing; Load applies the preset (§7).
   - Each row has Feature (grouped like the meters), Target (grouped: Geometry / Experimental; options read "Section · Label", or just "Seed" for the Experimental seed), Depth, and on/off. On a seed, Depth reads **Rate**, 0–100% in steps of 5%, with an ⓘ. The row's controls are named with its number ("Remove mapping 2"), and a note under a row whose target does nothing now is the Target's description.
   - Under a row: the notice of what picking its target switched on, kept until the row's target changes; or, while its target does nothing, why, with **Enable** ("Enable, mapping 2" to screen readers).
-  - **Add mapping**, **Presets** (still to do), and a remove button on each row. Removing a row hands keyboard focus to the next row's remove button (else the previous one's, else Add mapping).
+  - **Add mapping** and a remove button on each row. Removing a row hands keyboard focus to the next row's remove button (else the previous one's, else Add mapping).
 - **Freeze** and **Reset sound**.
 - **Status bar:** shows "Live · N fps" while Sound drives the letters.
 - **Driven sliders:** show the live marker. **Driven seed fields:** show the live seed beside the field, in the marker's colour.
@@ -241,7 +248,7 @@ All labels are in English and short, with explanations behind ⓘ.
 |---|---|
 | 1 | Sound tab; audio engine (File, Microphone); features Level, Low, Mid, High, Brightness, Beat, Kick; meters |
 | 2 | Modulation layer, mappings for continuous targets, adaptive live scheduler with its own cache, live slider markers, flash limit for continuous mappings, Freeze |
-| 3 | Built: seeds as jump targets with Rate, their flash limit, and the live seed beside the field; Beat and Kick pulses on sliders (the Kick kind); 13 more features, 20 in all, with the stereo measuring branch; compact meters in six groups; targets that switch on what they need, with a notice and Enable; the 42 s stereo test track. Still to do: Step mappings (Allowed directions, Sides, Rings), presets; live SVG redraw measurement |
+| 3 | Built: seeds as jump targets with Rate, their flash limit, and the live seed beside the field; Beat and Kick pulses on sliders (the Kick kind); 13 more features, 20 in all, with the stereo measuring branch; compact meters in six groups; targets that switch on what they need, with a notice and Enable; the 42 s stereo test track; nine presets with Preset and Load. Still to do: Step mappings (Allowed directions, Sides, Rings); live SVG redraw measurement |
 | 4 | Pitch and Balance: built in phase 3, with the other new features |
 | Later | Video recording |
 

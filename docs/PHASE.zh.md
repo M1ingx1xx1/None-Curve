@@ -392,7 +392,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 
 # 阶段 E：声音驱动几何
 
-> **实现状态：** 进行中。第 1、2 阶段已完成：第 1、2 步；第 3 步中的连续映射（滑块位置 + Depth × 特征，截断后取整到滑块档位）；第 4 步（同一时间最多一个几何请求，上限 30 fps，实时帧使用单独的缓存，连续映射带闪烁限制）；以及第 5 步中的 Source、电平表、Sensitivity、Smoothing、Reset sound、带 Drive letters 开关的映射列表、Freeze、滑块上的实时值标记，和 Sound 标签页与状态栏中的 "Live · N fps"。第 3、4 阶段中也已完成：20 个特征，含 Pitch 和 Balance（第 2 步），以及它们需要的立体声分支（第 1 步）；三个种子上的 Jump 映射（带 Rate 和闪烁限制），以及通过 Beat 和 Kick 脉冲实现的 Kick（第 3 步）；会自己打开所需设置的目标、紧凑的电平表和实时种子（第 5 步）。第 3 步中的 Step 映射（Allowed directions、Sides、Rings）、第 5 步中的预设、实时 SVG 重绘的测量，以及第 6 步中的视频录制尚未实现。见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
+> **实现状态：** 进行中。第 1、2 阶段已完成：第 1、2 步；第 3 步中的连续映射（滑块位置 + Depth × 特征，截断后取整到滑块档位）；第 4 步（同一时间最多一个几何请求，上限 30 fps，实时帧使用单独的缓存，连续映射带闪烁限制）；以及第 5 步中的 Source、电平表、Sensitivity、Smoothing、Reset sound、带 Drive letters 开关的映射列表、Freeze、滑块上的实时值标记，和 Sound 标签页与状态栏中的 "Live · N fps"。第 3、4 阶段中也已完成：20 个特征，含 Pitch 和 Balance（第 2 步），以及它们需要的立体声分支（第 1 步）；三个种子上的 Jump 映射（带 Rate 和闪烁限制），以及通过 Beat 和 Kick 脉冲实现的 Kick（第 3 步）；会自己打开所需设置的目标、紧凑的电平表、实时种子，以及带 Preset 和 Load 的九个预设（第 5 步）。第 3 步中的 Step 映射（Allowed directions、Sides、Rings）、实时 SVG 重绘的测量，以及第 6 步中的视频录制尚未实现。见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
 
 这是次要产品路线（约占规划重点的 30%）。Sound 标签页用实时声音驱动 Geometry 和 Experimental 中已有的参数。该功能保持可选；关闭时，字体工具的表现与之前完全相同。
 
@@ -422,7 +422,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 在 Worker 中测量（Arial，24 个不同字形）：种子跳一次会重新计算每个字形，用时约 2–3.5 ms；Level → Noise amplitude 每帧 2.4 ms，三个映射一起 12 ms，所有 Experimental 效果全开 37–41 ms（24–27 fps）。
 5. **界面：** 第三个标签页 **Sound**，包含：
    - Source、电平表、Sensitivity 和 Smoothing。电平表每个特征一行（名称、条、数值），分六组，每组有一个 ⓘ；Balance 从中间向两边填充，显示为 "L 40" / "R 40" / "C"，Pitch 以 Hz 显示，Beat 和 Kick 是脉冲条，取代了原来的指示灯（开启减少动态效果时仍然工作）。
-   - 带预设的映射列表。Feature 列表与电平表分组相同；目标显示为 "Section · Label"，Experimental 的种子只显示 "Seed"；在种子上，Depth 显示为 Rate。选中一个设置处于关闭状态的目标时，会打开该设置并在这一行下面说明（"Turned on Ripple."）；不会再自动关闭任何东西。如果用户之后又关掉了设置，这一行会说明原因并提供 Enable。用键盘时，按 Enter 或焦点离开列表时才应用目标。Add mapping 优先选已经起作用的目标。
+   - 带预设的映射列表。Feature 列表与电平表分组相同；目标显示为 "Section · Label"，Experimental 的种子只显示 "Seed"；在种子上，Depth 显示为 Rate。选中一个设置处于关闭状态的目标时，会打开该设置并在这一行下面说明（"Turned on Ripple."）；不会再自动关闭任何东西。如果用户之后又关掉了设置，这一行会说明原因并提供 Enable。用键盘时，按 Enter 或焦点离开列表时才应用目标。Add mapping 优先选已经起作用的目标。在 Preset 列表中选择只是选中；Load 用预设的映射替换当前映射，并逐行打开它们的目标所需的设置，每行显示自己的提示；一个 ⓘ 列出每个预设，各一行说明。
    - Freeze 和 Reset sound。
    - 被驱动滑块上的实时值标记，以及被驱动的种子字段旁边显示实时种子的小数字。
    - 状态栏中的 "Live · N fps"。

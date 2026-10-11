@@ -379,6 +379,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 **Mappings** — which sliders and seeds the sound moves, and how. Each mapping connects one reading to one slider or seed.
 
 - **Drive letters** — the main switch. The sound moves the letters only while this is ticked **and** a file plays or the microphone listens. Untick it to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts unticked and the tab says "Off because your system asks for reduced motion."; tick it if you want the letters to move anyway. If you turn on reduce motion while the page is open, it unticks itself.
+- **Preset** and **Load** — fill in ready-made rows in one go; see **Presets** below.
 - **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a target that no row uses yet — one that already has an effect, if there is one. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
 - Each row has:
   - **Feature** — the reading that drives it: any of the 20 readings above, listed in the same six groups.
@@ -413,6 +414,26 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   2. Click **Add mapping**.
   3. Set **Feature** to **Beat** and **Target** to **Distortion · Seed**. If **Noise amplitude** was 0, the note "Set Noise amplitude to 40." appears under the row: the outline is now rough, so there is something to move.
   4. The row's slider now reads **Rate**: set it to 100 %. The rough outline takes a new shape on every beat. For the bass drum only, choose **Kick**; for calmer jumps, lower the Rate.
+
+**Presets** — ready-made mappings, the quickest way to start:
+
+1. Choose **File** → **Choose file** and pick a song (or choose **Microphone**).
+2. Under **Mappings**, pick a preset in the **Preset** list. Picking only selects it: nothing changes yet.
+3. Press **Load**.
+4. Press **Play** (or **Start listening**).
+
+- **Load replaces your mappings:** the rows you had are removed, and the preset's rows take their place. Like picking a target yourself, it also switches on the settings the new rows need, and each row's note says what it changed, for example "Turned on Ripple.". Your other slider settings and seeds stay as they are.
+- After loading, change, add, or remove rows as usual. The **ⓘ** next to **Preset** lists the presets too.
+- The presets:
+  - **Anchor jump** — the points of the letters jump to new places on every beat and shake harder when it is loud.
+  - **Resample** — random points are picked again on every beat; the bass adds more of them.
+  - **Bass bloom** — ripples kick out on the bass drum; petals open with the bass.
+  - **Shiver** — hiss and cymbals crumple the letters; brighter sound turns the folds; every other beat reshuffles them.
+  - **Whirl** — the letters swirl as the music swells and twist further on each bass drum.
+  - **Gale** — loud sound drags the letters out like wind; busy passages make the gusts uneven; every other beat brings new gusts.
+  - **Grid pulse** — the bass snaps the letters to a coarser grid; loud sound squares off round letters.
+  - **Low poly** — loud passages get coarser and more angular; noisy sound removes points.
+  - **Drift** — ripples follow the sound from left to right (this needs a stereo file); higher notes give them more sides.
 
 **While the sound moves the letters:**
 

@@ -7,6 +7,7 @@ import {
   FEATURE_GROUPS,
   FEATURES,
   TARGETS,
+  applyPatches,
   featureById,
   featureValue,
   targetById,
@@ -18,6 +19,7 @@ import {
   type TargetSpec,
 } from '../sound/mapping'
 import { MAPPING_LIMITS, mappingStore, useMappingState } from '../sound/mappingStore'
+import { PRESETS } from '../sound/presets'
 import {
   DEFAULT_FEATURE_SETTINGS,
   SILENT_FRAME,
@@ -552,8 +554,11 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   const status = useLiveStatus()
   const driveHint = useHint()
   const freezeHint = useHint()
+  const presetHint = useHint()
   const limitId = useId()
   const reducedId = useId()
+  const presetSelectId = useId()
+  const [presetId, setPresetId] = useState(PRESETS[0]?.id ?? '')
   // What picking a target switched on, by mapping id, shown under its row until the row's target changes again.
   const [notices, setNotices] = useState<ReadonlyMap<string, string>>(new Map())
   const reducedNote = reducedMotion && !drive
@@ -587,6 +592,26 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
     if (target && id) activate(id, targetById(target))
   }
 
+  /**
+   * Replaces the mappings with the chosen preset's and switches on what their targets need, row by
+   * row, each against the settings the rows before it left (so a switch is turned on, and named, once).
+   */
+  const loadPreset = () => {
+    const preset = PRESETS.find((p) => p.id === presetId)
+    if (!preset) return
+    mappingStore.replace(preset.mappings)
+    let current = params
+    const next = new Map<string, string>()
+    for (const mapping of mappingStore.getState().mappings) {
+      const activation = targetById(mapping.target)?.activate(current) ?? null
+      if (!activation) continue
+      applyActivation(activation, dispatch)
+      current = applyPatches(current, activation.patches)
+      next.set(mapping.id, activation.notice)
+    }
+    setNotices(next)
+  }
+
   return (
     <fieldset className="group sound">
       <legend>Mappings</legend>
@@ -614,6 +639,44 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
           <HintText hint={driveHint}>
             Sound moves the letters only while this is on and a file plays or the microphone listens. The sliders keep
             their own values; a marker on each driven slider shows the live value.
+          </HintText>
+        </div>
+
+        <div className="field">
+          <div className="field-head">
+            <span className="field-title">
+              <label htmlFor={presetSelectId}>Preset</label>
+              <HintButton hint={presetHint} topic="Presets" />
+            </span>
+          </div>
+          <div className="sound-row">
+            {/* Choosing only selects; Load applies, so browsing the list with the keyboard replaces nothing. */}
+            <select
+              id={presetSelectId}
+              className="preset-select"
+              value={presetId}
+              aria-describedby={presetHint.id}
+              onChange={(e) => setPresetId(e.target.value)}
+            >
+              {PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="button-small" onClick={loadPreset}>
+              Load
+            </button>
+          </div>
+          <HintText hint={presetHint}>
+            Ready-made mappings to start from. Load replaces the current mappings and switches on what they need.
+            <span className="preset-list">
+              {PRESETS.map((p) => (
+                <span key={p.id} className="preset-item">
+                  <strong>{p.name}:</strong> {p.description}
+                </span>
+              ))}
+            </span>
           </HintText>
         </div>
 

@@ -2,7 +2,7 @@
 
 [English](SOUND_PLAN.md) · **中文**
 
-**状态：** 第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、闪烁限制、Freeze）已完成。第 3 阶段部分完成（会跳变的种子、带立体声的 20 个特征、紧凑的电平表、自动打开所需设置的目标）；Step 映射、预设和实时 SVG 重绘测量尚待完成  
+**状态：** 第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、闪烁限制、Freeze）已完成。第 3 阶段部分完成（会跳变的种子、带立体声的 20 个特征、紧凑的电平表、自动打开所需设置的目标、预设）；Step 映射和实时 SVG 重绘测量尚待完成  
 **范围：** 在 **Geometry** 和 **Experimental** 旁边新增 **Sound** 标签页。实时声音（本地音频文件或麦克风）驱动两个标签页里已有的参数，让字母随音乐而动：锚点踩着节拍跳动，声音变响时轮廓被揉皱，低音响起时花瓣张开。
 
 ## 1. 目标
@@ -137,14 +137,19 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
 
 ## 7. 预设
 
-预设是填好映射的起点：
+预设是填好映射的起点（`src/sound/presets.ts` 中的 `PRESETS`）。在 **Preset** 列表里选中一个只是选中它；**Load** 用预设的映射替换当前的映射，并逐行打开它们的目标所需的设置，每一行都以前面各行改过之后的设置为准，所以同一个设置只改一次、只提示一次。每一行都显示自己的提示，和手动选择目标时一样（第 5 节）。括号里是 Depth；在种子上是 Rate。
 
-- **Anchor jump：** Beat → Distortion Seed（Jump）；Level → Distortion · Noise amplitude（Depth 30%）。
-- **Resample：** Beat → Random anchors Seed（Jump）；Level → Randomness。
-- **Bass bloom：** Kick → Ripple Amount（Kick）；Low → Ripple Petals。
-- **Shiver：** High → Noise Amount；Brightness → Noise Turn。
-- **Whirl：** Level → Curl Amount；Beat → Experimental Seed（Jump）。
-- **Grid pulse：** Low → Grid size（按档）；Beat → Allowed directions（Step）。
+| 预设 | 映射 | 看到的效果 |
+|---|---|---|
+| **Anchor jump** | Beat → Distortion · Seed（Rate 100%）；Level → Distortion · Noise amplitude（30%） | 每个节拍锚点都跳到新位置，声音响时抖得更厉害 |
+| **Resample** | Beat → Random anchors · Seed（Rate 100%）；Bass → Random anchors · Density（30%） | 每个节拍都重新抽取随机锚点；低音让锚点变多 |
+| **Bass bloom** | Kick → Ripple · Amount（40%）；Bass → Ripple · Petals（50%） | 底鼓响时波纹弹出；花瓣随低音张开 |
+| **Shiver** | High → Noise · Amount（30%）；Brightness → Noise · Turn（50%）；Beat → Seed（Rate 50%） | 嘶声和镲片把字母揉皱；亮度让褶皱转动；每隔一个节拍重新打乱一次 |
+| **Whirl** | Swell → Curl · Amount（20%）；Kick → Curl · Amount（15%） | 音乐渐强时字母打旋，每次底鼓再多拧一下 |
+| **Gale** | Level → Wind · Strength（30%）；Pace → Wind · Gustiness（50%）；Beat → Seed（Rate 50%） | 响度把字母拉长；繁忙的段落让阵风不均匀；每隔一个节拍换一组新的阵风 |
+| **Grid pulse** | Bass → Grid & angles · Grid size（30%）；Level → Squaring · Amount（50%） | 低音让字母吸附到更粗的网格；响度让碗形变方 |
+| **Low poly** | Level → Curve flattening · Tolerance（30%）；Noisiness → Anchors · Anchor reduction（20%） | 响亮的段落更粗糙、棱角更多；嘈杂的声音让锚点减少 |
+| **Drift** | Balance → Ripple · Center X（40%）；Pitch → Ripple · Sides（50%） | 波纹随声音从左移到右（需要立体声文件，第 4 节）；音越高，边越多 |
 
 ## 8. 架构与性能
 
@@ -156,6 +161,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
   - `mapping.ts`：特征列表（`FEATURES`，分六组）、目标列表（滑块和种子，每个都带有它起作用所需的设置，以及打开这些设置的修改 `activate`），以及 滑块值 + 特征 + 映射 + 跳变 → 实时参数（`modulate`，纯函数）。
   - `jumps.ts`：`JumpTracker`，根据测量到的帧累计每个被驱动种子的跳变，并让它们遵守闪烁限制；以及 `JUMP_LIMITS`（纯逻辑，无需音频即可测试）。
   - `mappingStore.ts`：一个带 hook 的小型存储，保存映射和 Drive letters（驱动字母）开关；页面打开期间跟随 `prefers-reduced-motion` 的变化。
+  - `presets.ts`：预设列表（`PRESETS`，第 7 节），每个预设带有名称、它的 ⓘ 里显示的一行说明，以及它的映射。
   - `live.ts`：帧调度（`LiveScheduler`，可通过注入依赖测试，持有 `JumpTracker`）、闪烁限制（`FlashLimiter`）、提供实时参数、实时标记位置、实时种子（`useLiveSeed`）和实时状态的 hook，以及 Freeze。标记组件本身是 `src/components/LiveMarker.tsx`，种子输入框旁的实时种子是 `src/components/LiveSeed.tsx`。
 - **流程不变；实时请求带 `live` 标记。** 实时参数作为带 `live` 标记的计算请求发给几何 Worker；Worker 本来就会在字形之间丢弃已被取代的请求。这个标记只让实时结果存入单独的实时缓存（见下文），几何的计算方式不变。页面会先留住一个实时帧的结果，直到它的请求完成，所以每一帧都完整地显示（第 2 节）。
 - **跟随实时参数的：** 字母、画布上画出的吸附网格和状态栏的描述。保持滑块值的：滑块、导出，以及 Typography 标签页里的 Fit text 和 Free（和导出一样，它们测量滑块值下的字母）。
@@ -209,9 +215,10 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
   - 条形每帧更新，数字每秒最多更新 10 次，提供给屏幕阅读器的值每秒最多 4 次。
 - **Sensitivity**（输入增益）和 **Smoothing**（释放时间）。
 - **映射：**
+  - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。
   - 每行有 Feature（与电平表相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、Depth 和开关。在种子上，Depth 显示为 **Rate**，0–100%，步长 5%，并带一个 ⓘ。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
-  - **Add mapping**、**Presets**（尚待完成），以及每行一个删除按钮。删除一行后，键盘焦点移到下一行的删除按钮（没有时移到上一行的，都没有时移到 Add mapping）。
+  - **Add mapping** 和每行一个删除按钮。删除一行后，键盘焦点移到下一行的删除按钮（没有时移到上一行的，都没有时移到 Add mapping）。
 - **Freeze** 和 **Reset sound**。
 - **状态栏：** Sound 驱动字母时显示 "Live · N fps"。
 - **被驱动的滑块：** 显示实时值标记。**被驱动的种子输入框：** 在输入框旁以标记的颜色显示实时种子。
@@ -241,7 +248,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
 |---|---|
 | 1 | Sound 标签页；音频引擎（File、Microphone）；特征 Level、Low、Mid、High、Brightness、Beat、Kick；电平表 |
 | 2 | 调制层、连续目标的映射、带独立缓存的自适应实时调度、滑块上的实时值标记、连续映射的闪烁限制、Freeze |
-| 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 和 Kick 脉冲（即 Kick 类型）；新增 13 个特征，共 20 个，加上立体声测量支路；分六组的紧凑电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨。尚待完成：Step 映射（Allowed directions、Sides、Rings）、预设；实时 SVG 重绘测量 |
+| 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 和 Kick 脉冲（即 Kick 类型）；新增 13 个特征，共 20 个，加上立体声测量支路；分六组的紧凑电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨；九个预设，带 Preset 和 Load。尚待完成：Step 映射（Allowed directions、Sides、Rings）；实时 SVG 重绘测量 |
 | 4 | Pitch 和 Balance：已在第 3 阶段和其他新特征一起完成 |
 | 以后 | 视频录制 |
 

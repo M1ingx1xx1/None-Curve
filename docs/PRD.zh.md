@@ -267,7 +267,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
     - Distortion 的 Noise frequency、Normal bias 和 Seed 在 Noise amplitude 为 0 时把它设为 40。
     - Random anchors 的目标打开 Random anchors；Seed 还会在 Randomness 为 0% 时把它设为 100%。
     - Experimental 的效果滑块打开各自的效果。Noise 和 Wind 都没打开时，Experimental 的 Seed 会打开 Noise（Ripple 和 Curl 没有随机性）。
-  - **预设：** Anchor jump、Resample、Bass bloom、Shiver、Whirl、Grid pulse。
+  - **预设：** Anchor jump、Resample、Bass bloom、Shiver、Whirl、Gale、Grid pulse、Low poly、Drift。在 **Preset** 列表中选择只是选中；**Load** 用预设的映射替换当前映射，并像选择目标时一样打开它们的目标所需的设置。一个 ⓘ 列出每个预设，各一行说明。
 - **保留滑块值和种子：**
   - 滑块保留自己的值，并用标记显示实时值。种子字段保留自己的种子，被驱动的种子旁边用一个小数字显示实时种子；Distortion 和 Random anchors 的统计信息也显示实时种子。
   - 关闭 Sound、关闭映射或 Depth 为 0 时，完全恢复滑块值。暂停、停止或关闭 Drive letters 时，种子完全回到字段中的值，再次播放时从这些值开始。
@@ -302,6 +302,6 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 | P1 填充与样张 | 已实现：可编辑多行文本，保留字宽与字体自带字偶距，缺字明确标示 |
 | P2 字体文件导出 | 已实现：OpenType（CFF，.otf），字形范围可选，导出后用 fontkit 与浏览器字体引擎校验 |
 | P2 实验效果 | 已实现：Noise、Ripple（含花瓣）、Curl、Wind，可叠加，超过 100% 时可翻折 |
-| 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）以及会自己打开所需设置的目标已完成；Pitch 和 Balance（第 4 阶段）提前完成，特征共 20 个，电平表改为紧凑排列。尚未实现：Step 映射（Allowed directions、Sides、Rings）、预设，以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
+| 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）、会自己打开所需设置的目标，以及九个预设（Preset 和 Load）已完成；Pitch 和 Balance（第 4 阶段）提前完成，特征共 20 个，电平表改为紧凑排列。尚未实现：Step 映射（Allowed directions、Sides、Rings），以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
 
 字体导出的边界（对应第 10 节待验证事项）：不输出 TTF / WOFF / WOFF2；不导出字偶距及其他 GPOS / GSUB 特性、hinting、变量轴（可变字体导出画布所示默认实例）；仅导出经字符映射可达的字形；U+FFFF 以上字符因写入器无法可靠映射而排除；坐标取整到字体单位。
