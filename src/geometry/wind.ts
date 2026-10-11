@@ -9,8 +9,11 @@
 // cells, each split into two triangles along a diagonal chosen by the seed, and points move linearly
 // with their triangle (see warp.ts).
 //
-// No triangle can flip: gusts are never negative and the movement only grows downwind, so every
-// triangle is stretched along the wind, never squeezed. The warp is one-to-one at any strength.
+// Up to 100% Gustiness no triangle can flip: gusts are never negative and the movement only grows
+// downwind, so every triangle is stretched along the wind, never squeezed, and the warp is one-to-one
+// at any strength. Above 100% some gusts blow backwards: their bands are pushed back through the
+// letter, tearing it and folding it onto itself; the overlaps are then merged into one outline (see
+// overlaps.ts).
 
 import { hashInts } from './distortion'
 import type { Box } from './ripple'
@@ -19,7 +22,15 @@ import type { Warp } from './warp'
 
 export const WIND_LIMITS = {
   /** Strength: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
-  maxStrength: 3,
+  maxStrength: 8,
+  /**
+   * No point moves further than this (× the em), however far downwind it lies: beyond it the letter
+   * is carried along without stretching further. This keeps strong winds and backward gusts within
+   * the coordinates a font file can store.
+   */
+  maxReach: 4,
+  /** Above 1 (the safe range), some gusts blow backwards. */
+  maxGustiness: 2,
   /** Band (gust) sizes, as fractions of the em. */
   minGust: 0.06,
   maxGust: 0.5,
@@ -33,6 +44,11 @@ export function windIsOn(params: WindParams): boolean {
   return params.enabled && params.strength > 0
 }
 
+/** True when Wind goes beyond its safe range (gusts blowing backwards), so the letter can fold onto itself. */
+export function windFolds(params: WindParams): boolean {
+  return windIsOn(params) && params.gustiness > 1
+}
+
 /** The Wind warp for a glyph with this ink box, at `scale` × its strength. */
 export function windWarp(params: WindParams, seed: number, box: Box, unitsPerEm: number, scale = 1): Warp {
   const angle = (finite(params.direction, 0) * Math.PI) / 180
@@ -40,15 +56,20 @@ export function windWarp(params: WindParams, seed: number, box: Box, unitsPerEm:
   const wy = Math.sin(angle)
   const size = clamp(finite(params.gust, 0.12), WIND_LIMITS.minGust, WIND_LIMITS.maxGust) * unitsPerEm
   const strength = clamp(finite(params.strength, 0), 0, WIND_LIMITS.maxStrength) * scale
-  const gustiness = clamp(finite(params.gustiness, 0.6), 0, 1)
+  const gustiness = clamp(finite(params.gustiness, 0.6), 0, WIND_LIMITS.maxGustiness)
   // The glyph's upwind edge: the smallest distance along the wind over the ink box.
   const upwind = Math.min(...[box.minX, box.maxX].flatMap((x) => [box.minY, box.maxY].map((y) => x * wx + y * wy)))
 
   /** Lattice coordinates: u counts cells downwind of the upwind edge, v counts bands across the wind. */
   const toLattice = (p: Point) => ({ u: (p.x * wx + p.y * wy - upwind) / size, v: (p.y * wx - p.x * wy) / size })
   const gust = (band: number) => 1 - gustiness * (hashInts(seed, CHANNEL.gust, band) / UINT)
-  /** How far lattice point (i, j) moves along the wind: nothing upwind, then growing with the distance downwind. */
-  const move = (i: number, j: number) => (i <= 0 ? 0 : strength * gust(j) * i * size)
+  const reach = WIND_LIMITS.maxReach * unitsPerEm
+  /**
+   * How far lattice point (i, j) moves along the wind: nothing upwind, then growing with the distance
+   * downwind, up to the reach. Capping keeps the movement from ever shrinking downwind (for gusts that
+   * blow forward), so it still stretches every triangle and never squeezes one.
+   */
+  const move = (i: number, j: number) => (i <= 0 ? 0 : clamp(strength * gust(j) * i * size, -reach, reach))
   /** True: the cell's diagonal runs from its corner (i, j) to (i + 1, j + 1); false: (i + 1, j) to (i, j + 1). */
   const rising = (i: number, j: number) => (hashInts(seed, CHANNEL.diagonal, i, j) & 1) === 0
 
