@@ -74,7 +74,7 @@ const GlyphCell = memo(function GlyphCell({
  * into the text at the cursor; glyphs without a character (ligatures, alternates) cannot be typed
  * and are not listed.
  */
-export default function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
+function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const deferredQuery = useDeferredValue(query)
@@ -158,3 +158,6 @@ export default function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
     </section>
   )
 }
+
+// Its props (the font and App's stable insert callback) stay the same while the text or Sound re-renders App.
+export default memo(GlyphPicker)

@@ -41,7 +41,7 @@ The product is designed for direct, visual exploration. Users should be able to 
 ### Product priority and allocation
 
 - **Font deconstruction and editing is the primary tool, representing about 70% of the overall product focus.** The home and default workspace should prioritize font loading, skeleton inspection, curve linearization, anchor and geometry editing, glyph preview, and export.
-- **Sound-driven carving is a secondary tool, representing about 30% of the overall product focus.** It extends polygon editing with audio analysis, parameter mapping, and carving effects. The core font tool must remain fully usable when the audio module is off.
+- **Sound is a secondary tool, representing about 30% of the overall product focus.** Live sound drives the existing Geometry and Experimental parameters (section 11). The core font tool must remain fully usable when Sound is off.
 - The 70/30 split is a product-planning allocation for feature and design effort. It guides interface hierarchy, implementation order, and scope; it is not a strict screen-pixel or session-time ratio.
 - Deliver font capabilities before audio features. The audio module must not reduce the discoverability, core editing capabilities, or SVG/font export paths of the font tool.
 
@@ -131,13 +131,14 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 
 ### P2: Experimental effects (stackable)
 
-Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumpled paper), **Ripple** (waves from a point), and **Wind** (pulled along a direction), built in that order. Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
+Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumpled paper), **Ripple** (waves from a point), and **Wind** (pulled along a direction), built in that order, then **Curl** (a swirl around each letter's middle). Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
 
 - **No curves, also to the eye:** every effect is a piecewise-linear warp of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible.
-- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Wind, each on the previous result.
+- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Curl → Wind, each on the previous result.
 - **Always valid:** up to 100%, every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
-- **Folds for unreadable extremes:** above 100% (Noise to 500%, Ripple to 400%, Wind Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports.
+- **Folds for unreadable extremes:** above 100% (Noise to 500%, Ripple to 400%, Curl to ±400%, Wind Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports.
 - **Petals:** Ripple can bend its rings into a flower, one straight-edged petal per side (0–300%). Petals is one-to-one at any depth, so it never folds on its own; folding still comes only from Ripple Amount above 100%.
+- **Curl:** rings of straight-sided polygons each turn as a whole about the letter's middle, either with the top and bottom pinned (the middle twists) or as a whole (the top and bottom swing round too). Up to 100% either way it is one-to-one; beyond, it folds like the other effects.
 - **Repeatable:** one shared seed for the tab; effects work in glyph coordinates, so every copy of a letter has the same shape and fonts can be exported.
 - Random anchors moves out of "experimental" and stays in the Geometry tab.
 
@@ -151,7 +152,7 @@ Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumple
 │ Glyph selection      │ Source skeleton / current polygon / fill│
 │ Deconstruction       │                                       │
 │ Geometry and grid    │ Updates immediately when parameters   │
-│ Distortion / carving │ change                                │
+│ Distortion / Sound   │ change                                │
 │ Export options       │                                       │
 ├──────────────────────┴───────────────────────────────────────┤
 │ Specimen / preview mode / zoom / processing status           │
@@ -166,14 +167,14 @@ The canvas is the primary feedback area and remains visible during editing. Load
 2. **Geometry and grid:** Grid snapping, grid size, angle locking, fixed-anchor behavior.
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed.
 4. **Export:** SVG settings, font glyph coverage, and font metadata.
-5. **Experimental** (its own tab beside Geometry): Noise, Ripple, and Wind, stackable, with one shared seed.
+5. **Experimental** (its own tab beside Geometry): Noise, Ripple, Curl, and Wind, stackable, with one shared seed.
 
 ### Tool hierarchy
 
 - Open on the font deconstruction workspace by default. Font handling, skeleton inspection, outline editing, and export form the primary navigation and canvas.
 - Place the control panel on the left and the live glyph canvas in the main area on the right. On narrow screens, the left panel may collapse, but an exported file must never replace the live preview.
-- Offer sound carving as an optional tool or workspace mode for the current glyph. It must not replace the core font editor or require audio input for font editing.
-- When sound is active, retain comparison access to the source glyph, base polygon, and sound-driven result.
+- Offer Sound as a third tab beside Geometry and Experimental. It must not replace the core font editor or require audio input for font editing.
+- While Sound is live, sliders keep their own values (a marker shows the live value); switching Sound off restores them exactly, and exports use the slider values.
 
 ### Visual and interaction principles
 
@@ -227,7 +228,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 | 4. Font generation | Font metadata, glyph selection, OTF generation and validation |
 | 5. Release polish | Interaction details, accessibility, error states, GitHub Pages deployment |
 
-**Planning priority:** Keep roughly 70% of product and design effort focused on the font editor. Build sound-driven carving as the remaining roughly 30%, after the core font workflow is usable, in the separate sound-to-letterform track below.
+**Planning priority:** Keep roughly 70% of product and design effort focused on the font editor. Build the Sound tab (sound-reactive geometry, section 11) as the remaining roughly 30%, after the core font workflow is usable.
 
 ## 10. Open questions
 
@@ -237,62 +238,57 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - What are the performance targets for batch processing and large font files?
 - What character coverage, font tables, and typesetting features are in scope for the first OTF export?
 
-## 11. Sound-driven carved letterforms (new product direction)
+## 11. Sound-reactive geometry (new product direction)
 
-### Concept and scope
+Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-driven carved letterforms" direction (new carving operators, a timeline, audio spread across the letters of a text, and recipe export), which is dropped.
 
-Use **Sound → Carving Logic → Letterform**: extract explainable audio features, map them to carving parameters, then modify polygon glyph contours. Each deformation must be traceable to its input. This is an optional extension of the existing polygon workflow. Carving is a design model, not a physical simulation: normalized Depth controls contour expansion and notch amplitude. Two-dimensional SVG and fonts do not contain physical depth; material shading must remain distinguishable from exported geometry.
+- **Concept:** a **Sound** tab beside Geometry and Experimental. Live sound, from a local audio file or from the microphone after an explicit start, drives the parameters that already exist in both tabs. The letters move with the music: anchors jump on the beat, outlines crumple when it gets loud, petals open on the bass.
+- **No new geometry:** sound only changes parameter values, within each slider's range (a seed: whole numbers within its field's range). Every frame is a result the sliders and seed fields could produce by hand, so it has straight edges only, is validated like every result, and can be exported. There is no tweening between frames.
+- **Features:** 20, in six groups, listed the same way in the meters and in a mapping's Feature list:
+  - **Loudness:** Level (short-time RMS) and Swell (Level followed slowly: it rises over about 300 ms and falls over about 2 s).
+  - **Bands:** Low / Mid / High band energy (20–250 Hz, 250–2000 Hz, 2000 Hz – Nyquist).
+  - **Narrow bands:** Sub (20–60 Hz), Bass (60–250 Hz), Low mid (250–500 Hz), High mid (2–4 kHz), Presence (4–6 kHz), and Air (6–20 kHz). Like Low / Mid / High, each reads against its own recent loudest moment.
+  - **Tone:** Brightness (spectral centroid); Noisiness (spectral flatness, measured up to the sound's real bandwidth so lossy files read right: notes near 0, hiss and drums high); Pitch (the note being played or sung, 55 Hz to 1760 Hz on a log scale; it holds the last note between notes and reads 0 in silence).
+  - **Rhythm:** Beat and Kick (onsets), as pulses that jump to 1 on each onset and fall back with the Smoothing time; Change (how much the spectrum is changing: near 0 on steady sound, noise included, high on attacks); Pace (Beat onsets a second over the last 2 s; 8 a second reads 1).
+  - **Stereo:** Balance (left −1 to right +1, the only two-sided feature) and Width (mono 0, wide stereo about 1). In practice for files only: a mono microphone reads centred, with no width.
+  - Most features follow the sound with a fast attack and the adjustable release (Smoothing), behind a silence gate; Swell and Pitch have their own fixed times.
+- **Mappings:** up to 8 rows, each connecting one feature to one target.
+  - **Continuous:** slider position (0–1 along the slider as drawn) + Depth × feature, clamped to the slider's ends and rounded to its step; contributions to one target add up before clamping. On an ordinary slider this is slider value + Depth × feature × the slider's range; a log-scaled slider such as Tolerance moves evenly along its track.
+  - **Events** (Beat, Kick), in three kinds:
+    - **Jump:** a seed moves on, so anchors, folds, or gusts jump to new places. The three seeds are targets, and a new seed puts every anchor somewhere new. On a seed, the row's slider reads **Rate** (0–100%): with Beat or Kick the seed moves on by one per onset (Rate 50% is every other onset, 25% every fourth); with any other feature it jumps at up to 4.8 times a second × Rate × the feature's value. Seeds stay whole numbers in their field's range (0–999 999), wrapping to 0.
+    - **Step:** the next of a few choices, such as Allowed directions (the angle step).
+    - **Kick:** a leap that falls back. Beat or Kick on any slider does this, through their pulses.
+  - **Targets in the Geometry tab:** Distortion Seed, Noise amplitude, Noise frequency, and Normal bias; Random anchors Seed, Randomness, and Density; Curve flattening Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Allowed directions. Allowed directions comes with Step mappings.
+  - **Targets in the Experimental tab:** its sliders and the shared seed.
+  - Switches are never targets.
+  - **Targets switch themselves on:** picking a target whose setting is off turns that setting on and says so under the row (for example "Turned on Ripple.", "Set Noise amplitude to 40.", or "Turned off Random anchors. Set Mode to Adaptive."). Switching the row to another target, or removing it, never turns anything off. If the user turns the setting off later, the row says why and offers **Enable**. With the keyboard, browsing the Target list applies a target only on Enter or when focus leaves the list; a pick with the mouse or a finger applies at once. **Add mapping** prefers a target that already acts.
+    - Curve flattening targets turn Random anchors off and set what they need: Tolerance the Adaptive Mode, Segments per curve the Fixed segments Mode, Corner angle Merge joined curves (in either Mode).
+    - Grid size turns on Snap to grid.
+    - Distortion Noise frequency, Normal bias, and Seed set Noise amplitude to 40 when it is 0.
+    - Random anchors targets turn Random anchors on; Seed also sets Randomness to 100% when it is 0%.
+    - Experimental effect sliders turn their effect on. The Experimental Seed turns on Noise when neither Noise nor Wind is on (Ripple and Curl have no randomness).
+  - **Presets:** Anchor jump, Resample, Bass bloom, Shiver, Whirl, Grid pulse.
+- **Slider and seed values preserved:**
+  - Sliders keep their own values, and a marker shows the live value. Seed fields keep their own seeds, and a small number beside a driven seed shows the live one; the Distortion and Random anchors statistics show the live seed too.
+  - Switching Sound off, switching a mapping off, or setting Depth to 0 restores the slider value exactly. Pausing, stopping, or turning Drive letters off returns the seeds to their fields' values exactly, and playing again starts from them.
+  - **Freeze** writes the live values into the sliders, and the live seeds into the seed fields, and pauses the sound.
+  - Exports always use the slider values, never live audio.
+- **Performance:**
+  - The pipeline is unchanged, with at most one request in flight; live requests carry a flag that keeps their results apart. The frame rate adapts to the cost, is capped at 30 fps, and is shown in the tab.
+  - Live values are rounded to slider steps so they reuse cached results, and live frames have a separate cache.
+  - Measuring the 20 features takes about 90 µs per frame at 48 kHz. A seed jump recomputes every glyph in about 2–3.5 ms (Arial, 24 distinct glyphs).
+- **Safety:**
+  - Against flashing, a driven slider swings back and forth by 10% or more of its travel at most 3 times a second; a further swing keeps the slider's last value until the 1.25 s window has passed. Seed jumps get the same limit, counted the same way: at most 6 jump frames in any 1.25 s, so 3 flashes a second (seeds jumping in the same frame count once); a further jump is skipped. Pausing and playing again does not reset this count.
+  - With reduced motion, Drive letters starts off (and switches off if reduced motion is turned on during the visit), and the Sound tab says why.
+  - The microphone starts only on an explicit click and shows an indicator.
+  - Audio never leaves the browser.
+- **Delivery order:**
+  1. Audio engine, features, and meters.
+  2. Continuous mappings, the live scheduler, and Freeze.
+  3. Event mappings, the rate limit, and presets.
+  4. Pitch and Balance.
 
-### Audio features
-
-- First release: local WAV and browser-decodable MP3, playback, timeline, and selection. Microphone input is a later, explicitly activated extension. Decode and analyze locally; expose invalid, empty, silent, and unsupported input states.
-- **Volume:** short-time RMS energy, not calibrated physical sound pressure.
-- **Pitch:** fundamental-frequency estimate in Hz with confidence; unvoiced or low-confidence frames must not trigger high-pitch effects.
-- **Rhythm:** onsets, inter-onset intervals, and events per second; show estimated BPM only when a stable beat can be inferred.
-- **Duration:** selection and continuous-event length in seconds, separate from integrated energy.
-- **Frequency:** relative low/mid/high band energy, distinct from Pitch. Initial boundaries: 20–250 Hz, 250–2000 Hz, and 2000 Hz–Nyquist, clipped to the valid range for the sample rate.
-- **Texture:** spectral flatness, a noise-proportion proxy, and transient variation; describe these as acoustic estimates, not material recognition.
-- Retain raw values, units, normalized values, timestamps, and validity. Record normalization ranges, silence threshold, window, and hop size; handle zero denominators and clamp outliers.
-
-### Default mappings
-
-| Audio input increases | Carving logic | Letterform effect |
-|---|---|---|
-| Volume | Greater Depth and Pressure | Deeper notches, stronger contour expansion, heavier weight |
-| Confident Pitch | Sharper Chisel Angle, lower Stroke Width | Sharper terminals, narrower local strokes |
-| Relative low-band energy | Greater Pressure and Stroke Width | Heavier, horizontally wider forms |
-| Rhythm / onset density | Greater notch density | Denser cuts and fragmented local strokes without disconnecting whole strokes by default |
-| Event Duration | Greater carving extension | Longer designated terminals or local strokes |
-| Texture noise estimate | Greater Edge Roughness and Erosion | Rougher edges and more visible loss of material |
-| Relative high-band energy | Denser, sharper small cuts | Finer edge details, independently of fundamental pitch |
-| Transient strength | Local Pressure peaks | Stronger chisel marks at corresponding event positions |
-
-Define six separate operators: Depth sets notch amplitude; Pressure sets local expansion and influence radius; Stroke Width sets thickness; Edge Roughness sets edge disturbance; Erosion subtracts missing regions; Chisel Angle sets notch angle and orientation. They must not all reduce to the same random vertex displacement. These are editable design defaults, not acoustic laws.
-
-### Mapping and temporal controls
-
-- Each mapping exposes feature, target, input range, output bounds, strength, direction, response curve (linear/ease-in/ease-out), toggle, and reset. Show contributions when multiple features affect one target.
-- Compose as base value + mapping contributions → output clamp → geometry constraints. Zero strength restores base values; disabling the module restores the existing geometry workflow.
-- Default to aggregate features from a selection for a static glyph. Extended modes distribute time across text characters or contour arc length. Label the active mode and define stable contour order/start points, spaces, punctuation, repeated characters, and audio shorter than text.
-- Repeated text characters may have instance-specific outlines. Fonts normally have one glyph per character: export instance variation as specimen SVG and require an explicitly selected static snapshot for font output.
-- Smooth continuous features while retaining onset events. Allow parameter locks and frozen selections/time points, plus source/base polygon/audio-driven comparison.
-- Identical audio, selection, analysis settings, mappings, base geometry, seed, and algorithm version produce identical static geometry. Playback and redraw must not reroll randomness.
-
-### Quality, interaction, and export
-
-- Enable a readability mode by default, with minimum stroke thickness and counter gap, maximum extension, and erosion proportion in em/font units, independent of viewport zoom.
-- Check closure, winding, counters, degenerate edges, and self-intersections. Reduce effects or restore recent valid geometry with a specific explanation; block export of unresolved invalid output.
-- Erosion must change contours with valid hole/fill behavior. Rendered shadows alone do not establish a change in glyph depth.
-- Preserve advances and baseline by default and flag margin overflow. Optional adaptive advances must be explicit and identical in preview and export.
-- Timeline: waveform, selection, onsets, and selected feature curves. Controls: Sound / Carving / Letterform, input validity, contributions, and constrained states. Provide undo/redo, reset, and preset import/export without embedding source audio by default.
-- Prioritize static generation. Show analysis/generation progress; cancellation and changed inputs must prevent stale jobs from overwriting newer results.
-- Export a valid glyph SVG, time-assigned text specimen SVG, and JSON recipe with analysis/mapping settings, selection, seed, and algorithm version. Recipes require relinking audio and checking a content fingerprint. Continue straight-line contour and font validation requirements; do not describe 2D exports as 3D models.
-
-### Acceptance and delivery
-
-Test silence, stable high/low tones, strong/weak amplitudes, dense/sparse onsets, long/short events, and noise independently. Hold other inputs fixed to verify mapping direction; invalid Pitch produces no sharpening. Low-band energy and fundamental pitch must independently affect weight and sharpness. Verify zero/disabled/reversed/clamped mappings, repeatability, preview/export equivalence, and valid readable output on counters, thin strokes, complex Chinese glyphs, and repeated-character specimens.
-
-Delivery order: local audio analysis → static aggregate mappings → distinct carving operators and quality constraints → temporal contour/text assignment → recipe and specimen export. Evaluate live microphone input later.
+  Video recording comes later.
 
 ## 12. Implementation status
 
@@ -305,7 +301,7 @@ Delivery order: local audio analysis → static aggregate mappings → distinct 
 | P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
-| P2 Experimental effects | Implemented: Noise, Ripple (with petals), and Wind, stackable, with folds beyond 100% |
-| Section 11 Sound-driven carving | Not implemented |
+| P2 Experimental effects | Implemented: Noise, Ripple (with petals), Curl, and Wind, stackable, with folds beyond 100% |
+| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, and targets that switch themselves on; Pitch and Balance (phase 4) built early, with 20 features in all and compact meters. Not implemented yet: Step mappings (Allowed directions, Sides, Rings), presets, and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.

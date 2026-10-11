@@ -18,6 +18,12 @@ const paths = {
   alignRight: 'M2.5 3.5h11M6.5 6.5h7M2.5 9.5h11M6.5 12.5h7',
   move: 'M8 1.5v13M1.5 8h13M6 3.5l2-2 2 2M6 12.5l2 2 2-2M3.5 6l-2 2 2 2M12.5 6l2 2-2 2',
   next: 'M3 8h9.5M9 4.5 12.5 8 9 11.5',
+  play: 'M5 3.2v9.6L12.5 8z',
+  pause: 'M5.5 3.5v9M10.5 3.5v9',
+  mic: 'M6 4a2 2 0 0 1 4 0v4a2 2 0 0 1-4 0zM3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2M5.5 14h5',
+  add: 'M8 3v10M3 8h10',
+  // A pin: Freeze pins the live moment to the sliders.
+  freeze: 'M5 2.5h6M6 2.5v4l-2 3h8l-2-3v-4M8 9.5v4.5',
 } as const
 
 export type IconName = keyof typeof paths

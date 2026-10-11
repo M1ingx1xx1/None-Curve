@@ -12,7 +12,8 @@ import TextPreview, { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './component
 import TextTools from './components/TextTools'
 import ToolHead from './components/ToolHead'
 import Workspace from './components/Workspace'
-import type { GlyphRef } from './geometry/types'
+import type { GeometryParams, GlyphRef } from './geometry/types'
+import { useLiveParams } from './sound/live'
 import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from './specimen/artboard'
 import { DEFAULT_TEXT } from './specimen/samples'
 import { editorReducer, initialState } from './state/editorState'
@@ -31,7 +32,14 @@ export default function App() {
   const { typography, palette, artboard } = state.params
   // The text as shown and exported: the typed text with the letter case applied.
   const displayText = useMemo(() => applyTextCase(text, typography.textCase), [text, typography.textCase])
-  const { derived, scene, layout, scenePending } = useGeometry(state, displayText)
+  // While Sound drives the letters, the canvas shows live parameters; the sliders (and exports) keep their own.
+  const { flatten, random, squaring, anchors, grid, distortion, experimental } = state.params
+  const baseParams = useMemo<GeometryParams>(
+    () => ({ flatten, random, squaring, anchors, grid, distortion, experimental }),
+    [flatten, random, squaring, anchors, grid, distortion, experimental],
+  )
+  const liveParams = useLiveParams(baseParams)
+  const { derived, scene, layout, scenePending, sliderScene } = useGeometry(state, displayText, liveParams)
   const setTextCase = useCallback(
     (textCase: TextCase) => dispatch({ type: 'updateParams', group: 'typography', patch: { textCase } }),
     [],
@@ -101,7 +109,9 @@ export default function App() {
     }
   }, [text])
 
-  const gridSize = state.params.grid.snap && state.params.grid.size > 0 ? state.params.grid.size : null
+  // The snap grid (lines and label) follows the letters as shown: while Sound drives Grid size, the live size.
+  const shownGrid = liveParams.grid
+  const gridSize = shownGrid.snap && shownGrid.size > 0 ? shownGrid.size : null
 
   return (
     <div className="app">
@@ -148,6 +158,7 @@ export default function App() {
               artboard={artboard}
               font={state.document.font}
               scene={scene}
+              sliderScene={sliderScene}
               dispatch={dispatch}
               onInsertGlyph={insertGlyph}
             />
@@ -184,7 +195,7 @@ export default function App() {
           }
         />
       </HintsContext.Provider>
-      <StatusBar state={state} glyphGeometry={derived.result} scene={scene} />
+      <StatusBar state={state} glyphGeometry={derived.result} shownParams={derived.shownParams} scene={scene} />
       <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importer.importGoogle} />
       <ExportDialog
         open={exportOpen}
@@ -199,7 +210,8 @@ export default function App() {
         previewScale={previewScale}
         params={derived.params}
         paramsKey={derived.paramsKey}
-        pending={derived.pending}
+        // Live shapes keep changing; exports use the sliders and compute whatever they still need.
+        pending={derived.pending && !derived.live}
         precision={state.document.export.precision}
         onPrecisionChange={(precision) => dispatch({ type: 'updateExport', patch: { precision } })}
         onExported={(fileName) =>

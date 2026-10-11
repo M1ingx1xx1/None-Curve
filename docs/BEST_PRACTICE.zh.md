@@ -23,4 +23,4 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 修改其中一个版本时，在同一次改动中同步更新另一个版本。
 - 中文文档提到界面元素时使用界面上的英文名称（界面是英文的），必要时附中文解释。
 
-现有的文档对：`README.md` / `README.zh.md`、`docs/USER_GUIDE.md` / `docs/USER_GUIDE.zh.md`、`docs/PRD.md` / `docs/PRD.zh.md`、`docs/PHASE.md` / `docs/PHASE.zh.md`、`docs/BEST_PRACTICE.md` / `docs/BEST_PRACTICE.zh.md`。
+现有的文档对：`README.md` / `README.zh.md`、`docs/USER_GUIDE.md` / `docs/USER_GUIDE.zh.md`、`docs/PRD.md` / `docs/PRD.zh.md`、`docs/PHASE.md` / `docs/PHASE.zh.md`、`docs/BEST_PRACTICE.md` / `docs/BEST_PRACTICE.zh.md`、`docs/EXPERIMENTAL_PLAN.md` / `docs/EXPERIMENTAL_PLAN.zh.md`、`docs/SOUND_PLAN.md` / `docs/SOUND_PLAN.zh.md`。

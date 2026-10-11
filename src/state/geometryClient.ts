@@ -1,6 +1,8 @@
 // The page's side of the geometry worker: sends it the font and the glyphs to compute, keeps the
 // results, and tells React when new ones arrive. Without worker support (or if the worker cannot
-// open the font) glyphs are computed here instead, as before.
+// open the font) glyphs are computed here instead, as before. Live frames (parameters Sound is
+// driving) keep their results apart, so a song does not push out the results of normal editing, and
+// reach React only when complete, so each live frame appears whole (SOUND_PLAN §2).
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { LoadedFont } from '../font/model'
@@ -19,6 +21,8 @@ export interface GeometryLookup {
 
 /** Parameter sets whose results are kept, so stepping back to recent settings is instant. */
 const KEPT_KEYS = 4
+/** Live parameter sets whose results are kept: the frame on screen and the one being computed. */
+const LIVE_KEPT_KEYS = 2
 /** Worker results arriving within this many milliseconds are shown in one update. */
 const NOTIFY_MS = 50
 
@@ -27,11 +31,13 @@ class GeometryClient {
   private workerFailed = false
   private fontId: string | null = null
   private byKey = new Map<string, Map<number, GeometryEntry>>()
-  /** The newest result per glyph under any settings, shown while the current one is computed. */
+  private liveByKey = new Map<string, Map<number, GeometryEntry>>()
+  /** The newest result per glyph that was computed or shown, used while the current one is computed. */
   private latest = new Map<number, GeometryEntry>()
-  private inFlight: { id: number; key: string; indices: Set<number> } | null = null
+  private inFlight: { id: number; key: string; indices: Set<number>; live: boolean } | null = null
   private nextId = 1
   private listeners = new Set<() => void>()
+  private idleListeners = new Set<() => void>()
   private version = 0
 
   subscribe = (listener: () => void) => {
@@ -41,6 +47,19 @@ class GeometryClient {
 
   getVersion = () => this.version
 
+  /** True while a compute request is on its way in the worker (the live scheduler sends one at a time). */
+  isComputing(): boolean {
+    return this.inFlight !== null
+  }
+
+  /** Calls `listener` whenever the request in flight finishes (or the worker is given up); returns the unsubscribe function. */
+  subscribeIdle(listener: () => void): () => void {
+    this.idleListeners.add(listener)
+    return () => {
+      this.idleListeners.delete(listener)
+    }
+  }
+
   /** True when results held here belong to this font. */
   holds(fontId: string): boolean {
     return this.fontId === fontId
@@ -48,35 +67,49 @@ class GeometryClient {
 
   /** The result for this glyph under these settings, or the newest earlier one (stale). */
   lookup(key: string, index: number): GeometryLookup | null {
-    const current = this.byKey.get(key)?.get(index)
+    const current = this.byKey.get(key)?.get(index) ?? this.liveByKey.get(key)?.get(index)
     if (current) return { entry: current, stale: false }
     const earlier = this.latest.get(index)
     return earlier ? { entry: earlier, stale: true } : null
   }
 
-  /** Asks for these glyphs (most important first). Known glyphs and glyphs on their way are skipped. */
-  compute(font: LoadedFont, params: GeometryParams, key: string, indices: readonly number[]) {
+  /**
+   * Asks for these glyphs (most important first). Known glyphs and glyphs on their way are skipped.
+   * `live` marks parameters Sound is driving: their results are kept apart (LIVE_KEPT_KEYS).
+   */
+  compute(font: LoadedFont, params: GeometryParams, key: string, indices: readonly number[], live = false) {
     this.useFont(font)
+    // Settings that were a live frame (Freeze keeps one) become ordinary kept results.
+    if (!live) this.promote(key)
     const known = this.byKey.get(key)
-    const missing = indices.filter((i) => !known?.has(i))
+    const knownLive = this.liveByKey.get(key)
+    // Each glyph's shape under these settings is what is on screen now: it stands in while later
+    // settings are computed (after Sound stops, the sliders' own shapes, not the last live frame).
+    const missing: number[] = []
+    for (const i of indices) {
+      const entry = known?.get(i) ?? knownLive?.get(i)
+      if (entry) this.latest.set(i, entry)
+      else missing.push(i)
+    }
     if (!missing.length) return
     if (this.inFlight?.key === key && missing.every((i) => this.inFlight!.indices.has(i))) return
 
     const worker = this.startWorker()
     if (!worker) {
-      for (const index of missing) this.store(key, index, computeHere(font, index, params, key))
+      for (const index of missing) this.store(key, index, computeHere(font, index, params, key, live), live)
       this.notify()
       return
     }
     const id = this.nextId++
-    this.inFlight = { id, key, indices: new Set(missing) }
-    this.send({ type: 'compute', requestId: id, fontId: font.id, params, key, indices: missing })
+    this.inFlight = { id, key, indices: new Set(missing), live }
+    this.send({ type: 'compute', requestId: id, fontId: font.id, params, key, indices: missing, ...(live ? { live } : {}) })
   }
 
   private useFont(font: LoadedFont) {
     if (this.fontId === font.id) return
     this.fontId = font.id
     this.byKey.clear()
+    this.liveByKey.clear()
     this.latest.clear()
     this.inFlight = null
     if (this.startWorker()) this.send({ type: 'font', fontId: font.id, bytes: font.bytes, source: font.source })
@@ -101,6 +134,7 @@ class GeometryClient {
     this.worker = null
     this.inFlight = null
     this.notify()
+    this.idle()
   }
 
   private send(message: WorkerRequest) {
@@ -111,25 +145,52 @@ class GeometryClient {
     if (message.type === 'results') {
       if (message.fontId !== this.fontId) return
       for (const result of message.results) {
-        this.store(message.key, result.index, 'error' in result ? { error: result.error } : { geometry: result.geometry })
+        const entry: GeometryEntry = 'error' in result ? { error: result.error } : { geometry: result.geometry }
+        this.store(message.key, result.index, entry, message.live === true)
       }
-      this.notifySoon()
+      // Live results wait for their frame's 'done', so each live frame appears whole (SOUND_PLAN §2).
+      if (!message.live) this.notifySoon()
     } else if (message.type === 'done') {
-      if (this.inFlight?.id === message.requestId) this.inFlight = null
+      if (this.inFlight?.id !== message.requestId) return
+      const { live } = this.inFlight
+      this.inFlight = null
+      // A live frame is complete: show it now, whole (its results were held back until now).
+      if (live) this.notifyNow()
+      this.idle()
     } else if (message.fontId === this.fontId) {
       this.giveUpWorker()
     }
   }
 
-  private store(key: string, index: number, entry: GeometryEntry) {
-    let results = this.byKey.get(key)
+  private store(key: string, index: number, entry: GeometryEntry, live = false) {
+    const kept = live ? this.liveByKey : this.byKey
+    let results = kept.get(key)
     if (!results) {
       results = new Map()
-      this.byKey.set(key, results)
-      while (this.byKey.size > KEPT_KEYS) this.byKey.delete(this.byKey.keys().next().value!)
+      kept.set(key, results)
+      const max = live ? LIVE_KEPT_KEYS : KEPT_KEYS
+      while (kept.size > max) kept.delete(kept.keys().next().value!)
     }
     results.set(index, entry)
     this.latest.set(index, entry)
+  }
+
+  /** Moves a live frame's results to the kept results of normal editing (merging with any there). */
+  private promote(key: string) {
+    const live = this.liveByKey.get(key)
+    if (!live) return
+    this.liveByKey.delete(key)
+    const results = this.byKey.get(key)
+    if (results) {
+      for (const [index, entry] of live) if (!results.has(index)) results.set(index, entry)
+      return
+    }
+    this.byKey.set(key, live)
+    while (this.byKey.size > KEPT_KEYS) this.byKey.delete(this.byKey.keys().next().value!)
+  }
+
+  private idle() {
+    for (const listener of this.idleListeners) listener()
   }
 
   private notify() {
@@ -146,11 +207,18 @@ class GeometryClient {
       this.notify()
     }, NOTIFY_MS)
   }
+
+  /** Sends a notification now, replacing a batched one that is waiting. */
+  private notifyNow() {
+    if (this.notifyTimer !== null) clearTimeout(this.notifyTimer)
+    this.notifyTimer = null
+    this.notify()
+  }
 }
 
-function computeHere(font: LoadedFont, index: number, params: GeometryParams, key: string): GeometryEntry {
+function computeHere(font: LoadedFont, index: number, params: GeometryParams, key: string, live = false): GeometryEntry {
   try {
-    const { source: _source, ...geometry } = glyphGeometry(font, index, params, key)
+    const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, live)
     return { geometry }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
@@ -161,16 +229,17 @@ export const geometryClient = new GeometryClient()
 
 /**
  * Geometry for these glyphs under these settings, computed in the worker. Re-renders as results
- * arrive; until then `lookup` returns the glyph's previous shape (stale) or null.
+ * arrive; until then `lookup` returns the glyph's previous shape (stale) or null. `live` marks
+ * parameters Sound is driving (kept apart from the results of normal editing).
  */
-export function useGlyphGeometry(font: LoadedFont | null, params: GeometryParams, key: string, indices: readonly number[]) {
+export function useGlyphGeometry(font: LoadedFont | null, params: GeometryParams, key: string, indices: readonly number[], live = false) {
   const version = useSyncExternalStore(geometryClient.subscribe, geometryClient.getVersion)
   const indicesKey = indices.join(',')
   useEffect(() => {
-    if (font) geometryClient.compute(font, params, key, indices)
+    if (font) geometryClient.compute(font, params, key, indices, live)
     // `key` stands for `params`, and `indicesKey` for `indices`; `version` re-asks after the worker fails.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [font, key, indicesKey, version])
+  }, [font, key, indicesKey, version, live])
   return useMemo(() => ({ lookup: (index: number) => geometryClient.lookup(key, index), version }), [key, version])
 }
 
