@@ -289,6 +289,7 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 - **Use noise** — turns it on.
 - **Amount** — how strongly the letters are crumpled, up to 500 %. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds; above that the folds flip over each other, and towards 500 % the letters break into a heap of overlapping shards.
 - **Facet size** — the size of the folds, as a share of the em (the font's design square). Small facets give many small folds; large facets give a few big ones that can bend whole strokes. The smallest size still keeps the folds far enough apart to read as corners.
+- **Turn** — which way the folds go. Raising **Amount** pushes every fold further the same way; Turn points them another way while the creases stay where they are. At 180° the letters are crumpled the opposite way. (**Next variant** under Seed instead gives a completely new sheet of paper.)
 - The numbers show how far the outline moved at most (**Max move**) and how many corners the folds added (**Creases**).
 
 **Ripple — polygonal waves**

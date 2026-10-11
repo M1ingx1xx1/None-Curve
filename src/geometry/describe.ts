@@ -31,7 +31,7 @@ export function describePipeline(params: GeometryParams): string[] {
     )
   }
   if (noiseIsOn(experimental.noise)) {
-    steps.push(`noise ${Math.round(experimental.noise.amount * 100)}%, facets ${Math.round(experimental.noise.facet * 100)}% em, seed ${experimental.seed}`)
+    steps.push(`noise ${Math.round(experimental.noise.amount * 100)}%, facets ${Math.round(experimental.noise.facet * 100)}% em${experimental.noise.turn ? `, turn ${Math.round(experimental.noise.turn)}°` : ''}, seed ${experimental.seed}`)
   }
   if (rippleIsOn(experimental.ripple)) {
     const r = experimental.ripple

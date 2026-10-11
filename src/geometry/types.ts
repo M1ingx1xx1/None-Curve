@@ -119,10 +119,12 @@ export interface RandomAnchorParams {
 /** Experimental Noise: crumples the letter along straight creases of a seeded triangle mesh. */
 export interface NoiseParams {
   enabled: boolean
-  /** 0–2: how far lattice points move, as a share of the safe maximum (30% of the facet size); above 1, a second pass. */
+  /** 0–5: how far lattice points move, as a share of the safe maximum (30% of the facet size); above 1, facets fold. */
   amount: number
   /** Lattice cell size as a fraction of the em; creases fall about 40% of it apart along the outline. */
   facet: number
+  /** Degrees every lattice point's movement is turned by (counter-clockwise). Missing in older saved settings: 0. */
+  turn: number
 }
 
 /** Experimental Ripple: polygonal waves spreading from a point, along the straight creases of a ring mesh. */
