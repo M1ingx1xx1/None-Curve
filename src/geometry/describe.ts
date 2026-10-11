@@ -1,3 +1,4 @@
+import { experimentalFolds } from './experimental'
 import { noiseIsOn } from './noise'
 import { rippleIsOn } from './ripple'
 import { windIsOn } from './wind'
@@ -36,7 +37,7 @@ export function describePipeline(params: GeometryParams): string[] {
     const r = experimental.ripple
     const pct = (v: number) => `${Math.round(v * 100)}%`
     steps.push(
-      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}`,
+      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}`,
     )
   }
   if (windIsOn(experimental.wind)) {
@@ -44,5 +45,6 @@ export function describePipeline(params: GeometryParams): string[] {
     const pct = (v: number) => `${Math.round(v * 100)}%`
     steps.push(`wind ${pct(w.strength)} toward ${Math.round(w.direction)}°, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}, seed ${experimental.seed}`)
   }
+  if (experimentalFolds(experimental)) steps.push('folds merged')
   return steps
 }

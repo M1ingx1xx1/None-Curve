@@ -135,7 +135,9 @@ Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumple
 
 - **No curves, also to the eye:** every effect is a piecewise-linear warp of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible.
 - **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Wind, each on the previous result.
-- **Always valid:** every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
+- **Always valid:** up to 100%, every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
+- **Folds for unreadable extremes:** above 100% (Noise to 500%, Ripple to 400%, Wind Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports.
+- **Petals:** Ripple can bend its rings into a flower, one straight-edged petal per side (0–300%). Petals is one-to-one at any depth, so it never folds on its own; folding still comes only from Ripple Amount above 100%.
 - **Repeatable:** one shared seed for the tab; effects work in glyph coordinates, so every copy of a letter has the same shape and fonts can be exported.
 - Random anchors moves out of "experimental" and stays in the Geometry tab.
 
@@ -213,7 +215,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Font loading, preview, and export all run client-side.
 - Loading a font does not automatically create a download; export happens only after an explicit user action.
 - If font export cannot preserve certain features, the app explains this before export.
-- Experimental effects can all be on at once; any combination at any strength gives valid outlines (no crossings, counters inside) and adds no curve-like runs.
+- Experimental effects can all be on at once; any combination within 100% gives valid outlines (no crossings, counters inside) and adds no curve-like runs. Beyond 100%, folded letters are merged into non-crossing outlines that export.
 
 ## 9. Suggested milestones
 
@@ -303,7 +305,7 @@ Delivery order: local audio analysis → static aggregate mappings → distinct 
 | P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
-| P2 Experimental effects | Implemented: Noise, Ripple, and Wind, stackable |
+| P2 Experimental effects | Implemented: Noise, Ripple (with petals), and Wind, stackable, with folds beyond 100% |
 | Section 11 Sound-driven carving | Not implemented |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.

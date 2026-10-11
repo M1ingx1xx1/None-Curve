@@ -7,15 +7,15 @@
 // between move linearly with their triangle (see warp.ts). The lattice is fixed in glyph coordinates,
 // so every copy of a letter gets the same shape.
 //
-// No lattice point moves more than 30% of the cell size. A triangle whose corners each move less
-// than that keeps about 15% of its area or more and cannot flip, so the warp is always one-to-one:
-// Noise never needs to be weakened to keep the letter valid. Amounts above 100% crumple the result
-// again on the same lattice (100% then the rest): two one-to-one warps in a row are one-to-one too,
-// and the folds deepen without the pattern jumping as the amount passes 100%.
+// Up to 100% Amount, no lattice point moves more than 30% of the cell size. A triangle whose corners
+// each move less than that keeps about 15% of its area or more and cannot flip, so the warp is
+// one-to-one: Noise never needs to be weakened to keep the letter valid. Above 100% the points move
+// further along the same directions, triangles flip over their neighbours, and the letter folds onto
+// itself; the overlaps are then merged into one outline (see overlaps.ts).
 
 import { hashInts } from './distortion'
 import type { NoiseParams, Point } from './types'
-import { chainWarps, type Warp } from './warp'
+import type { Warp } from './warp'
 
 export const NOISE_LIMITS = {
   /**
@@ -25,8 +25,8 @@ export const NOISE_LIMITS = {
    */
   minFacet: 0.08,
   maxFacet: 1,
-  /** Above 1, a second pass on the same lattice crumples the letter further. */
-  maxAmount: 2,
+  /** Above 1 (the safe range), facets fold over each other. */
+  maxAmount: 5,
   /** Largest lattice-point movement at 100% Amount, as a fraction of the facet size. */
   maxMove: 0.3,
 } as const
@@ -39,15 +39,14 @@ export function noiseIsOn(params: NoiseParams): boolean {
   return params.enabled && params.amount > 0
 }
 
-/** The Noise warp at `scale` × its strength: one pass up to 100%, then a second for the rest. */
-export function noiseWarp(params: NoiseParams, seed: number, unitsPerEm: number, scale = 1): Warp {
-  const amount = clamp(finite(params.amount, 0), 0, NOISE_LIMITS.maxAmount) * scale
-  const once = noisePass(params, seed, unitsPerEm, Math.min(1, amount))
-  return amount > 1 ? chainWarps(once, noisePass(params, seed, unitsPerEm, amount - 1)) : once
+/** True when Noise goes beyond its safe range, so the letter folds onto itself. */
+export function noiseFolds(params: NoiseParams): boolean {
+  return noiseIsOn(params) && params.amount > 1
 }
 
-/** One pass of the Noise warp at `amount` (0–1) of the safe maximum. */
-function noisePass(params: NoiseParams, seed: number, unitsPerEm: number, amount: number): Warp {
+/** The Noise warp at `scale` × its strength (1 = the safe maximum). */
+export function noiseWarp(params: NoiseParams, seed: number, unitsPerEm: number, scale = 1): Warp {
+  const amount = clamp(finite(params.amount, 0), 0, NOISE_LIMITS.maxAmount) * scale
   const size = clamp(finite(params.facet, 0.18), NOISE_LIMITS.minFacet, NOISE_LIMITS.maxFacet) * unitsPerEm
   const reach = amount * NOISE_LIMITS.maxMove * size
   // The square lattice looks the same every quarter turn, so a quarter turn of angles covers all.

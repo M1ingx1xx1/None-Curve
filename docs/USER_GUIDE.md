@@ -280,31 +280,34 @@ The seed is also shown in the status line at the bottom and in the export dialog
 
 ### Experimental tab — effects you can stack
 
-Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. Each one folds the letters along **straight creases**: it adds corners but never curves, and no combination can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. They always run in the same order: **Noise**, then **Ripple**, then **Wind**.
+Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. Each one folds the letters along **straight creases**: it adds corners but never curves. Up to 100 %, no combination can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. They always run in the same order: **Noise**, then **Ripple**, then **Wind**.
+
+**Beyond 100 % — folds.** Noise, Ripple, and Wind's Gustiness go past 100 %. There the letters fold over themselves like paper crushed flat: strokes land on other strokes, holes fill in or open up, and the letters stop being readable. Wherever parts overlap they are merged into one clean shape, still made only of straight lines, so the font still exports. While an effect is past 100 %, the top of the tab shows how many places were merged (**Crossings merged**) and how many specks too small to show were dropped (**Slivers dropped**).
 
 **Noise — crumpled paper**
 
 - **Use noise** — turns it on.
-- **Amount** — how strongly the letters are crumpled, up to 200 %. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds; above that the letters are crumpled a second time along the same folds, until whole strokes are bent and twisted.
+- **Amount** — how strongly the letters are crumpled, up to 500 %. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds; above that the folds flip over each other, and towards 500 % the letters break into a heap of overlapping shards.
 - **Facet size** — the size of the folds, as a share of the em (the font's design square). Small facets give many small folds; large facets give a few big ones that can bend whole strokes. The smallest size still keeps the folds far enough apart to read as corners.
 - The numbers show how far the outline moved at most (**Max move**) and how many corners the folds added (**Creases**).
 
 **Ripple — polygonal waves**
 
 - **Use ripple** — turns it on.
-- **Amount** — how far the waves push the outline in and out. Around 50 % the letters stay readable; 100 % squeezes strokes between the rings into thin slivers and tears the letters into sharp, broken shapes.
+- **Amount** — how far the waves push the outline in and out. Around 50 % the letters stay readable; 100 % squeezes strokes between the rings into thin slivers and tears the letters into sharp, broken shapes; above that, up to 400 %, the rings pass through each other and the letters fold into spiky, star-like shapes.
 - **Wavelength** — the distance from one wave to the next, as a share of the em (up to 200 %). Short waves give many fine zigzags; long waves bend whole strokes or swell the whole letter.
 - **Sides** — the shape of the rings: 3 gives triangles, 4 squares, 8 octagons, up to 12. The rings always sit on a flat side.
 - **Center X / Center Y** — where the waves start, as a share of each letter's width and height (50 % / 50 % is the middle of the letter). Values below 0 % or above 100 % put the center outside the letter, so the waves sweep across it from one side.
 - **Fade** — how much the waves die down away from the center. At 100 % they are gone by the far edge of the letter.
+- **Petals** — turns the rings into a flower with straight-edged petals, one per side, so **Sides** sets how many petals there are (3 gives a three-leaf shape). Small values give a faceted flower inside round letters like **o** and **e**; at 100 % and above, up to 300 %, the whole letter becomes a large flower, and the notches between the petals pinch strokes into hairlines. Petals alone never folds the letter; combine it with **Amount** above 100 % for folded, chaotic blossoms.
 
 **Wind — letters pulled out by the wind**
 
 - **Use wind** — turns it on.
 - **Direction** — where the wind blows to: 0° to the right, 90° up, 180° to the left, 270° down.
-- **Strength** — how much longer the letters get. The side facing the wind stays where it is; the further downwind a part of the letter lies, the further it is pulled. At 100 % a part is pulled as far again as it lies from the side facing the wind, at 300 % three times as far, so letters reach into their neighbours and beyond.
+- **Strength** — how much longer the letters get. The side facing the wind stays where it is; the further downwind a part of the letter lies, the further it is pulled. At 100 % a part is pulled as far again as it lies from the side facing the wind, at 800 % eight times as far (but never more than 4 em), so letters reach far into their neighbours.
 - **Gust size** — the width of the bands the gusts pull, as a share of the em. With a level wind (0° or 180°) every letter on a line shares the same bands, so the streaks run straight through the text.
-- **Gustiness** — how different the bands are. At 0 % every band is pulled equally and the letters are simply stretched; at 100 % some bands barely move while others are dragged far, leaving ragged, straight-edged streaks.
+- **Gustiness** — how different the bands are. At 0 % every band is pulled equally and the letters are simply stretched; at 100 % some bands barely move while others are dragged far, leaving ragged, straight-edged streaks; above 100 % (up to 200 %) some gusts blow backwards, tearing the letters apart.
 
 **Seed** — one number for all the effects on this tab: it picks Noise's folds and Wind's gusts (Ripple has no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
 
@@ -364,8 +367,14 @@ Experimental tab → **Use noise** on, **Amount** 70–100 %, **Facet size** 15�
 **Polygonal ripples**
 Experimental tab → **Use ripple** on, **Amount** 50 %, **Wavelength** 25–35 %, **Sides** 6 or 8. For hard, triangular shock waves try **Sides** 3 with a large Curve flattening **Tolerance**; for a wave sweeping in from a corner, set **Center X** and **Center Y** to 0 %.
 
+**Faceted flowers**
+Experimental tab → **Use ripple** on, **Amount** 0–30 %, **Petals** 40–60 %, **Sides** 5 (or 4 for a four-leaf look). For wild blossoms, raise **Petals** to 100–200 % and **Amount** to 200 % or more.
+
 **Blown away**
 Experimental tab → **Use wind** on, **Strength** 30 %, **Gust size** 10–15 %, **Gustiness** 60–100 %. Raise **Tracking** in the Typography tab if the letters run into each other, and press **Next variant** for different gusts.
+
+**Unreadable, shattered letters**
+Experimental tab → **Use noise** at 300–500 %, or **Use ripple** at 200–400 %, or **Use wind** with **Gustiness** 150–200 %. Combine them for total chaos, and press **Next variant** until the shapes surprise you. Exporting a whole large font with every effect at its maximum can exceed the file's point limit; export only the characters in the text instead.
 
 **Back to the original**
 Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Squaring, Anchors, Grid & angles, Distortion, and the Experimental effects (each has a reset button). Or simply choose **Original** in the canvas toolbar to look at the untouched font.
@@ -455,6 +464,7 @@ No. Local fonts stay on your computer. Google fonts are downloaded from Google; 
 | **Vertex** | A corner of the new straight-line shape. |
 | **Polygon** | A shape made only of straight lines. |
 | **Crease** | A straight line along which an Experimental effect folds the outline; the only place it adds a corner. |
+| **Fold** | What an Experimental effect does beyond 100 %: parts of a letter land on top of other parts. Overlaps are merged into one straight-edged shape. |
 | **Em / Units per em** | The invisible design square of a font and its size in font units (often 1000 or 2048). |
 | **Font unit (u)** | The measuring unit inside a font. All sizes in the controls use it. |
 | **Baseline** | The line letters sit on. |

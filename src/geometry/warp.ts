@@ -6,10 +6,12 @@
 // where it crosses a triangle edge (a crease), and the only vertices added are at creases: an effect
 // can add corners but never round anything off, so the letters stay free of curves also to the eye.
 //
-// An effect keeps every triangle the same way round (none flips or flattens), which makes its warp a
-// one-to-one map of the plane. A one-to-one map cannot make an outline cross itself or another
-// contour, so any warp, and any sequence of warps, keeps a valid glyph valid. Contours are still
-// checked like in every Geometry step, in case floating-point rounding breaks one.
+// Within its safe range, an effect keeps every triangle the same way round (none flips or flattens),
+// which makes its warp a one-to-one map of the plane. A one-to-one map cannot make an outline cross
+// itself or another contour, so any warp, and any sequence of warps, keeps a valid glyph valid.
+// Contours are still checked like in every Geometry step, in case floating-point rounding breaks one.
+// Beyond the safe range (`folds`), triangles flip and outlines cross freely; nothing is checked, and
+// the overlaps are merged afterwards (see overlaps.ts).
 
 import { ContourLayout } from './contourLayout'
 import { findRingCrossings, findSelfCrossings } from './crossings'
@@ -91,13 +93,15 @@ export type CreaseMarks = (readonly boolean[])[]
  * `unitsPerEm` sets the scale at which a run of short edges starts to read as a curve. `marks` says
  * which input vertices earlier effects added at creases: tidying may remove those as well, so a run
  * that only the creases of several effects together make curve-like is broken up too. Returns the
- * marks for the result.
+ * marks for the result. With `folds`, the warp may fold the plane: every contour takes its tidied
+ * image at full strength, unchecked.
  */
 export function applyWarp(
   polygon: PolygonGlyph,
   makeWarp: (scale: number) => Warp,
   unitsPerEm: number,
   marks?: CreaseMarks,
+  folds = false,
 ): { polygon: PolygonGlyph; stats: WarpStats; marks: CreaseMarks } {
   const stats = emptyWarpStats()
   stats.applied = true
@@ -124,6 +128,10 @@ export function applyWarp(
   for (const [index, contour] of polygon.contours.entries()) {
     const image = images[index]
     if (!image) continue
+    if (folds) {
+      result[index] = tidy(image, unitsPerEm)
+      continue
+    }
     const before = sources[index].points
     const valid = (after: Warped) =>
       after.points.length >= 3 && !crossesAnew(after, before) && layout.keeps(current, index, after.points)
@@ -301,29 +309,6 @@ interface Warped {
   /** How many points that exact image has. */
   exactCount: number
   maxShift: number
-}
-
-/**
- * `second` applied after `first`. One-to-one when both are, and still linear on every piece where both
- * are, so its creases are those of `first` plus those of `second` on each straight piece `first` makes.
- */
-export function chainWarps(first: Warp, second: Warp): Warp {
-  return {
-    map: (p) => second.map(first.map(p)),
-    creases(a, b) {
-      const at = (t: number) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
-      const cuts = [0, ...first.creases(a, b), 1]
-      const out: number[] = []
-      for (let k = 0; k + 1 < cuts.length; k++) {
-        const t0 = cuts[k]
-        const t1 = cuts[k + 1]
-        if (k > 0) out.push(t0)
-        // `first` is linear on this piece, so a position along its image is the same share along the piece.
-        for (const s of second.creases(first.map(at(t0)), first.map(at(t1)))) out.push(t0 + (t1 - t0) * s)
-      }
-      return out
-    },
-  }
 }
 
 /**

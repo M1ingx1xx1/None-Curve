@@ -139,6 +139,8 @@ export interface RippleParams {
   centerY: number
   /** 0–1: how much the waves die down toward the farthest point of the glyph (1: to nothing). */
   fade: number
+  /** 0–3: how far each ring is bent into a flower, one petal per side (1 = notches at 10% of their distance). Missing in older saved settings: 0. */
+  petals: number
 }
 
 /** Experimental Wind: letters drawn out along the wind, dragged further in gusts, along straight creases. */
