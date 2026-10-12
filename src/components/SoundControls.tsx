@@ -19,7 +19,7 @@ import {
   type TargetSpec,
 } from '../sound/mapping'
 import { MAPPING_LIMITS, mappingStore, useMappingState } from '../sound/mappingStore'
-import { PRESETS } from '../sound/presets'
+import { PRESETS, presetSettings } from '../sound/presets'
 import {
   DEFAULT_FEATURE_SETTINGS,
   SILENT_FRAME,
@@ -538,10 +538,10 @@ const featureOptions = FEATURE_GROUPS.map((group) => (
   </optgroup>
 ))
 
-/** Applies an activation's changes to the sliders, as Freeze does. */
-function applyActivation(activation: Activation, dispatch: Dispatch<Action>): void {
+/** Applies an activation's (or a preset's) changes to the sliders, as Freeze does. */
+function applyActivation({ patches }: Pick<Activation, 'patches'>, dispatch: Dispatch<Action>): void {
   // `group` and `patch` always match; TypeScript cannot pair a union key with its value here.
-  for (const { group, patch } of activation.patches) dispatch({ type: 'updateParams', group, patch } as Action)
+  for (const { group, patch } of patches) dispatch({ type: 'updateParams', group, patch } as Action)
 }
 
 /**
@@ -559,6 +559,8 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   const reducedId = useId()
   const presetSelectId = useId()
   const [presetId, setPresetId] = useState(PRESETS[0]?.id ?? '')
+  // What the last Load did, under the Preset row until the next Load or until another preset is chosen in the list.
+  const [presetNotice, setPresetNotice] = useState<string | null>(null)
   // What picking a target switched on, by mapping id, shown under its row until the row's target changes again.
   const [notices, setNotices] = useState<ReadonlyMap<string, string>>(new Map())
   const reducedNote = reducedMotion && !drive
@@ -593,14 +595,19 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   }
 
   /**
-   * Replaces the mappings with the chosen preset's and switches on what their targets need, row by
-   * row, each against the settings the rows before it left (so a switch is turned on, and named, once).
+   * Resets the Geometry and Experimental settings to their defaults (seeds kept), sets the chosen
+   * preset's start values and replaces the mappings with its own (presetSettings). The rows should then
+   * need nothing; should one, what it needs is switched on as when a target is picked by hand, row by
+   * row against the settings the rows before it left (so a switch is turned on, and named, once).
    */
   const loadPreset = () => {
     const preset = PRESETS.find((p) => p.id === presetId)
     if (!preset) return
+    const loaded = presetSettings(params, preset)
+    applyActivation(loaded, dispatch)
+    setPresetNotice(loaded.notice)
     mappingStore.replace(preset.mappings)
-    let current = params
+    let current = loaded.params
     const next = new Map<string, string>()
     for (const mapping of mappingStore.getState().mappings) {
       const activation = targetById(mapping.target)?.activate(current) ?? null
@@ -656,7 +663,10 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
               className="preset-select"
               value={presetId}
               aria-describedby={presetHint.id}
-              onChange={(e) => setPresetId(e.target.value)}
+              onChange={(e) => {
+                setPresetId(e.target.value)
+                setPresetNotice(null)
+              }}
             >
               {PRESETS.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -669,7 +679,9 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
             </button>
           </div>
           <HintText hint={presetHint}>
-            Ready-made mappings to start from. Load replaces the current mappings and switches on what they need.
+            Ready-made mappings to start from. Load resets the Geometry and Experimental settings to their defaults
+            (seeds kept), then sets the preset up: its own starting values and its mappings, which replace the current
+            ones.
             <span className="preset-list">
               {PRESETS.map((p) => (
                 <span key={p.id} className="preset-item">
@@ -678,6 +690,10 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
               ))}
             </span>
           </HintText>
+          {/* Always in the document, so screen readers announce it when it fills; visually hidden while empty so it adds no gap. */}
+          <p className={presetNotice ? 'panel-notice' : 'visually-hidden'} role="status">
+            {presetNotice}
+          </p>
         </div>
 
         {mappings.length > 0 && (

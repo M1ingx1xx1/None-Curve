@@ -7,7 +7,7 @@
 
 ## 1. Goals
 
-- Sound drives **existing parameters only**, in both the Geometry tab (Curve flattening, Random anchors, Squaring, Anchors, Grid & angles, Distortion) and the Experimental tab (Noise, Ripple, Curl, Wind, Seed). There are no new deformation operators.
+- Sound drives **existing parameters only**, in both the Geometry tab (Curve flattening, Random anchors, Squaring, Anchors, Grid & angles, Distortion) and the Experimental tab (Noise, Ripple, Curl, Wind, Spikes, Seed). There are no new deformation operators.
 - Two kinds of drive:
   - **Continuous:** a feature such as loudness moves a slider up and down.
   - **Jumps:** a seed moves on, so the anchors jump to new places: on each beat, or more often the higher a feature reads. A beat can also step a value to its next choice, such as the next angle (still to do).
@@ -19,7 +19,7 @@ This replaces the earlier "Sound-driven carved letterforms" direction (PRD secti
 
 ## 2. Highest rule: no curves
 
-Sound changes nothing but parameter values, and only within each slider's own range (a seed: whole numbers within its field's range). Every frame on screen is therefore a result the sliders and seed fields could produce by hand, computed by the same pipeline: it keeps straight edges only, it is validated like every other result, and it can be exported. Frames are shown one after another as they are computed. There is no tweening or morphing between frames, which would invent in-between outlines the pipeline never made.
+Sound changes nothing but parameter values, and only within each slider's own range (a seed: whole numbers within its field's range). Every frame on screen is therefore a result the sliders and seed fields could produce by hand, computed by the same pipeline: it keeps straight edges only, it is validated like every other result, and it can be exported. Frames are shown one after another as they are computed. There is no tweening or morphing between frames, which would invent in-between outlines the pipeline never made. Distortion's **few anchors** mode, which only the Flicker preset's Load sets (§7), is part of the settings like any other: sound never turns it on or off.
 
 ## 3. Sound sources
 
@@ -86,6 +86,7 @@ A mapping connects one feature to one target parameter. The Sound tab holds up t
 - **Picking a target switches on what it needs:**
   - When the user picks a target whose setting is off (its step, effect, or mode; §6), that setting is switched on, and a notice under the row says what changed, for example "Turned on Ripple.", "Set Noise amplitude to 40.", or "Turned off Random anchors. Set Mode to Adaptive." The same happens for the row **Add mapping** adds, which prefers a target that already acts: it adds Level at +50%, on Distortion · Noise amplitude if no row uses it yet, otherwise on the first unused target that acts.
   - Switching the row to another target, or removing it, never turns anything off.
+  - **Load** is the one exception (§7): it resets the Geometry and Experimental settings to their defaults before it sets a preset up, so it can turn things off, and it says so under the Preset row. Picking a target by hand still only switches on what that target needs; it resets nothing.
   - If the user turns the setting off again later, the row says why its target does nothing and offers an **Enable** button, which switches it on again and shows the notice.
   - With the keyboard, browsing the Target list switches nothing on along the way: the choice applies on Enter or when focus leaves the list. A pick with the mouse or a finger applies at once.
 - **Base values stay put:**
@@ -100,7 +101,7 @@ A mapping connects one feature to one target parameter. The Sound tab holds up t
 
 | Target | Suggested drive | What you see |
 |---|---|---|
-| Distortion **Seed** | Beat at Rate 100%, or Level | Every anchor jumps to a new place on the beat, or more often the louder it gets |
+| Distortion **Seed** | Beat at Rate 100%, or Level | Every anchor jumps to a new place on the beat, or more often the louder it gets (with few anchors, as Flicker sets, a new few anchors of each letter move instead) |
 | Distortion · **Noise amplitude** | Level, or Beat (a pulse) | Anchors shake harder when loud, or kick out on the beat and settle |
 | Distortion · **Noise frequency** | Brightness | Brighter sound gives a finer, jitterier edge |
 | Random anchors **Seed** | Beat at Rate 100% | The anchors are re-sampled at new positions on every beat |
@@ -112,9 +113,9 @@ A mapping connects one feature to one target parameter. The Sound tab holds up t
 | **Grid** size | Low, stepped | Snaps to a coarser grid on the bass |
 | Grid & angles · **Allowed directions** (the angle step) | Beat → Step (still to do) | Edges lock to 15°, 30°, 45°, 90° in turn |
 
-Also targets, with no suggested drive: Curve flattening · Segments per curve and Corner angle, and Distortion · Normal bias. The full list, in panel order, is `TARGETS` in `src/sound/mapping.ts` (README, Targets): 32 targets, of which the three seeds are jump targets and the rest sliders. Allowed directions becomes a target with Step mappings.
+Also targets, with no suggested drive: Curve flattening · Segments per curve and Corner angle, and Distortion · Normal bias. The full list, in panel order, is `TARGETS` in `src/sound/mapping.ts` (README, Targets): 36 targets, of which the three seeds are jump targets and the rest sliders. Allowed directions becomes a target with Step mappings.
 
-**Experimental tab**: Noise Amount / Facet size / Turn; Ripple Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals; Curl Amount / Rings / Sides; Wind Direction / Strength / Gust size / Gustiness; and the shared **Seed** (Beat at Rate 100%), listed last as its group sits at the bottom of the tab. The Target list shows it as just "Seed"; every other target reads "Section · Label", such as "Distortion · Seed".
+**Experimental tab**: Noise Amount / Facet size / Turn; Ripple Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals; Curl Amount / Rings / Sides; Wind Direction / Strength / Gust size / Gustiness; Spikes Anchors / Reach / Spread / Width; and the shared **Seed** (Beat at Rate 100%), listed last as its group sits at the bottom of the tab. The Target list shows it as just "Seed"; every other target reads "Section · Label", such as "Distortion · Seed".
 
 **What a target needs to act** (its inactive note, and what picking it switches on, §5):
 
@@ -128,28 +129,45 @@ Also targets, with no suggested drive: Curve flattening · Segments per curve an
 | Distortion · Noise frequency, Normal bias, Seed | Noise amplitude above 0 (at 0, Distortion is off) | Sets Noise amplitude to 40 |
 | Random anchors · Density, Randomness, Seed | Random anchors on | Turns on Random anchors |
 | Random anchors · Seed | Randomness above 0% (at 0% the anchors are evenly spaced, so the seed has nothing to choose) | Sets Randomness to 100% |
-| Noise, Ripple, Curl, Wind sliders | That effect on | Turns on that effect |
-| Experimental Seed | Noise or Wind on (Ripple and Curl have no randomness) | Turns on Noise |
+| Noise, Ripple, Curl, Wind, Spikes sliders | That effect on | Turns on that effect |
+| Experimental Seed | Noise, Wind or Spikes on (Ripple and Curl have no randomness) | Turns on Noise |
 
 Squaring, Anchors, and Distortion · Noise amplitude always act. Corner angle acts whenever Merge joined curves is on and Random anchors are off, whatever the Mode: the panel shows it with the merge controls, which both modes share.
 
-Switches (Use noise, Pin top and bottom, and so on) and the Curve flattening Mode are not targets: sound never turns a step on or off. Only picking a target does, once, as an ordinary edit of the panel.
+Switches (Use noise, Pin top and bottom, and so on), the Curve flattening Mode, and Distortion's few anchors mode are not targets: sound never turns a step on or off. Only picking a target (or Add mapping, or Enable) switches one on, once, and Load resets the settings and sets a preset's own (§7), each as an ordinary edit of the panel.
 
 ## 7. Presets
 
-Presets are starting points that fill in the mappings (`PRESETS` in `src/sound/presets.ts`). Choosing one in the **Preset** list only selects it; **Load** replaces the current mappings with the preset's and switches on what their targets need, row by row, each against the settings the rows before it left, so a setting is changed, and named, once. Each row shows its notice, as when a target is picked by hand (§5). Depth is in brackets; on a seed it is Rate.
+Presets are ready-made starting points (`PRESETS` in `src/sound/presets.ts`): each sets a few slider values to start from as well as its mappings. Most keep to the Geometry tab and its default sliders, so the letters stay readable while it is quiet, and none turns on more than one Experimental effect.
 
-| Preset | Mappings | What you see |
-|---|---|---|
-| **Anchor jump** | Beat → Distortion · Seed (Rate 100%); Level → Distortion · Noise amplitude (30%) | Anchors jump to new places on every beat and shake harder when it is loud |
-| **Resample** | Beat → Random anchors · Seed (Rate 100%); Bass → Random anchors · Density (30%) | Random anchors are drawn again on every beat; the bass adds more of them |
-| **Bass bloom** | Kick → Ripple · Amount (40%); Bass → Ripple · Petals (50%) | Ripples kick out on the bass drum; petals open with the bass |
-| **Shiver** | High → Noise · Amount (30%); Brightness → Noise · Turn (50%); Beat → Seed (Rate 50%) | Hiss and cymbals crumple the letters; brightness turns the folds; every other beat reshuffles them |
-| **Whirl** | Swell → Curl · Amount (20%); Kick → Curl · Amount (15%) | The letters swirl as the music swells and twist further on each kick |
-| **Gale** | Level → Wind · Strength (30%); Pace → Wind · Gustiness (50%); Beat → Seed (Rate 50%) | Loudness drags the letters out; busy passages make the gusts uneven; every other beat brings new gusts |
-| **Grid pulse** | Bass → Grid & angles · Grid size (30%); Level → Squaring · Amount (50%) | The bass snaps the letters to a coarser grid; loudness squares off the bowls |
-| **Low poly** | Level → Curve flattening · Tolerance (30%); Noisiness → Anchors · Anchor reduction (20%) | Loud passages get coarser and more angular; noisy sound drops anchors |
-| **Drift** | Balance → Ripple · Center X (40%); Pitch → Ripple · Sides (50%) | Ripples follow the sound from left to right (a stereo file, §4); higher notes give more sides |
+Choosing a preset in the **Preset** list only selects it. **Load** (`presetSettings`, pure):
+
+1. Resets every Geometry and Experimental setting to its default (Curve flattening, Random anchors, Squaring, Anchors, Grid & angles, Distortion, and every Experimental effect), keeping the three seeds (Distortion, Random anchors, and the Experimental seed). Typography, Color, the canvas, and the Sound tab's source, Drive letters, Sensitivity, and Smoothing are left alone.
+2. Sets the preset's start values.
+3. Replaces the mappings with the preset's, and clears the earlier row notices.
+4. Shows a notice under the Preset row: "Loaded X.", then "Turned off …." for the Experimental effects that were on and are now off (Noise, Ripple, Curl, Wind, Spikes), then "Turned off Random anchors." when that happened, then "Other Geometry and Experimental settings back to defaults (seeds kept)." when any other setting the preset does not set went back to its default. For example: "Loaded Bloom. Turned off Noise and Wind. Other Geometry and Experimental settings back to defaults (seeds kept)." The notice stays until the next Load or until another preset is chosen in the list, and screen readers announce it.
+
+So every preset starts from the same letters, whatever was set before, and its rows need nothing switched on. Should a row still need something, it is switched on as when its target is picked by hand (§5), row by row, with the row's notice. Picking a target by hand still only switches on what it needs; it resets nothing.
+
+Depth is in brackets, as a share of the slider's travel (negative turns the slider down); on a seed it is Rate. Start values list only what differs from the defaults.
+
+| Preset | Mappings | Start values | Experimental effect | What you see |
+|---|---|---|---|---|
+| **Flicker** | Level → Distortion · Noise amplitude (90%); Kick → Distortion · Noise amplitude (30%); Beat → Distortion · Seed (Rate 100%) | Few anchors on; Noise amplitude 2; Normal bias 90% | None | On every beat a few other anchors of each letter jump while the rest hold the letter; louder sound and kicks throw them further |
+| **Scatter** | Level → Random anchors · Randomness (90%); Level → Random anchors · Density (−9%); Beat → Random anchors · Seed (Rate 50%) | Random anchors on; Density 10; Randomness 5% | None | Anchors are placed afresh on every other beat: close and even while it is quiet, fewer and further from even as it gets louder |
+| **Pixel** | Bass → Grid & angles · Grid size (70%); High → Anchors · Anchor reduction (40%) | Snap to grid on | None | The letters snap to a grid that the bass makes coarser; hiss and cymbals drop anchors |
+| **Low poly** | Level → Curve flattening · Tolerance (70%); Noisiness → Anchors · Anchor reduction (50%) | Merge joined curves on | None | Loud passages flatten the curves into fewer, longer sides; noisy sound drops anchors |
+| **Block** | Swell → Squaring · Amount (90%); Kick → Squaring · Amount (40%) | None (the defaults) | None | The round strokes square off as the music swells, and a little more on each kick |
+| **Jitter** | High → Distortion · Noise amplitude (60%); Brightness → Distortion · Noise frequency (30%) | Noise amplitude 2; Noise frequency 20 | None | Hiss and cymbals make the outlines tremble; brighter sound makes the tremor finer |
+| **Facet** | Level → Curve flattening · Segments per curve (−15%); Kick → Curve flattening · Segments per curve (−15%); Pitch → Curve flattening · Segments per curve (20%) | Mode Fixed segments; Merge joined curves on; Segments per curve 6 | None | Curves break into a few straight sides as it gets louder and on each kick; higher notes smooth them again |
+| **Bloom** | Kick → Ripple · Amount (15%); Bass → Ripple · Petals (30%) | Ripple on, Amount 30% | Ripple | Ripples run through the letters and swell on each kick; the bass bends them into petals |
+| **Flare** | Beat → Seed (Rate 100%); Level → Spikes · Reach (40%); Kick → Spikes · Anchors (20%) | Spikes on, Anchors 1, Reach 0% em | Spikes | No spikes while it is quiet; as it gets louder, spikes shoot out of one or two anchors per letter and jump somewhere new on every beat; kicks add more |
+| **Gale** | Level → Wind · Strength (10%); Pace → Wind · Gustiness (25%) | Wind on, Strength 0% | Wind | Loudness drags the letters out along the wind; busy passages make the gusts uneven |
+
+- **Flicker** turns on Distortion's **few anchors** mode. It has no control of its own and is not a Sound target: only this preset sets it, and Reset distortion, or loading another preset, turns it off. Only 1–5 anchors of each letter move, never its corners or extremes, each by at least 60% of the amplitude, and a new seed picks a new set (README, Vertex distortion; PRD, P1). The tiny amplitude, 2, keeps Distortion on, so the Seed row acts while it is quiet.
+- **Jitter**'s amplitude of 2 likewise keeps its Noise frequency row acting while it is quiet.
+- **Low poly** merges joined curves, so a large Tolerance reaches whole bowls (unmerged, each font curve keeps at least one edge). **Facet** merges them too, so its segments count per merged curve, a quarter of a bowl, not per font curve.
+- **Flare** starts at Reach 0, so there are no spikes while it is quiet. Spikes is on from the start, so its Seed row needs nothing switched on, and Noise stays off.
 
 ## 8. Architecture and performance
 
@@ -161,7 +179,7 @@ Presets are starting points that fill in the mappings (`PRESETS` in `src/sound/p
   - `mapping.ts`: the features (`FEATURES`, in six groups), the targets (sliders and seeds, each with what it needs to act and the changes that switch it on, `activate`), and slider values + features + mappings + jumps → live parameters (`modulate`, a pure function).
   - `jumps.ts`: `JumpTracker`, which counts the jumps of each driven seed from the measured frames and keeps them to the flash limit, and `JUMP_LIMITS` (pure, testable without audio).
   - `mappingStore.ts`: a small store, with a hook, for the mappings and the Drive letters switch; it follows `prefers-reduced-motion` while the page is open.
-  - `presets.ts`: the presets (`PRESETS`, §7), each with its name, the one line its ⓘ shows, and its mappings.
+  - `presets.ts`: the presets (`PRESETS`, §7), each with its name, the one line its ⓘ shows, its start values, and its mappings; and `presetSettings` (pure), which gives what Load leaves: the settings (every Geometry and Experimental group reset, seeds kept, then the start values), the groups that changed, and the notice.
   - `live.ts`: frame timing (`LiveScheduler`, testable through injected dependencies, which owns the `JumpTracker`), the flash limit (`FlashLimiter`), the hooks for live parameters, live marker positions, live seeds (`useLiveSeed`) and the live status, and Freeze. The marker itself is `src/components/LiveMarker.tsx`, and the live seed beside a seed field is `src/components/LiveSeed.tsx`.
 - **Pipeline unchanged; live requests carry a `live` flag.** Live parameters go to the geometry worker as compute requests marked `live`, and the worker already drops a superseded request between glyphs. The flag only keeps live results in the separate live cache (below); the geometry is computed the same way. On the page, a live frame's results are held until its request is done, so each frame appears whole (§2).
 - **What follows the live parameters:** the letters, the snap grid drawn on the canvas, and the status bar's description. What keeps the slider values: the sliders, exports, and Fit text and Free in the Typography tab, which measure the slider letters, as exports do.
@@ -215,7 +233,7 @@ All labels are in English and short, with explanations behind ⓘ.
   - The bars move every frame, the numbers at most 10 times a second, and the values screen readers get at most 4 times a second.
 - **Sensitivity** (input gain) and **Smoothing** (release).
 - **Mappings:**
-  - **Preset** and **Load**, above the rows, with an ⓘ that lists each preset with one line. Choosing in the list only selects, so browsing it with the keyboard replaces nothing; Load applies the preset (§7).
+  - **Preset** and **Load**, above the rows, with an ⓘ that says what Load resets and lists each preset with one line. Choosing in the list only selects, so browsing it with the keyboard replaces nothing; Load applies the preset (§7). Under the row, a status line says what the last Load did ("Loaded X. Turned off …. Other Geometry and Experimental settings back to defaults (seeds kept)."), until the next Load or until another preset is chosen in the list.
   - Each row has Feature (grouped like the meters), Target (grouped: Geometry / Experimental; options read "Section · Label", or just "Seed" for the Experimental seed), Depth, and on/off. On a seed, Depth reads **Rate**, 0–100% in steps of 5%, with an ⓘ. The row's controls are named with its number ("Remove mapping 2"), and a note under a row whose target does nothing now is the Target's description.
   - Under a row: the notice of what picking its target switched on, kept until the row's target changes; or, while its target does nothing, why, with **Enable** ("Enable, mapping 2" to screen readers).
   - **Add mapping** and a remove button on each row. Removing a row hands keyboard focus to the next row's remove button (else the previous one's, else Add mapping).
@@ -233,7 +251,7 @@ All labels are in English and short, with explanations behind ⓘ.
   - The level rises with amplitude.
   - Phase 3 (checked): silence gives 0 for every new feature; tones at 40 Hz, 100 Hz, 300 Hz, 3 kHz, 5 kHz, and 10 kHz each fill their own narrow band and leave the far ones at 0; tones and chords read 0 Noisiness and white noise 1, also low-passed at 19, 16, or 11 kHz as lossy encoders do; Pitch puts 110–880 Hz sines and sawtooths within 0.1% of their place on the scale (at 44.1, 48, and 96 kHz), and noise after a note holds it; clicks at 2 a second give Pace 0.25 and Beat pulses of 1 that fall back with the release time; Change peaks on clicks and stays low between them, and over 25 s of a steady 110 Hz sawtooth, a chord, or white or pink noise every one-second mean after the first second stays under 0.15 (on the test track: about 0.03 on the chord section, 0.55–0.68 on the beat sections); left only and right only read Balance −1 and 1, mono reads Balance 0 and Width 0, and unrelated left and right noise reads Width about 1; Swell rises and falls with its own 300 ms and 2 s.
 - **Modulation:** Depth 0 or switched off gives the slider value; values are clamped; several contributions add; targets in a switched-off group do nothing; Kick falls back over the release time; Step cycles; the rate limit holds; a 4/s kick on full Depth swings a slider at most 6 times in any second, with every value on the slider's grid.
-  - Phase 3 (checked): the 20 features in their groups; for each of the 32 targets over 3000 random parameter sets, it needs nothing switched on exactly when it acts, its changes make it act, and they touch nothing else; seeds wrap past the largest seed to 0 and never move a slider; Beat at Rate 100%, 50%, and 25% jumps on every, every other, and every fourth beat; Level 1 at Rate 100% gives about 4.8 jumps a second; beats at 16 a second never give more than 6 jump frames in any 1.25 s; a 2 s stall gives at most one jump; pausing returns to the field's seed, and Freeze writes the live seed shown.
+  - Phase 3 (checked): the 20 features in their groups; for each of the 36 targets over 3000 random parameter sets, it needs nothing switched on exactly when it acts, its changes make it act, and they touch nothing else; seeds wrap past the largest seed to 0 and never move a slider; Beat at Rate 100%, 50%, and 25% jumps on every, every other, and every fourth beat; Level 1 at Rate 100% gives about 4.8 jumps a second; beats at 16 a second never give more than 6 jump frames in any 1.25 s; a 2 s stall gives at most one jump; pausing returns to the field's seed, and Freeze writes the live seed shown.
 - **No curves and validity:** every live frame is an ordinary parameter set, already covered by the existing audits. In addition, log the parameter sets a test track visits and run them through the validity and curve-like audits on Arial, New York, and Georgia. Phase 3 (checked): over the whole test track, with mappings on seeds and sliders, every one of 878 live commits is a set the panel can produce (slider values on their steps, whole seeds within range), and each seed change moves on by exactly one.
 - **Engine:** with the Web Audio nodes mocked, the stereo branch is wired as in §4, nothing measuring reaches the speakers, and a torn read is read again or held. In Chromium, with the reads probed back to back, torn reads did occur, and none reached the features after the check.
 - **Controls:** every target has exactly one live marker (a slider) or live seed (a seed) in the panel, in `TARGETS` order.
@@ -248,7 +266,7 @@ All labels are in English and short, with explanations behind ⓘ.
 |---|---|
 | 1 | Sound tab; audio engine (File, Microphone); features Level, Low, Mid, High, Brightness, Beat, Kick; meters |
 | 2 | Modulation layer, mappings for continuous targets, adaptive live scheduler with its own cache, live slider markers, flash limit for continuous mappings, Freeze |
-| 3 | Built: seeds as jump targets with Rate, their flash limit, and the live seed beside the field; Beat and Kick pulses on sliders (the Kick kind); 13 more features, 20 in all, with the stereo measuring branch; compact meters in six groups; targets that switch on what they need, with a notice and Enable; the 42 s stereo test track; nine presets with Preset and Load. Still to do: Step mappings (Allowed directions, Sides, Rings); live SVG redraw measurement |
+| 3 | Built: seeds as jump targets with Rate, their flash limit, and the live seed beside the field; Beat and Kick pulses on sliders (the Kick kind); 13 more features, 20 in all, with the stereo measuring branch; compact meters in six groups; targets that switch on what they need, with a notice and Enable; the 42 s stereo test track; ten presets with Preset and Load, where Load resets the Geometry and Experimental settings (seeds kept), sets the preset's start values, and says what it turned off; Distortion's few anchors mode for Flicker. Still to do: Step mappings (Allowed directions, Sides, Rings); live SVG redraw measurement |
 | 4 | Pitch and Balance: built in phase 3, with the other new features |
 | Later | Video recording |
 

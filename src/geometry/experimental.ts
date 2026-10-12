@@ -1,12 +1,14 @@
-// The Experimental effects, run after the whole Geometry pipeline in a fixed order: Noise, Ripple, Curl, Wind. Each is a
-// piecewise-linear warp (see warp.ts) that adds vertices only at creases. Within their safe ranges the warps are one-to-one,
-// so any combination of them keeps the glyph valid. Beyond them (folds) the letter overlaps itself, and the overlaps are
-// merged into clean outlines at the end (see overlaps.ts).
+// The Experimental effects, run after the whole Geometry pipeline in a fixed order: Noise, Ripple, Curl, Wind, Spikes.
+// The first four are piecewise-linear warps (see warp.ts) that add vertices only at creases. Within their safe ranges the
+// warps are one-to-one, so any combination of them keeps the glyph valid. Beyond them (folds) the letter overlaps itself,
+// and the overlaps are merged into clean outlines at the end (see overlaps.ts). Spikes moves a few anchors far out
+// (spikes.ts); a spike may cross the letter, so its outlines are merged the same way.
 
 import { curlFolds, curlIsOn, curlWarp } from './curl'
 import { noiseFolds, noiseIsOn, noiseWarp } from './noise'
 import { emptyOverlapStats, mergeOverlaps, type OverlapStats } from './overlaps'
 import { inkBox, rippleFolds, rippleIsOn, rippleWarp } from './ripple'
+import { applySpikes, emptySpikeStats, spikesIsOn, type SpikeStats } from './spikes'
 import { windFolds, windIsOn, windWarp } from './wind'
 import type { ExperimentalParams, PolygonGlyph } from './types'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type WarpStats } from './warp'
@@ -18,8 +20,14 @@ export interface ExperimentalStats {
   ripple: WarpStats
   curl: WarpStats
   wind: WarpStats
-  /** The merge of overlaps when an effect goes beyond its safe range. */
+  spikes: SpikeStats
+  /** The merge of overlaps when an effect goes beyond its safe range, or Spikes is on. */
   folds: OverlapStats
+}
+
+/** True when the outlines are merged at the end: Spikes is on, so a spike may cross the letter. */
+export function experimentalMerges(params: ExperimentalParams): boolean {
+  return experimentalFolds(params) || spikesIsOn(params.spikes)
 }
 
 /** True when any effect goes beyond its safe range, so the letters fold onto themselves. */
@@ -30,7 +38,7 @@ export function experimentalFolds(params: ExperimentalParams): boolean {
 export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalParams): { polygon: PolygonGlyph; stats: ExperimentalStats } {
   const seed = Math.trunc(Number.isFinite(params.seed) ? params.seed : 1) | 0
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
-  const stats: ExperimentalStats = { noise: emptyWarpStats(), ripple: emptyWarpStats(), curl: emptyWarpStats(), wind: emptyWarpStats(), folds: emptyOverlapStats() }
+  const stats: ExperimentalStats = { noise: emptyWarpStats(), ripple: emptyWarpStats(), curl: emptyWarpStats(), wind: emptyWarpStats(), spikes: emptySpikeStats(), folds: emptyOverlapStats() }
   // Once one effect folds, the outlines cross, so no effect checks them; they are merged at the end.
   const folds = experimentalFolds(params)
   let result = polygon
@@ -57,6 +65,8 @@ export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalPar
     const blown = applyWarp(result, (scale) => windWarp(params.wind, seed, windBox, unitsPerEm, scale), unitsPerEm, marks, folds)
     ;({ polygon: result, stats: stats.wind, marks } = blown)
   }
-  if (folds) ({ polygon: result, stats: stats.folds } = mergeOverlaps(result))
+  const spikes = spikesIsOn(params.spikes)
+  if (spikes) ({ polygon: result, stats: stats.spikes } = applySpikes(result, params.spikes, seed, unitsPerEm))
+  if (folds || stats.spikes.applied) ({ polygon: result, stats: stats.folds } = mergeOverlaps(result))
   return { polygon: result, stats }
 }

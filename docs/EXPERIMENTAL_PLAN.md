@@ -2,14 +2,14 @@
 
 **English** · [中文](EXPERIMENTAL_PLAN.zh.md)
 
-**Status:** Phases 1–7 (Noise, Ripple, Wind, more extreme ranges, folds, petals, curl) built and verified  
+**Status:** Phases 1–8 (Noise, Ripple, Wind, more extreme ranges, folds, petals, curl, spikes) built and verified  
 **Scope:** A new **Experimental** tab beside **Geometry** in the tools panel, holding creative effects that can all be applied to the same letters at once.
 
 ## 1. Goals
 
-- One tab, **Experimental**, for all creative effects: Noise, Ripple, Curl, and Wind. There is no separate tab per effect.
+- One tab, **Experimental**, for all creative effects: Noise, Ripple, Curl, Wind, and Spikes. There is no separate tab per effect.
 - The effects **stack**: any combination can be on at the same time, and the result is always a valid letter that exports.
-- Each effect is built and shipped on its own, in this order: **Noise → Ripple → Wind**, then **Curl** (Phase 7), which runs between Ripple and Wind.
+- Each effect is built and shipped on its own, in this order: **Noise → Ripple → Wind**, then **Curl** (Phase 7), which runs between Ripple and Wind, and **Spikes** (Phase 8), which runs last.
 - Random anchors (in the Geometry tab) is no longer experimental: its "Experimental" tag is removed.
 
 ## 2. Highest rule: no curves
@@ -18,7 +18,7 @@ None-Curve means no curves. That rule comes before every other choice in this pl
 
 1. **Straight lines only in the data.** Every contour stays a closed polygon. SVG keeps using only `M` / `L` / `Z`, and the font export keeps checking that no glyph contains a curve command. Nothing changes here.
 2. **No smooth sampling.** No effect may sample a smooth function (a sine wave, smooth noise) densely along the outline. Dense sampling would give straight lines on paper and a curve to the eye.
-3. **Every effect is a piecewise-linear warp of the plane.** The plane is cut into triangles, and each triangle is moved by its own linear map. A straight edge stays exactly straight inside a triangle and bends only where it crosses a triangle edge (a **crease**). New vertices are added only at creases. So an effect can only add corners; it can never round anything off.
+3. **Every effect is a piecewise-linear warp of the plane.** The plane is cut into triangles, and each triangle is moved by its own linear map. A straight edge stays exactly straight inside a triangle and bends only where it crosses a triangle edge (a **crease**). New vertices are added only at creases. So an effect can only add corners; it can never round anything off. (Spikes, section 4.8, is not a warp: it moves a few anchors along straight lines, so its edges stay straight too.)
 4. **Visible facets.** Every mesh has a minimum cell size, so the pieces between creases stay large enough to read as facets.
 5. **Faint creases left out.** A crease that turns the outline by less than 3° reads as a wobble, not a corner, so it is left out (as long as the outline stays within 1% of the em of where it was; less where contours are close).
 6. **Measured and enforced.** A **curve-like run** is five or more vertices in a row that all turn the same way by 0.5°–20°, between edges shorter than 4% of the em: that is how a polyline starts to look like a curve. Creases are removed until none is needed to make such a run. Runs that the input's own vertices already form are the input's shape (for example a finely flattened bowl) and are left alone; the input's vertices are never removed. Creases of earlier effects count as creases too, so a run that only several effects together form is broken up as well.
@@ -28,9 +28,9 @@ What this means for the effects: Ripple waves are zigzags (a triangle wave) on c
 
 ## 3. Stacking
 
-- **Fixed order, last in the pipeline.** Experimental effects run after the whole Geometry pipeline (after Distortion), always as Noise → Ripple → Curl → Wind. Each takes the previous effect's result. The pipeline is still rebuilt from the original curves for every change, so turning an effect off simply removes it.
+- **Fixed order, last in the pipeline.** Experimental effects run after the whole Geometry pipeline (after Distortion), always as Noise → Ripple → Curl → Wind → Spikes. Each takes the previous effect's result. The pipeline is still rebuilt from the original curves for every change, so turning an effect off simply removes it.
 - **Valid by construction.** Up to 100%, each warp keeps every triangle the same way round (it never flips or flattens one), which makes it a one-to-one map of the plane. A one-to-one map cannot make an outline cross itself, push a counter out of its letter, or merge separate parts. Applying several such maps one after another is again one-to-one, so **any combination of effects within 100% is valid** and keeps every letter arranged as it was.
-- **Folds beyond 100%.** Past their safe range, effects may fold the letter onto itself; the overlaps are then merged into one clean outline (section 4.5), so the result is still valid and exports, only no longer arranged like the original letter.
+- **Folds beyond 100%.** Past their safe range, effects may fold the letter onto itself; the overlaps are then merged into one clean outline (section 4.5), so the result is still valid and exports, only no longer arranged like the original letter. Spikes may cross the letter at any setting, so whenever it is on the result is merged the same way (section 4.8).
 - **Checked anyway.** After each effect, every contour is still checked for self-crossings and against the glyph's other contours, as every Geometry step does. All contours start as their exact images, which are valid together; each is then replaced by its tidied image (faint creases and curve-like runs removed) only if that is valid against the others. A crossing counts only where the input's edges neither crossed nor touched, because heavy Geometry settings can leave outlines lying on top of themselves; nor between two edges still exactly as the warp mapped them whose input edges are less than 0.05 units apart, which only rounding can cross (a strong Wind can squeeze a sharp spike that thin). If rounding ever breaks an exact image, that contour is retried at 1/2 down to 1/16 strength, and if nothing works the glyph is left as it was; the panel says so.
 - **One seed.** The Experimental tab has one seed with **Next variant**. Each effect derives its own random numbers from it, so one control rerolls the whole look, and the same seed and settings always give the same letters.
 - **Same letter, same shape.** Effects work in each glyph's own coordinates, so every copy of a letter looks the same. Font export needs this, because a font has one shape per character.
@@ -142,11 +142,23 @@ Swirls each letter around the centre of its ink box.
   - On the Latin glyphs of Arial, New York, and Georgia (12 settings each: ±30–100%, pinned and whole, 2–12 rings, 3–12 sides, on top of Geometry settings, and stacked with Noise, Ripple, and Wind): no new crossing, no weakened contour, and every glyph exports. One curve-like run that needs a crease remains (New York č with very fine flattening, where the outline comes within 0.7 units of itself).
   - Beyond 100% (±200% to ±400%, both modes, 2–12 rings, 3–12 sides, and all four effects folding at once): no crossing and no export failure. Curve-like runs not formed by the input's own vertices appear only with the coarsest mesh at 300% (2 rings, 3 sides; 6–11 per font, every one five vertices long, where a crossing extends four of the input's own vertices) and at most 2 per font otherwise. Whole fonts written as OTF and read back pass at 100% with 12 rings and 12 sides, and at 400% whole.
 
+### 4.8 Spikes (Phase 8)
+
+A few anchors of each letter jump out into the canvas, pulling long, straight spikes.
+
+- **Which anchors:** only anchors on the outside of the letter, on contours that do not lie inside another contour, so counters never spike. **Anchors** of them jump per letter. They are picked by a hash of the shared seed and each anchor's position, so the same seed and outline always give the same spikes, every copy of a letter spikes the same way, and **Next variant** moves them. Driven by Sound (Beat → Seed), they jump somewhere new on every beat.
+- **Movement:** each picked anchor jumps straight away from the ink (along the mean of its two edges' outward normals) by a seeded 35–100% of **Reach**. **Spread** turns each jump by a seeded angle: at 0% every anchor jumps straight out from the outline, at 100% anywhere up to 90° to either side.
+- **Width:** how wide each spike is where it leaves the letter. Below 100%, two new anchors go on the jumping anchor's edges, Width × its shorter edge away from it (at least 2%: a thin needle), and the rest of each edge stays put; when two neighbouring anchors both jump, each keeps half the edge between them. At 100% the jumping anchor pulls its whole edges along: a wide wedge.
+- **Not a warp, so merged.** Unlike the other effects, Spikes moves single anchors rather than the plane, and it runs last, on what Wind leaves. A spike may cross the letter or another spike at any setting, so whenever Spikes is on, the outlines are merged into one clean outline at the end, exactly as when an effect folds (section 4.5), and the letters still export.
+- **Still no curves.** Every spike is two straight edges from its base to its tip; nothing is sampled or smoothed. Each spike adds at most two anchors (its base), and the merge adds vertices only where outlines cross.
+- **Controls:** Use spikes, Anchors (1–12, default 3), Reach (0–200% of the em, default 60%), Spread (0–100%, default 50%), Width (0–100%, default 30%), the last three in 5% steps, and the shared seed. Statistics: Spikes (how many jumped) and Longest (font units); while Spikes is on, the intro also shows Crossings merged and Slivers dropped. The pipeline summary lists "spikes ×N, reach N% em, spread N%, width N%, seed S". Settings saved before Spikes existed have it off.
+- **Checked:** on all Latin glyphs of Arial, Georgia, and New York, across 141 combinations of 4 Geometry settings (default, Tolerance 1, Anchor spacing 5, a heavy combination), 6 Spikes settings (1–12 anchors, Reach 30–200%, Spread 0–100%, Width 0–100%), with and without Noise and Wind, and 3 seeds: no crossing in any result and no export failure. The farthest point lies about 3 em from the origin. The geometry takes 0.2–0.9 ms per glyph at the default Geometry settings, and up to about 6 ms with dense anchors plus Noise and Wind.
+
 ## 5. Interface
 
 - The Geometry panel gets two tabs: **Geometry** and **Experimental**. The chosen tab is remembered in the browser. **Show all explanations** stays above the tabs and applies to both.
-- The Experimental tab, from top to bottom: a short line on the order (Noise → Ripple → Curl → Wind, after Geometry); one group per effect, each with its own on/off control; the shared seed; and **Reset experimental**.
-- Each group shows its statistics (largest move, vertices added) and warnings, like the Geometry groups. When an effect goes beyond 100%, the intro also shows how many crossings were merged and how many slivers were dropped.
+- The Experimental tab, from top to bottom: a short line on the order (Noise → Ripple → Curl → Wind → Spikes, after Geometry); one group per effect, each with its own on/off control; the shared seed; and **Reset experimental**.
+- Each group shows its statistics (largest move, vertices added) and warnings, like the Geometry groups. When an effect goes beyond 100%, or Spikes is on, the intro also shows how many crossings were merged and how many slivers were dropped.
 - The pipeline summary in the status bar and export notes lists the active effects.
 - English-only labels, short, with explanations folded behind ⓘ buttons.
 
@@ -171,6 +183,7 @@ Swirls each letter around the centre of its ink box.
 | 5 | Folds beyond 100%, with overlaps merged (section 4.5) | Done |
 | 6 | Petals: flower-shaped Ripple (section 4.6) | Done |
 | 7 | Curl: swirl, pinned or whole (section 4.7) | Done |
+| 8 | Spikes: anchors that jump out into the canvas (section 4.8) | Done |
 | Later | Text-wide Ripple, Wind streaks and fragments, Slice, Frankenstein | Separate plan |
 
 Each phase ends with the verification in section 6 and is shipped on its own.

@@ -18,7 +18,7 @@ interface DistortionControlsProps {
   dispatch: Dispatch<Action>
 }
 
-export const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1 }
+export const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1, sparse: false }
 
 function DistortionControls({
   params,
@@ -37,9 +37,9 @@ function DistortionControls({
   const seedHint = useHint()
   // The statistics come from the letters as shown, so while Sound moves the seed on they belong to its live seed.
   const shownSeed = useLiveSeed('distortion.seed') ?? params.seed
-  // Reset keeps the seed, so a variant the user liked is not lost.
+  // Reset keeps the seed, so a variant the user liked is not lost. Few anchors missing in older settings counts as off.
   const isDefault = (Object.keys(DEFAULT_DISTORTION) as (keyof DistortionParams)[]).every(
-    (k) => k === 'seed' || params[k] === DEFAULT_DISTORTION[k],
+    (k) => k === 'seed' || (params[k] ?? DEFAULT_DISTORTION[k]) === DEFAULT_DISTORTION[k],
   )
 
   return (
@@ -183,6 +183,12 @@ function DistortionControls({
                 <span className="unit">u</span>
               </dd>
             </div>
+            {params.sparse && (
+              <div>
+                <dt>Anchors moved</dt>
+                <dd>{stats.movedAnchors}</dd>
+              </div>
+            )}
           </dl>
         )}
         {stats && stats.clampedVertices > 0 && (
@@ -202,6 +208,13 @@ function DistortionControls({
           <p className="font-warning">
             {stats.fallbackContours} {stats.fallbackContours === 1 ? 'contour is' : 'contours are'} left undistorted: even a
             sixteenth of the amplitude made {stats.fallbackContours === 1 ? 'it' : 'them'} invalid.
+          </p>
+        )}
+
+        {/* Few anchors has no control of its own: only the Sound tab's Flicker preset turns it on. */}
+        {params.sparse && (
+          <p className="field-hint">
+            Only a few anchors move (set by the Flicker preset in the Sound tab). Reset distortion moves every anchor again.
           </p>
         )}
 

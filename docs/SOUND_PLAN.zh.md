@@ -7,7 +7,7 @@
 
 ## 1. 目标
 
-- 声音**只驱动已有的参数**，包括 Geometry 标签页（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion）和 Experimental 标签页（Noise、Ripple、Curl、Wind、Seed）。不新增任何变形操作。
+- 声音**只驱动已有的参数**，包括 Geometry 标签页（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion）和 Experimental 标签页（Noise、Ripple、Curl、Wind、Spikes、Seed）。不新增任何变形操作。
 - 两种驱动方式：
   - **连续：** 响度这样的特征让滑块上下移动。
   - **跳变：** 种子前进，于是锚点跳到新位置：每个节拍跳一次，或者某个特征的读数越高跳得越频繁。节拍也可以让一个值换到下一个可选值，例如下一档角度（尚待完成）。
@@ -19,7 +19,7 @@
 
 ## 2. 最高规则：没有曲线
 
-声音只改变参数值，而且只在每个滑块自己的范围内改变（种子：在其输入框范围内的整数）。所以屏幕上的每一帧都是手动操作滑块和种子输入框也能得到的结果，由同一条流程计算：只保留直边，像其他结果一样经过检查，并且可以导出。各帧算好一帧就显示一帧。帧与帧之间不做补间或变形过渡，因为那会凭空造出流程从未生成过的中间轮廓。
+声音只改变参数值，而且只在每个滑块自己的范围内改变（种子：在其输入框范围内的整数）。所以屏幕上的每一帧都是手动操作滑块和种子输入框也能得到的结果，由同一条流程计算：只保留直边，像其他结果一样经过检查，并且可以导出。各帧算好一帧就显示一帧。帧与帧之间不做补间或变形过渡，因为那会凭空造出流程从未生成过的中间轮廓。Distortion 的**少数锚点**模式（few anchors）只有 Flicker 预设的 Load 会设置（第 7 节），它和其他设置一样只是设置的一部分：声音从不打开或关闭它。
 
 ## 3. 声音来源
 
@@ -86,6 +86,7 @@
 - **选择目标时会打开它所需的设置：**
   - 用户选择一个所需设置未打开的目标（它的步骤、效果或模式；第 6 节）时，这个设置会被打开，行下方的提示说明改了什么，例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."。**Add mapping** 添加的行也一样，而且它优先选已经起作用的目标：它添加 +50% 的 Level，如果还没有行使用 Distortion · Noise amplitude 就映射到它，否则映射到第一个未被使用且已经起作用的目标。
   - 把这一行换到另一个目标，或删除这一行，都不会关闭任何设置。
+  - **Load** 是唯一的例外（第 7 节）：它在设置预设之前先把 Geometry 和 Experimental 的设置恢复为默认值，所以可能会关闭一些设置，并在 Preset 一行下方说明。手动选择目标仍然只会打开该目标所需的设置，不会恢复任何默认值。
   - 如果用户之后又把这个设置关掉，该行会说明目标为什么不起作用，并提供 **Enable** 按钮，点它会重新打开设置并显示提示。
   - 用键盘浏览 Target 列表时，途经的选项不会打开任何设置：按 Enter 或焦点离开列表时才生效。用鼠标或手指选择则立即生效。
 - **基准值保持不变：**
@@ -100,7 +101,7 @@
 
 | 目标 | 建议的驱动 | 看到的效果 |
 |---|---|---|
-| Distortion **Seed** | Beat，Rate 100%；或 Level | 每个节拍所有锚点都跳到新位置，或者声音越响跳得越频繁 |
+| Distortion **Seed** | Beat，Rate 100%；或 Level | 每个节拍所有锚点都跳到新位置，或者声音越响跳得越频繁（在 Flicker 设置的少数锚点模式下，改为每个字母换一组新的少数几个锚点移动） |
 | Distortion · **Noise amplitude** | Level，或 Beat（脉冲） | 声音响时锚点抖得更厉害，或在节拍处弹出再回稳 |
 | Distortion · **Noise frequency** | Brightness | 声音越亮，边缘越细碎、越抖 |
 | Random anchors **Seed** | Beat，Rate 100% | 每个节拍都在新位置重新采样锚点 |
@@ -112,9 +113,9 @@
 | **Grid** size | Low，按档 | 低音时吸附到更粗的网格 |
 | Grid & angles · **Allowed directions**（角度步长） | Beat → Step（尚待完成） | 边依次锁定到 15°、30°、45°、90° |
 
-以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 32 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
+以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 36 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
 
-**Experimental 标签页**：Noise 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Curl 的 Amount / Rings / Sides；Wind 的 Direction / Strength / Gust size / Gustiness；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。
+**Experimental 标签页**：Noise 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Curl 的 Amount / Rings / Sides；Wind 的 Direction / Strength / Gust size / Gustiness；Spikes 的 Anchors / Reach / Spread / Width；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。
 
 **目标起作用需要什么**（即它的未生效说明，以及选择它时会打开什么，见第 5 节）：
 
@@ -128,28 +129,45 @@
 | Distortion 的 Noise frequency、Normal bias、Seed | Noise amplitude 大于 0（为 0 时 Distortion 不起作用） | 把 Noise amplitude 设为 40 |
 | Random anchors 的 Density、Randomness、Seed | Random anchors 打开 | 打开 Random anchors |
 | Random anchors 的 Seed | Randomness 大于 0%（为 0% 时锚点均匀分布，种子没有可选的） | 把 Randomness 设为 100% |
-| Noise、Ripple、Curl、Wind 的滑块 | 对应效果打开 | 打开对应效果 |
-| Experimental 的 Seed | Noise 或 Wind 打开（Ripple 和 Curl 没有随机性） | 打开 Noise |
+| Noise、Ripple、Curl、Wind、Spikes 的滑块 | 对应效果打开 | 打开对应效果 |
+| Experimental 的 Seed | Noise、Wind 或 Spikes 打开（Ripple 和 Curl 没有随机性） | 打开 Noise |
 
 Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 Merge joined curves 打开、Random anchors 关闭，Corner angle 就起作用，与 Mode 无关：面板把它和合并相关的控件放在一起显示，而这些控件是两种模式共用的。
 
-开关（Use noise、Pin top and bottom 等）和 Curve flattening 的 Mode 不是目标：声音从不打开或关闭任何步骤。只有选择目标时会这样做，而且只做一次，就像在面板上普通地修改设置一样。
+开关（Use noise、Pin top and bottom 等）、Curve flattening 的 Mode，以及 Distortion 的少数锚点模式都不是目标：声音从不打开或关闭任何步骤。只有选择目标（或 Add mapping、Enable）会打开设置，而且只打开一次；Load 则恢复默认设置并设好预设自己的值（第 7 节）。这些都和在面板上普通地修改设置一样。
 
 ## 7. 预设
 
-预设是填好映射的起点（`src/sound/presets.ts` 中的 `PRESETS`）。在 **Preset** 列表里选中一个只是选中它；**Load** 用预设的映射替换当前的映射，并逐行打开它们的目标所需的设置，每一行都以前面各行改过之后的设置为准，所以同一个设置只改一次、只提示一次。每一行都显示自己的提示，和手动选择目标时一样（第 5 节）。括号里是 Depth；在种子上是 Rate。
+预设是现成的起点（`src/sound/presets.ts` 中的 `PRESETS`）：每个预设除了映射，还会设好几个起始的滑块值。大多数预设只用 Geometry 标签页及其默认滑块，所以安静时字母仍然清楚可读；每个预设最多打开一个 Experimental 效果。
 
-| 预设 | 映射 | 看到的效果 |
-|---|---|---|
-| **Anchor jump** | Beat → Distortion · Seed（Rate 100%）；Level → Distortion · Noise amplitude（30%） | 每个节拍锚点都跳到新位置，声音响时抖得更厉害 |
-| **Resample** | Beat → Random anchors · Seed（Rate 100%）；Bass → Random anchors · Density（30%） | 每个节拍都重新抽取随机锚点；低音让锚点变多 |
-| **Bass bloom** | Kick → Ripple · Amount（40%）；Bass → Ripple · Petals（50%） | 底鼓响时波纹弹出；花瓣随低音张开 |
-| **Shiver** | High → Noise · Amount（30%）；Brightness → Noise · Turn（50%）；Beat → Seed（Rate 50%） | 嘶声和镲片把字母揉皱；亮度让褶皱转动；每隔一个节拍重新打乱一次 |
-| **Whirl** | Swell → Curl · Amount（20%）；Kick → Curl · Amount（15%） | 音乐渐强时字母打旋，每次底鼓再多拧一下 |
-| **Gale** | Level → Wind · Strength（30%）；Pace → Wind · Gustiness（50%）；Beat → Seed（Rate 50%） | 响度把字母拉长；繁忙的段落让阵风不均匀；每隔一个节拍换一组新的阵风 |
-| **Grid pulse** | Bass → Grid & angles · Grid size（30%）；Level → Squaring · Amount（50%） | 低音让字母吸附到更粗的网格；响度让碗形变方 |
-| **Low poly** | Level → Curve flattening · Tolerance（30%）；Noisiness → Anchors · Anchor reduction（20%） | 响亮的段落更粗糙、棱角更多；嘈杂的声音让锚点减少 |
-| **Drift** | Balance → Ripple · Center X（40%）；Pitch → Ripple · Sides（50%） | 波纹随声音从左移到右（需要立体声文件，第 4 节）；音越高，边越多 |
+在 **Preset** 列表里选中一个只是选中它。**Load**（`presetSettings`，纯函数）：
+
+1. 把 Geometry 和 Experimental 的每个设置都恢复为默认值（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion，以及每个 Experimental 效果），但保留三个种子（Distortion、Random anchors 和 Experimental 的种子）。Typography、Color、画布，以及 Sound 标签页的来源、Drive letters、Sensitivity 和 Smoothing 都不动。
+2. 设好预设的起始值。
+3. 用预设的映射替换当前的映射，并清除之前各行的提示。
+4. 在 Preset 一行下方显示提示：先是 “Loaded X.”（已载入 X），然后用 “Turned off ….” 列出原来打开、现在被关闭的 Experimental 效果（Noise、Ripple、Curl、Wind、Spikes），Random anchors 被关闭时接着是 “Turned off Random anchors.”，如果预设没有设置的其他设置有被恢复为默认值的，最后是 “Other Geometry and Experimental settings back to defaults (seeds kept).”（其他 Geometry 和 Experimental 设置已恢复默认，种子保留）。例如：“Loaded Bloom. Turned off Noise and Wind. Other Geometry and Experimental settings back to defaults (seeds kept).”。这条提示一直保留到下一次 Load，或在列表里选了另一个预设为止，屏幕阅读器会读出它。
+
+所以无论之前设了什么，每个预设都从同样的字母开始，它的各行也不需要再打开任何设置。万一某一行仍然需要，就像手动选择目标时一样（第 5 节）逐行打开，并在该行显示提示。手动选择目标仍然只会打开它所需的设置，不会恢复任何默认值。
+
+括号里是 Depth，即滑块行程的比例（负值让滑块往下走）；在种子上是 Rate。起始值只列出与默认值不同的部分。
+
+| 预设 | 映射 | 起始值 | Experimental 效果 | 看到的效果 |
+|---|---|---|---|---|
+| **Flicker** | Level → Distortion · Noise amplitude（90%）；Kick → Distortion · Noise amplitude（30%）；Beat → Distortion · Seed（Rate 100%） | 少数锚点模式打开；Noise amplitude 2；Normal bias 90% | 无 | 每个节拍，每个字母换另外几个锚点跳动，其余锚点撑住字形；声音越响、底鼓越重，它们跳得越远 |
+| **Scatter** | Level → Random anchors · Randomness（90%）；Level → Random anchors · Density（−9%）；Beat → Random anchors · Seed（Rate 50%） | Random anchors 打开；Density 10；Randomness 5% | 无 | 每隔一个节拍重新放置锚点：安静时密而均匀，越响越稀疏、越不均匀 |
+| **Pixel** | Bass → Grid & angles · Grid size（70%）；High → Anchors · Anchor reduction（40%） | Snap to grid 打开 | 无 | 字母吸附到网格上，低音让网格变粗；嘶声和镲片让锚点减少 |
+| **Low poly** | Level → Curve flattening · Tolerance（70%）；Noisiness → Anchors · Anchor reduction（50%） | Merge joined curves 打开 | 无 | 响亮的段落把曲线压成更少、更长的边；嘈杂的声音让锚点减少 |
+| **Block** | Swell → Squaring · Amount（90%）；Kick → Squaring · Amount（40%） | 无（全部默认） | 无 | 音乐渐强时圆形笔画变方，每次底鼓再方一点 |
+| **Jitter** | High → Distortion · Noise amplitude（60%）；Brightness → Distortion · Noise frequency（30%） | Noise amplitude 2；Noise frequency 20 | 无 | 嘶声和镲片让轮廓颤动；声音越亮，颤动越细碎 |
+| **Facet** | Level → Curve flattening · Segments per curve（−15%）；Kick → Curve flattening · Segments per curve（−15%）；Pitch → Curve flattening · Segments per curve（20%） | Mode 为 Fixed segments；Merge joined curves 打开；Segments per curve 6 | 无 | 越响、每次底鼓时，曲线碎成少数几条直边；音越高，又变得平滑 |
+| **Bloom** | Kick → Ripple · Amount（15%）；Bass → Ripple · Petals（30%） | Ripple 打开，Amount 30% | Ripple | 波纹穿过字母，每次底鼓时涌起；低音把波纹弯成花瓣 |
+| **Flare** | Beat → Seed（Rate 100%）；Level → Spikes · Reach（40%）；Kick → Spikes · Anchors（20%） | Spikes 打开，Anchors 1，Reach 0% em | Spikes | 安静时没有尖刺；越响，每个字母就有一两个锚点射出尖刺，并在每个节拍跳到新的地方；底鼓让尖刺更多 |
+| **Gale** | Level → Wind · Strength（10%）；Pace → Wind · Gustiness（25%） | Wind 打开，Strength 0% | Wind | 响度把字母顺着风拉长；繁忙的段落让阵风不均匀 |
+
+- **Flicker** 打开 Distortion 的**少数锚点**模式。它没有自己的控件，也不是 Sound 的目标：只有这个预设会设置它，Reset distortion 或载入另一个预设会把它关掉。每个字母只有 1–5 个锚点移动，拐角和最外侧的点从不移动，每个移动的锚点至少移动幅度的 60%，换一个种子就换一组锚点（见 README 的“顶点扰动”和 PRD 的 P1）。很小的幅度 2 让 Distortion 保持打开，所以安静时 Seed 那一行也起作用。
+- **Jitter** 的幅度 2 同理，让它的 Noise frequency 那一行在安静时也起作用。
+- **Low poly** 合并相连的曲线，所以较大的 Tolerance 能作用到整个碗形（不合并时，字体里的每段曲线至少保留一条边）。**Facet** 也合并曲线，所以它的段数按合并后的曲线（四分之一个碗形）计算，而不是按字体里的每段曲线计算。
+- **Flare** 从 Reach 0 开始，所以安静时没有尖刺。Spikes 一开始就打开，所以它的 Seed 那一行不需要再打开任何设置，Noise 也保持关闭。
 
 ## 8. 架构与性能
 
@@ -161,7 +179,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
   - `mapping.ts`：特征列表（`FEATURES`，分六组）、目标列表（滑块和种子，每个都带有它起作用所需的设置，以及打开这些设置的修改 `activate`），以及 滑块值 + 特征 + 映射 + 跳变 → 实时参数（`modulate`，纯函数）。
   - `jumps.ts`：`JumpTracker`，根据测量到的帧累计每个被驱动种子的跳变，并让它们遵守闪烁限制；以及 `JUMP_LIMITS`（纯逻辑，无需音频即可测试）。
   - `mappingStore.ts`：一个带 hook 的小型存储，保存映射和 Drive letters（驱动字母）开关；页面打开期间跟随 `prefers-reduced-motion` 的变化。
-  - `presets.ts`：预设列表（`PRESETS`，第 7 节），每个预设带有名称、它的 ⓘ 里显示的一行说明，以及它的映射。
+  - `presets.ts`：预设列表（`PRESETS`，第 7 节），每个预设带有名称、它的 ⓘ 里显示的一行说明、起始值和它的映射；以及 `presetSettings`（纯函数），给出 Load 之后的结果：设置（Geometry 和 Experimental 的每个分组都恢复默认、保留种子，再设上起始值）、改变了的分组，以及提示。
   - `live.ts`：帧调度（`LiveScheduler`，可通过注入依赖测试，持有 `JumpTracker`）、闪烁限制（`FlashLimiter`）、提供实时参数、实时标记位置、实时种子（`useLiveSeed`）和实时状态的 hook，以及 Freeze。标记组件本身是 `src/components/LiveMarker.tsx`，种子输入框旁的实时种子是 `src/components/LiveSeed.tsx`。
 - **流程不变；实时请求带 `live` 标记。** 实时参数作为带 `live` 标记的计算请求发给几何 Worker；Worker 本来就会在字形之间丢弃已被取代的请求。这个标记只让实时结果存入单独的实时缓存（见下文），几何的计算方式不变。页面会先留住一个实时帧的结果，直到它的请求完成，所以每一帧都完整地显示（第 2 节）。
 - **跟随实时参数的：** 字母、画布上画出的吸附网格和状态栏的描述。保持滑块值的：滑块、导出，以及 Typography 标签页里的 Fit text 和 Free（和导出一样，它们测量滑块值下的字母）。
@@ -215,7 +233,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
   - 条形每帧更新，数字每秒最多更新 10 次，提供给屏幕阅读器的值每秒最多 4 次。
 - **Sensitivity**（输入增益）和 **Smoothing**（释放时间）。
 - **映射：**
-  - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。
+  - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，说明 Load 会恢复哪些默认值，并给每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。这一行下方有一个状态行，说明上一次 Load 做了什么（“Loaded X. Turned off …. Other Geometry and Experimental settings back to defaults (seeds kept).”），一直保留到下一次 Load，或在列表里选了另一个预设为止。
   - 每行有 Feature（与电平表相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、Depth 和开关。在种子上，Depth 显示为 **Rate**，0–100%，步长 5%，并带一个 ⓘ。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
   - **Add mapping** 和每行一个删除按钮。删除一行后，键盘焦点移到下一行的删除按钮（没有时移到上一行的，都没有时移到 Add mapping）。
@@ -233,7 +251,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
   - 响度随振幅升高。
   - 第 3 阶段（已检查）：静音时每个新特征都为 0；40 Hz、100 Hz、300 Hz、3 kHz、5 kHz 和 10 kHz 的纯音各自填满自己的窄频带，相距远的频带为 0；纯音和和弦的 Noisiness 为 0，白噪声为 1，在 19、16 或 11 kHz 处低通（像有损编码器那样）后也一样；Pitch 把 110–880 Hz 的正弦波和锯齿波放在刻度上应在位置的 0.1% 以内（44.1、48 和 96 kHz 下），音符之后的噪声会让它保持住；每秒 2 次的咔嗒声给出 Pace 0.25，以及值为 1、按释放时间回落的 Beat 脉冲；Change 在咔嗒声处达到峰值，之间保持很低；持续 25 秒的 110 Hz 锯齿波、和弦、白噪声或粉红噪声，第一秒之后每一秒的均值都低于 0.15（测试音轨上：和弦一段约 0.03，有节拍的各段 0.55–0.68）；只有左声道和只有右声道时 Balance 分别为 −1 和 1，单声道时 Balance 为 0、Width 为 0，左右互不相关的噪声 Width 约为 1；Swell 按自己的 300 ms 和 2 s 上升和回落。
 - **调制：** Depth 为 0 或映射关闭时得到滑块值；值会被截断；多个作用相加；已关闭组里的目标不起作用；Kick 在释放时间内回落；Step 循环切换；频率限制有效；每秒 4 次的底鼓在满 Depth 下，任意一秒内最多让滑块折返 6 次，每个值都落在滑块的档位上。
-  - 第 3 阶段（已检查）：20 个特征及其分组；32 个目标中的每一个，在 3000 组随机参数上，都是恰好在起作用时不需要打开任何设置，它的修改能让它起作用，并且不改动其他任何东西；种子超过最大值后回到 0，而且从不移动滑块；Beat 在 Rate 100%、50% 和 25% 时分别在每个、每隔一个和每四个节拍跳变；Level 为 1、Rate 100% 时每秒约 4.8 次跳变；每秒 16 个节拍时，任意 1.25 秒内的跳变帧从不超过 6 个；2 秒的卡顿最多带来一次跳变；暂停后回到输入框的种子，Freeze 写入屏幕上显示的实时种子。
+  - 第 3 阶段（已检查）：20 个特征及其分组；36 个目标中的每一个，在 3000 组随机参数上，都是恰好在起作用时不需要打开任何设置，它的修改能让它起作用，并且不改动其他任何东西；种子超过最大值后回到 0，而且从不移动滑块；Beat 在 Rate 100%、50% 和 25% 时分别在每个、每隔一个和每四个节拍跳变；Level 为 1、Rate 100% 时每秒约 4.8 次跳变；每秒 16 个节拍时，任意 1.25 秒内的跳变帧从不超过 6 个；2 秒的卡顿最多带来一次跳变；暂停后回到输入框的种子，Freeze 写入屏幕上显示的实时种子。
 - **没有曲线与有效性：** 每个实时帧都是一组普通参数，已被现有审计覆盖。此外，记录一段测试音轨经过的参数组，在 Arial、New York 和 Georgia 上跑有效性审计和像曲线的段落审计。第 3 阶段（已检查）：在整段测试音轨上，同时映射到种子和滑块，878 次实时提交中的每一次都是面板能给出的一组值（滑块值落在档位上，种子是范围内的整数），种子每次变化都恰好前进一个。
 - **音频引擎：** 在模拟的 Web Audio 节点上，立体声支路按第 4 节连接，测量用的节点都不通往扬声器，读取错位时会重读或保持。在 Chromium 中连续不断地探测读取，确实出现了错位，经过检查后没有一次传到特征里。
 - **控件：** 面板里每个目标恰好有一个实时值标记（滑块）或实时种子（种子），并按 `TARGETS` 的顺序排列。
@@ -248,7 +266,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
 |---|---|
 | 1 | Sound 标签页；音频引擎（File、Microphone）；特征 Level、Low、Mid、High、Brightness、Beat、Kick；电平表 |
 | 2 | 调制层、连续目标的映射、带独立缓存的自适应实时调度、滑块上的实时值标记、连续映射的闪烁限制、Freeze |
-| 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 和 Kick 脉冲（即 Kick 类型）；新增 13 个特征，共 20 个，加上立体声测量支路；分六组的紧凑电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨；九个预设，带 Preset 和 Load。尚待完成：Step 映射（Allowed directions、Sides、Rings）；实时 SVG 重绘测量 |
+| 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 和 Kick 脉冲（即 Kick 类型）；新增 13 个特征，共 20 个，加上立体声测量支路；分六组的紧凑电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨；十个预设，带 Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值（保留种子）、设好预设的起始值，并说明关闭了什么；为 Flicker 而设的 Distortion 少数锚点模式。尚待完成：Step 映射（Allowed directions、Sides、Rings）；实时 SVG 重绘测量 |
 | 4 | Pitch 和 Balance：已在第 3 阶段和其他新特征一起完成 |
 | 以后 | 视频录制 |
 
