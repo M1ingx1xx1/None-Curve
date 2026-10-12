@@ -259,6 +259,8 @@ Moves the points of the outline in a controlled, repeatable way.
 - **Seed** — a number that picks one particular random pattern. The same seed always gives exactly the same result, so you can come back to a version you liked. **Next variant** tries the next pattern.
 - **Reset distortion** turns it off but keeps your seed.
 
+**A note you may see after loading Flicker.** The **Flicker** preset in the Sound tab switches Distortion to a special mode in which only a few points of each letter move — at most five — while its corners and outermost points stay where they are, so the letter keeps its shape. Each point that moves jumps clearly, and a new seed picks other points. There is no switch for this mode, so the panel says "Only a few anchors move (set by the Flicker preset in the Sound tab). Reset distortion moves every anchor again.", and an extra number, **Anchors moved**, counts the points that moved. To go back to ordinary distortion, press **Reset distortion** (it also sets Noise amplitude back to 0, so raise it again), or load another preset.
+
 Distortion can make text harder to read — use it with care.
 
 ### Random anchors — a different look every time, but repeatable
@@ -282,9 +284,9 @@ The seed is also shown in the status line at the bottom and in the export dialog
 
 ### Experimental tab — effects you can stack
 
-Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. Each one folds the letters along **straight creases**: it adds corners but never curves. Up to 100 %, no combination can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. They always run in the same order: **Noise**, then **Ripple**, then **Curl**, then **Wind**.
+Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. **Noise**, **Ripple**, **Curl**, and **Wind** each fold the letters along **straight creases**: they add corners but never curves. Up to 100 %, no combination of them can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. **Spikes** works differently: it pulls a few points of each letter far out into straight spikes, which may cross the letter (see below). They always run in the same order: **Noise**, then **Ripple**, then **Curl**, then **Wind**, then **Spikes**.
 
-**Beyond 100 % — folds.** Noise, Ripple, Curl, and Wind's Gustiness go past 100 % (Curl in both directions). There the letters fold over themselves like paper crushed flat: strokes land on other strokes, holes fill in or open up, and the letters stop being readable. Wherever parts overlap they are merged into one clean shape, still made only of straight lines, so the font still exports. While an effect is past 100 %, the top of the tab shows how many places were merged (**Crossings merged**) and how many specks too small to show were dropped (**Slivers dropped**).
+**Beyond 100 % — folds.** Noise, Ripple, Curl, and Wind's Gustiness go past 100 % (Curl in both directions). There the letters fold over themselves like paper crushed flat: strokes land on other strokes, holes fill in or open up, and the letters stop being readable. Wherever parts overlap they are merged into one clean shape, still made only of straight lines, so the font still exports. While an effect is past 100 %, or **Spikes** is on, the top of the tab shows how many places were merged (**Crossings merged**) and how many specks too small to show were dropped (**Slivers dropped**).
 
 **Noise — crumpled paper**
 
@@ -320,9 +322,23 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 - **Gust size** — the width of the bands the gusts pull, as a share of the em. With a level wind (0° or 180°) every letter on a line shares the same bands, so the streaks run straight through the text.
 - **Gustiness** — how different the bands are. At 0 % every band is pulled equally and the letters are simply stretched; at 100 % some bands barely move while others are dragged far, leaving ragged, straight-edged streaks; above 100 % (up to 200 %) some gusts blow backwards, tearing the letters apart.
 
-**Seed** — one number for all the effects on this tab: it picks Noise's folds and Wind's gusts (Ripple and Curl have no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
+**Spikes — points that shoot out**
 
-Every copy of a letter gets the same folds, so an exported font looks exactly like the canvas.
+A few points (anchors) on the outside of each letter jump straight out into the canvas, away from the letter, and the two edges that meet at each of them stretch into a long, straight spike. Only the outer outline of a letter spikes: the holes of letters like **o**, **e**, and **B** never do. Spikes runs last, on the letters as the other effects left them.
+
+- **Use spikes** — turns it on.
+- **Anchors** — how many points of each letter jump, from 1 to 12 (3 to start with).
+- **Reach** — how far they jump, as a share of the em, up to 200 % (60 % to start with). Each point goes its own distance, somewhere between about a third of Reach and all of it, so the spikes come out in different lengths. At 200 % the longest reach two ems out, far into the neighbouring letters. At 0 % nothing jumps.
+- **Spread** — which way they jump (50 % to start with). At 0 % every point jumps straight out, at right angles to the outline; the higher the Spread, the further each one may lean to either side, up to 90° at 100 %, so the spikes fan out in all directions.
+- **Width** — how wide each spike is where it leaves the letter (30 % to start with). At 0 % it is a thin needle; at 100 % the jumping point drags the whole of its two edges along, so the spike is a wide wedge that pulls part of the letter with it.
+- The numbers show how many points jumped (**Spikes**) and how far the longest one went, in font units (**Longest**).
+- **The seed decides where.** Which points jump, which way they lean, and how far each goes are picked by the tab's **Seed** (below): the same seed always gives the same spikes, and **Next variant** makes them jump somewhere else. When the Sound tab drives the Seed (for example **Beat** → **Seed**, or the **Flare** preset), they jump somewhere new on every beat.
+- **Spikes may cross.** A spike can cut across its own letter or another spike. There the shapes are merged into one clean outline, as with folds above, so the font still exports. Every spike is made of straight lines only.
+- **Try it:** tick **Use spikes**, set **Anchors** to 1 and **Reach** to 100 %, then press **Next variant** under Seed a few times: each time, one point of every letter shoots out somewhere else.
+
+**Seed** — one number for all the effects on this tab: it picks Noise's folds, Wind's gusts, and which points Spikes moves (Ripple and Curl have no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
+
+Every copy of a letter gets the same folds and spikes, so an exported font looks exactly like the canvas.
 
 ### Sound tab — letters that move with the sound
 
@@ -379,6 +395,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 **Mappings** — which sliders and seeds the sound moves, and how. Each mapping connects one reading to one slider or seed.
 
 - **Drive letters** — the main switch. The sound moves the letters only while this is ticked **and** a file plays or the microphone listens. Untick it to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts unticked and the tab says "Off because your system asks for reduced motion."; tick it if you want the letters to move anyway. If you turn on reduce motion while the page is open, it unticks itself.
+- **Preset** and **Load** — set the letters up and fill in ready-made rows in one go; see **Presets** below.
 - **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a target that no row uses yet — one that already has an effect, if there is one. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
 - Each row has:
   - **Feature** — the reading that drives it: any of the 20 readings above, listed in the same six groups.
@@ -389,18 +406,18 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 - **How far a slider moves:** it starts from where you left it. If a slider sits a quarter of the way along and Depth is +50 %, full sound takes it to three quarters; silence leaves it where it is. It never goes past either end of its track, and it moves in the same steps as the slider itself. Two rows on the same slider add up.
 - Some sliders change faster towards one end, like **Tolerance**. The sound still takes them evenly along the track, just as your hand would.
 - **Settings switched on for you.** Many targets only have an effect while another setting is on: Ripple's sliders need **Use ripple**, **Grid size** needs **Snap to grid**, and so on. When you pick such a target (or **Add mapping** adds one), the app switches that setting on and says what it changed in a note under the row, for example "Turned on Ripple." or "Set Noise amplitude to 40.":
-  - a Noise, Ripple, Curl, or Wind slider turns its effect on;
-  - the Experimental **Seed** turns on Noise when neither Noise nor Wind is on (Ripple and Curl have no randomness);
+  - a Noise, Ripple, Curl, Wind, or Spikes slider turns its effect on;
+  - the Experimental **Seed** acts while Noise, Wind, or Spikes is on (Ripple and Curl have no randomness); when all three are off, it turns on Noise;
   - **Grid size** turns on **Snap to grid**;
   - Distortion's **Noise frequency**, **Normal bias**, and **Seed** set **Noise amplitude** to 40 when it is 0 (at 0, Distortion is off);
   - Random anchors' **Density**, **Randomness**, and **Seed** turn on **Use random anchors**; the Seed also sets **Randomness** to 100 % when it is 0 %;
   - the Curve flattening sliders turn random anchors off (they replace flattening) and set what they need: **Tolerance** sets **Mode** to Adaptive, **Segments per curve** sets it to Fixed segments, and **Corner angle** turns on **Merge joined curves** — for example "Turned off Random anchors. Set Mode to Adaptive." (Corner angle shows little on its own; see Curve flattening.)
 - Changing a row to another target, or removing it, never switches anything off again. The note stays until you change the row's target or remove the row. If you go through the **Target** list with the arrow keys, only the target you settle on switches anything on, when you press Enter or move on to another control; a pick with the mouse or a finger counts at once.
 - If the setting is off again later — you switched it off yourself, or another row needed a different Mode (Tolerance needs Adaptive, Segments per curve needs Fixed segments) — a grey note under the row says why, for example "Turn on Ripple to hear this.", and an **Enable** button next to it switches the setting on again.
-- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Noise, Ripple, Curl, and Wind — and the three seeds. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
+- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Noise, Ripple, Curl, Wind, and Spikes — and the three seeds. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
 - Mappings are not saved: like your other settings, they last until you close the page.
 
-**Seeds** — points that jump to new places. A seed picks one random pattern (see Distortion, Random anchors, and the Experimental tab). When the sound drives a seed, each jump moves it on by one — 1234 becomes 1235 — and because every seed is a completely different pattern, every point of the outline lands somewhere new at once. After 999 999 it starts again at 0.
+**Seeds** — points that jump to new places. A seed picks one random pattern (see Distortion, Random anchors, and the Experimental tab). When the sound drives a seed, each jump moves it on by one — 1234 becomes 1235 — and because every seed is a completely different pattern, every point of the outline lands somewhere new at once (after loading **Flicker**, only a few points of each letter move, a different few each time). After 999 999 it starts again at 0.
 
 - **Rate** — how often the seed jumps:
   - with **Beat** or **Kick**, it counts hits: at 100 % the seed moves on at every hit, at 50 % at every other hit, at 25 % at every fourth;
@@ -413,6 +430,29 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   2. Click **Add mapping**.
   3. Set **Feature** to **Beat** and **Target** to **Distortion · Seed**. If **Noise amplitude** was 0, the note "Set Noise amplitude to 40." appears under the row: the outline is now rough, so there is something to move.
   4. The row's slider now reads **Rate**: set it to 100 %. The rough outline takes a new shape on every beat. For the bass drum only, choose **Kick**; for calmer jumps, lower the Rate.
+
+**Presets** — ready-made starting points, the quickest way to start:
+
+1. Choose **File** → **Choose file** and pick a song (or choose **Microphone**).
+2. Under **Mappings**, pick a preset in the **Preset** list. Picking only selects it: nothing changes yet.
+3. Press **Load**.
+4. Press **Play** (or **Start listening**).
+
+- **Load starts the letters afresh.** It first puts every setting in the **Geometry** and **Experimental** tabs back to how it was when you opened the app — your three seeds are kept — then sets the few sliders the preset starts from, and replaces your rows with the preset's. So a preset always looks the same, whatever you had set before. Your text, typography, colours, canvas, and the Sound settings themselves (source, Sensitivity, Smoothing) are not touched.
+- **A note under Preset says what Load did,** for example "Loaded Bloom. Turned off Noise. Other Geometry and Experimental settings back to defaults (seeds kept)." It names the effects it switched off, so you know what went. The note goes away when you load again or pick another preset.
+- Load does not ask first and cannot be undone, so if you like your current settings, note them down before you press it. Picking a target yourself, as described above, never puts anything back to its default: it only switches on what that target needs.
+- After loading, change, add, or remove rows, or move any slider, as usual. The **ⓘ** next to **Preset** lists the presets too.
+- The presets:
+  - **Flicker** — on every beat a few points of each letter jump while the rest hold the letter in shape; louder sound and the bass drum throw them further. This uses a special Distortion mode (see Distortion).
+  - **Scatter** — the points are placed afresh on every other beat: close and even when it is quiet, fewer and more uneven as it gets louder. Loading it turns on random anchors.
+  - **Pixel** — the letters snap to a grid that gets coarser with the bass; hiss and cymbals remove points.
+  - **Low poly** — loud passages flatten the curves into fewer, longer sides; noisy sound removes points.
+  - **Block** — round strokes square off as the music swells, and a little more on each bass drum.
+  - **Jitter** — hiss and cymbals make the outlines tremble; brighter sound makes the trembling finer.
+  - **Facet** — curves break into a few straight sides as it gets louder and on each bass drum; higher notes smooth them again.
+  - **Bloom** — ripples run through the letters and swell on each bass drum; the bass bends them into petals. Loading it turns on Ripple.
+  - **Flare** — no spikes while it is quiet; as it gets louder, spikes shoot out of one or two points of each letter and jump somewhere new on every beat; bass drums add more. Loading it turns on Spikes.
+  - **Gale** — loud sound drags the letters out like wind; busy passages make the gusts uneven. Loading it turns on Wind.
 
 **While the sound moves the letters:**
 

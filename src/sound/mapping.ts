@@ -15,6 +15,7 @@ import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
 import { NOISE_LIMITS } from '../geometry/noise'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
+import { SPIKE_LIMITS } from '../geometry/spikes'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
 import { WIND_LIMITS } from '../geometry/wind'
 import type { FeatureFrame } from './types'
@@ -188,9 +189,9 @@ interface Requirement {
   meet(params: GeometryParams): { patch: ParamPatch; notice: string }
 }
 
-type EffectKey = 'noise' | 'ripple' | 'curl' | 'wind'
+type EffectKey = 'noise' | 'ripple' | 'curl' | 'wind' | 'spikes'
 
-const EFFECT_NAMES: Record<EffectKey, string> = { noise: 'Noise', ripple: 'Ripple', curl: 'Curl', wind: 'Wind' }
+const EFFECT_NAMES: Record<EffectKey, string> = { noise: 'Noise', ripple: 'Ripple', curl: 'Curl', wind: 'Wind', spikes: 'Spikes' }
 
 /** Noise amplitude set by turning Distortion on for one of its targets: clearly visible, a fifth of the slider. */
 const ACTIVE_DISTORTION_AMOUNT = 40
@@ -230,16 +231,19 @@ const randomnessOn: Requirement = {
   meet: () => ({ patch: { group: 'random', patch: { randomness: 1 } }, notice: 'Set Randomness to 100%.' }),
 }
 const effectOn = (effect: EffectKey): Requirement => ({
-  unmet: (p) => (p.experimental[effect].enabled ? null : `Turn on ${EFFECT_NAMES[effect]} to hear this.`),
+  unmet: (p) => (p.experimental[effect]?.enabled ? null : `Turn on ${EFFECT_NAMES[effect]} to hear this.`),
   meet: (p) => ({
     // The whole effect object: updateParams merges the experimental group one level deep only.
     patch: { group: 'experimental', patch: { [effect]: { ...p.experimental[effect], enabled: true } } as Partial<ExperimentalParams> },
     notice: `Turned on ${EFFECT_NAMES[effect]}.`,
   }),
 })
-// The shared seed picks Noise's folds and Wind's gusts; Ripple and Curl have no randomness.
+// The shared seed picks Noise's folds, Wind's gusts and which anchors Spikes moves; Ripple and Curl have no randomness.
 const seededEffectOn: Requirement = {
-  unmet: (p) => (p.experimental.noise.enabled || p.experimental.wind.enabled ? null : 'Turn on Noise or Wind to hear this.'),
+  unmet: (p) =>
+    p.experimental.noise.enabled || p.experimental.wind.enabled || p.experimental.spikes?.enabled
+      ? null
+      : 'Turn on Noise, Wind or Spikes to hear this.',
   meet: effectOn('noise').meet,
 }
 
@@ -291,7 +295,8 @@ function groupField<G extends GroupKey>(group: G, key: NumericKeys<GeometryParam
 function effectField<E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    read: (p) => p.experimental[effect][key],
+    // Older saved settings may lack a whole effect (Spikes).
+    read: (p) => p.experimental[effect]?.[key],
     write: (p, value) => ({
       ...p,
       experimental: { ...p.experimental, [effect]: { ...p.experimental[effect], [key]: value } },
@@ -437,6 +442,10 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('wind', 'strength', 'Strength', 0, WIND_LIMITS.maxStrength, 0.1),
   experimental('wind', 'gust', 'Gust size', WIND_LIMITS.minGust, WIND_LIMITS.maxGust, 0.02),
   experimental('wind', 'gustiness', 'Gustiness', 0, WIND_LIMITS.maxGustiness, 0.1),
+  experimental('spikes', 'count', 'Anchors', SPIKE_LIMITS.minCount, SPIKE_LIMITS.maxCount, 1),
+  experimental('spikes', 'reach', 'Reach', 0, SPIKE_LIMITS.maxReach, 0.05),
+  experimental('spikes', 'spread', 'Spread', 0, 1, 0.05),
+  experimental('spikes', 'width', 'Width', 0, 1, 0.05),
   seed('experimental', 'Seed', experimentalField('seed'), EXPERIMENTAL_LIMITS.maxSeed, [seededEffectOn]),
 ]
 

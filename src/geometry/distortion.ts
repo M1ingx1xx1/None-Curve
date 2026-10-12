@@ -3,6 +3,12 @@
 // Each vertex moves by smooth 1D value noise sampled at its arc-length position along the contour.
 // Lattice values come from an integer hash of (seed, contour index, channel, lattice cell), so the
 // same glyph, parameters, contour order, and point order always give the same result.
+//
+// Few anchors (set by the Sound tab's Flicker preset, no control): only a few vertices per letter move,
+// picked by a hash of the seed and their position, and each jumps at least a set share of the amplitude.
+// Corners, extremes and small contours never move, so the letter keeps its shape; a new seed picks others.
+// The midpoints of long straight edges may be picked too (inserted as new vertices), so letters made only of
+// corners and extremes (l, H, T) flicker as well.
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findRingCrossings, findSelfCrossings, lazy } from './crossings'
@@ -34,10 +40,39 @@ export const DISTORTION_LIMITS = {
   retryScales: [0.5, 0.25, 0.125, 0.0625] as const,
 } as const
 
+/** Few anchors: which vertices may move, how many do, and how far. */
+export const SPARSE_LIMITS = {
+  /** A vertex where the outline turns by more than this many degrees is a corner and stays put. */
+  cornerAngle: 30,
+  /** Every vertex of a contour with fewer vertices than this stays put (dots, small counters). */
+  minContour: 8,
+  /** Movers per letter: this share of its vertices, rounded, from 1 up to maxMovers. */
+  share: 0.06,
+  maxMovers: 5,
+  /** At most this many movers on one contour. */
+  perContour: 2,
+  /** No two movers this many vertices apart or closer along their contour. */
+  gap: 4,
+  /** Each mover moves at least this share of the amplitude (less only where a repair lowers it). */
+  minShare: 0.6,
+  /**
+   * The midpoint of an edge at least this share of the em long may move too: it is inserted as a new vertex when
+   * picked, and the edge's ends stay put. For the spacing it counts as sitting halfway between them. Not where the
+   * inserted midpoint would touch another edge of its contour (an outline that runs back along the edge, as grid
+   * snapping can leave): it could often not move without crossing, and the contour would fall back.
+   */
+  midpointEdge: 0.1,
+} as const
+
+/** Channel numbers keep the few-anchors random numbers apart from the noise lattice's for the same seed. */
+const CHANNEL = { pick: 0xd15, direction: 0xd16 } as const
+
 export interface DistortionStats {
   applied: boolean
   /** Largest actual vertex displacement (font units). */
   maxShift: number
+  /** Vertices that actually moved. */
+  movedAnchors: number
   /** Vertices whose movement across the outline was shortened so no edge collapses or folds back. */
   clampedVertices: number
   /** Contours that needed a smaller amplitude, in places or overall, to stay valid (not crossing themselves or another contour). */
@@ -47,7 +82,7 @@ export interface DistortionStats {
 }
 
 export function applyDistortion(polygon: PolygonGlyph, params: DistortionParams): { polygon: PolygonGlyph; stats: DistortionStats } {
-  const stats: DistortionStats = { applied: false, maxShift: 0, clampedVertices: 0, reducedContours: 0, fallbackContours: 0 }
+  const stats: DistortionStats = { applied: false, maxShift: 0, movedAnchors: 0, clampedVertices: 0, reducedContours: 0, fallbackContours: 0 }
   const amount = clamp(finite(params.amount, 0), 0, DISTORTION_LIMITS.maxAmount)
   if (amount === 0) return { polygon, stats }
 
@@ -57,26 +92,35 @@ export function applyDistortion(polygon: PolygonGlyph, params: DistortionParams)
     frequency: clamp(finite(params.frequency, 8), DISTORTION_LIMITS.minFrequency, DISTORTION_LIMITS.maxFrequency),
     normalBias: clamp(finite(params.normalBias, 0.7), 0, 1),
     seed: Math.trunc(finite(params.seed, 1)) | 0,
+    sparse: params.sparse === true,
   }
+  // Few anchors: where each contour moves (see pickMovers); every other vertex keeps weight 0, so it stays exactly in place.
+  const movers = settings.sparse ? pickMovers(polygon, settings.seed) : null
 
   // Each distorted contour must also sit against the other contours as before (counters stay inside).
   const current = polygon.contours.map((c) => c.points)
   const layout = new ContourLayout(current.slice())
   const contours = polygon.contours.map((contour, index) => {
-    const before = contour.points
-    if (before.length < 3) return contour
-    const crossingsBefore = lazy(() => countSelfCrossings(before))
+    if (contour.points.length < 3 || (movers && movers[index].length === 0)) return contour
+    // A picked edge midpoint becomes a vertex: on the edge, so the outline only changes where it moves.
+    const picked = movers && withMidpoints(contour.points, movers[index])
+    const before = picked ? picked.points : contour.points
+    // Counted on the old points: an inserted midpoint may itself touch an edge that runs back along its edge.
+    const crossingsBefore = lazy(() => countSelfCrossings(contour.points))
     const damage = (after: readonly Point[]) => findDamage(before, after, crossingsBefore, index, current, layout)
     const accept = (result: Distorted, reduced: boolean) => {
       if (reduced) stats.reducedContours++
       stats.clampedVertices += result.clamped
       stats.maxShift = Math.max(stats.maxShift, result.maxShift)
+      for (let i = 0; i < before.length; i++) if (result.points[i].x !== before[i].x || result.points[i].y !== before[i].y) stats.movedAnchors++
       current[index] = result.points
       return { points: result.points, clockwise: signedArea(result.points) < 0 } satisfies PolygonContour
     }
 
-    // Full amplitude, lowered only around the places that cross.
-    const weights = new Float64Array(before.length).fill(1)
+    // Full amplitude (at the movers only, with few anchors), lowered only around the places that cross.
+    const weights = new Float64Array(before.length)
+    if (picked) for (const i of picked.movers) weights[i] = 1
+    else weights.fill(1)
     for (let round = 0; round <= DISTORTION_LIMITS.localRepairs; round++) {
       const result = distortContour(before, index, settings, weights)
       const found = damage(result.points)
@@ -101,6 +145,7 @@ interface Settings {
   frequency: number
   normalBias: number
   seed: number
+  sparse: boolean
 }
 
 interface Distorted {
@@ -145,8 +190,17 @@ function distortContour(points: readonly Point[], contourIndex: number, s: Setti
 
     const t = total > 0 ? (arc[i] / total) * cells : 0
     const amount = s.amount * (weights ? weights[i] : 1)
-    const across = amount * wNormal * periodicNoise(t, cells, s.seed, contourIndex, 0)
-    const along = amount * wTangent * periodicNoise(t, cells, s.seed, contourIndex, 1)
+    let across = amount * wNormal * periodicNoise(t, cells, s.seed, contourIndex, 0)
+    let along = amount * wTangent * periodicNoise(t, cells, s.seed, contourIndex, 1)
+    // Few anchors: a mover jumps at least minShare of its amplitude, so every jump shows. Each part is raised on
+    // its own, in the bias's proportions: raising the whole vector would turn noise that points mostly along the
+    // outline into a long slide, which the edge protection below cuts to half an edge.
+    if (s.sparse && amount > 0) {
+      const least = SPARSE_LIMITS.minShare * amount
+      const h = hashInts(s.seed, CHANNEL.direction, contourIndex, Math.round(points[i].x), Math.round(points[i].y))
+      across = atLeast(across, least * wNormal, h & 1)
+      along = atLeast(along, least * wTangent, h & 2)
+    }
     normal.push({ x: across * nx, y: across * ny })
     tangent.push({ x: along * tx, y: along * ty })
   }
@@ -196,11 +250,134 @@ function distortContour(points: readonly Point[], contourIndex: number, s: Setti
   for (let i = 0; i < n; i++) {
     const dx = normal[i].x * scaleN[i] + tangent[i].x * scaleT[i]
     const dy = normal[i].y * scaleN[i] + tangent[i].y * scaleT[i]
-    if (scaleN[i] < 1) clamped++
+    if (scaleN[i] < 1 && (!weights || weights[i] > 0)) clamped++
     maxShift = Math.max(maxShift, Math.hypot(dx, dy))
     out.push({ x: points[i].x + dx, y: points[i].y + dy })
   }
   return { points: out, clamped, maxShift }
+}
+
+/** `value` with its size raised to at least `size`, keeping its sign (a seeded one where it is 0). */
+function atLeast(value: number, size: number, positive: number): number {
+  if (Math.abs(value) >= size) return value
+  return value > 0 || (value === 0 && positive) ? size : -size
+}
+
+/**
+ * Few anchors: where each contour moves, as positions along it: a whole number is a vertex, and i + 0.5 the
+ * midpoint of the edge from vertex i to the next. Vertices that hold the letter's shape (corners, extremes, every
+ * vertex of a small contour) stay put; the rest, and the midpoints of edges at least midpointEdge of the em long
+ * (see there), are ranked by a hash of the seed, contour and position, and the first few per letter move, kept
+ * apart along their contour and at most perContour on one contour.
+ */
+function pickMovers(polygon: PolygonGlyph, seed: number): number[][] {
+  const { contours } = polygon
+  const total = contours.reduce((n, c) => n + c.points.length, 0)
+  const count = clamp(Math.round(SPARSE_LIMITS.share * total), 1, SPARSE_LIMITS.maxMovers)
+  const longEdge = SPARSE_LIMITS.midpointEdge * polygon.metrics.unitsPerEm
+  const candidates: { contour: number; at: number; rank: number }[] = []
+  const offer = (contour: number, at: number, p: Point) =>
+    candidates.push({ contour, at, rank: hashInts(seed, CHANNEL.pick, contour, Math.round(p.x), Math.round(p.y)) })
+  contours.forEach(({ points }, contour) => {
+    const n = points.length
+    if (n < 3) return
+    if (n >= SPARSE_LIMITS.minContour) {
+      const locked = lockedVertices(points)
+      points.forEach((p, index) => {
+        if (!locked[index]) offer(contour, index, p)
+      })
+    }
+    points.forEach((p, index) => {
+      const q = points[(index + 1) % n]
+      if (dist(p, q) >= longEdge) offer(contour, index + 0.5, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
+    })
+  })
+  candidates.sort((a, b) => a.rank - b.rank || a.contour - b.contour || a.at - b.at)
+
+  const movers = contours.map((): number[] => [])
+  const crossings = contours.map(({ points }) => lazy(() => countSelfCrossings(points)))
+  let picked = 0
+  for (const { contour, at } of candidates) {
+    if (picked === count) break
+    const chosen = movers[contour]
+    const { points } = contours[contour]
+    const n = points.length
+    if (chosen.length >= SPARSE_LIMITS.perContour) continue
+    if (chosen.some((j) => Math.min(Math.abs(j - at), n - Math.abs(j - at)) <= SPARSE_LIMITS.gap)) continue
+    if (!Number.isInteger(at) && countSelfCrossings(withMidpoints(points, [at]).points) > crossings[contour]()) continue
+    chosen.push(at)
+    picked++
+  }
+  return movers
+}
+
+/** A contour with its picked edge midpoints inserted as vertices, and the indices of its movers there. */
+function withMidpoints(points: readonly Point[], movers: readonly number[]): { points: readonly Point[]; movers: readonly number[] } {
+  if (movers.every(Number.isInteger)) return { points, movers }
+  const out: Point[] = []
+  const at: number[] = []
+  points.forEach((p, i) => {
+    if (movers.includes(i)) at.push(out.length)
+    out.push(p)
+    if (movers.includes(i + 0.5)) {
+      const q = points[(i + 1) % points.length]
+      at.push(out.length)
+      out.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
+    }
+  })
+  return { points: out, movers: at }
+}
+
+/**
+ * Vertices that hold a contour's shape: corners (turn above cornerAngle), extremes in x or y, and vertices on a
+ * zero-length edge (no direction to judge them by).
+ */
+function lockedVertices(points: readonly Point[]): Uint8Array {
+  const n = points.length
+  const locked = new Uint8Array(n)
+  // Slightly below cos(cornerAngle), so a turn of exactly cornerAngle (angle lock makes many) is not a corner
+  // whichever way rounding goes.
+  const straight = Math.cos((SPARSE_LIMITS.cornerAngle * Math.PI) / 180) - 1e-9
+  for (let i = 0; i < n; i++) {
+    const p = points[i]
+    const a = points[(i - 1 + n) % n]
+    const b = points[(i + 1) % n]
+    const ax = p.x - a.x
+    const ay = p.y - a.y
+    const bx = b.x - p.x
+    const by = b.y - p.y
+    const la = Math.hypot(ax, ay)
+    const lb = Math.hypot(bx, by)
+    if (la === 0 || lb === 0 || (ax * bx + ay * by) / (la * lb) < straight) locked[i] = 1
+  }
+  markExtremes(points.map((p) => p.x), locked)
+  markExtremes(points.map((p) => p.y), locked)
+  return locked
+}
+
+/**
+ * Marks where a coordinate peaks or dips along the closed contour. A flat run of equal values (a straight
+ * top, bottom or side) counts whole when the vertices on both sides of it lie on the same side of it; a flat
+ * step between a lower and a higher stretch does not.
+ */
+function markExtremes(values: readonly number[], locked: Uint8Array) {
+  const n = values.length
+  // Start right after a change, so no flat run wraps around the start.
+  let start = -1
+  for (let i = 0; i < n && start < 0; i++) if (values[i] !== values[(i - 1 + n) % n]) start = i
+  if (start < 0) {
+    locked.fill(1)
+    return
+  }
+  for (let k = 0; k < n; ) {
+    const first = (start + k) % n
+    const v = values[first]
+    let length = 1
+    while (values[(first + length) % n] === v) length++
+    const below = values[(first - 1 + n) % n] < v
+    if ((values[(first + length) % n] < v) === below) for (let m = 0; m < length; m++) locked[(first + m) % n] = 1
+    k += length
+  }
 }
 
 /**

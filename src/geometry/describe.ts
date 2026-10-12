@@ -1,4 +1,5 @@
 import { curlIsOn } from './curl'
+import { spikesIsOn } from './spikes'
 import { experimentalFolds } from './experimental'
 import { noiseIsOn } from './noise'
 import { rippleIsOn } from './ripple'
@@ -28,7 +29,7 @@ export function describePipeline(params: GeometryParams): string[] {
   if (grid.angleLock) steps.push(`angle lock ${grid.angleStep}°`)
   if (distortion.amount > 0) {
     steps.push(
-      `distortion ${distortion.amount} u, frequency ${distortion.frequency}, bias ${Math.round(distortion.normalBias * 100)}%, seed ${distortion.seed}`,
+      `distortion ${distortion.amount} u${distortion.sparse ? ', few anchors' : ''}, frequency ${distortion.frequency}, bias ${Math.round(distortion.normalBias * 100)}%, seed ${distortion.seed}`,
     )
   }
   if (noiseIsOn(experimental.noise)) {
@@ -49,6 +50,10 @@ export function describePipeline(params: GeometryParams): string[] {
     const w = experimental.wind
     const pct = (v: number) => `${Math.round(v * 100)}%`
     steps.push(`wind ${pct(w.strength)} toward ${Math.round(w.direction)}°, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}, seed ${experimental.seed}`)
+  }
+  if (spikesIsOn(experimental.spikes)) {
+    const s = experimental.spikes
+    steps.push(`spikes ×${s.count}, reach ${Math.round(s.reach * 100)}% em, spread ${Math.round(s.spread * 100)}%, width ${Math.round(s.width * 100)}%, seed ${experimental.seed}`)
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')
   return steps

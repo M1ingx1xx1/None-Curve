@@ -17,14 +17,14 @@
 | 曲线展平（自适应或固定线段数，可选合并相连曲线） | ✅ 已实现 |
 | 方形化（圆形 O → 方形 O）、锚点间距与简化、网格吸附、角度锁定、确定性扰动 | ✅ 已实现 |
 | 在原始曲线上随机取锚点，可用种子复现 | ✅ 已实现 |
-| Experimental 标签页：Noise（沿笔直折痕揉皱的纸）、Ripple（多边形波纹）、Curl（直边漩涡）、Wind（被拉长的阵风尾迹），全部可叠加 | 🧪 实验性 |
+| Experimental 标签页：Noise（沿笔直折痕揉皱的纸）、Ripple（多边形波纹）、Curl（直边漩涡）、Wind（被拉长的阵风尾迹）、Spikes（几个锚点射进画布，拉出笔直的长尖刺），全部可叠加 | 🧪 实验性 |
 | 实时文字预览：保留字宽、字偶距、多行与缺字标记 | ✅ 已实现 |
 | 画布（画板）尺寸、常用画幅比例与 1×–4× 导出倍数；排版（字号、字间距、行距、倾斜、对齐、大小写）；配色预设与自定义颜色 | ✅ 已实现 |
 | 导出画布的 SVG 与 PNG，可选带上预览的模糊与反色 | ✅ 已实现 |
 | 导出 OpenType 字体（CFF，.otf），导出后自动校验 | ✅ 已实现——见[限制](#字体文件) |
 | TTF / WOFF / WOFF2 输出；导出字偶距与 OpenType 特性 | ❌ 不支持 |
-| Sound 标签页：本地音频文件或麦克风，实时测量（20 个特征：响度与缓变响度、频带与窄频带、亮度、噪声度、音高、节拍与底鼓脉冲、变化、速度，以及文件的立体声声像与宽度）并以紧凑的电平表显示；最多 8 个映射实时移动 Geometry 和 Experimental 的滑块，并让三个种子跳变（锚点随声音跳到新位置），选择目标时会打开它需要的设置；带滑块上的实时值标记、实时种子、实时帧率、闪烁限制和 Freeze | 🧪 实验性——开发中，见[声音](#声音) |
-| 声音事件：Step 映射（Allowed directions、Sides、Rings）、预设 | ⏳ 规划中，尚未实现 |
+| Sound 标签页：本地音频文件或麦克风，实时测量（20 个特征：响度与缓变响度、频带与窄频带、亮度、噪声度、音高、节拍与底鼓脉冲、变化、速度，以及文件的立体声声像与宽度）并以紧凑的电平表显示；最多 8 个映射实时移动 Geometry 和 Experimental 的滑块，并让三个种子跳变（锚点随声音跳到新位置），选择目标时会打开它需要的设置；十个可载入的预设；带滑块上的实时值标记、实时种子、实时帧率、闪烁限制和 Freeze | 🧪 实验性——开发中，见[声音](#声音) |
+| 声音事件：Step 映射（Allowed directions、Sides、Rings） | ⏳ 规划中，尚未实现 |
 
 ## 文档
 
@@ -62,7 +62,7 @@ npm run preview   # 预览生产构建：http://localhost:4173/None-Curve/
 
 双线是拖动手柄。每个手柄只移动两侧区域之间的分界线，两侧加起来的大小始终不变：上下两行始终正好填满标题栏和状态栏之间的窗口高度（页面不会滚动）；功能区和画布平分上面一行的宽度；下面一行的排版 / 字形 / 颜色标签页、文字输入和预览加起来始终等于这一行的宽度（最小宽度依次为 260、180、200 像素）。每个手柄就是那条 1 像素的分隔线本身（和标题栏、状态栏的边线一样用低调的边框色），另有 9 像素宽的隐形拖动区域。可以拖动手柄，或让手柄获得焦点后用方向键调整（Home / End 跳到两端）；双击恢复默认。每个区域都保留最小尺寸，分隔比例会记在浏览器里。上下两行各自独立调整，所以它们的竖向分界线不一定对齐。
 
-- **左上——功能区：** 最上方是 **Import font** 和字体信息，下面是 **Geometry（几何）**、**Experimental（实验）** 和 **Sound（声音）** 三个标签页。**Geometry** 按流水线顺序排列全部几何参数（展平、方形化、锚点、网格与角度、扰动），最后是随机锚点；**Experimental** 放在它之后运行、可以同时打开的效果（Noise、Ripple、Curl、Wind）；**Sound** 播放本地音频文件或通过麦克风收音，显示实时电平表，并通过映射让声音移动另外两个标签页的滑块，或让它们的种子跳变；被驱动的滑块保留自己的值，并用一条细标记显示实时值；被驱动的种子输入框保留自己的种子，并在旁边显示实时种子（见[声音](#声音)）。浏览器会记住当前选中的标签页。参数区的统计数字针对当前选中的字形。当前不起作用的控件会变灰：随机锚点开启时整个曲线展平组变灰；随机程度为 0% 时随机种子变灰。各项说明默认收起在标签旁的 ⓘ 按钮后面（点击或轻触展开，因此触屏和键盘都能用；收起时文字仍作为控件的读屏描述）；面板内容上方的 **Show all explanations** 可以一次展开全部（包括排版和颜色标签页里的说明），并会记在浏览器里。警告、统计数字以及“为什么这个控件变灰”的说明始终显示。
+- **左上——功能区：** 最上方是 **Import font** 和字体信息，下面是 **Geometry（几何）**、**Experimental（实验）** 和 **Sound（声音）** 三个标签页。**Geometry** 按流水线顺序排列全部几何参数（展平、方形化、锚点、网格与角度、扰动），最后是随机锚点；**Experimental** 放在它之后运行、可以同时打开的效果（Noise、Ripple、Curl、Wind、Spikes）；**Sound** 播放本地音频文件或通过麦克风收音，显示实时电平表，并通过映射让声音移动另外两个标签页的滑块，或让它们的种子跳变；被驱动的滑块保留自己的值，并用一条细标记显示实时值；被驱动的种子输入框保留自己的种子，并在旁边显示实时种子（见[声音](#声音)）。浏览器会记住当前选中的标签页。参数区的统计数字针对当前选中的字形。当前不起作用的控件会变灰：随机锚点开启时整个曲线展平组变灰；随机程度为 0% 时随机种子变灰。各项说明默认收起在标签旁的 ⓘ 按钮后面（点击或轻触展开，因此触屏和键盘都能用；收起时文字仍作为控件的读屏描述）；面板内容上方的 **Show all explanations** 可以一次展开全部（包括排版和颜色标签页里的说明），并会记在浏览器里。警告、统计数字以及“为什么这个控件变灰”的说明始终显示。
 - **右上——结果画布：** 显示画布（画板）及其上输入框里的文字，使用当前字体、全部参数、排版设置和颜色。画布下方的 **Canvas size** 可以展开或收起画布尺寸抽屉（见[画布尺寸](#画布尺寸)），展开状态会被记住。它的轮廓视图与图层开关（Original / Flattened / Compare、Fill、Skeleton、Vertices、Metrics）也同时作用于预览；缩放与平移只影响画布。每个字形的点击范围是它的字框（字宽 × 上伸到下伸），所以小字也很容易点中。点击字形即可选中它（统计数字随之切换），并把它在文中的每一处都换成高亮色（鼠标悬停时也一样）。高亮色由文字颜色和背景颜色计算得出：在背景上仍然易读的颜色中（对比度至少等于文字本身的对比度，最高要求 4.5 : 1，最低不低于 3 : 1），选出在色相和色度上与文字颜色差别最大的一个（OKLab），偏向鲜艳的颜色，避免亮度往背景方向褪，并且色相与配色的色相相差不超过 40°（文字本身已经很鲜艳、40° 内拉不开差别时放宽到 90°；先取文字的色相，文字无色时取背景的，都无色时取橙色）。米色纸上的黑字会高亮为朱红；彩色文字会高亮为相邻色相中更鲜艳的颜色。点击画布空白处（拖动结束时不算）或按 Esc 取消高亮；统计数字仍显示最后选中的字形，Geometry 面板顶部的 **Statistics** 一行会写明是哪个字形（字符和编码）。预览从不显示高亮。
 - **左下——文字工具：** 三个标签页（会记在浏览器里，可用方向键切换；始终保持加载，切换时不会丢失局部状态）：**Typography（排版）**——文字在画布上如何排布（见[排版](#排版)）；**Glyphs（字形）**——见下条；**Color（颜色）**——文字与背景的颜色。
 - **Glyphs 标签页：** 可搜索的字符网格，列出字体映射的所有字符，用作插入器：点击字符会把它插入到文字输入框的光标处（有选中文字时替换选中部分），并选中该字形。输入框从未获得焦点时，字符追加到末尾。没有对应字符的字形（连字、替代字形）和控制字符无法输入，因此不列出。字形列表窄于 280 像素时，格子会缩小并只显示字符本身；超过这个宽度时重新显示 Unicode 编码（编码始终保留在每个格子的悬停提示里）。
@@ -166,7 +166,7 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 ## 几何流水线
 
 ```text
-原始曲线（只读）→ 展平（或随机锚点）→ 方形化 → 锚点间距 → 锚点简化 → 网格吸附 → 角度锁定 → 顶点扰动 → 实验效果（Noise → Ripple → Curl → Wind）→ 最终多边形
+原始曲线（只读）→ 展平（或随机锚点）→ 方形化 → 锚点间距 → 锚点简化 → 网格吸附 → 角度锁定 → 顶点扰动 → 实验效果（Noise → Ripple → Curl → Wind → Spikes）→ 最终多边形
 ```
 
 顺序固定（`src/geometry/pipeline.ts`）。每次参数变化都会从原始曲线重新运行整条流水线，不会累积误差；关闭某一步就精确回到它之前的结果。所有距离都以字体单位计算，与画布缩放无关。扰动和实验效果最后执行，因此会让顶点离开吸附网格和锁定角度。
@@ -223,7 +223,7 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 ### 顶点扰动
 
-`src/geometry/distortion.ts`。**Reset distortion** 恢复默认值（幅度为 0），但保留当前种子。
+`src/geometry/distortion.ts`。**Reset distortion** 恢复默认值（幅度为 0，少数锚点模式关闭），但保留当前种子。
 
 - **Noise amplitude（噪声幅度）**（0–200 字体单位）：顶点最多移动的距离；0 为关闭。
 - **Noise frequency（噪声频率）**（0.5–50）：每 1000 字体单位轮廓长度上的起伏个数，按弧长采样，并在每个轮廓上首尾连续，不会出现接缝。
@@ -232,6 +232,13 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - 边保护只限制一条边的两端沿这条边互相靠近的距离（最多为边长的一半），因此边不会塌缩或反向；垂直于轮廓的移动不受限制。先缩短沿轮廓方向的移动，只有不够时（例如很紧的弯道内侧）才缩短垂直方向的移动。以前对所有相对移动都加限制，轮廓越密扭曲越弱，因为密集轮廓上相邻顶点离得很近。
 - 扭曲后的轮廓与自身或另一个轮廓相交时（密集轮廓的内凹拐角、细笔画、靠近外轮廓的字腔），只在相交处附近把幅度减半，并在两侧各一个幅度的轮廓长度内平滑过渡，最多 12 次；轮廓其余部分保持全幅度。仍不够时，整个轮廓以 1/2 到 1/16 的幅度重试，仍不行就不扰动。
 - 在 Arial 的 32 个字母和数字上实测，幅度 40 时顶点移动距离的中位数在 Anchor spacing 关闭 / 10 / 1 下分别为 18 / 18 / 16 单位（以前为 18 / 6.5 / 0），幅度 200 时为 67 / 46 / 25（以前为 22 / 0.3 / 0）。
+- **少数锚点**（few anchors；设置中的 `sparse`；`pickMovers` 和 `SPARSE_LIMITS`）：一个没有自己控件的模式。只有 Sound 标签页的 **Flicker** 预设会打开它；**Reset distortion** 或载入另一个预设会关闭它；它也不是 Sound 的目标。每个字母只有少数几个锚点移动，其余顶点完全不动，所以字形得以保持。
+  - **锁定的：** 拐角（轮廓转向超过 30°；恰好 30° 的转角不算拐角，Angle lock 常会造出这种转角）、x 和 y 方向的极值点（一段水平或竖直的平直段是顶边、底边或侧边时整段都算，是台阶时不算）、零长度边上的顶点，以及顶点少于 8 个的轮廓上的所有顶点。
+  - **候选：** 其余每个顶点，以及任何有 3 个或更多顶点的轮廓上、长度至少为 em 的 10% 的每条直边的中点，小轮廓也包括在内（4 个顶点的 I、i 或连字符）。被选中的中点作为新顶点插入，和其他移动点一样移动，这条边的两端保持不动，所以只由拐角和极值点组成的字母（l、H、T）也会动。如果插入中点会碰到它所在轮廓的另一条边（轮廓沿这条边折返，网格吸附可能留下这种情况），就跳过这个中点。
+  - **挑选：** 候选按种子、轮廓和位置的哈希排序，排在前面的移动：字母顶点数的 6%，四舍五入，1 到 5 个；一个轮廓上最多 2 个，沿轮廓相隔超过 4 个顶点（中点算作位于所在边两端的正中间）。换一个种子就换一组，所以 Beat → Distortion · Seed 让每个节拍换另外几个锚点移动。
+  - **移动：** 噪声与上面相同，但每个移动点垂直于轮廓的分量和沿轮廓的分量，都各自至少提高到它们所占幅度份额的 60%（按 Normal bias 的比例；噪声为 0 处方向由种子决定），所以每次跳动都看得见。边保护和上面的修复仍可能降低它。
+  - 打开时，面板显示说明 “Only a few anchors move (set by the Flicker preset in the Sound tab). Reset distortion moves every anchor again.”（只有少数锚点移动，由 Sound 标签页的 Flicker 预设设置；Reset distortion 让所有锚点重新移动），统计里多一项 **Anchors moved**（实际移动的顶点数，包括插入的中点），状态栏的描述写作 “distortion N u, few anchors, …”。关闭时，或旧设置里没有这一项时，结果与以前完全相同。
+  - 在 Arial、Georgia 和 New York 的拉丁字形上检查过。在默认 Geometry 下（Noise amplitude 2 和 120，Normal bias 90%，种子 1–10），每个字形都至少有一个锚点移动；在所有测试中，锁定的顶点从未移动，没有字母的移动点超过它的个数，也没有轮廓超过 2 个。每种字体在 48 种 Geometry 设置 × 4 个种子下：没有布局损坏，也没有导出失败，平均每个字形移动 2.8 / 3.3 / 3.2 个锚点（Arial / Georgia / New York）。已知的不足：New York 的极细笔画上（# 和 $），被选中的中点无法越过 6 单位宽的横杠而不交叉，所以在某些种子下这个轮廓会退回不扰动（默认 Geometry 下约占字形运行的 0.2%）；锚点非常密时（Anchor spacing 5），每条边都短于 em 的 10%，所以少数矩形字形（I、l、i、连字符、句号、=）没有候选，保持不动。
 
 ### 随机锚点
 
@@ -245,19 +252,20 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - 校验：如果某次取样让轮廓反向、塌缩、新增自相交，或与另一个轮廓相交、跑出另一个轮廓，会用派生种子重新取样（最多 4 次，结果依然确定）；都不合格时该轮廓改用展平的结果，面板会注明。
 - **Reset random anchors** 恢复默认设置，但保留当前种子。
 
-### 实验效果：Noise、Ripple、Curl 与 Wind
+### 实验效果：Noise、Ripple、Curl、Wind 与 Spikes
 
-`src/geometry/noise.ts`、`src/geometry/ripple.ts`、`src/geometry/curl.ts` 和 `src/geometry/wind.ts`，基于共用的变形模块 `src/geometry/warp.ts`，由 `src/geometry/experimental.ts` 按固定顺序 Noise → Ripple → Curl → Wind 调用。**Geometry** 旁边的 **Experimental** 标签页放的是在整条几何流水线之后运行、可以同时打开的效果（计划见 [docs/EXPERIMENTAL_PLAN.zh.md](docs/EXPERIMENTAL_PLAN.zh.md)）。整个标签页共用一个 **Seed** 和 **Next variant**，另有 **Reset experimental**（保留种子）。
+`src/geometry/noise.ts`、`src/geometry/ripple.ts`、`src/geometry/curl.ts` 和 `src/geometry/wind.ts`，基于共用的变形模块 `src/geometry/warp.ts`，以及 `src/geometry/spikes.ts`，由 `src/geometry/experimental.ts` 按固定顺序 Noise → Ripple → Curl → Wind → Spikes 调用。**Geometry** 旁边的 **Experimental** 标签页放的是在整条几何流水线之后运行、可以同时打开的效果（计划见 [docs/EXPERIMENTAL_PLAN.zh.md](docs/EXPERIMENTAL_PLAN.zh.md)）。整个标签页共用一个 **Seed** 和 **Next variant**，另有 **Reset experimental**（保留种子）。
 
-- **每个效果都是分段线性变形。** 把平面切成三角形，每个三角形各自做线性变换，在三角形边界上连续。直边在三角形内部保持完全笔直，只在穿过三角形边（折痕）的地方转折，新顶点也只加在那里。任何效果都不沿轮廓采样平滑函数，所以字母只会多出棱角，不会多出曲线。
+- **除 Spikes 以外，每个效果都是分段线性变形。** 把平面切成三角形，每个三角形各自做线性变换，在三角形边界上连续。直边在三角形内部保持完全笔直，只在穿过三角形边（折痕）的地方转折，新顶点也只加在那里。任何效果都不沿轮廓采样平滑函数，所以字母只会多出棱角，不会多出曲线。
 - **从构造上保证有效，所以效果可以叠加。** 在 100% 以内，三角形不会翻转或压扁，因此每个变形都是一一映射：它不可能让轮廓自交或与别的轮廓交叉，也不可能把字腔推出字母；多个变形接连作用也一样。每个效果之后仍会检查轮廓：先把所有轮廓换成精确映射（它们在一起一定合格），再逐个尝试换成整理后的版本，只有与其他轮廓仍然合格时才替换。只有输入里既不相交也不相接的边新产生交叉才算出错（很重的几何设置可能让轮廓自己叠在自己身上）；另外，两条边如果都还是精确映射的原样、对应的输入边相距不到 0.05 单位，它们之间的交叉也不算：一一映射不可能让它们交叉，但很强的 Wind 可能把重度扰动留下的尖刺挤得极细，以致浮点误差让它们交叉。如果未被改动的两条边在输入里相距更远却交叉了，那就是真正的错误，仍会被拒绝。万一浮点误差让精确映射出错，该轮廓依次改用 1/2 到 1/16 的强度；都不行时整个字形保持原样。
 - **整理，确保看起来不像曲线。** 转角小于 3° 的折痕会被去掉（被去掉的折痕离替代它的边不超过 em 的 1%）。然后，凡是连续 5 个以上、朝同一方向转 0.5°–20°、相邻边都短于 em 的 4% 的顶点（折线开始看起来像曲线就是这样），就去掉其中转角最小的折痕，直到不再有需要折痕才凑成的这种段落。输入自身的顶点已经构成的段落保持不变；输入的顶点永远不会被删除。前面效果的折痕也算作折痕，所以后面的效果也可以删掉前面效果的折痕，几个效果合起来才凑成的段落同样会被拆开。如果整理让轮廓碰到自身或其他轮廓，就把出问题的那条边所替代的折痕全部恢复，其余部分重新整理（最多 8 次），之后再尝试更严格的偏差上限。输入里宽度小于 0.01 单位的尖刺（很重的几何设置可能留下）会先被去掉。
 - **Noise**（默认关闭）把字母像纸一样揉皱。网格是按种子旋转的方形格子，每个方格沿种子选定的对角线分成两个三角形。每个格点按种子移动一个随机向量，最大为 **Amount** × **Facet size**（em 的 8–100%，默认 18%）的 30%。**Turn**（0–345°，默认 0°）把所有移动转同一个角度，折痕不变，折的方向变了（180° 就是反方向）。在 30% 以内，任何三角形都不会翻转（至少保留约 15% 的面积），所以 Noise 永远不需要减弱。**Amount** 的范围是 0–500%（默认 70%）：超过 100% 时格点沿同样的方向移得更远，刻面会互相翻折（见下面的“翻折”）。格子固定在字形坐标里，同一个字母的每次出现形状相同，导出的字体与画布一致。
 - **Ripple**（默认关闭；`src/geometry/ripple.ts`）从一个点向外发出多边形波纹。网格是一组同心正多边形，边数为 **Sides**（3–12，默认 8），底边水平，中心位于 **Center X / Center Y**（字形墨迹框的比例，−50% 到 150%，默认正中），沿垂直于边的方向每半个 **Wavelength**（em 的 8–200%，默认 30%）一圈。穿过多边形顶点的射线把各圈切成单元，每个单元再分成两个三角形。每一圈整体交替向外、向内移动，最大为 **Amount**（0–400%，默认 50%）× 圈距的 45%，所以每圈变形后仍是正多边形，轮廓在穿过各圈的地方形成锯齿（三角波，而不是正弦波）。**Fade** 让振幅随离中心的距离线性减小，到墨迹框最远的角时降到 (1 − Fade)。在 100% 以内相邻两圈永远不会交错（至少相距圈距的 10%），所以没有三角形会翻转；超过 100% 时各圈会互相越过并翻折；字形外面紧挨着的那一圈保持不动，没有 Petals 时再往外完全不变。**Petals**（0–300%，默认 0%）把每一圈弯成一朵花，每条边一片花瓣：从中心再发出三条射线把每条边均匀切开（顶点处是花瓣尖，然后是肩、边中点的凹口、肩），每条射线把它上面已经起伏过的各圈按 1 + 各自份额 × 深度缩放，份额依次为 1 / 0.7 / −1 / 0.7。100% 时深度为 0.9（花瓣尖向外多伸出 90%，凹口保留原距离的 10%）；超过 100% 时花瓣尖和肩继续变大，凹口永远不低于 10%。顶点只沿自己的射线移动，并始终留在中心的同一侧，所以任何深度下 Petals 都是一一映射，自己永远不会翻折；最后一圈之外仍按同样的方式缩放，在每个切片内线性变化，所以平面保持连续。Ripple 没有随机性。
 - **Curl**（默认关闭；`src/geometry/curl.ts`）让每个字母绕它墨迹框的中心旋转成漩涡。网格与 Ripple 相同：边数为 **Sides**（3–12，默认 8）的同心正多边形，底边水平，穿过顶点的射线把各圈切成单元，每个单元分成两个三角形；**Rings**（2–12，默认 6）中最外面一圈离中心半个墨迹框高度（至少 em 的 5%），所以字母的顶和底落在这一圈上。各圈不再向外、向内移动，而是整体绕中心旋转，所以转完仍是正多边形，轮廓只在各圈的边、射线和各圈内的单元对角线处转折。勾选 **Pin top and bottom**（默认）时，最外面一圈以及它之外的一切保持不动，越靠近中心的圈转得越多；不勾选时，中心保持不动，越靠外的圈转得越多，最外面一圈之外的一切作为一整块刚性地跟着它转。相邻两圈之间的相对转角都相同。**Amount** 为 100%（范围 −400% 到 400%，默认 60%；低于 0% 时顺时针转）时，这个转角是“保持每个三角形朝向不变”的最大值的 90%，按当前的 Sides 和 Rings 计算，单元对角线顺着漩涡布置（两种对角线方向中让各圈能转得更远的那一种），所以正反方向在 100% 以内 Curl 都是一一映射。此时整个漩涡转过的角度从 3 条边时约 30° 到 12 条边、圈数多时远超一整圈。正反方向超过 100% 时，三角形翻转，字母翻折（见“翻折”）。Curl 没有随机性。在 Arial、New York、Georgia 的拉丁字形上各用 12 组设置检查（±30–100%，固定上下和整体旋转，叠加在几何设置之上，以及与其他效果叠加）：没有新增交叉，没有轮廓被减弱，所有字形都能导出。
 - **Wind**（默认关闭；`src/geometry/wind.ts`）把字母沿风向拉长。每个点朝 **Direction**（0° 向右，90° 向上）移动，移动量为 **Strength**（0–800%，默认 30%）× 所在条带的阵风系数 × 它离字形迎风边（按墨迹框计算）的下风距离，所以迎风边保持不动、保持清晰，越往下风被拉得越远。条带顺着风向，间隔为 **Gust size**（em 的 6–50%，默认 12%），以字形原点为基准，所以风向水平时同一行的所有字母共用同样的阵风；每条带的阵风系数由种子决定，在 1 − **Gustiness**（0–200%，默认 60%）到 1 之间，任何点的移动都不超过 4 em。条带再切成方格，每格沿种子选定的对角线分成两个三角形。Gustiness 在 100% 以内时，阵风系数从不为负，位移又只随下风距离增加，所以每个三角形都只沿风向被拉伸、不会被压缩（面积比至少为 1）：任何强度下 Wind 都是一一映射。超过 100% 时部分阵风反向吹，把字母撕开（见“翻折”）。
-- **翻折**（`src/geometry/overlaps.ts`）：只要有一个效果超过 100%，字母就可能折到自己身上，所以各效果都不再检查轮廓，最后把字形重画成非零规则所填充区域的轮廓。在整数字体单位的网格上做捕捉取整：每个顶点和每个交叉处都变成网格点，每条边绕经它穿过的每个网格单元的中心点，于是取整后的边只在端点相交；然后计算每个区域的环绕数，把有墨与无墨之间的边连成轮廓（外轮廓逆时针，内孔顺时针；两个有墨区域只在一点相接时各自保留自己的轮廓）。面积不到 4 平方单位、或平均宽度不到一个单位的轮廓会被略去。结果只有直边，新顶点只出现在轮廓交叉处（另有不到半个单位的绕行），并且一定能通过导出。此时标签页说明区会显示合并了多少处交叉、略去了多少细条。在 Arial、New York、Georgia 的拉丁字形上各用 16 组翻折设置实测：没有交叉，导出没有失败；各效果开到最大时整套字体都能写成 OTF 并读回（Arial 三个效果同时开时超过 1 000 000 个轮廓点的上限除外）；100% 以内的结果完全不变。
-- 统计（每个效果分别显示）：最大移动距离和新增的折痕数；有轮廓需要减弱、或某个字形没能加上该效果时会给出警告。
+- **Spikes**（默认关闭；**Use spikes**；`src/geometry/spikes.ts`）最后运行，把每个字母的几个锚点射进画布，让它们的边变成笔直的长尖刺。只有字母外侧的锚点会跳出（所在轮廓不在任何其他轮廓之内，所以字腔永远不会长出尖刺），每个都朝离开墨迹的方向：沿它两条边向外法线的平均方向，再向任一侧偏转最多 **Spread**（0–100%，默认 50%）× 90°，所以 0% 就是垂直于轮廓笔直向外。**Anchors**（1–12，默认 3）是每个字母跳出的锚点数，**Reach**（em 的 0–200%，默认 60%）是跳多远：每个锚点按种子跳出它的 35–100%。**Width**（0–100%，默认 30%）是每根尖刺离开字母处的宽度，按该锚点较短一条边的比例计算：在锚点的两条边上、离它这么远的地方各加一个新锚点，各条边的其余部分保持不动。0% 时尖刺是一根细针（至少 2%）；100% 时跳出的锚点把它的两条边整条拉走，成为一个宽楔形。哪些锚点跳出、朝哪个方向、跳多远，都来自共用 **Seed** 与每个锚点位置的哈希，所以同一个种子得到同样的尖刺，**Next variant** 会让它们移到别处；由声音驱动时（Beat → Seed），每个节拍它们都跳到新的位置。所有边都保持笔直。尖刺可能穿过字母或另一根尖刺，所以只要有锚点跳出，轮廓就会合并成一条干净的轮廓，与效果翻折时的合并相同（见“翻折”），字母仍然可以导出。统计：**Spikes**（跳出的锚点数）和 **Longest**（最远的一跳，单位为字体单位）。在 Arial、Georgia、New York 的拉丁字形上检查，4 组几何设置（默认、Tolerance 1、锚点间距 5，以及一组很重的组合）× 6 组 Spikes 设置（1–12 个锚点、Reach 30–200%、Spread 0–100%、Width 0–100%），分别在有和没有 Noise 与 Wind 时、用 3 个种子（共 141 组组合）：输出中没有交叉，导出没有失败；最远的点离字形原点约 3 em。默认几何设置下每个字形耗时 0.2–0.9 毫秒，锚点很密并叠加 Noise 和 Wind 时最多约 6 毫秒。
+- **翻折**（`src/geometry/overlaps.ts`）：只要有一个效果超过 100%，字母就可能折到自己身上，所以各效果都不再检查轮廓，最后把字形重画成非零规则所填充区域的轮廓。只要 Spikes 有锚点跳出，之后也会做同样的合并。在整数字体单位的网格上做捕捉取整：每个顶点和每个交叉处都变成网格点，每条边绕经它穿过的每个网格单元的中心点，于是取整后的边只在端点相交；然后计算每个区域的环绕数，把有墨与无墨之间的边连成轮廓（外轮廓逆时针，内孔顺时针；两个有墨区域只在一点相接时各自保留自己的轮廓）。面积不到 4 平方单位、或平均宽度不到一个单位的轮廓会被略去。结果只有直边，新顶点只出现在轮廓交叉处（另有不到半个单位的绕行），并且一定能通过导出。此时标签页说明区会显示合并了多少处交叉、略去了多少细条（**Crossings merged**、**Slivers dropped**），Spikes 打开时也会显示。在 Arial、New York、Georgia 的拉丁字形上各用 16 组翻折设置实测：没有交叉，导出没有失败；各效果开到最大时整套字体都能写成 OTF 并读回（Arial 三个效果同时开时超过 1 000 000 个轮廓点的上限除外）；100% 以内的结果完全不变。
+- 统计（每个效果分别显示）：最大移动距离和新增的折痕数（Spikes：跳出的锚点数和最远的一跳）；有轮廓需要减弱、或某个字形没能加上该效果时会给出警告。
 - 在 Arial、New York、Georgia 的拉丁字形上实测，每个效果单独使用、叠加在各组几何设置之上（细展平和粗展平、锚点间距 5、角度锁定、网格、扰动 80、随机锚点，以及一组很重的组合），以及三个效果同时使用（共 78 组字体与设置组合）：没有新增轮廓自交或轮廓间交叉，没有轮廓被减弱，所有字形都能导出。需要折痕才凑成的“像曲线”段落只在 New York 上出现（6 组组合，共 7 个字形），都在轮廓两部分相距不到一个单位的地方。默认设置下 Noise 和 Ripple 每个字形各增加约 30 个顶点（Facet 最小时约 80 个，波长最短时约 100 个），Wind 约 10 个；每个效果大约让几何计算时间翻倍，三者同时打开时约为五到七倍（每个字形约 0.5 毫秒）。在三款字体上随机测试 19,440 组几何、Noise、Ripple 与 Wind 设置组合，没有任何交叉，没有轮廓被减弱，所有字形都能导出。
 
 ## 导出
@@ -285,19 +293,36 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 ## 声音
 
-代码在 `src/sound/`，显示在 **Sound** 标签页（`src/components/SoundControls.tsx`）；计划见 [docs/SOUND_PLAN.zh.md](docs/SOUND_PLAN.zh.md)。第 1 阶段负责播放或收音、测量并显示电平表。第 2 阶段在文件播放或麦克风收音期间，让特征移动 Geometry 和 Experimental 标签页的滑块。第 3 阶段已完成一部分：三个种子成为随声音跳变的目标，每个锚点都会落到新的位置；Beat 和 Kick 成为映射可以跟随的特征；选择目标时会打开它需要的设置。第 4 阶段的 Pitch 和 Balance 也已完成，特征一共 20 个。第 3 阶段还剩 Step 映射（Allowed directions、Sides、Rings）和预设。
+代码在 `src/sound/`，显示在 **Sound** 标签页（`src/components/SoundControls.tsx`）；计划见 [docs/SOUND_PLAN.zh.md](docs/SOUND_PLAN.zh.md)。第 1 阶段负责播放或收音、测量并显示电平表。第 2 阶段在文件播放或麦克风收音期间，让特征移动 Geometry 和 Experimental 标签页的滑块。第 3 阶段已完成一部分：三个种子成为随声音跳变的目标，每个锚点都会落到新的位置；Beat 和 Kick 成为映射可以跟随的特征；选择目标时会打开它需要的设置；十个预设可以设好字母并填好映射。第 4 阶段的 Pitch 和 Balance 也已完成，特征一共 20 个。第 3 阶段还剩 Step 映射（Allowed directions、Sides、Rings）。
 
 - **来源：** **Off**（关闭，默认）、**File**（文件：Choose file、Play / Pause、Loop、Position）和 **Microphone**（麦克风：Start listening / Stop listening；选中它只会显示这两个按钮，只有点 Start listening 才会打开麦克风）。麦克风收音期间，标签页显示 **Listening**，状态栏显示 **Microphone on**。
 - **电平表**（**Levels** 分组）：每个特征一行紧凑的电平表（名称、条形、数字），分在六个小标题下：**Loudness**、**Bands**、**Narrow bands**、**Tone**、**Rhythm** 和 **Stereo**，每组都有一个 ⓘ，用通俗的话解释组里的电平表。数字的显示方式：Level 用 dB，Pitch 用 Hz，Balance 显示偏向哪一侧（“L 40”、“R 40”，离中间不到 5% 时显示 “C”），其他特征都用百分比；没有读数时显示 “—”。Balance 的条形从中间向左或向右填充。**Beat** 和 **Kick** 是脉冲条：每次起音跳到满格，再按 **Smoothing** 回落；它们取代了原来的指示灯。每个条形都是 `role="meter"`（Balance 为 −100 到 100），读屏读出的值与显示的一致（“40 percent left”、“Centre”、“No reading”）。电平表由每帧回调直接写入 DOM，不为每一帧设置 React 状态：条形每帧更新，数字每秒最多更新约 10 次，读屏的值每秒最多 4 次。条形的变化不带过渡，所以开启 `prefers-reduced-motion` 时看起来也一样。
 - **Mappings**（映射，位于 Levels 和 Analysis 之间）：
   - **Drive letters**（驱动字母）：只有它打开、并且文件正在播放或麦克风正在收音时，声音才会移动字母。默认打开；如果系统要求减少动态效果（`prefers-reduced-motion`），它默认关闭，标签页会显示 “Off because your system asks for reduced motion.”（这句提示也是开关的描述）。访问期间才开启减少动态效果时，它也会自动关闭；关闭减少动态效果时，开关保持原样。
+  - **Preset**（预设）和 **Load**（载入）（`presets.ts` 中的 `PRESETS` 和 `presetSettings`）：现成的起点，带一个 ⓘ，说明 Load 会恢复哪些默认值，并给每个预设一行说明。在列表里选择只是选中（默认选中 Flicker），所以用键盘在列表中移动不会替换任何东西。**Load**：
+    1. 把 Geometry 和 Experimental 的每个分组（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion，以及各个 Experimental 效果）恢复为默认值，保留三个种子；Typography、Color、画布，以及 Sound 标签页的来源、Drive letters、Sensitivity 和 Smoothing 都不动；
+    2. 设好预设的起始值（只设与默认值不同的部分），每个改变了的分组一次参数更新；
+    3. 用预设的各行替换所有映射，并清除之前各行的提示；
+    4. 在 Preset 一行下方显示一个状态行：先是 “Loaded Flicker.”，然后对关闭了的 Experimental 效果显示 “Turned off Noise and Ripple.”，关闭了 Random anchors 时显示 “Turned off Random anchors.”，预设没有设置的其他设置有恢复为默认值的，显示 “Other Geometry and Experimental settings back to defaults (seeds kept).”。它一直保留到下一次 Load，或在列表里选了另一个预设为止。
+
+    所以无论之前设了什么，预设总是从同样的字母开始，它的各行也不需要再打开任何设置；万一某一行仍然需要，就像手动选择该目标时一样，按行的顺序打开，并显示该行的提示。手动选择目标仍然只会打开它所需的设置（见下文），不会恢复任何默认值。各预设如下，括号里是 Depth（种子上是 Rate），然后是起始值：
+    - **Flicker：** Level → Distortion · Noise amplitude（+90%），Kick → Distortion · Noise amplitude（+30%），Beat → Distortion · Seed（Rate 100%）。起始：少数锚点模式打开（见[顶点扰动](#顶点扰动)），Noise amplitude 2，Normal bias 90%。很小的幅度让 Distortion 保持打开，所以安静时 Seed 那一行也起作用。
+    - **Scatter：** Level → Random anchors · Randomness（+90%），Level → Random anchors · Density（−9%），Beat → Random anchors · Seed（Rate 50%）。起始：Use random anchors 打开，Density 10，Randomness 5%。
+    - **Pixel：** Bass → Grid & angles · Grid size（+70%），High → Anchors · Anchor reduction（+40%）。起始：Snap to grid 打开。
+    - **Low poly：** Level → Curve flattening · Tolerance（+70%），Noisiness → Anchors · Anchor reduction（+50%）。起始：Merge joined curves 打开，所以较大的 Tolerance 能作用到整个碗形。
+    - **Block：** Swell → Squaring · Amount（+90%），Kick → Squaring · Amount（+40%）。起始：全部默认。
+    - **Jitter：** High → Distortion · Noise amplitude（+60%），Brightness → Distortion · Noise frequency（+30%）。起始：Noise amplitude 2（让 Noise frequency 那一行在安静时也起作用），Noise frequency 20。
+    - **Facet：** Level → Curve flattening · Segments per curve（−15%），Kick → Curve flattening · Segments per curve（−15%），Pitch → Curve flattening · Segments per curve（+20%）。起始：Mode 为 Fixed segments，Merge joined curves 打开，Segments per curve 6。
+    - **Bloom：** Kick → Ripple · Amount（+15%），Bass → Ripple · Petals（+30%）。起始：Use ripple 打开，Amount 30%。
+    - **Flare：** Beat → Seed（Rate 100%），Level → Spikes · Reach（+40%），Kick → Spikes · Anchors（+20%）。起始：Use spikes 打开，Anchors 1，Reach 0% em（安静时没有尖刺）。
+    - **Gale：** Level → Wind · Strength（+10%），Pace → Wind · Gustiness（+25%）。起始：Use wind 打开，Strength 0%。
   - 最多 8 行（`MAPPING_LIMITS.maxMappings`），每行有 **Feature**（特征：20 个特征，按电平表的分组排列）、**Target**（目标，分为 Geometry / Experimental 两组，名称为“分组 · 标签”，例如 “Distortion · Noise amplitude”；Experimental 标签页的种子只叫 “Seed”）、**Depth**（深度，−100% 到 +100%，每档 5%）、开关（“Use mapping 1”、“Use mapping 2”……）和删除按钮（“Remove mapping 1”……；删除后键盘焦点移到下一行的删除按钮，没有下一行时移到上一行的，都没有时移到 Add mapping）。目标是种子时，Depth 滑块改称 **Rate**（频率，0–100%，每档 5%，有自己的 ⓘ；见下面的“种子”），某行改选种子时，负的 Depth 会变成正值。**Add mapping** 添加 Level → Distortion · Noise amplitude，Depth 为 +50%（这个目标已被使用时，改为还没有任何一行使用、并且已经起作用的第一个目标，没有的话取还没被使用的第一个目标），并像选择目标时一样打开它需要的设置；已有 8 行时不再添加（仍可获得焦点，用 `aria-disabled`），标签页显示 “Up to 8 mappings.”。映射不会保存：和滑块一样，只在本次访问有效。
   - **打开目标需要的设置：** 选择一个在当前设置下不起作用的目标时，会自动改好它需要的设置（打开它所在的步骤或效果、设置 Mode，或者为 Curve flattening 的滑块关闭 Random anchors），并在该行下方说明，例如 “Turned on Ripple.”、“Set Noise amplitude to 40.” 或 “Turned off Random anchors. Set Mode to Adaptive.”（规则见下表）。这条提示是一个状态行，一直保留到该行的目标再次改变或该行被删除。把某行换到别的目标、或删除该行，都不会关闭任何设置。用键盘在 Target 列表中移动时（方向键，或在收起的列表上打字），只有按回车或焦点离开列表时才会打开设置，所以途经的目标不会改变任何设置；用鼠标或手指选择时立即生效。
   - 只要某行的目标当前不起作用（例如之后又关掉了它需要的设置），行下方就改为说明原因（说明见下表；这句说明也是 Target 下拉框的描述）。旁边的 **Enable** 按钮（“Enable, mapping 1”……）做出与选择该目标时相同的改动，显示提示，并把键盘焦点交给该行的 Target。在此之前，这一行不移动任何值。
 - **目标**（`mapping.ts` 中的 `TARGETS`），按面板顺序排列：两个标签页里的每个连续滑块，范围、档位和刻度都与该滑块完全相同；以及三个种子，取种子输入框自己范围内的整数（0–999,999）。
   - Geometry：Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchors 的 Anchor spacing 和 Anchor reduction；Grid & angles 的 Grid size；Distortion 的 Noise amplitude、Noise frequency、Normal bias 和 **Seed**；Random anchors 的 Density、Randomness 和 **Seed**。
-  - Experimental：Noise 的 Amount、Facet size 和 Turn；Ripple 的 Amount、Wavelength、Sides、Center X、Center Y、Fade 和 Petals；Curl 的 Amount、Rings 和 Sides；Wind 的 Direction、Strength、Gust size 和 Gustiness；以及共用的 **Seed**。
-  - 不是目标的：开关和选项（Mode、Break merged curves at、Applies to、Allowed directions）。播放期间声音从不打开或关闭任何步骤；只有选择目标、Add mapping 或 Enable 会打开设置，而且只打开一次。
+  - Experimental：Noise 的 Amount、Facet size 和 Turn；Ripple 的 Amount、Wavelength、Sides、Center X、Center Y、Fade 和 Petals；Curl 的 Amount、Rings 和 Sides；Wind 的 Direction、Strength、Gust size 和 Gustiness；Spikes 的 Anchors、Reach、Spread 和 Width；以及共用的 **Seed**。
+  - 不是目标的：开关和选项（Mode、Break merged curves at、Applies to、Allowed directions），以及 Distortion 的少数锚点模式。播放期间声音从不打开或关闭任何步骤；只有选择目标、Add mapping 或 Enable 会打开设置，而且只打开一次；Load 则恢复默认设置并设好预设自己的值（见上文）。
 
 每个目标起作用需要的条件（`inactive` 给出说明，`activate` 给出改动和提示）。只改动缺少的设置，按表中顺序进行，提示把每项改动的句子连在一起：
 
@@ -310,12 +335,12 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 | Distortion · Noise frequency、Normal bias 和 Seed | Noise amplitude 大于 0（“Set Noise amplitude above 0 to hear this.”） | Noise amplitude 设为 40：“Set Noise amplitude to 40.” |
 | Random anchors · Density 和 Randomness | 打开 Random anchors（“Turn on Random anchors to hear this.”） | “Turned on Random anchors.” |
 | Random anchors · Seed | 打开 Random anchors，然后 Randomness 大于 0%（“Set Randomness above 0% to hear this.”） | “Turned on Random anchors.” Randomness 设为 100%：“Set Randomness to 100%.” |
-| Noise、Ripple、Curl、Wind 的滑块 | 打开所在的效果（“Turn on Noise to hear this.”，Ripple、Curl、Wind 同理） | “Turned on Noise.”（同理） |
-| Seed（Experimental） | 打开 Noise 或 Wind，因为 Ripple 和 Curl 没有随机性（“Turn on Noise or Wind to hear this.”） | 打开 Noise：“Turned on Noise.” |
+| Noise、Ripple、Curl、Wind、Spikes 的滑块 | 打开所在的效果（“Turn on Noise to hear this.”，Ripple、Curl、Wind、Spikes 同理） | “Turned on Noise.”（同理，例如 “Turned on Spikes.”） |
+| Seed（Experimental） | 打开 Noise、Wind 或 Spikes，因为 Ripple 和 Curl 没有随机性（“Turn on Noise, Wind or Spikes to hear this.”） | 打开 Noise：“Turned on Noise.” |
 | Squaring · Amount、Anchors · Anchor spacing 和 Anchor reduction、Distortion · Noise amplitude | 无：始终起作用 | — |
 
 - **调制**（`modulate`，纯函数）：对于每个滑块目标，只要至少有一个映射是打开的、Depth 不为 0、并且目标所在的步骤或效果是开着的，实时位置 = 滑块位置（沿显示出来的滑块，0–1）+ 这些映射的 Depth × 特征之和，截断到 0–1，再换算回数值并取整到滑块的档位。位置沿滑块计算，所以对数刻度的 Tolerance 是沿滑块均匀移动，而不是按字体单位均匀移动。同一目标上的多个映射先相加再截断。Balance 是唯一的双向特征（−1 到 1）：Depth 为正时，声音偏左让滑块向下，偏右让滑块向上；其他特征都在 0–1 之间。没有任何作用时（没有映射、全部关闭、Depth 为 0、所有特征为 0、没有种子前进，或所有目标都不起作用），直接返回滑块值本身（同一个对象），所以字母会完全恢复。因此每个实时帧都是滑块和种子输入框能调出来的一组参数（没有新几何，帧与帧之间不做补间）。
-- **种子**（跳变目标；`jumps.ts` 中的 `JumpTracker`，纯函数式）：映射到种子时不参与上面的求和，而是每跳变一次，种子就前进 1（超过 999,999 后回到 0），所以每个锚点（Distortion、Random anchors）或每处翻折和阵风（Experimental）都会落到新的位置。该行的 **Rate** 决定跳变的频率；Depth 的正负不起作用。
+- **种子**（跳变目标；`jumps.ts` 中的 `JumpTracker`，纯函数式）：映射到种子时不参与上面的求和，而是每跳变一次，种子就前进 1（超过 999,999 后回到 0），所以每个锚点（Distortion、Random anchors）或每处翻折、阵风和尖刺（Experimental）都会落到新的位置；在 Distortion 的少数锚点模式下（Flicker），改为每个字母换一组新的少数几个锚点移动。该行的 **Rate** 决定跳变的频率；Depth 的正负不起作用。
   - 跟随 **Beat** 或 **Kick** 时，种子按起音计数：Rate 100% 每次起音前进一次，50% 每隔一次，25% 每四次。
   - 跟随其他特征时，每秒最多跳变 4.8 × Rate × 特征值次（Balance 偏向哪一侧都算）。两帧间隔超过 100 ms 时按 100 ms 计算，所以卡顿之后不会一下子放出一串跳变。
   - **闪烁限制：** 任意 1.25 秒内最多 6 个跳变帧（同一帧里一起跳变的种子只算一次），也就是每秒 3 次闪烁，与下面滑块的闪烁限制计法相同。超出限制的跳变直接跳过，不会推迟。
@@ -356,7 +381,8 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - `useSound.ts`：`useSoundEngine`（操作）、`useSoundState`（`useSyncExternalStore`；只在状态变化时重新渲染，不逐帧渲染）和 `useSoundFrames`（每测量一帧调用一次的回调）。
 - `mapping.ts`：`FEATURES`（每个特征带有名称、分组，以及它是否双向、在种子上是否按起音计数）、`FEATURE_GROUPS`、`featureById` 和 `featureValue`；`TARGETS` 和 `targetById`（每个目标带有类型 `slider` 或 `jump`、范围、档位、`get` / `set`、`toSlider` / `fromSlider`、`inactive`，即它当前不起作用的原因，以及 `activate`，即让它起作用的改动和提示）；`applyPatches`、`seedAfter`、`Mapping` 和 `modulate`。纯函数式：不依赖 React、DOM 和 Web Audio。
 - `jumps.ts`：`JUMP_LIMITS` 和 `JumpTracker`：根据测量帧计算被驱动种子的跳变次数，并让它们遵守闪烁限制。纯函数式：不依赖 React、DOM 和 Web Audio。
-- `mappingStore.ts`：映射列表和 Drive letters，放在 React 状态之外的一个小 store 里，用 `useMappingState` 读取（页面打开期间跟随 `prefers-reduced-motion` 的变化）；`MAPPING_LIMITS`。
+- `mappingStore.ts`：映射列表和 Drive letters，放在 React 状态之外的一个小 store 里，用 `useMappingState` 读取（页面打开期间跟随 `prefers-reduced-motion` 的变化；`replace` 载入预设的各行）；`MAPPING_LIMITS`。
+- `presets.ts`：`PRESETS`，每个预设带有名称、它的 ⓘ 里显示的一行说明、起始值和它的映射；以及 `presetSettings`，给出 Load 之后的结果：设置（Geometry 和 Experimental 的每个分组恢复默认、保留种子，再设上起始值）、改变了的分组，以及提示。纯函数式：不依赖 React 和 DOM。
 - `live.ts`：`LiveScheduler`（帧调度和种子的跳变，可通过注入依赖测试）和 `FlashLimiter`；`useLiveParams`（页面上的调度器）、`useLivePosition`（单个目标的标记；只在取整后的位置变化时重新渲染）、`useLiveSeed`（单个种子的实时值，供 `LiveSeed` 使用）、`useLiveStatus`（driving、fps、slow、differs；只在其中之一变化时重新渲染）、`useLiveDriving`（只有 driving）和 `freezeLive`。
 - **隐私：** 不联网。文件通过对象 URL 在浏览器中读取，从不上传；麦克风的声音只被测量，从不录制或回放，而且只在收音期间打开麦克风。
 
@@ -376,16 +402,16 @@ src/
 ├── state/                 文档与参数状态、reducer、导入（useFontImport）、
 │                          几何 Worker 客户端（geometryClient）、派生几何（useDerivedGeometry）
 ├── geometry/              纯 TypeScript 几何核心（不依赖 React / DOM）：flatten、curveRuns、squaring、
-│                          anchors、constraints、distortion、warp、noise、ripple、curl、wind、overlaps（实验效果）、pipeline、相交与轮廓关系检查、
+│                          anchors、constraints、distortion、warp、noise、ripple、curl、wind、spikes、overlaps（实验效果）、pipeline、相交与轮廓关系检查、
 │                          共享缓存、Worker、SVG 路径工具
 ├── specimen/              用最终多边形、字宽和字偶距排布文字（预览与导出共用）
 ├── sound/                 Sound 标签页：共用类型与限制、特征提取（纯函数）、Web Audio 引擎、React hooks、
-│                          特征、目标与调制（纯函数）、种子跳变（纯函数）、映射 store、实时调度
+│                          特征、目标与调制（纯函数）、种子跳变（纯函数）、映射 store、预设、实时调度
 ├── export/                SVG 序列化、精度校验、OpenType 写入、改写（sfnt.ts）与回读校验
 └── styles.css
 ```
 
-- 状态分三层：文档状态和参数状态在 `src/state/`，派生几何（不存入 reducer）在几何 Worker 中计算，由 `useGeometry`（`src/state/useDerivedGeometry.ts`）组装。文字和排版设置通过 `useDeferredValue` 延后处理，打字时界面保持流畅。声音驱动字母期间，`useLiveParams`（`src/sound/live.ts`）交给 `useGeometry` 的是实时参数而不是滑块值；Sound 只在 Freeze 时、以及选择目标、Add mapping 或 Enable 打开目标需要的设置时，才改变 reducer 里的参数（即滑块和种子输入框）。React 组件只负责显示和派发操作，几何算法只放在 `src/geometry/`。
+- 状态分三层：文档状态和参数状态在 `src/state/`，派生几何（不存入 reducer）在几何 Worker 中计算，由 `useGeometry`（`src/state/useDerivedGeometry.ts`）组装。文字和排版设置通过 `useDeferredValue` 延后处理，打字时界面保持流畅。声音驱动字母期间，`useLiveParams`（`src/sound/live.ts`）交给 `useGeometry` 的是实时参数而不是滑块值；Sound 只在 Freeze 时、Load 时（它把 Geometry 和 Experimental 的分组恢复为默认值并设好预设的起始值），以及选择目标、Add mapping 或 Enable 打开目标需要的设置时，才改变 reducer 里的参数（即滑块和种子输入框）。React 组件只负责显示和派发操作，几何算法只放在 `src/geometry/`。
 - 项目约定（例如网页界面只用英文、中英文档分开）见 [docs/BEST_PRACTICE.zh.md](docs/BEST_PRACTICE.zh.md)。
 
 ## 部署到 GitHub Pages
@@ -399,11 +425,10 @@ src/
 
 ## 后续规划：声音
 
-第 1、2、4 阶段已完成，第 3 阶段完成了一部分：**Sound** 标签页可以播放本地音频文件或通过麦克风收音，实时显示六组共 20 个特征的电平表（响度、频带、窄频带、带音高的音色、带节拍和底鼓脉冲的节奏，以及立体声的声像和宽度），并用最多 8 个映射移动 Geometry 和 Experimental 的滑块、让三个种子跳变，于是锚点踩着节拍跳到新位置。选择目标时会打开它需要的设置。每一帧都是普通、有效、只有直边的结果，**Freeze** 可以留住某一刻用于导出（见[声音](#声音)）。
+第 1、2、4 阶段已完成，第 3 阶段完成了一部分：**Sound** 标签页可以播放本地音频文件或通过麦克风收音，实时显示六组共 20 个特征的电平表（响度、频带、窄频带、带音高的音色、带节拍和底鼓脉冲的节奏，以及立体声的声像和宽度），并用最多 8 个映射移动 Geometry 和 Experimental 的滑块、让三个种子跳变，于是锚点踩着节拍跳到新位置。选择目标时会打开它需要的设置，十个预设可以设好字母并填好映射作为起点。每一帧都是普通、有效、只有直边的结果，**Freeze** 可以留住某一刻用于导出（见[声音](#声音)）。
 
 第 3 阶段中**尚未实现**的部分：
 - **Step** 事件映射：每次 Beat 或 Kick 时换到几个可选值中的下一个，例如 Allowed directions（角度步长）、Sides 或 Rings。
-- 预设：Anchor jump、Resample、Bass bloom、Shiver、Whirl 和 Grid pulse。
 - 在浏览器中测量实时重绘 SVG 的耗时。
 - 以后：视频录制。
 - 详见[声音计划](docs/SOUND_PLAN.zh.md)、[产品需求文档](docs/PRD.zh.md)和[实施计划](docs/PHASE.zh.md)。

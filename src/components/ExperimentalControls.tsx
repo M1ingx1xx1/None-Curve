@@ -1,9 +1,10 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
 import { CURL_LIMITS } from '../geometry/curl'
-import { EXPERIMENTAL_LIMITS, experimentalFolds, type ExperimentalStats } from '../geometry/experimental'
+import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
 import { NOISE_LIMITS } from '../geometry/noise'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
-import type { CurlParams, ExperimentalParams, NoiseParams, RippleParams, WindParams } from '../geometry/types'
+import { SPIKE_LIMITS, type SpikeStats } from '../geometry/spikes'
+import type { CurlParams, ExperimentalParams, NoiseParams, RippleParams, SpikeParams, WindParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import { WIND_LIMITS } from '../geometry/wind'
 import type { Action } from '../state/editorState'
@@ -29,6 +30,7 @@ export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
   curl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
+  spikes: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3 },
 }
 
 const percent = (v: number) => Math.round(v * 100)
@@ -49,22 +51,30 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
     <>
       <div className="panel-notice panel-intro">
         <p className="field-title">
-          <span>Runs after Geometry: Noise → Ripple → Curl → Wind. Effects can be on together.</span>
+          <span>Runs after Geometry: Noise → Ripple → Curl → Wind → Spikes. Effects can be on together.</span>
           <HintButton hint={introHint} topic="Experimental effects" />
         </p>
         {statistics}
         <HintText hint={introHint}>
           Each effect folds the letters along straight creases, so it adds corners but never curves. Up to 100%, any
           combination keeps every letter as it was arranged. Beyond that, parts of a letter fold over other parts; the
-          overlaps are merged into one clean outline, so the letters still export. Statistics are for the selected glyph.
+          overlaps are merged into one clean outline, so the letters still export. Spikes are merged the same way.
+          Statistics are for the selected glyph.
         </HintText>
-        {experimentalFolds(params) && <FoldStats stats={stats} pending={pending} />}
+        {experimentalMerges(params) && <FoldStats stats={stats} pending={pending} />}
       </div>
 
       <NoiseGroup params={params.noise} stats={stats?.noise ?? null} pending={pending} disabled={disabled} onChange={(noise) => update({ noise })} />
       <RippleGroup params={params.ripple} stats={stats?.ripple ?? null} pending={pending} disabled={disabled} onChange={(ripple) => update({ ripple })} />
       <CurlGroup params={params.curl} stats={stats?.curl ?? null} pending={pending} disabled={disabled} onChange={(curl) => update({ curl })} />
       <WindGroup params={params.wind} stats={stats?.wind ?? null} pending={pending} disabled={disabled} onChange={(wind) => update({ wind })} />
+      <SpikesGroup
+        params={params.spikes ?? DEFAULT_EXPERIMENTAL.spikes}
+        stats={stats?.spikes ?? null}
+        pending={pending}
+        disabled={disabled}
+        onChange={(spikes) => update({ spikes })}
+      />
 
       <fieldset className="group experimental" disabled={disabled}>
         <legend>Seed</legend>
@@ -99,8 +109,8 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
               </button>
             </div>
             <HintText hint={seedHint}>
-              Picks Noise’s folds and Wind’s gusts; Ripple and Curl have no randomness. The same seed and settings always produce
-              the same letters.
+              Picks Noise’s folds, Wind’s gusts and which anchors Spikes moves; Ripple and Curl have no randomness. The same seed
+              and settings always produce the same letters.
             </HintText>
           </div>
 
@@ -522,6 +532,121 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
         />
 
         <EffectStats stats={stats} pending={pending} effect="wind" />
+      </div>
+    </fieldset>
+  )
+}
+
+function SpikesGroup({
+  params,
+  stats,
+  pending,
+  disabled,
+  onChange,
+}: Omit<GroupProps<SpikeParams>, 'stats'> & { stats: SpikeStats | null }) {
+  const update = (patch: Partial<SpikeParams>) => onChange({ ...params, ...patch })
+  const off = disabled || !params.enabled
+  const introHint = useHint()
+  const countHint = useHint()
+  const reachHint = useHint()
+  const spreadHint = useHint()
+  const widthHint = useHint()
+
+  return (
+    <fieldset className="group experimental" disabled={disabled}>
+      <legend>
+        Spikes <HintButton hint={introHint} topic="Spikes" />
+      </legend>
+      {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
+      <div className="group-body">
+        <HintText hint={introHint}>
+          A few anchors on the outside of each letter jump out into the canvas, and their two edges stretch into long,
+          straight spikes. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump
+          somewhere new. Runs after Wind.
+        </HintText>
+
+        <div className="field field-toggle">
+          <input id="spikes-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="spikes-enabled">Use spikes</label>
+        </div>
+
+        <RangeField
+          id="spikes-count"
+          target="experimental.spikes.count"
+          label="Anchors"
+          value={params.count}
+          min={SPIKE_LIMITS.minCount}
+          max={SPIKE_LIMITS.maxCount}
+          step={1}
+          display={params.count}
+          valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
+          disabled={off}
+          hint={countHint}
+          hintText="How many anchors of each letter jump."
+          onChange={(count) => update({ count })}
+        />
+        <RangeField
+          id="spikes-reach"
+          target="experimental.spikes.reach"
+          label="Reach"
+          value={params.reach}
+          min={0}
+          max={SPIKE_LIMITS.maxReach}
+          step={0.05}
+          display={percent(params.reach)}
+          unit="% em"
+          valueText={`${percent(params.reach)} percent of the em`}
+          disabled={off}
+          hint={reachHint}
+          hintText="How far the anchors jump, as a share of the em. Each goes a random 35–100% of it."
+          onChange={(reach) => update({ reach })}
+        />
+        <RangeField
+          id="spikes-spread"
+          target="experimental.spikes.spread"
+          label="Spread"
+          value={params.spread}
+          min={0}
+          max={1}
+          step={0.05}
+          display={`${percent(params.spread)}%`}
+          valueText={`${percent(params.spread)} percent`}
+          disabled={off}
+          hint={spreadHint}
+          hintText="0%: every anchor jumps straight out from the outline. 100%: anywhere up to 90° to either side."
+          onChange={(spread) => update({ spread })}
+        />
+        <RangeField
+          id="spikes-width"
+          target="experimental.spikes.width"
+          label="Width"
+          value={params.width}
+          min={0}
+          max={1}
+          step={0.05}
+          display={`${percent(params.width)}%`}
+          valueText={`${percent(params.width)} percent`}
+          disabled={off}
+          hint={widthHint}
+          hintText="How wide each spike is where it leaves the letter. 0%: a thin needle. 100%: the jumping anchor pulls its whole edges along."
+          onChange={(width) => update({ width })}
+        />
+
+        {stats?.applied && (
+          <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+            <div>
+              <dt>Spikes</dt>
+              <dd>{stats.spikes}</dd>
+            </div>
+            <div>
+              <dt>Longest</dt>
+              <dd>
+                {stats.longest.toFixed(0)}
+                <span className="unit">u</span>
+              </dd>
+            </div>
+          </dl>
+        )}
       </div>
     </fieldset>
   )

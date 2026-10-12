@@ -101,6 +101,9 @@ export interface DistortionParams {
   normalBias: number
   /** Integer seed; the same seed always gives the same result. */
   seed: number
+  /** Only a few seeded anchors move; the rest, and every anchor that holds the letter's shape, stay put. Set by the
+      Sound tab's Flicker preset only (no control); Reset distortion turns it off. Missing in older settings: false. */
+  sparse: boolean
 }
 
 /** Seeded random anchors on the original curves, used instead of Flatten's sampling. */
@@ -171,6 +174,19 @@ export interface WindParams {
   gustiness: number
 }
 
+/** Experimental Spikes: a few anchors of each letter jump straight out from it, pulling long straight spikes. */
+export interface SpikeParams {
+  enabled: boolean
+  /** Anchors per letter that jump (1–12), on the letter's outside only. */
+  count: number
+  /** How far they jump, as a share of the em (0–2): each goes a seeded 35–100% of it. */
+  reach: number
+  /** 0–1: 0 = straight out from the outline, 1 = anywhere up to 90° to either side. */
+  spread: number
+  /** 0–1: how wide each spike is at its base, as a share of the anchor's shorter edge (1 = the anchor's whole edges). */
+  width: number
+}
+
 /** The Experimental tab: effects that run after Geometry and can all be on at once. */
 export interface ExperimentalParams {
   /** Integer seed shared by every effect; the same seed always gives the same result. */
@@ -179,6 +195,8 @@ export interface ExperimentalParams {
   ripple: RippleParams
   curl: CurlParams
   wind: WindParams
+  /** Missing in older saved settings: off. */
+  spikes: SpikeParams
 }
 
 export interface GeometryParams {

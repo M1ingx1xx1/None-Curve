@@ -2231,6 +2231,22 @@ input[type='range']:disabled {
   flex: none;
 }
 
+/* The preset list gives way to Load. */
+.preset-select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* One preset per line in the Preset explanation. */
+.preset-list {
+  display: block;
+  margin-top: 4px;
+}
+
+.preset-item {
+  display: block;
+}
+
 /* The target gives way first: long names are cut by the select itself. */
 .mapping-target {
   flex: 1 1 0;

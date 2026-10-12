@@ -261,6 +261,8 @@
 - **Seed**（种子）——选择某一种随机图案的数字。同样的种子永远得到完全相同的结果，所以可以随时找回喜欢的版本。**Next variant** 换成下一种图案。
 - **Reset distortion** 关闭扰动，但保留你的种子。
 
+**载入 Flicker 之后可能看到的说明。** Sound 标签页的 **Flicker** 预设会把 Distortion 切换到一种特殊模式：每个字母只有少数几个点移动——最多五个——拐角和最外侧的点保持不动，所以字形得以保持。每个移动的点都跳得很明显，换一个种子就换另外几个点。这个模式没有开关，所以面板上会显示 “Only a few anchors move (set by the Flicker preset in the Sound tab). Reset distortion moves every anchor again.”（只有少数锚点移动，由 Sound 标签页的 Flicker 预设设置；按 Reset distortion 让所有锚点重新移动），并多出一个数字 **Anchors moved**（移动的锚点数），统计移动了的点。想回到普通的扰动，按 **Reset distortion**（它也会把 Noise amplitude 设回 0，所以要再把它调高），或者载入另一个预设。
+
 扰动可能会降低文字的可读性，请适度使用。
 
 ### Random anchors（随机锚点）——每次都不一样，但可以复现
@@ -284,9 +286,9 @@
 
 ### Experimental（实验）标签页——可以叠加的效果
 
-在工具面板顶部、**Geometry** 标签页的旁边。这里的效果作用在 Geometry 标签页的最终结果上，可以同时打开任意多个。每个效果都沿**笔直的折痕**折叠字母：只会增加棱角，不会产生曲线。在 100% 以内，任何组合都不会让字母自己交叉，也不会把 **A**、**B**、**e** 中间的空洞推到字母外面。它们始终按同一顺序运行：先 **Noise**，再 **Ripple**，然后 **Curl**，最后 **Wind**。
+在工具面板顶部、**Geometry** 标签页的旁边。这里的效果作用在 Geometry 标签页的最终结果上，可以同时打开任意多个。**Noise**、**Ripple**、**Curl** 和 **Wind** 都沿**笔直的折痕**折叠字母：只会增加棱角，不会产生曲线。在 100% 以内，它们的任何组合都不会让字母自己交叉，也不会把 **A**、**B**、**e** 中间的空洞推到字母外面。**Spikes** 不一样：它把每个字母的几个点远远拉出去，变成笔直的尖刺，尖刺可能穿过字母（见下文）。它们始终按同一顺序运行：先 **Noise**，再 **Ripple**，然后 **Curl**，接着 **Wind**，最后 **Spikes**。
 
-**超过 100%——翻折。** Noise、Ripple、Curl 以及 Wind 的 Gustiness 都可以超过 100%（Curl 正反两个方向都可以）。超过之后，字母会像被压扁的纸一样折到自己身上：笔画叠到别的笔画上，空洞被填上或被撕开，字母不再认得出来。凡是重叠的地方都会合并成一个干净的形状，仍然只由直线组成，所以字体照样可以导出。有效果超过 100% 时，标签页顶部会显示合并了多少处（**Crossings merged**），以及略去了多少小到看不见的碎屑（**Slivers dropped**）。
+**超过 100%——翻折。** Noise、Ripple、Curl 以及 Wind 的 Gustiness 都可以超过 100%（Curl 正反两个方向都可以）。超过之后，字母会像被压扁的纸一样折到自己身上：笔画叠到别的笔画上，空洞被填上或被撕开，字母不再认得出来。凡是重叠的地方都会合并成一个干净的形状，仍然只由直线组成，所以字体照样可以导出。有效果超过 100%，或者打开了 **Spikes** 时，标签页顶部会显示合并了多少处（**Crossings merged**），以及略去了多少小到看不见的碎屑（**Slivers dropped**）。
 
 **Noise——揉皱的纸**
 
@@ -322,9 +324,23 @@
 - **Gust size**（阵风大小）——阵风拉动的条带宽度，按 em 的比例计算。风向水平（0° 或 180°）时，同一行的所有字母共用同样的条带，所以尾迹会笔直地贯穿整行文字。
 - **Gustiness**（阵风度）——各条带之间的差别。0% 时每条带被拉得一样多，字母只是被拉长；100% 时有的条带几乎不动，有的被拖得很远，留下参差、直边的尾迹；超过 100%（最高 200%）时部分阵风反向吹，把字母撕开。
 
-**Seed**（种子）——这个标签页上所有效果共用一个数字：它决定 Noise 的折痕和 Wind 的阵风（Ripple 和 Curl 没有随机性）。种子和设置相同，字母就相同；**Next variant** 换下一个。**Reset experimental** 关闭所有效果并恢复其设置，但保留你的种子。
+**Spikes——向外刺出的点**
 
-同一个字母的每次出现折痕都一样，所以导出的字体与画布上看到的完全相同。
+每个字母外侧轮廓上的几个点（锚点）会径直跳出字母、伸进画布，在每个点相交的两条边被拉成一根又长又直的尖刺。只有字母的外轮廓会长刺：**o**、**e**、**B** 这类字母里的空洞永远不会。Spikes 最后运行，作用在其他效果处理完的字母上。
+
+- **Use spikes**——打开该效果。
+- **Anchors**（锚点数）——每个字母有几个点跳出去，1 到 12（初始为 3）。
+- **Reach**（伸出距离）——点跳出多远，按 em 的比例计算，最高 200%（初始为 60%）。每个点跳的距离各不相同，在 Reach 的大约三分之一到全部之间，所以尖刺长短不一。200% 时最长的尖刺伸出两个 em，远远扎进相邻的字母。0% 时没有点跳出。
+- **Spread**（散开）——点往哪个方向跳（初始为 50%）。0% 时每个点都垂直于轮廓笔直向外跳；Spread 越大，每个点越可能偏向左右两侧，100% 时最多偏 90°，尖刺朝各个方向散开。
+- **Width**（宽度）——每根尖刺离开字母的地方有多宽（初始为 30%）。0% 时是一根细针；100% 时跳出的点会把它两侧的两条边整条拖走，尖刺就成了一个宽楔形，把字母的一部分一起拉出去。
+- 统计数字显示有多少个点跳了出去（**Spikes**），以及跳得最远的那个有多远，单位是字体单位（**Longest**）。
+- **由种子决定位置。** 哪些点跳、往哪边偏、各跳多远，都由这个标签页的 **Seed**（见下文）决定：种子相同，尖刺就相同；**Next variant** 让它们跳到别的地方。用 Sound 标签页驱动这个 Seed 时（例如 **Beat** → **Seed**，或者 **Flare** 预设），它们会在每个节拍上跳到新的地方。
+- **尖刺可以交叉。** 尖刺可能横穿自己所在的字母，或者穿过另一根尖刺。交叉的地方会合并成一个干净的轮廓，和上面的翻折一样，所以字体照样可以导出。每根尖刺都只由直线组成。
+- **试一试：** 勾选 **Use spikes**，把 **Anchors** 设为 1、**Reach** 设为 100%，然后多按几次 Seed 下面的 **Next variant**：每按一次，每个字母都有一个点刺向别的地方。
+
+**Seed**（种子）——这个标签页上所有效果共用一个数字：它决定 Noise 的折痕、Wind 的阵风，以及 Spikes 移动哪些点（Ripple 和 Curl 没有随机性）。种子和设置相同，字母就相同；**Next variant** 换下一个。**Reset experimental** 关闭所有效果并恢复其设置，但保留你的种子。
+
+同一个字母的每次出现折痕和尖刺都一样，所以导出的字体与画布上看到的完全相同。
 
 ### Sound（声音）标签页——让字母随声音而动
 
@@ -381,6 +397,7 @@
 **Mappings**（映射）——声音移动哪些滑块和种子、怎么移动。每个映射把一个读数连到一个滑块或种子上。
 
 - **Drive letters**（驱动字母）——总开关。只有勾选它，**并且**文件正在播放或麦克风正在收音时，声音才会移动字母。取消勾选后，你仍然可以看电平表，字母则保持不动。如果你的电脑设置了“减少动态效果”，它一开始是不勾选的，标签页会显示 “Off because your system asks for reduced motion.”（因为系统要求减少动态效果，所以关闭）；如果你仍然想让字母动起来，勾选它即可。页面打开期间才开启“减少动态效果”时，它会自动取消勾选。
+- **Preset**（预设）和 **Load**（载入）——一次设好字母并填好现成的几行；见下文的**预设**。
 - **Add mapping**（添加映射）——添加一行。第一行把 **Level** 连到 **Distortion · Noise amplitude**，Depth 为 **+50%**，适合先试一试；之后添加的行会选一个还没有任何一行使用的目标——如果有已经起作用的，就选它。最多可以有 8 行；满了以后按钮会变灰，标签页显示 “Up to 8 mappings.”（最多 8 个映射）。
 - 每一行包括：
   - **Feature**（特征）——驱动它的读数：上面 20 个读数中的任意一个，按同样的六组列出。
@@ -391,18 +408,18 @@
 - **滑块移动多远：** 从你放下它的位置开始。如果滑块停在四分之一处，Depth 是 +50%，那么声音最强时它会到四分之三处；没有声音时它停在原处。它不会超出轨道的两端，并且和滑块本身一样按档移动。同一个滑块上的两行会相加。
 - 有些滑块越往一端数值变化越快，比如 **Tolerance**。声音仍然带着它们沿轨道均匀移动，就像你用手拖一样。
 - **替你打开的设置。** 很多目标只有在另一个设置打开时才起作用：Ripple 的滑块需要 **Use ripple**，**Grid size** 需要 **Snap to grid**，等等。当你选中这样的目标（或者 **Add mapping** 添加了这样的目标）时，程序会替你打开那个设置，并在该行下方用一条提示说明改了什么，例如 “Turned on Ripple.”（已打开 Ripple）或 “Set Noise amplitude to 40.”（已把 Noise amplitude 设为 40）：
-  - Noise、Ripple、Curl 或 Wind 的滑块会打开各自的效果；
-  - Experimental 的 **Seed** 在 Noise 和 Wind 都没打开时会打开 Noise（Ripple 和 Curl 没有随机性）；
+  - Noise、Ripple、Curl、Wind 或 Spikes 的滑块会打开各自的效果；
+  - Experimental 的 **Seed** 在 Noise、Wind 或 Spikes 打开时起作用（Ripple 和 Curl 没有随机性）；三个都没打开时，它会打开 Noise；
   - **Grid size** 会打开 **Snap to grid**；
   - Distortion 的 **Noise frequency**、**Normal bias** 和 **Seed** 在 **Noise amplitude** 为 0 时会把它设为 40（为 0 时扰动是关闭的）；
   - Random anchors 的 **Density**、**Randomness** 和 **Seed** 会打开 **Use random anchors**；Seed 还会在 **Randomness** 为 0% 时把它设为 100%；
   - Curve flattening 的滑块会关闭随机锚点（随机锚点取代了曲线展平），并设好自己需要的设置：**Tolerance** 把 **Mode** 设为 Adaptive，**Segments per curve** 把它设为 Fixed segments，**Corner angle** 会打开 **Merge joined curves**——例如 “Turned off Random anchors. Set Mode to Adaptive.”（已关闭随机锚点。已把 Mode 设为 Adaptive）。（Corner angle 单独使用时变化不大，见 Curve flattening 一节。）
 - 把某一行换成别的目标，或者删除这一行，都不会再把任何设置关掉。这条提示会一直保留，直到你再次更换这一行的目标或删除这一行。如果你用方向键在 **Target** 列表里逐个浏览，只有你最后停下的那个目标才会打开设置：在你按回车或转到其他控件时生效；用鼠标或手指选择则立即生效。
 - 如果之后那个设置又被关掉了——你自己关掉了它，或者另一行需要不同的 Mode（Tolerance 需要 Adaptive，Segments per curve 需要 Fixed segments）——该行下方会有一条灰色提示说明原因，例如 “Turn on Ripple to hear this.”（打开 Ripple 才能听到效果），旁边的 **Enable**（启用）按钮可以把它重新打开。
-- **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Noise、Ripple、Curl、Wind 的全部滑块——以及三个种子。开关和选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
+- **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Noise、Ripple、Curl、Wind、Spikes 的全部滑块——以及三个种子。开关和选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
 - 映射不会保存：和其他设置一样，关闭页面后就没有了。
 
-**种子**——跳到新位置的点。种子决定一种随机图案（见 Distortion、Random anchors 和 Experimental 标签页）。声音驱动一个种子时，每跳一次，它就往前走一个数——1234 变成 1235——而每个种子都是一种完全不同的图案，所以轮廓上的每个点会一下子落到新的位置。到 999 999 之后，它从 0 重新开始。
+**种子**——跳到新位置的点。种子决定一种随机图案（见 Distortion、Random anchors 和 Experimental 标签页）。声音驱动一个种子时，每跳一次，它就往前走一个数——1234 变成 1235——而每个种子都是一种完全不同的图案，所以轮廓上的每个点会一下子落到新的位置（载入 **Flicker** 之后，每个字母只有少数几个点移动，每次换不同的几个）。到 999 999 之后，它从 0 重新开始。
 
 - **Rate**（速率）——种子跳动得有多频繁：
   - 配合 **Beat** 或 **Kick** 时，它按次数计算：100% 时每一下都跳，50% 时每两下跳一次，25% 时每四下跳一次；
@@ -415,6 +432,29 @@
   2. 点 **Add mapping**。
   3. 把 **Feature** 设为 **Beat**，**Target** 设为 **Distortion · Seed**。如果 **Noise amplitude** 原来是 0，该行下方会出现提示 “Set Noise amplitude to 40.”（已把 Noise amplitude 设为 40）：现在轮廓变粗糙了，才有东西可以动。
   4. 这一行的滑块现在显示 **Rate**：把它设为 100%。粗糙的轮廓会在每个节拍上换成新的形状。只想跟底鼓，就选 **Kick**；想跳得平缓一些，就调低 Rate。
+
+**预设**——现成的起点，最快的入门方式：
+
+1. 选择 **File** → **Choose file**，挑一首歌（或者选择 **Microphone**）。
+2. 在 **Mappings** 下面的 **Preset** 列表里选一个预设。选择只是选中它：此时什么都不会变。
+3. 按 **Load**。
+4. 按 **Play**（或 **Start listening**）。
+
+- **Load 让字母从头开始。** 它先把 **Geometry** 和 **Experimental** 标签页里的每个设置都恢复成刚打开应用时的样子——你的三个种子会保留——然后设好预设起始用的几个滑块，再用预设的各行替换你的映射。所以无论你之前设了什么，同一个预设看起来总是一样的。你的文字、排版、颜色、画布，以及声音本身的设置（来源、Sensitivity、Smoothing）都不会被改动。
+- **Preset 下方的说明会告诉你 Load 做了什么**，例如 “Loaded Bloom. Turned off Noise. Other Geometry and Experimental settings back to defaults (seeds kept).”（已载入 Bloom。已关闭 Noise。其他 Geometry 和 Experimental 设置已恢复默认，种子保留）。它会列出关掉了哪些效果，让你知道少了什么。再次载入或选择另一个预设时，这条说明就会消失。
+- Load 不会先询问，也无法撤销，所以如果你喜欢现在的设置，按它之前先记下来。像上文那样自己选择目标时，不会把任何设置恢复成默认值：只会打开该目标需要的设置。
+- 载入之后，可以像平常一样修改、添加或删除行，或者移动任何滑块。**Preset** 旁边的 **ⓘ** 也列出了所有预设。
+- 各个预设：
+  - **Flicker**——每个节拍上，每个字母有几个点跳动，其余的点撑住字形；声音越响、底鼓越重，它们跳得越远。它用的是 Distortion 的一种特殊模式（见 Distortion）。
+  - **Scatter**——每隔一个节拍重新放置字母上的点：安静时又密又均匀，越响越稀疏、越不均匀。载入它会打开随机锚点。
+  - **Pixel**——字母吸附到网格上，低音让网格变粗；嘶嘶声和镲片让点变少。
+  - **Low poly**——响亮的段落把曲线压成更少、更长的边；嘈杂的声音让点变少。
+  - **Block**——音乐渐强时圆形笔画变方，每一下底鼓再方一点。
+  - **Jitter**——嘶嘶声和镲片让轮廓颤动；声音越亮，颤动越细碎。
+  - **Facet**——越响、每一下底鼓时，曲线碎成几条直边；音越高，又变得平滑。
+  - **Bloom**——波纹穿过字母，每一下底鼓时涌起；低音把波纹弯成花瓣。载入它会打开 Ripple。
+  - **Flare**——安静时没有尖刺；越响，每个字母就有一两个点射出尖刺，并在每个节拍上跳到新的地方；底鼓让尖刺更多。载入它会打开 Spikes。
+  - **Gale**——响亮的声音像风一样把字母拉长；热闹的段落让阵风忽强忽弱。载入它会打开 Wind。
 
 **声音移动字母的时候：**
 
