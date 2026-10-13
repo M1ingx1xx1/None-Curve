@@ -547,6 +547,115 @@ input[type='range']:disabled {
   gap: 8px;
 }
 
+/* An on/off switch (Drive letters): a checkbox with role="switch", drawn as a track whose knob slides right
+   when on. The checkbox itself lies invisibly over the track, so it keeps its click, keyboard and focus. */
+.switch {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch-track {
+  position: relative;
+  width: 26px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.switch-track::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--primary);
+  border-color: var(--primary-edge);
+}
+
+.switch input:checked + .switch-track::before {
+  transform: translateX(12px);
+  background: var(--on-primary);
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.switch input:disabled {
+  cursor: default;
+}
+
+.switch input:disabled + .switch-track {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.switch input:disabled + .switch-track::before {
+  background: var(--faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-track::before {
+    transition: none;
+  }
+}
+
+/* High contrast: system colours replace the backgrounds, so the knob and the on state are drawn in them. */
+@media (forced-colors: active) {
+  .switch-track {
+    border-color: CanvasText;
+  }
+
+  .switch-track::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .switch input:checked + .switch-track {
+    forced-color-adjust: none;
+    background: Highlight;
+    border-color: Highlight;
+  }
+
+  .switch input:checked + .switch-track::before {
+    background: HighlightText;
+  }
+
+  .switch input:disabled + .switch-track {
+    border-color: GrayText;
+  }
+
+  .switch input:disabled + .switch-track::before {
+    background: GrayText;
+  }
+}
+
 .group:disabled label,
 .group:disabled .field-label,
 .group:disabled output {
@@ -2139,7 +2248,7 @@ input[type='range']:disabled {
 }
 
 /* A meter: a track, and a fill scaled from the left (a transform, so a frame costs no layout). The bars
-   jump from frame to frame with no transition, Beat and Kick included, so reduced motion needs nothing more. */
+   jump from frame to frame with no transition, Beat included, so reduced motion needs nothing more. */
 .sound-meter {
   height: 6px;
   min-width: 0;
@@ -2157,7 +2266,7 @@ input[type='range']:disabled {
   will-change: transform;
 }
 
-/* Balance (−1–1): the fill starts at the centre line and grows right, or left (a negative scale mirrors it). */
+/* Pan (−1–1): the fill starts at the centre line and grows right, or left (a negative scale mirrors it). */
 .sound-meter-bipolar {
   position: relative;
 }

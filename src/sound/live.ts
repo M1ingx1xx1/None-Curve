@@ -334,7 +334,7 @@ export class LiveScheduler {
     this.update()
   }
 
-  /** The source started or stopped (playing, paused, listening, off). */
+  /** The source started or stopped (playing, paused, listening, stopped listening, switched). */
   sourceChanged() {
     this.update()
   }
