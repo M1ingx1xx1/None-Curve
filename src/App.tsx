@@ -57,8 +57,6 @@ export default function App() {
     [],
   )
 
-  // Only used on narrow screens; on desktop the geometry parameters are always shown top left.
-  const [geometryOpen, setGeometryOpen] = useState(false)
   const [googleOpen, setGoogleOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const openGoogleFonts = useCallback(() => setGoogleOpen(true), [])
@@ -118,7 +116,6 @@ export default function App() {
       <Header document={state.document} onOpenExport={openExport} />
       <HintsContext.Provider value={showAllHints}>
         <Workspace
-          geometryOpen={geometryOpen}
           tools={<ToolHead document={state.document} importer={importer} onOpenGoogleFonts={openGoogleFonts} />}
           geometry={
             <GeometryPanel
@@ -139,8 +136,6 @@ export default function App() {
               artboard={artboard}
               onArtboardChange={setArtboard}
               gridSize={gridSize}
-              geometryPanelOpen={geometryOpen}
-              onToggleGeometryPanel={() => setGeometryOpen((open) => !open)}
               highlightSelection={highlight}
               onSelectGlyph={selectGlyph}
               onClearHighlight={clearHighlight}

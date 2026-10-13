@@ -26,7 +26,7 @@
 
 ## 2. 你需要准备什么
 
-- 电脑上的新版浏览器（Chrome、Edge、Firefox 或 Safari）。手机也能用，但大屏幕会舒服得多。
+- 一台装有新版浏览器（Chrome、Edge、Firefox 或 Safari）的电脑。不支持手机和平板：这个工具是为大屏幕设计的。
 - 电脑里的字体文件（`.ttf`、`.otf`、`.woff` 或 `.woff2`），**或者**能上网，以便从 Google Fonts 载入字体。
 - 可选，供 **Sound** 标签页使用：一个音频文件（比如 MP3）或一个麦克风。
 - 网页地址，例如 `https://m1ingx1xx1.github.io/None-Curve/`，也可以向搭建项目的人索取。
@@ -68,8 +68,6 @@
 - **文字输入和预览之间**——左右拖动。
 
 一边变大多少，另一边就变小多少，所以整个界面始终正好放进窗口里，页面不需要滚动。每个区域都有最小尺寸。双击细线可以让它回到原来的位置。下次打开时程序会记住你的设置。
-
-> 在手机上，这些区域会从上到下排列：功能区、画布、文字输入、预览、排版 / 字形 / 颜色标签页。造型控制项默认收起，点画布工具栏里的 **Parameters** 展开。
 
 ---
 
@@ -361,7 +359,7 @@
 - **Microphone**（麦克风）——你周围的声音，比如房间里放的音乐、你的说话声或拍手声。
   - 选中 **Microphone** 后会出现 **Start listening** 按钮，点它才会打开麦克风。第一次使用时，浏览器会询问是否允许这个页面使用麦克风：点 **Allow**（允许）。
   - **Stop listening**（停止收音）关闭麦克风；**Start listening**（开始收音）重新打开。
-  - 收音期间，按钮旁显示 **Listening**（正在收音），底部状态栏显示 **Microphone on**（麦克风已开启），所以在任何标签页都能看到。在手机这类窄屏上，它改为浮在屏幕右下角。
+  - 收音期间，按钮旁显示 **Listening**（正在收音），底部状态栏显示 **Microphone on**（麦克风已开启），所以在任何标签页都能看到。
   - 如果麦克风自己停了（被拔掉，或者浏览器的权限被收回），状态栏会显示 **No microphone**（没有麦克风）。
   - 麦克风的声音只被测量，从不回放，所以不会通过扬声器产生啸叫。
   - 点 **Stop listening**、切换到 **Off** 或 **File**，以及关闭页面，都会关闭麦克风。
@@ -414,7 +412,7 @@
   - Distortion 的 **Noise frequency**、**Normal bias** 和 **Seed** 在 **Noise amplitude** 为 0 时会把它设为 40（为 0 时扰动是关闭的）；
   - Random anchors 的 **Density**、**Randomness** 和 **Seed** 会打开 **Use random anchors**；Seed 还会在 **Randomness** 为 0% 时把它设为 100%；
   - Curve flattening 的滑块会关闭随机锚点（随机锚点取代了曲线展平），并设好自己需要的设置：**Tolerance** 把 **Mode** 设为 Adaptive，**Segments per curve** 把它设为 Fixed segments，**Corner angle** 会打开 **Merge joined curves**——例如 “Turned off Random anchors. Set Mode to Adaptive.”（已关闭随机锚点。已把 Mode 设为 Adaptive）。（Corner angle 单独使用时变化不大，见 Curve flattening 一节。）
-- 把某一行换成别的目标，或者删除这一行，都不会再把任何设置关掉。这条提示会一直保留，直到你再次更换这一行的目标或删除这一行。如果你用方向键在 **Target** 列表里逐个浏览，只有你最后停下的那个目标才会打开设置：在你按回车或转到其他控件时生效；用鼠标或手指选择则立即生效。
+- 把某一行换成别的目标，或者删除这一行，都不会再把任何设置关掉。这条提示会一直保留，直到你再次更换这一行的目标或删除这一行。如果你用方向键在 **Target** 列表里逐个浏览，只有你最后停下的那个目标才会打开设置：在你按回车或转到其他控件时生效；用鼠标选择则立即生效。
 - 如果之后那个设置又被关掉了——你自己关掉了它，或者另一行需要不同的 Mode（Tolerance 需要 Adaptive，Segments per curve 需要 Fixed segments）——该行下方会有一条灰色提示说明原因，例如 “Turn on Ripple to hear this.”（打开 Ripple 才能听到效果），旁边的 **Enable**（启用）按钮可以把它重新打开。
 - **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Noise、Ripple、Curl、Wind、Spikes 的全部滑块——以及三个种子。开关和选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
 - 映射不会保存：和其他设置一样，关闭页面后就没有了。

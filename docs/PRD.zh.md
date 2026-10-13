@@ -51,6 +51,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 - 提供 Bézier 曲线控制柄编辑器或完整字形手工绘制工具。
 - 重新设计字体的字符集、语言覆盖或高级排版特性。
 - 保证所有字体格式、字体表和排版特性都能无损转换。
+- 手机和平板布局：本产品只面向桌面浏览器，不提供窄屏布局。
 
 ## 4. 核心工作流程
 
@@ -180,7 +181,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 ### 工具层级
 
 - 默认进入字体解构工作区；字体处理、骨架查看、轮廓编辑和导出构成主导航与主要画布。
-- 控制面板固定在工作区左侧，实时字形画布位于右侧主区域；窄屏时可折叠左侧面板，但不能用导出结果替代实时预览。
+- 控制面板固定在工作区左侧，实时字形画布位于右侧主区域。不能用导出结果替代实时预览。
 - Sound 作为第三个标签页，位于 Geometry 和 Experimental 旁边；它不应替代基础字体编辑器，也不要求用户先载入音频才能编辑字体。
 - Sound 实时运行时，滑块保留自己的值（用标记显示实时值）；关闭 Sound 后完全恢复原值，导出使用滑块值。
 
@@ -269,7 +270,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
   - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
   - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。
   - 开关从不作为目标，Distortion 的少数锚点模式也不是。
-  - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标或手指选择则立即应用。**Add mapping** 优先选已经起作用的目标。
+  - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标选择则立即应用。**Add mapping** 优先选已经起作用的目标。
     - Curve flattening 的目标会关闭 Random anchors，并设置各自需要的：Tolerance 需要 Adaptive 模式，Segments per curve 需要 Fixed segments 模式，Corner angle 需要 Merge joined curves（两种模式下都可以）。
     - Grid size 打开 Snap to grid。
     - Distortion 的 Noise frequency、Normal bias 和 Seed 在 Noise amplitude 为 0 时把它设为 40。

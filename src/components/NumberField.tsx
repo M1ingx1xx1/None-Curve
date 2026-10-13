@@ -51,7 +51,6 @@ export default function NumberField({ id, value, min, max, step, onCommit, disab
       id={id}
       className="number-field"
       type="number"
-      inputMode="decimal"
       min={min}
       max={max}
       step={step}

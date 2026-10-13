@@ -93,7 +93,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
   })
 
   return (
-    <aside id="geometry-panel" className="panel geometry-panel" aria-label="Shape parameters">
+    <aside className="panel geometry-panel" aria-label="Shape parameters">
       <div className="tool-tabs geometry-tabs" role="tablist" aria-label="Shape parameters" onKeyDown={onTabKeyDown}>
         {tabs.map((t) => (
           <button

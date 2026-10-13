@@ -76,7 +76,7 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene }: 
         <span role="status">{live.driving ? 'Live' : ''}</span>
         {live.driving && ` · ${live.fps} fps`}
       </span>
-      {/* Visible from every tab (on narrow screens it floats in view), so the microphone is never on unnoticed.
+      {/* Visible from every tab, so the microphone is never on unnoticed.
           Always in the document and polite, so it is also announced from every tab when the microphone stops. */}
       <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}

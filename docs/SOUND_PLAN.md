@@ -88,7 +88,7 @@ A mapping connects one feature to one target parameter. The Sound tab holds up t
   - Switching the row to another target, or removing it, never turns anything off.
   - **Load** is the one exception (§7): it resets the Geometry and Experimental settings to their defaults before it sets a preset up, so it can turn things off, and it says so under the Preset row. Picking a target by hand still only switches on what that target needs; it resets nothing.
   - If the user turns the setting off again later, the row says why its target does nothing and offers an **Enable** button, which switches it on again and shows the notice.
-  - With the keyboard, browsing the Target list switches nothing on along the way: the choice applies on Enter or when focus leaves the list. A pick with the mouse or a finger applies at once.
+  - With the keyboard, browsing the Target list switches nothing on along the way: the choice applies on Enter or when focus leaves the list. A pick with the mouse applies at once.
 - **Base values stay put:**
   - The sliders keep their own values and do not move while Sound is live; a thin marker on each driven slider shows the live value.
   - A seed field keeps its own seed; a small live number beside it shows the live seed. The Distortion and Random anchors statistics show the live seed too, since they describe the letters as shown.
