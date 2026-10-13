@@ -51,6 +51,7 @@ The product is designed for direct, visual exploration. Users should be able to 
 - Providing a Bézier handle editor or a complete manual glyph drawing tool.
 - Redesigning character sets, language coverage, or advanced typesetting features.
 - Guaranteeing lossless conversion of every font format, font table, or typesetting feature.
+- Phone and tablet layouts: the product is for desktop browsers only, with no narrow-screen layout.
 
 ## 4. Core workflow
 
@@ -180,7 +181,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 ### Tool hierarchy
 
 - Open on the font deconstruction workspace by default. Font handling, skeleton inspection, outline editing, and export form the primary navigation and canvas.
-- Place the control panel on the left and the live glyph canvas in the main area on the right. On narrow screens, the left panel may collapse, but an exported file must never replace the live preview.
+- Place the control panel on the left and the live glyph canvas in the main area on the right. An exported file must never replace the live preview.
 - Offer Sound as a third tab beside Geometry and Experimental. It must not replace the core font editor or require audio input for font editing.
 - While Sound is live, sliders keep their own values (a marker shows the live value); switching Sound off restores them exactly, and exports use the slider values.
 
@@ -269,7 +270,7 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
   - **Targets in the Geometry tab:** Distortion Seed, Noise amplitude, Noise frequency, and Normal bias; Random anchors Seed, Randomness, and Density; Curve flattening Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Allowed directions. Allowed directions comes with Step mappings.
   - **Targets in the Experimental tab:** its sliders and the shared seed.
   - Switches are never targets, nor is Distortion's few anchors mode.
-  - **Targets switch themselves on:** picking a target whose setting is off turns that setting on and says so under the row (for example "Turned on Ripple.", "Set Noise amplitude to 40.", or "Turned off Random anchors. Set Mode to Adaptive."). Switching the row to another target, or removing it, never turns anything off. If the user turns the setting off later, the row says why and offers **Enable**. With the keyboard, browsing the Target list applies a target only on Enter or when focus leaves the list; a pick with the mouse or a finger applies at once. **Add mapping** prefers a target that already acts.
+  - **Targets switch themselves on:** picking a target whose setting is off turns that setting on and says so under the row (for example "Turned on Ripple.", "Set Noise amplitude to 40.", or "Turned off Random anchors. Set Mode to Adaptive."). Switching the row to another target, or removing it, never turns anything off. If the user turns the setting off later, the row says why and offers **Enable**. With the keyboard, browsing the Target list applies a target only on Enter or when focus leaves the list; a pick with the mouse applies at once. **Add mapping** prefers a target that already acts.
     - Curve flattening targets turn Random anchors off and set what they need: Tolerance the Adaptive Mode, Segments per curve the Fixed segments Mode, Corner angle Merge joined curves (in either Mode).
     - Grid size turns on Snap to grid.
     - Distortion Noise frequency, Normal bias, and Seed set Noise amplitude to 40 when it is 0.

@@ -24,7 +24,7 @@ Everything happens inside your web browser. Your font and audio files are never 
 
 ## 2. What you need
 
-- A recent web browser (Chrome, Edge, Firefox, or Safari) on a computer. A phone works, but a larger screen is much more comfortable.
+- A computer with a recent web browser (Chrome, Edge, Firefox, or Safari). Phones and tablets are not supported: the tool is built for a large screen.
 - Either a font file on your computer (`.ttf`, `.otf`, `.woff`, or `.woff2`) **or** an internet connection to load a font from Google Fonts.
 - Optional, for the **Sound** tab: an audio file (such as an MP3) or a microphone.
 - The app's web address — for example `https://m1ingx1xx1.github.io/None-Curve/` — or ask whoever set up the project for it.
@@ -66,8 +66,6 @@ At the very top there is an **Export…** button, and along the bottom a status 
 - between the **text input and the preview** — drag left or right.
 
 Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
-
-> On a phone the areas are stacked: tools, canvas, text input, preview, then the Typography / Glyphs / Color tabs. The shaping controls are folded away — tap **Parameters** in the canvas toolbar to open them.
 
 ---
 
@@ -359,7 +357,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 - **Microphone** — the sound around you, for example music playing in the room, your voice, or clapping.
   - Choosing **Microphone** shows the **Start listening** button; the microphone turns on only when you click it. The first time, your browser asks whether this page may use the microphone: click **Allow**.
   - **Stop listening** turns the microphone off; **Start listening** turns it on again.
-  - While it listens, **Listening** shows next to the button, and **Microphone on** shows in the status line at the bottom, so you can see it from every tab. On a narrow screen, such as a phone, it floats at the bottom right of the screen instead.
+  - While it listens, **Listening** shows next to the button, and **Microphone on** shows in the status line at the bottom, so you can see it from every tab.
   - If the microphone stops by itself (it was unplugged, or the browser's permission was taken away), the status line says **No microphone**.
   - The microphone's sound is only measured, never played back, so it cannot howl through your speakers.
   - **Stop listening**, switching to **Off** or **File**, and closing the page all turn the microphone off.
@@ -412,7 +410,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - Distortion's **Noise frequency**, **Normal bias**, and **Seed** set **Noise amplitude** to 40 when it is 0 (at 0, Distortion is off);
   - Random anchors' **Density**, **Randomness**, and **Seed** turn on **Use random anchors**; the Seed also sets **Randomness** to 100 % when it is 0 %;
   - the Curve flattening sliders turn random anchors off (they replace flattening) and set what they need: **Tolerance** sets **Mode** to Adaptive, **Segments per curve** sets it to Fixed segments, and **Corner angle** turns on **Merge joined curves** — for example "Turned off Random anchors. Set Mode to Adaptive." (Corner angle shows little on its own; see Curve flattening.)
-- Changing a row to another target, or removing it, never switches anything off again. The note stays until you change the row's target or remove the row. If you go through the **Target** list with the arrow keys, only the target you settle on switches anything on, when you press Enter or move on to another control; a pick with the mouse or a finger counts at once.
+- Changing a row to another target, or removing it, never switches anything off again. The note stays until you change the row's target or remove the row. If you go through the **Target** list with the arrow keys, only the target you settle on switches anything on, when you press Enter or move on to another control; a pick with the mouse counts at once.
 - If the setting is off again later — you switched it off yourself, or another row needed a different Mode (Tolerance needs Adaptive, Segments per curve needs Fixed segments) — a grey note under the row says why, for example "Turn on Ripple to hear this.", and an **Enable** button next to it switches the setting on again.
 - **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Noise, Ripple, Curl, Wind, and Spikes — and the three seeds. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
 - Mappings are not saved: like your other settings, they last until you close the page.

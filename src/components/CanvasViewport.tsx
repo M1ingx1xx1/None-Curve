@@ -21,8 +21,6 @@ interface CanvasViewportProps {
   onArtboardChange: (patch: Partial<ArtboardParams>) => void
   /** Snapping grid spacing to draw, or null when snapping is off. */
   gridSize: number | null
-  geometryPanelOpen: boolean
-  onToggleGeometryPanel: () => void
   /** False after a click on empty canvas: the selected glyph is no longer highlighted. */
   highlightSelection: boolean
   onSelectGlyph: (glyph: GlyphRef) => void
@@ -100,8 +98,6 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     artboard,
     onArtboardChange,
     gridSize,
-    geometryPanelOpen,
-    onToggleGeometryPanel,
     highlightSelection,
     onSelectGlyph,
     onClearHighlight,
@@ -166,15 +162,6 @@ export default function CanvasViewport(props: CanvasViewportProps) {
       onDrop={onDrop}
     >
       <div className="viewport-toolbar" role="toolbar" aria-label="Canvas">
-        <button
-          type="button"
-          className="panel-toggle"
-          aria-expanded={geometryPanelOpen}
-          aria-controls="geometry-panel"
-          onClick={onToggleGeometryPanel}
-        >
-          {geometryPanelOpen ? 'Hide parameters' : 'Parameters'}
-        </button>
         <div className="segmented" role="group" aria-label="Outline">
           {outlineViews.map(({ value, label, description }) => (
             <button

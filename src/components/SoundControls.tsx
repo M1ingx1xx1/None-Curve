@@ -807,7 +807,7 @@ function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: Ma
   const update = (patch: Partial<Omit<Mapping, 'id'>>) => mappingStore.update(mapping.id, patch)
   // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
   // what a target needs is switched on only once the choice is made, on Enter or on leaving the select; the
-  // settings passed on the way stay as they were. A pick with the mouse or a finger is made at once.
+  // settings passed on the way stay as they were. A pick with the mouse is made at once.
   const keyboard = useRef(false)
   const pendingTarget = useRef(false)
   const commitTarget = (value: string) => {
