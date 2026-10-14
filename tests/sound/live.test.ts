@@ -234,6 +234,26 @@ describe('live scheduler', () => {
     expect(r.live.freezeChanges()).toBeNull()
   })
 
+  it('Freeze leaves out Thorn\'s canvasEm, which rides only on the geometry parameters', () => {
+    const r = rig()
+    const thorned: GeometryParams = {
+      ...BASE,
+      experimental: { ...BASE.experimental, thorn: { ...BASE.experimental.thorn, enabled: true, canvasReach: 0.01, canvasEm: 30.04 } },
+    }
+    r.live.setBase(thorned)
+    r.live.setMappings([row('experimental.thorn.canvasReach')], true)
+    r.play(800, loud)
+    const shown = r.last!.params!
+    // The live frames keep it: they are keyed and computed with the canvas the sliders use.
+    expect(shown.experimental.thorn.canvasEm).toBe(30.04)
+    expect(shown.experimental.thorn.canvasReach).toBeGreaterThan(0.01)
+    const changes = r.live.freezeChanges()!
+    expect(Object.keys(changes)).toEqual(['experimental'])
+    const { canvasEm: _derived, ...frozen } = shown.experimental.thorn
+    expect(changes.experimental!.thorn).toEqual(frozen)
+    expect('canvasEm' in changes.experimental!.thorn).toBe(false)
+  })
+
   it('starts driving when a font is loaded and stops when it goes', () => {
     const r = rig()
     r.live.setBase(BASE, false)

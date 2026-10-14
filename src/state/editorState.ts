@@ -1,7 +1,8 @@
 import type { FontErrorKind } from '../font/errors'
 import { pickDefaultGlyph, type LoadedFont } from '../font/model'
 import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../specimen/artboard'
-import type { GlyphRef } from '../geometry/types'
+import { canvasDiagonalEm } from '../geometry/thorn'
+import type { ExperimentalParams, GlyphRef } from '../geometry/types'
 import type { AppState, EditorParams, ExportMeta, ImportOrigin, SettingsParams, ViewParams } from './types'
 
 const initialView: ViewParams = {
@@ -35,13 +36,33 @@ export const initialState: AppState = {
       ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
       whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
       slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-      thorn: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
+      thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
     },
     view: initialView,
     typography: DEFAULT_TYPOGRAPHY,
     palette: DEFAULT_PALETTE,
     artboard: DEFAULT_ARTBOARD,
   },
+}
+
+/**
+ * The canvas diagonal in em (canvasDiagonalEm), which Thorn's Reach is a share of, while Thorn is on; else
+ * null, so with Thorn off the text size and canvas never change the geometry. The PNG scale never counts.
+ */
+export function thornCanvasEm({ experimental, typography, artboard }: Pick<EditorParams, 'experimental' | 'typography' | 'artboard'>): number | null {
+  return experimental.thorn?.enabled ? canvasDiagonalEm(artboard.width, artboard.height, typography.size) : null
+}
+
+/**
+ * The Experimental params with Thorn's derived `canvasEm` set, or removed for null; the same object when
+ * nothing changes. It only rides on the geometry parameters: never in the state, undo history or saved sessions.
+ */
+export function withThornCanvasEm(experimental: ExperimentalParams, canvasEm: number | null): ExperimentalParams {
+  const { thorn } = experimental
+  if (!thorn || (thorn.canvasEm ?? null) === canvasEm) return experimental
+  if (canvasEm !== null) return { ...experimental, thorn: { ...thorn, canvasEm } }
+  const { canvasEm: _derived, ...settings } = thorn
+  return { ...experimental, thorn: settings }
 }
 
 type ParamGroup = keyof EditorParams

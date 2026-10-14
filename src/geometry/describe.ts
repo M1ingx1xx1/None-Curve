@@ -1,8 +1,9 @@
+import { reachPercent, reachReadout } from '../state/sliderScales'
 import { CRUMPLE_LIMITS, crumpleIsOn } from './crumple'
 import { experimentalFolds } from './experimental'
 import { rippleIsOn } from './ripple'
 import { slipstreamIsOn } from './slipstream'
-import { THORN_FALLBACK, thornIsOn } from './thorn'
+import { THORN_FALLBACK, THORN_LIMITS, thornIsOn } from './thorn'
 import type { GeometryParams } from './types'
 import { whorlIsOn } from './whorl'
 
@@ -63,8 +64,10 @@ export function describePipeline(params: GeometryParams): string[] {
     const pct = (v: number) => `${Math.round(v * 100)}%`
     const root = s.root ?? THORN_FALLBACK.root
     const refraction = s.refraction ?? 0
+    // As the Reach slider shows it, and its length in em the same way.
+    const reach = `${reachPercent(s.canvasReach)}% canvas${s.canvasEm !== undefined ? ` (about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm))} em)` : ''}`
     steps.push(
-      `thorn ×${s.count}, reach ${pct(s.reach)} em, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
+      `thorn ×${s.count}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
     )
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')

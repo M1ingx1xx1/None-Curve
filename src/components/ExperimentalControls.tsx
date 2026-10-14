@@ -6,7 +6,7 @@ import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
 import type { CrumpleParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES, type SliderId } from '../state/sliderScales'
+import { reachFromSlider, reachPercent, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId, type SliderRange } from '../state/sliderScales'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -21,6 +21,8 @@ interface ExperimentalControlsProps {
   dispatch: Dispatch<Action>
   /** Which glyph the statistics describe, shown in the intro like on the Geometry tab. */
   statistics?: ReactNode
+  /** How far a thorn can reach at Reach 100% (em): the canvas diagonal at the current text size, up to Thorn's cap. */
+  reachEm: number
 }
 
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
@@ -29,17 +31,22 @@ export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-  thorn: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
+  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
 }
 
 const percent = (v: number) => Math.round(v * 100)
+/** Ems for a hint: one decimal below 10, whole above. */
+const ems = (v: number) => (Math.round(v * 10) < 100 ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)))
+
+// Reach is cubic (THORN_REACH): short thorns keep fine steps, and the top flings anchors across the whole canvas.
+const REACH_CURVE: SliderCurve = { slider: THORN_REACH.slider, toSlider: reachToSlider, fromSlider: reachFromSlider }
 
 /**
  * The Experimental tab: effects that run after the whole Geometry pipeline and can all be on at once.
  * Each folds the letter along straight creases, so it adds corners but never curves. Beyond 100% an
  * effect folds the letter onto itself, and the overlaps are merged into one outline.
  */
-function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics }: ExperimentalControlsProps) {
+function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics, reachEm }: ExperimentalControlsProps) {
   const update = (patch: Partial<ExperimentalParams>) => dispatch({ type: 'updateParams', group: 'experimental', patch })
   const introHint = useHint()
   const seedHint = useHint()
@@ -73,6 +80,7 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
         stats={stats?.thorn ?? null}
         pending={pending}
         disabled={disabled}
+        reachEm={reachEm}
         onChange={(thorn) => update({ thorn })}
       />
 
@@ -567,8 +575,9 @@ function ThornGroup({
   stats,
   pending,
   disabled,
+  reachEm,
   onChange,
-}: Omit<GroupProps<ThornParams>, 'stats'> & { stats: ThornStats | null }) {
+}: Omit<GroupProps<ThornParams>, 'stats'> & { stats: ThornStats | null; reachEm: number }) {
   const update = (patch: Partial<ThornParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   // Older saved settings lack the newer sliders.
@@ -593,7 +602,7 @@ function ThornGroup({
       <div className="group-body">
         <HintText hint={introHint}>
           A few anchors on the outside of each letter jump out into the canvas as long, straight thorns and pull the letter
-          along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows it all through fluted
+          along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows the letter through fluted
           glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump somewhere new.
           Runs after Slipstream.
         </HintText>
@@ -617,16 +626,17 @@ function ThornGroup({
         />
         <RangeField
           id="thorn-reach"
-          target="experimental.thorn.reach"
+          target="experimental.thorn.canvasReach"
+          curve={REACH_CURVE}
           label="Reach"
-          value={params.reach}
-          display={percent(params.reach)}
-          unit="% em"
-          valueText={`${percent(params.reach)} percent of the em`}
+          value={params.canvasReach}
+          display={reachPercent(params.canvasReach)}
+          unit="% canvas"
+          valueText={`${reachPercent(params.canvasReach)} percent of the canvas`}
           disabled={off}
           hint={reachHint}
-          hintText="How far the anchors jump, as a share of the em. Each goes a random 35–100% of it."
-          onChange={(reach) => update({ reach })}
+          hintText={`How far the anchors jump, as a share of the canvas diagonal: at 100% a thorn can cross the whole canvas. Each goes a random 35–100% of it. At this text size and canvas, 100% is about ${ems(reachEm)} em.`}
+          onChange={(canvasReach) => update({ canvasReach })}
         />
         <RangeField
           id="thorn-root"
@@ -673,7 +683,7 @@ function ThornGroup({
           valueText={`${percent(refraction)} percent`}
           disabled={off}
           hint={refractionHint}
-          hintText="Shows the letter through fluted glass: it is cut into vertical strips, each magnified a little and moved up or down, so thorns and strokes look broken and offset. 0%: off."
+          hintText="Shows the letter through fluted glass: it is cut into vertical strips, each magnified a little and moved up or down, so strokes and thorns look broken and offset. The glass covers the letter; thorn tips reaching past it to the left or right stay sharp. 0%: off."
           onChange={(refraction) => update({ refraction })}
         />
         <RangeField
@@ -724,10 +734,15 @@ function ThornGroup({
   )
 }
 
-interface RangeFieldProps {
+/** A slider that is not linear: its range input's own range, and how a value maps to a position on it and back. */
+interface SliderCurve {
+  slider: SliderRange
+  toSlider: (value: number) => number
+  fromSlider: (position: number) => number
+}
+
+type RangeFieldProps = {
   id: string
-  /** The Sound target this slider is ("experimental.crumple.amount"): its range, and its live marker. */
-  target: SliderId
   label: string
   value: number
   display: ReactNode
@@ -737,10 +752,16 @@ interface RangeFieldProps {
   hint?: HintState
   hintText?: string
   onChange: (value: number) => void
-}
+} & (
+  /** The Sound target this slider is ("experimental.crumple.amount"): its range, and its live marker. */
+  | { target: SliderId; curve?: undefined }
+  /** A curved slider (Reach): its Sound target, for the live marker, and its curve. */
+  | { target: string; curve: SliderCurve }
+)
 
 /** A labelled slider with its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
-function RangeField({ id, target, label, value, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+function RangeField({ id, target, curve, label, value, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+  const range = curve ? curve.slider : SLIDER_RANGES[target]
   return (
     <div className="field">
       <div className="field-head">
@@ -757,12 +778,12 @@ function RangeField({ id, target, label, value, display, unit, valueText, disabl
         <input
           id={id}
           type="range"
-          {...SLIDER_RANGES[target]}
-          value={value}
+          {...range}
+          value={curve ? curve.toSlider(value) : value}
           disabled={disabled}
           aria-valuetext={valueText}
           aria-describedby={hint?.id}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => onChange(curve ? curve.fromSlider(Number(e.target.value)) : Number(e.target.value))}
         />
         <LiveMarker target={target} />
       </span>

@@ -28,10 +28,19 @@ export const OVERLAP_LIMITS = {
   minGridPerEm: 1000,
   /** Contours smaller than this many square grid cells are too small to show, and are left out. */
   minArea: 4,
-  /** Likewise contours narrower on average (twice the area over the perimeter) than this many cells. */
+  /** Likewise contours narrower on average (twice the area over the perimeter) than this many cells (but see room). */
   minWidth: 1,
-  /** Coordinates (in grid cells) beyond this are not merged: the glyph is left as it is. */
-  maxCoordinate: 2 ** 19,
+  /**
+   * A narrow contour is kept where a disk this share of the em across fits inside it: a letter whose long thin thorns
+   * make it narrow on average still has its body (a sliver has no such room anywhere).
+   */
+  room: 0.01,
+  /**
+   * Coordinates (in grid cells) up to this are merged exactly: every product of grid coordinates stays below 2^50
+   * (2^53 is exact). That covers ±256 em (Thorn's longest reach) at 4096 units per em, on the finer grid too (2^21).
+   * A glyph beyond it is not merged (stats.failed): it is left as it is.
+   */
+  maxCoordinate: 2 ** 22,
   /** Rounds of sending vertices back to the grid where the exact contours cross (step 7), before all of them go back. */
   exactRounds: 8,
   /** Vertices this close (font units) to the straight line between their neighbours are left out, unless the input has them. */
@@ -74,7 +83,7 @@ export type FillRule = 'nonzero' | 'positive'
  * Should rounding to the grid still join outlines wrongly (a crossing that lies exactly on a cell's corner, say),
  * the regions' winding numbers disagree (step 5). Which crossings fall on corners depends on the grid, so the merge
  * is tried once more on a grid twice as fine; if that breaks down too, the glyph is left as it is (stats.failed): its
- * outlines still cross, but it fills the same everywhere.
+ * outlines still cross, but it fills the same everywhere. So is a glyph that reaches beyond the grid (see maxCoordinate).
  */
 export function mergeOverlaps(
   polygon: PolygonGlyph,
@@ -91,7 +100,7 @@ export function mergeOverlaps(
   return { polygon, stats: { ...emptyOverlapStats(), contoursIn: polygon.contours.length, failed: true } }
 }
 
-/** The merge on a grid of `scale` cells per font unit; null when it breaks down. */
+/** The merge on a grid of `scale` cells per font unit; null when it breaks down or a coordinate lies beyond the grid. */
 function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHot: number): { polygon: PolygonGlyph; stats: OverlapStats } | null {
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const stats: OverlapStats = { ...emptyOverlapStats(), applied: true, contoursIn: polygon.contours.length }
@@ -114,9 +123,7 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     const first = ax.length
     const grid = contour.points.map((p) => ({ x: Math.round(p.x * scale), y: Math.round(p.y * scale) }))
     for (const p of grid) {
-      if (!(Math.abs(p.x) < OVERLAP_LIMITS.maxCoordinate && Math.abs(p.y) < OVERLAP_LIMITS.maxCoordinate)) {
-        return { polygon, stats: { ...stats, applied: false } }
-      }
+      if (!(Math.abs(p.x) < OVERLAP_LIMITS.maxCoordinate && Math.abs(p.y) < OVERLAP_LIMITS.maxCoordinate)) return null
     }
     for (let i = 0; i < n; i++) {
       const a = grid[i]
@@ -394,7 +401,8 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     const points = dropStraight(loop.map((g) => ({ x: hx[from[g]], y: hy[from[g]] })))
     if (points.length < 3) continue
     const area = Math.abs(signedArea(points))
-    if (area < OVERLAP_LIMITS.minArea || (2 * area) / perimeter(points) < OVERLAP_LIMITS.minWidth) {
+    const narrow = (2 * area) / perimeter(points) < OVERLAP_LIMITS.minWidth
+    if (area < OVERLAP_LIMITS.minArea || (narrow && !hasRoom(points, (OVERLAP_LIMITS.room * unitsPerEm * scale) / 2))) {
       stats.removed++
       continue
     }
@@ -685,13 +693,20 @@ function meetingPoint(a1: Point, a2: Point, b1: Point, b2: Point): Point | null 
 class PixelIndex {
   private static readonly SIZE = 16
   private buckets = new Map<number, number[]>()
+  /** The columns (along x) and rows (along y) of buckets that hold any pixel, in order. */
+  private columns: number[]
+  private rows: number[]
 
   constructor(xs: readonly number[], ys: readonly number[]) {
     const size = PixelIndex.SIZE
+    const columns = new Set<number>()
+    const rows = new Set<number>()
     for (let h = 0; h < xs.length; h++) {
       // A pixel's cell reaches half a grid unit around it, so it can lie in up to four buckets.
       for (let i = Math.floor((xs[h] - 0.5) / size); i <= Math.floor((xs[h] + 0.5) / size); i++) {
+        columns.add(i)
         for (let j = Math.floor((ys[h] - 0.5) / size); j <= Math.floor((ys[h] + 0.5) / size); j++) {
+          rows.add(j)
           const key = pointKey(i, j)
           const bucket = this.buckets.get(key)
           if (bucket) bucket.push(h)
@@ -699,6 +714,8 @@ class PixelIndex {
         }
       }
     }
+    this.columns = [...columns].sort((a, b) => a - b)
+    this.rows = [...rows].sort((a, b) => a - b)
   }
 
   /** Calls `visit` for every pixel in a bucket the segment may pass (a pixel can come more than once). */
@@ -710,7 +727,11 @@ class PixelIndex {
     const lo = Math.min(a0, a1)
     const hi = Math.max(a0, a1)
     const slope = a1 === a0 ? 0 : (b1 - b0) / (a1 - a0)
-    for (let i = Math.floor(lo / size); i <= Math.floor(hi / size); i++) {
+    // Only the columns (rows, when steep) that hold any pixel: a long thorn passes thousands of empty ones.
+    const lines = steep ? this.rows : this.columns
+    const end = Math.floor(hi / size)
+    for (let k = firstAtLeast(lines, Math.floor(lo / size)); k < lines.length && lines[k] <= end; k++) {
+      const i = lines[k]
       const c0 = Math.max(lo, i * size)
       const c1 = Math.min(hi, (i + 1) * size)
       const e0 = b0 + (c0 - a0) * slope
@@ -721,6 +742,18 @@ class PixelIndex {
       }
     }
   }
+}
+
+/** The index of the first value in `sorted` (ascending) that is at least `value`, or its length when none is. */
+function firstAtLeast(sorted: readonly number[], value: number): number {
+  let lo = 0
+  let hi = sorted.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sorted[mid] < value) lo = mid + 1
+    else hi = mid
+  }
+  return lo
 }
 
 /**
@@ -786,9 +819,9 @@ function roundExactly(x0: number, y0: number, x1: number, y1: number, d1: number
   return [round(x0, x1), round(y0, y1)]
 }
 
-/** One number per grid point (coordinates within ±2^20). */
+/** One number per grid point (coordinates within ±2^22, see maxCoordinate): below 2^46 + 2^23. */
 function pointKey(x: number, y: number): number {
-  return (x + 0x10_0000) * 0x20_0000 + (y + 0x10_0000)
+  return (x + 0x40_0000) * 0x80_0000 + (y + 0x40_0000)
 }
 
 /** Leaves out vertices on the straight line between their neighbours. */
@@ -818,6 +851,29 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   const length2 = dx * dx + dy * dy
   const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0
   return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
+}
+
+/**
+ * True when a disk of `radius` fits in what the ring encloses, tried `radius` in from the middle of each edge: a
+ * sliver has no such room, while a letter whose long thin thorns make it narrow on average has it in its body.
+ */
+function hasRoom(points: readonly Point[], radius: number): boolean {
+  const area = signedArea(points)
+  if (Math.abs(area) < Math.PI * radius * radius) return false
+  const n = points.length
+  // Into what the ring encloses: to the left of a counter-clockwise ring, to the right of a clockwise one (a hole).
+  const inward = area > 0 ? radius : -radius
+  const clearance = radius * (1 - 1e-9)
+  for (let i = 0; i < n; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % n]
+    const length = Math.hypot(b.x - a.x, b.y - a.y)
+    const centre = { x: (a.x + b.x) / 2 - (inward * (b.y - a.y)) / length, y: (a.y + b.y) / 2 + (inward * (b.x - a.x)) / length }
+    let clear = true
+    for (let j = 0; j < n && clear; j++) if (j !== i) clear = distanceToSegment(centre, points[j], points[(j + 1) % n]) >= clearance
+    if (clear && insideRing(centre, points)) return true
+  }
+  return false
 }
 
 function perimeter(points: readonly Point[]): number {

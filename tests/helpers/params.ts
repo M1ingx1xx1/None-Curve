@@ -1,6 +1,7 @@
 // Parameter sets the geometry tests run: the app's defaults, each Experimental effect on its own, all five, and the
 // strongest settings the sliders reach (SLIDER_RANGES), on plain, dense and heavy Geometry.
 
+import { THORN_LIMITS } from '../../src/geometry/thorn'
 import type { ExperimentalParams, GeometryParams } from '../../src/geometry/types'
 import { initialState } from '../../src/state/editorState'
 import { SLIDER_RANGES, type SliderId } from '../../src/state/sliderScales'
@@ -49,9 +50,11 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
     cuts: top('experimental.slipstream.cuts'),
     trails: top('experimental.slipstream.trails'),
   }),
+  // Reach at 100%: the whole diagonal of the default canvas (about 30 em), as the app gives it while Thorn is on.
   thorn: on('thorn', {
     count: top('experimental.thorn.count'),
-    reach: top('experimental.thorn.reach'),
+    canvasReach: 1,
+    canvasEm: THORN_LIMITS.defaultCanvasEm,
     spread: top('experimental.thorn.spread'),
     width: top('experimental.thorn.width'),
     root: top('experimental.thorn.root'),
@@ -59,6 +62,9 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
     flute: bottom('experimental.thorn.flute'),
   }),
 }
+
+/** Thorn at slider max on the largest canvas in em that Reach spans (THORN_LIMITS.maxReachEm: 256 em). */
+export const THORN_FARTHEST: EffectPatch = on('thorn', { ...SLIDER_MAX.thorn.thorn, canvasEm: THORN_LIMITS.maxReachEm })
 
 export const ALL_DEFAULT: EffectPatch = Object.assign({}, ...EFFECTS.map((e) => on(e)))
 export const ALL_MAX: EffectPatch = Object.assign({}, ...EFFECTS.map((e) => SLIDER_MAX[e]))

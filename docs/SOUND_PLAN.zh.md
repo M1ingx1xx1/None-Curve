@@ -65,7 +65,7 @@
 一个映射把一个特征连接到一个目标参数。Sound 标签页最多容纳 8 个映射，每个都有开关。10 个特征中的任何一个都可以驱动任何目标；效果取决于目标的类型。
 
 - **滑块目标**（任意特征 → 一个滑块）：
-  - 实时位置 = 滑块位置 + **Depth** × 特征，截断到滑块两端，再取整到滑块的档位。位置沿滑块的绘制方向计算（0–1），所以普通滑块相当于 滑块值 + Depth × 特征 × 滑块的全部范围，而对数刻度的滑块（如 Tolerance）沿滑道均匀移动。
+  - 实时位置 = 滑块位置 + **Depth** × 特征，截断到滑块两端，再取整到滑块的档位。位置沿滑块的绘制方向计算（0–1），所以普通滑块相当于 滑块值 + Depth × 特征 × 滑块的全部范围，而非线性的滑块（对数刻度的 Tolerance、三次方刻度的 Thorn · Reach）沿滑道均匀移动。
   - Depth 从 −100% 到 100%。Depth 为负时，声音越响，值越小。Pan 的范围是 −1 到 1，所以它让滑块双向移动：声音偏左时往一边，偏右时往另一边。
   - Beat 是脉冲，所以用在滑块上时，值在每次起音时按 Depth 跃起，再在 Smoothing 时间内回落到滑块值。
 - **种子目标**（跳变）：Distortion · Seed、Random anchors · Seed 和 Experimental 的 Seed。换一个新种子，每个锚点就落到新的地方，所以种子每跳变一次就前进一个。该行的滑块显示 **Rate**（频率，0–100%），而不是 Depth：
@@ -112,7 +112,7 @@
 
 以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 43 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
 
-**Experimental 标签页**：Crumple 的 Amount / Detail / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Refraction / Flute width；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Crumple 的 Detail 为 50%，Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。
+**Experimental 标签页**：Crumple 的 Amount / Detail / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Refraction / Flute width（Reach 是画布对角线的比例，沿面板上的三次方滑块移动）；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Crumple 的 Detail 为 50%，Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。Reach 还是 em 比例时保存的 Thorn · Reach 映射行保留它们的 Depth，现在它移动的是三次方滑块。
 
 **目标起作用需要什么**（即它的未生效说明，以及选择它时会打开什么，见第 5 节）：
 
@@ -161,13 +161,13 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 | **Jitter** | Treble → Distortion · Noise amplitude（60%）；Brightness → Distortion · Noise frequency（30%） | Noise amplitude 2；Noise frequency 20 | 无 | 嘶声和镲片让轮廓颤动；声音越亮，颤动越细碎 |
 | **Facet** | Level → Curve flattening · Segments per curve（−15%）；Beat → Curve flattening · Segments per curve（−5%）；Pitch → Curve flattening · Segments per curve（20%） | Mode 为 Fixed segments；Merge joined curves 打开；Segments per curve 6 | 无 | 越响、每个节拍时，曲线碎成少数几条直边；音越高，又变得平滑 |
 | **Bloom** | Beat → Ripple · Amount（10%）；Bass → Ripple · Petals（5%） | Ripple 打开，Amount 30% | Ripple | 波纹穿过字母，每个节拍时涌起；低音把波纹弯成花瓣 |
-| **Flare** | Beat → Seed（Rate 100%）；Level → Thorn · Reach（30%）；Beat → Thorn · Anchors（15%） | Thorn 打开，Anchors 1，Reach 0% em，Root 25% | Thorn | 越响，每个字母就有几个锚点射出刺；每个节拍它们都跳到新的地方，并短暂变多 |
+| **Flare** | Beat → Seed（Rate 100%）；Level → Thorn · Reach（50%）；Beat → Thorn · Anchors（15%） | Thorn 打开，Anchors 1，Reach 0%，Root 25% | Thorn | 越响，每个字母就有几个锚点射出刺；每个节拍它们都跳到新的地方，并短暂变多 |
 | **Gale** | Level → Slipstream · Slip（50%）；Beat → Slipstream · Cuts（40%）；Activity → Slipstream · Trails（35%） | Slipstream 打开，Strength 0%，Slip 0% em，Cuts 0，Trails 0 | Slipstream | 响度让字母的切片彼此错开；节拍顺着气流切出细缝，繁忙的段落拖出拖尾 |
 
 - **Flicker** 打开 Distortion 的**少数锚点**模式。它没有自己的控件，也不是 Sound 的目标：只有这个预设会设置它，Reset distortion 或载入另一个预设会把它关掉。每个字母只有 1–5 个锚点移动，拐角和最外侧的点从不移动，每个移动的锚点至少移动幅度的 60%，换一个种子就换一组锚点（见 README 的“顶点扰动”和 PRD 的 P1）。很小的幅度 2 让 Distortion 保持打开，所以安静时 Seed 那一行也起作用。
 - **Jitter** 的幅度 2 同理，让它的 Noise frequency 那一行在安静时也起作用。
 - **Low poly** 合并相连的曲线，所以较大的 Tolerance 能作用到整个碗形（不合并时，字体里的每段曲线至少保留一条边）。**Facet** 也合并曲线，所以它的段数按合并后的曲线（四分之一个碗形）计算，而不是按字体里的每段曲线计算。
-- **Flare** 从 Reach 0 开始，所以安静时没有刺，也没有根部的拉动；Root 设为 25%（默认值的一半），让笔画保持可读。Thorn 一开始就打开，所以它的 Seed 那一行不需要再打开任何设置，Crumple 也保持关闭。
+- **Flare** 从 Reach 0 开始，所以安静时没有刺，也没有根部的拉动；Root 设为 25%（默认值的一半），让笔画保持可读。音量最大时，它的 Reach 映射行把三次方滑块推到一半，即画布对角线的八分之一（在默认画布上约 3.8 em）；Reach 还是 em 比例时这一行是 30%。Thorn 一开始就打开，所以它的 Seed 那一行不需要再打开任何设置，Crumple 也保持关闭。
 - **Gale** 开始时 Strength、Slip、Cuts、Trails 都为 0，所以安静时什么都不会被气流带动。它从不驱动 Strength：拉伸会把字母推到相邻的字母上。
 - **Bloom** 的 Petals 那一行只在 0% 和 10% 之间切换，低音一起来就到 10%（滑块的档位是 10%，而 20% 很难看清）。
 - **第 3 阶段重新调过：** 特征合并时，用 Kick 的行改用 Beat（Block、Facet、Bloom 的 Depth 也调小了），Low poly 的 Noisiness 那一行改为 Brightness，Pixel 和 Jitter 改读 Bass 和 Treble。Experimental 效果重做后，Flare 和 Gale 按 Thorn 和 Slipstream 重新设计。每个预设都在 Arial 和 Georgia 上，在静音、完整混音、节拍峰值和最大响度下看过：字母都保持可读。
@@ -179,7 +179,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - `engine.ts`：Web Audio 音频图及其来源，包括立体声测量支路（第 4 节）。
   - `useSound.ts`：访问音频引擎及其帧的 React hook。
   - `features.ts`：从频谱、采样以及左右声道中提取特征（无需音频即可测试）。
-  - `mapping.ts`：特征列表（`FEATURES`，分五组）、目标列表（滑块和种子，每个都带有它起作用所需的设置，以及打开这些设置的修改 `activate`），以及 滑块值 + 特征 + 映射 + 跳变 → 实时参数（`modulate`，纯函数）。每个滑块目标的范围和档位都取自 `src/state/sliderScales.ts`（`SLIDER_RANGES`，按目标 id 索引；对数刻度的 Tolerance 滑块用 `TOLERANCE`），面板也用同一张表构建滑块，所以实时值总是滑块自己能给出的值，两边不会不一致。
+  - `mapping.ts`：特征列表（`FEATURES`，分五组）、目标列表（滑块和种子，每个都带有它起作用所需的设置，以及打开这些设置的修改 `activate`），以及 滑块值 + 特征 + 映射 + 跳变 → 实时参数（`modulate`，纯函数）。每个滑块目标的范围和档位都取自 `src/state/sliderScales.ts`（`SLIDER_RANGES`，按目标 id 索引；对数刻度的 Tolerance 滑块用 `TOLERANCE`，三次方刻度的 Thorn Reach 滑块用 `THORN_REACH`），面板也用同一张表构建滑块，所以实时值总是滑块自己能给出的值，两边不会不一致。
   - `flash.ts`：闪烁限制的共用预算（`FlashBudget`、`FLASH_LIMITS`，第 10 节），被驱动的滑块和种子的跳变都从中支取（纯逻辑）。
   - `jumps.ts`：`JumpTracker`，根据测量到的帧累计每个被驱动种子的跳变，每个跳变帧都从闪烁预算中支取；以及 `JUMP_LIMITS`，其中 `maxRate`（4.8）由 `FLASH_LIMITS` 算出（纯逻辑，无需音频即可测试）。
   - `mappingStore.ts`：一个带 hook 的小型存储，保存映射和 Drive letters（驱动字母）开关；页面打开期间跟随 `prefers-reduced-motion` 的变化。它的修改会记入撤销历史（`src/state/history.ts`），映射随会话一起保存（`src/state/persist.ts`）；Drive letters 两者都不参与。
@@ -261,7 +261,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - Beat 的能量门（已检查，在理想的分析器和带渲染量子、帧抖动的类浏览器分析器上）：41–110 Hz 的持续锯齿波低音、方波低音、低频正弦波、45 和 60 Hz 的谐波以及粉红噪声，每秒都不到 0.5 个节拍；每秒 2 次的底鼓，单独或叠在低频正弦波或谐波上，至少 85% 被检出，误触发每秒不到 0.5 次；在完整的 55 Hz 锯齿波下，误触发仍每秒不到 0.5 次，但会漏掉一些底鼓。
 - **调制：** Depth 为 0 或映射关闭时得到滑块值；值会被截断；多个作用相加；已关闭组里的目标不起作用；Beat 在释放时间内回落；Step 循环切换；频率限制有效；每秒 4 次的节拍在满 Depth 下，任意一秒内最多让滑块折返 6 次，每个值都落在滑块的档位上。
   - 共用的闪烁预算（已检查）：一个滑块、三个或五个同步或不同步的滑块、五个同步各摆 4% 的滑块、单独一个 Beat 种子，以及滑块加 Beat 种子，在任意一秒内都最多 6 次大变化（按帧和按屏幕分别测量），而只要音乐要求，每秒仍至少有 4 次通过。
-  - 每个滑块目标的范围和档位都取自 `SLIDER_RANGES`，并且只给出滑块自己能给出的值。
+  - 每个滑块目标的范围和档位都取自 `SLIDER_RANGES`（Tolerance 和 Thorn · Reach 取自它们各自的非线性刻度），并且只给出滑块自己能给出的值；Thorn · Reach 沿着与面板相同的三次方滑块移动。
   - 第 3 阶段（已检查）：10 个特征及其分组；43 个目标中的每一个，在 3000 组随机参数上（Refraction 也随机变化），都是恰好在起作用时不需要打开任何设置，它的修改能让它起作用，并且不改动其他任何东西；旧设置缺少重做后效果的七个字段时，这七个目标按面板显示的值读取，Thorn 和 Refraction 处于任何状态时 Flute width 的提示都正确；种子超过最大值后回到 0，而且从不移动滑块；Beat 在 Rate 100%、50% 和 25% 时分别在每个、每隔一个和每四个节拍跳变；Level 为 1、Rate 100% 时每秒约 4.8 次跳变；每秒 16 个节拍时，任意 1.25 秒内的跳变帧从不超过 6 个；2 秒的卡顿最多带来一次跳变；暂停后回到输入框的种子，Freeze 写入屏幕上显示的实时种子。
 - **没有曲线与有效性：** 每个实时帧都是一组普通参数，已被现有审计覆盖。此外，记录一段测试音轨经过的参数组，在 Arial、New York 和 Georgia 上跑有效性审计和像曲线的段落审计。第 3 阶段（已检查）：在整段测试音轨上，同时映射到种子和滑块，878 次实时提交中的每一次都是面板能给出的一组值（滑块值落在档位上，种子是范围内的整数），种子每次变化都恰好前进一个。
 - **音频引擎：** 在模拟的 Web Audio 节点上，立体声支路按第 4 节连接，测量用的节点都不通往扬声器，读取错位时会重读或保持。在 Chromium 中连续不断地探测读取，确实出现了错位，经过检查后没有一次传到特征里。

@@ -7,10 +7,11 @@ import { FEATURES, modulate, TARGETS, targetById, type Mapping } from '../../src
 import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { MAPPING_LIMITS } from '../../src/sound/mappingStore'
 import { SILENT_FRAME, type FeatureFrame } from '../../src/sound/types'
-import { SLIDER_RANGES, type SliderId } from '../../src/state/sliderScales'
+import { reachFromSlider, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId } from '../../src/state/sliderScales'
 import { BASE } from '../helpers/params'
 
-const sliders = TARGETS.filter((t) => t.kind === 'slider' && t.id !== 'flatten.tolerance')
+// Tolerance (logarithmic) and Thorn's Reach (cubic) have curved scales of their own.
+const sliders = TARGETS.filter((t) => t.kind === 'slider' && t.id !== 'flatten.tolerance' && t.id !== 'experimental.thorn.canvasReach')
 const loud: FeatureFrame = { ...SILENT_FRAME, time: 1, silent: false, levelDb: 0, level: 1, bass: 1, mids: 1, treble: 1, brightness: 1, pitch: 1, beat: 1, activity: 1, pan: 1 }
 
 describe('Sound targets', () => {
@@ -36,6 +37,32 @@ describe('Sound targets', () => {
         expect(target.fromSlider(target.toSlider(value))).toBeCloseTo(value, 9)
       }
     }
+  })
+
+  it('move Thorn\'s Reach on the cubic slider the panel uses', () => {
+    const reach = targetById('experimental.thorn.canvasReach')!
+    expect([reach.min, reach.max, reach.label, reach.section]).toEqual([0, THORN_REACH.max, 'Reach', 'Thorn'])
+    // Every position of the range input gives the value the panel reads from it, and sits where the panel puts its thumb.
+    const { min, max, step } = THORN_REACH.slider
+    const values = new Set<number>()
+    for (let k = 0; k <= Math.round((max - min) / step); k++) {
+      const position = min + k * step
+      const value = reach.fromSlider(position)
+      expect(value, `at ${position}`).toBe(reachFromSlider(position))
+      expect(reach.toSlider(value)).toBeCloseTo(reachToSlider(value), 12)
+      expect(reach.fromSlider(reach.toSlider(value))).toBe(value)
+      values.add(value)
+    }
+    // Every step is a reach of its own, near 0 too, so a row moves the slider from its first step.
+    expect(values.size).toBe(Math.round((max - min) / step) + 1)
+    expect(reach.fromSlider(step)).toBe(reach.step)
+    for (const position of [-1, 2, Number.NaN]) {
+      const value = reach.fromSlider(position)
+      expect(value).toBeGreaterThanOrEqual(0)
+      expect(value).toBeLessThanOrEqual(THORN_REACH.max)
+    }
+    // Half the travel is an eighth of the canvas diagonal.
+    expect(reach.fromSlider(0.5)).toBe(0.125)
   })
 
   it('have unique ids, and seeds are whole numbers from 0', () => {

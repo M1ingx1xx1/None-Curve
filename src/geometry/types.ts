@@ -190,8 +190,13 @@ export interface ThornParams {
   enabled: boolean
   /** Anchors per letter that jump (1–12), on the letter's outside only. */
   count: number
-  /** How far they jump, as a share of the em (0–2): each goes a seeded 35–100% of it. */
-  reach: number
+  /** How far they jump, as a share of the canvas diagonal (0–1; 1 = the whole diagonal): each goes a seeded 35–100% of it. */
+  canvasReach: number
+  /**
+   * The canvas diagonal in em (see canvasDiagonalEm in thorn.ts), which canvasReach is a share of. Set by the app from
+   * the artboard and the text size only while Thorn is on, and never saved. Missing: the default canvas at the default size.
+   */
+  canvasEm?: number
   /** 0–1: 0 = straight out from the outline, 1 = anywhere up to 90° to either side. */
   spread: number
   /** 0–1: how far each thorn's base reaches along the outline, as a share of its root's inner ring (or of the anchor's shorter edge, if longer). */
@@ -237,6 +242,16 @@ export interface PolygonGlyph {
   ref: GlyphRef
   metrics: GlyphMetrics
   contours: PolygonContour[]
+  /**
+   * With Thorn applied: the ink box of the letter before its thorns grew (font units, glyph space). Layout measures
+   * this instead of the outline, so thorns never move or fit the text block. Missing without Thorn.
+   */
+  layoutBox?: { minX: number; minY: number; maxX: number; maxY: number }
+  /**
+   * With Thorn applied: the convex hull of that same letter (font units, glyph space, counterclockwise), so slanted
+   * text measures the letter exactly rather than the slanted corners of its box. Missing without Thorn.
+   */
+  layoutHull?: Point[]
 }
 
 export interface DerivedGeometry {
