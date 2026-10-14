@@ -13,6 +13,8 @@
 // The analysers are taps with nothing connected after them, so only the file reaches the speakers: the
 // microphone is measured, never played back, and cannot feed back however the sources are switched.
 // The high-pass removes DC offset (which some microphones have) from what is measured, not from playback.
+// While a video records, the running source also feeds a delay into a MediaStream destination (the video's
+// audio track, startRecordingAudio); that branch reaches no speaker either.
 // The first analyser hears the channels mixed down (spectrum and samples); the left and right ones give
 // Pan. A mono source is up-mixed to identical left and right, so it reads centred. The three
 // are read one after another, so each frame checks that their samples belong together (readSamples).
@@ -40,6 +42,9 @@ const IDLE_SUSPEND_MS = 2_000
 const SAMPLE_READS = 3
 /** Mixed-down samples read together with the left and right ones equal their mean within this (float rounding). */
 const STEREO_MATCH = 1e-6
+/** The recording tap's delay range (s): from the live latency, set once per take. */
+const RECORD_DELAY_MIN_S = 0.04
+const RECORD_DELAY_MAX_S = 0.4
 
 /**
  * The analyser's FFT size for a sample rate: SOUND_LIMITS.fftSize at 44.1/48 kHz, scaled by powers of two so the
@@ -108,6 +113,9 @@ export class SoundEngine {
   private micPending = false
   /** Bumped by every start and stop, so a permission prompt answered after Stop listening or a switch to File is dropped. */
   private micToken = 0
+
+  // Recording: the running source, delayed, into a stream for the video's audio track (startRecordingAudio).
+  private tap: { source: AudioNode; delay: DelayNode; dest: MediaStreamAudioDestinationNode } | null = null
 
   // Frame loop.
   private rafId: number | null = null
@@ -183,6 +191,7 @@ export class SoundEngine {
     this.cancelLoad?.()
     this.cancelMicrophone()
     this.pauseFile()
+    this.stopRecordingAudio()
     const token = ++this.loadToken
     this.loading = true
     const url = URL.createObjectURL(file)
@@ -339,6 +348,54 @@ export class SoundEngine {
     this.cancelMicrophone()
     this.setState({ listening: false, busy: this.loading, error: null })
   }
+  /**
+   * The sound as measured (the file as heard, or the microphone, never sent to the speakers), delayed by
+   * delayMs (clamped to 40–400 ms) so it lines up with the letters, for a recording; null without a running
+   * source. The listener hears no change. One at a time: a new call replaces the last. The track goes silent
+   * when the tap stops (stopRecordingAudio, a source switch, a new file, dispose); whoever holds it stops it.
+   */
+  startRecordingAudio(delayMs: number): MediaStreamTrack | null {
+    this.stopRecordingAudio()
+    const ctx = this.ctx
+    const source = this.state.playing ? this.mediaSource : this.state.listening ? this.micSource : null
+    if (!ctx || ctx.state === 'closed' || !source) return null
+    let delay: DelayNode | null = null
+    try {
+      delay = ctx.createDelay(1)
+      const seconds = (Number.isFinite(delayMs) ? delayMs : 0) / 1000
+      delay.delayTime.value = clamp(seconds, RECORD_DELAY_MIN_S, RECORD_DELAY_MAX_S)
+      const dest = ctx.createMediaStreamDestination()
+      const track = dest.stream.getAudioTracks()[0]
+      if (!track) return null
+      source.connect(delay)
+      delay.connect(dest)
+      this.tap = { source, delay, dest }
+      return track
+    } catch (error) {
+      console.error('Sound: the recording tap failed', error)
+      if (delay) {
+        try {
+          source.disconnect(delay)
+        } catch {
+          // Never connected.
+        }
+        delay.disconnect()
+      }
+      return null
+    }
+  }
+  /** Disconnects the recording tap; the recording's audio track goes silent. */
+  stopRecordingAudio(): void {
+    const tap = this.tap
+    if (!tap) return
+    this.tap = null
+    try {
+      tap.source.disconnect(tap.delay)
+    } catch {
+      // Already disconnected (the source's own disconnect() drops every connection).
+    }
+    tap.delay.disconnect()
+  }
   setSettings(patch: Partial<FeatureSettings>): void {
     const current = this.state.settings
     const sensitivity = clampSetting(patch.sensitivity, SOUND_LIMITS.minSensitivity, SOUND_LIMITS.maxSensitivity, current.sensitivity)
@@ -356,6 +413,7 @@ export class SoundEngine {
     this.cancelLoad?.()
     this.loading = false
     this.cancelMicrophone()
+    this.stopRecordingAudio()
     this.clearFile()
     this.audioEvents?.abort()
     this.audioEvents = null
@@ -625,6 +683,7 @@ export class SoundEngine {
 
   /** Releases the microphone (and drops a pending permission request) without touching the state. */
   private cancelMicrophone(): void {
+    if (this.tap && this.tap.source === this.micSource) this.stopRecordingAudio()
     this.micToken++
     this.micPending = false
     this.trackEvents?.abort()

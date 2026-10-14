@@ -77,6 +77,12 @@ export interface Rig {
   settings?: FeatureSettings
   /** Pass the left and right samples to the extractor (stereo input only; default true). */
   stereo?: boolean
+  /** Changes frame `frame`'s (1, 2, …) mixed-down samples before they are measured, e.g. a one-frame glitch. */
+  edit?: (frame: number, samples: Float32Array) => void
+  /** Measure with this extractor (to go on from an earlier call) instead of a fresh one; it must match sr. */
+  extractor?: FeatureExtractor
+  /** Added to every frame's time stamp, not to where its window sits in the signal (an extractor going on). */
+  clockMs?: number
 }
 
 /** Feeds a mono signal, or a left and a right one, through the emulated analyser and a fresh FeatureExtractor. */
@@ -85,7 +91,7 @@ export function analyse(left: Float64Array, right: Float64Array | null = null, r
   const fps = rig.fps ?? 60
   const n = analyserFftSize(sr)
   const win = blackman(n)
-  const extractor = new FeatureExtractor(sr, n)
+  const extractor = rig.extractor ?? new FeatureExtractor(sr, n)
   const settings = rig.settings ?? DEFAULT_FEATURE_SETTINGS
   const samples = new Float32Array(n)
   const l = new Float32Array(n)
@@ -109,6 +115,9 @@ export function analyse(left: Float64Array, right: Float64Array | null = null, r
       l[i] = a
       r[i] = b
       samples[i] = right ? (a + b) / 2 : a
+    }
+    rig.edit?.(f, samples)
+    for (let i = 0; i < n; i++) {
       re[i] = samples[i] * win[i]
       im[i] = 0
     }
@@ -117,7 +126,8 @@ export function analyse(left: Float64Array, right: Float64Array | null = null, r
       const magnitude = Math.hypot(re[k], im[k]) / n
       spectrum[k] = magnitude > 0 ? 20 * Math.log10(magnitude) : -Infinity
     }
-    frames.push(probe(extractor, extractor.process(spectrum, samples, time, settings, stereo)))
+    const clock = time + (rig.clockMs ?? 0)
+    frames.push(probe(extractor, extractor.process(spectrum, samples, clock, settings, stereo)))
   }
   return frames
 }
@@ -174,6 +184,37 @@ export function harmonics(freq: number, peakDb: number, seconds: number, count =
     }
   }
   return out
+}
+
+/**
+ * A sine whose frequency follows `hz(t)` (t in seconds), phase-continuous, with peak `peakDb` dBFS: the base of
+ * notes, glide and vibrato.
+ */
+export function tone(hz: (t: number) => number, peakDb: number, seconds: number, sr = SR): Float64Array {
+  const out = new Float64Array(samplesIn(seconds, sr))
+  const a = fromDb(peakDb)
+  let phase = 0
+  for (let i = 0; i < out.length; i++) {
+    out[i] = a * Math.sin(phase)
+    phase += (2 * Math.PI * hz(i / sr)) / sr
+  }
+  return out
+}
+
+/** One note after another, each `stepMs` long, without gaps (a single-note melody). */
+export function notes(freqs: readonly number[], stepMs: number, peakDb: number, sr = SR): Float64Array {
+  const seconds = (freqs.length * stepMs) / 1000
+  return tone((t) => freqs[Math.min(freqs.length - 1, Math.floor((t * 1000) / stepMs))], peakDb, seconds, sr)
+}
+
+/** A glide from `from` to `to` Hz over `seconds`, evenly in semitones. */
+export function glide(from: number, to: number, seconds: number, peakDb: number, sr = SR): Float64Array {
+  return tone((t) => from * (to / from) ** (t / seconds), peakDb, seconds, sr)
+}
+
+/** A steady note with vibrato: `cents` either way, `rateHz` times a second. */
+export function vibrato(freq: number, cents: number, rateHz: number, seconds: number, peakDb: number, sr = SR): Float64Array {
+  return tone((t) => freq * 2 ** ((cents / 1200) * Math.sin(2 * Math.PI * rateHz * t)), peakDb, seconds, sr)
 }
 
 /** Band-limited square wave (odd harmonics), peak of the fundamental `peakDb`. */
@@ -298,6 +339,11 @@ export function hits(frames: ProbedFrame[], fromMs = 0): number[] {
   const out: number[] = []
   for (const f of frames) if ((f.onset || f.kick) && f.time >= fromMs && !(out.length && f.time - out[out.length - 1] < 100)) out.push(f.time)
   return out
+}
+
+/** Frames where `key` rises by more than `min` over the frame before: a pulse's start (Melody). */
+export function rises(frames: readonly FeatureFrame[], key: 'melody' | 'beat' = 'melody', min = 0.05): FeatureFrame[] {
+  return frames.filter((f, i) => i > 0 && f[key] - frames[i - 1][key] > min)
 }
 
 /** How many of the expected hit times (s) a hit caught (from 5 ms before to 80 ms after), and the other hits a second. */

@@ -1,7 +1,8 @@
 // The geometry worker's logic (geometry.worker.ts connects it to the worker's messages; tests run it
-// with a fake `post`). It opens fonts and runs the geometry pipeline for the page's requests, sending
-// results back in small batches. A newer request or a cancel stops a request between glyphs, and every
-// request ends with one answer ('done' or 'failed'), so the page never waits on a request that is over.
+// with a fake `post`). It opens fonts and runs the geometry pipeline for the page's requests (one or
+// more parameter sets each), sending results back in small batches. A newer request or a cancel stops
+// a request between glyphs, and every request ends with one answer ('done' or 'failed'), so the page
+// never waits on a request that is over.
 
 import type { LoadedFont } from '../font/model'
 import { parseFont } from '../font/parse'
@@ -21,7 +22,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
   let latestRequest = 0
 
   async function compute(request: Extract<WorkerRequest, { type: 'compute' }>) {
-    const { requestId, fontId, key } = request
+    const { requestId, fontId } = request
     const loading = fonts.get(fontId)
     if (!loading) return post({ type: 'failed', requestId, reason: 'no-font', message: 'The geometry worker does not have this font.' })
     let font: LoadedFont
@@ -34,31 +35,34 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
     const live = request.live === true
     let batch: GlyphResult[] = []
     let started = performance.now()
-    const flush = () => {
+    const flush = (key: string) => {
       if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}) })
       batch = []
     }
-    for (const index of request.indices) {
-      if (latestRequest !== requestId) {
-        // Superseded or cancelled: the page wants other settings now, or has everything.
-        flush()
-        return post({ type: 'done', requestId, stopped: true })
+    for (const { params, key, indices } of request.jobs) {
+      for (const index of indices) {
+        if (latestRequest !== requestId) {
+          // Superseded or cancelled: the page wants other settings now, or has everything.
+          flush(key)
+          return post({ type: 'done', requestId, stopped: true })
+        }
+        post({ type: 'glyph', requestId, key, index })
+        try {
+          const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, live)
+          batch.push({ index, geometry })
+        } catch (error) {
+          batch.push({ index, error: errorText(error) })
+        }
+        if (performance.now() - started > BATCH_MS) {
+          flush(key)
+          // Let newer requests and cancels in before going on.
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          started = performance.now()
+        }
       }
-      post({ type: 'glyph', requestId, index })
-      try {
-        const { source: _source, ...geometry } = glyphGeometry(font, index, request.params, key, live)
-        batch.push({ index, geometry })
-      } catch (error) {
-        batch.push({ index, error: errorText(error) })
-      }
-      if (performance.now() - started > BATCH_MS) {
-        flush()
-        // Let newer requests and cancels in before going on.
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        started = performance.now()
-      }
+      // Each 'results' message holds one job's glyphs, so it names one key.
+      flush(key)
     }
-    flush()
     post({ type: 'done', requestId })
   }
 

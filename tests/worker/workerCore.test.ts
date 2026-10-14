@@ -1,5 +1,6 @@
 // The geometry worker's logic (src/geometry/workerCore.ts) with a fake `post`: every compute request ends with one
-// 'done' or one 'failed', a heartbeat goes out before each glyph, and a cancel or a newer request stops it.
+// 'done' or one 'failed', a heartbeat goes out before each glyph, and a cancel or a newer request stops it. A request
+// with several jobs (parameter sets) computes them in order, and every 'results' message holds one job's key.
 
 import { describe, expect, it, vi } from 'vitest'
 import type { FontSource } from '../../src/font/model'
@@ -41,13 +42,12 @@ function worker(reply: (message: WorkerResponse, send: (m: WorkerRequest) => voi
 
 const roboto = fixtureBytes('Roboto')
 const robotoSource: FontSource = localSource('Roboto.ttf', roboto)
+const job = (indices: number[], params = BASE) => ({ params, key: `${JSON.stringify(params)}`, indices })
 const compute = (requestId: number, indices: number[], params = BASE, fontId = 'roboto'): Compute => ({
   type: 'compute',
   requestId,
   fontId,
-  params,
-  key: `${JSON.stringify(params)}`,
-  indices,
+  jobs: [job(indices, params)],
 })
 
 describe('geometry worker core', async () => {
@@ -138,6 +138,43 @@ describe('geometry worker core', async () => {
     await w.until(12)
     expect(w.ended(11)).toEqual({ type: 'done', requestId: 11, stopped: true })
     expect(w.ended(12)).toEqual({ type: 'done', requestId: 12 })
+  })
+
+  it('computes the jobs in order, each results message under one key, with keyed heartbeats and one done', async () => {
+    const seeded = paramsWith(GEOMETRY.plain, ALL_DEFAULT)
+    const jobs = [job(glyphs.slice(0, 3)), job(glyphs.slice(1, 3), seeded)]
+    const w = worker()
+    w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
+    w.send({ type: 'compute', requestId: 30, fontId: 'roboto', jobs, live: true })
+    await w.until(30)
+    const messages = w.of(30)
+    const pairs = (m: WorkerResponse) => (m.type === 'results' ? m.results.map((r) => `${m.key}|${r.index}`) : [])
+    const expected = jobs.flatMap(({ key, indices }) => indices.map((index) => `${key}|${index}`))
+    expect(messages.filter((m) => m.type === 'glyph').map((m) => (m.type === 'glyph' ? `${m.key}|${m.index}` : ''))).toEqual(expected)
+    expect(messages.flatMap(pairs)).toEqual(expected)
+    // Every batch is one job's glyphs, and keeps the live flag.
+    for (const m of messages) if (m.type === 'results') expect(m.live).toBe(true)
+    const second = messages.flatMap((m) => (m.type === 'results' && m.key === jobs[1].key ? m.results : []))
+    const shape = second[0]
+    expect('geometry' in shape && shape.geometry.polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[1]), seeded).polygon)
+    expect(messages.filter((m) => m.type === 'done' || m.type === 'failed')).toEqual([{ type: 'done', requestId: 30 }])
+    expect(messages.at(-1)).toEqual({ type: 'done', requestId: 30 })
+  })
+
+  it('stops between jobs on a newer request', async () => {
+    const first = job(glyphs.slice(0, 2))
+    const last = first.indices.at(-1)
+    // When the first job's last glyph arrives, a newer request comes in: the second job is never started.
+    const w = worker((message, send) => {
+      if (message.type === 'results' && message.requestId === 40 && message.results.some((r) => r.index === last)) send(compute(41, glyphs.slice(0, 1)))
+    })
+    w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
+    w.send({ type: 'compute', requestId: 40, fontId: 'roboto', jobs: [first, job(glyphs.slice(2, 4), paramsWith(GEOMETRY.plain, ALL_DEFAULT))] })
+    await w.until(40)
+    await w.until(41)
+    expect(w.ended(40)).toEqual({ type: 'done', requestId: 40, stopped: true })
+    expect(w.of(40).filter((m) => (m.type === 'results' || m.type === 'glyph') && m.key !== first.key)).toEqual([])
+    expect(w.ended(41)).toEqual({ type: 'done', requestId: 41 })
   })
 
   it('opens the face of a collection the source names', async () => {

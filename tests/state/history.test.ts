@@ -1,23 +1,34 @@
 // Undo and redo (src/state/history.ts), driven the way App drives it: settings changes recorded with the leaves they
-// change as the key (one step per slider drag), typing joined until a pause, the Sound mappings in the same history,
-// a preset Load as one step, and live Sound frames never recorded.
+// change as the key (one step per slider drag), typing joined until a pause, the Sound mappings and the Response
+// group in the same history, a preset Load and Reset sound as one step each, and live Sound frames never recorded.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GeometryParams } from '../../src/geometry/types'
 import { mappingStore } from '../../src/sound/mappingStore'
 import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { LiveScheduler, type LiveCommit } from '../../src/sound/live'
-import { SILENT_FRAME } from '../../src/sound/types'
+import { DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureSettings } from '../../src/sound/types'
 import { editorReducer, initialState, type Action } from '../../src/state/editorState'
 import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory } from '../../src/state/history'
 import type { AppState, SettingsParams } from '../../src/state/types'
 
 const settingsOf = ({ view: _view, ...settings }: AppState['params']): SettingsParams => settings
 
+/** The sound engine's settings, as the Response group's Sensitivity and Release change them. */
+function fakeEngine() {
+  return {
+    settings: DEFAULT_FEATURE_SETTINGS,
+    setSettings(patch: Partial<FeatureSettings>) {
+      this.settings = { ...this.settings, ...patch }
+    },
+  }
+}
+
 /** App's side of the history: its state, text and edit functions, connected to `history`. */
 function app(history: UndoHistory) {
   let state: AppState = initialState
   let text = 'Text'
+  const engine = fakeEngine()
   const edit = (action: Action) => {
     const after = editorReducer(state, action)
     if (action.type === 'updateParams' && action.group !== 'view') {
@@ -27,11 +38,20 @@ function app(history: UndoHistory) {
     state = after
   }
   const disconnect = history.connect({
-    read: () => ({ params: settingsOf(state.params), text, mappings: mappingStore.getState().mappings }),
+    read: () => ({
+      params: settingsOf(state.params),
+      text,
+      mappings: mappingStore.getState().mappings,
+      sound: { ...engine.settings, ...mappingStore.getState().response },
+    }),
     restore: (snapshot) => {
       state = editorReducer(state, { type: 'restoreParams', params: snapshot.params })
       text = snapshot.text
       mappingStore.restore(snapshot.mappings)
+      if (snapshot.sound) {
+        engine.setSettings({ sensitivity: snapshot.sound.sensitivity, releaseMs: snapshot.sound.releaseMs })
+        mappingStore.restoreResponse(snapshot.sound)
+      }
     },
   })
   return {
@@ -46,6 +66,12 @@ function app(history: UndoHistory) {
     },
     get text() {
       return text
+    },
+    engine,
+    /** As the Response group's Sensitivity and Release sliders do it. */
+    setSetting: (key: keyof FeatureSettings, value: number) => {
+      history.record(`sound:${key}`)
+      engine.setSettings({ [key]: value })
     },
     disconnect,
   }
@@ -131,6 +157,7 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
   beforeEach(() => {
     a = app(undoHistory)
     mappingStore.restore([])
+    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
     // Start from a history with nothing in it.
     while (undoHistory.undo());
     undoHistory.endStep()
@@ -138,6 +165,56 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
   afterEach(() => {
     a.disconnect()
     mappingStore.restore([])
+    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+  })
+
+  it('makes one step of a Strength drag, and of a Release drag, and puts both back', () => {
+    for (const strength of [1.1, 1.5, 2.25]) mappingStore.setResponse({ strength })
+    undoHistory.endGesture()
+    for (const releaseMs of [200, 300]) a.setSetting('releaseMs', releaseMs)
+    undoHistory.endGesture()
+    mappingStore.setResponse({ contrast: 0.4 })
+    expect(mappingStore.getState().response).toEqual({ ...NEUTRAL_RESPONSE, strength: 2.25, contrast: 0.4 })
+    undoHistory.undo()
+    expect(mappingStore.getState().response).toEqual({ ...NEUTRAL_RESPONSE, strength: 2.25 })
+    expect(a.engine.settings.releaseMs).toBe(300)
+    undoHistory.undo()
+    expect(a.engine.settings.releaseMs).toBe(DEFAULT_FEATURE_SETTINGS.releaseMs)
+    expect(mappingStore.getState().response.strength).toBe(2.25)
+    undoHistory.undo()
+    expect(mappingStore.getState().response).toEqual(NEUTRAL_RESPONSE)
+    expect(undoHistory.undo()).toBe(false)
+    undoHistory.redo()
+    undoHistory.redo()
+    expect([mappingStore.getState().response.strength, a.engine.settings.releaseMs]).toEqual([2.25, 300])
+  })
+
+  it('records nothing for a response value that does not change, and clamps and snaps the rest', () => {
+    mappingStore.setResponse({ strength: 1, melody: Number.NaN })
+    expect(undoHistory.getState().canUndo).toBe(false)
+    mappingStore.setResponse({ strength: 9, contrast: 0.333, pitchReactive: -1, melody: 0.52 })
+    expect(mappingStore.getState().response).toEqual({ strength: 4, contrast: 0.33, pitchReactive: 0, melody: 0.5 })
+  })
+
+  it('undoes Reset sound in one step, and leaves the response alone on a preset Load', () => {
+    a.setSetting('sensitivity', 9)
+    undoHistory.endGesture()
+    mappingStore.setResponse({ strength: 0.5, pitchReactive: 1.5, melody: 2 })
+    undoHistory.endGesture()
+    const before = { settings: a.engine.settings, response: mappingStore.getState().response }
+    // A preset replaces the mappings only.
+    mappingStore.replace(PRESETS[0].mappings)
+    expect(mappingStore.getState().response).toBe(before.response)
+    undoHistory.endStep()
+    // As the Sound tab's Reset sound does it.
+    undoHistory.transaction(() => {
+      undoHistory.record(null)
+      a.engine.setSettings(DEFAULT_FEATURE_SETTINGS)
+      mappingStore.setResponse(NEUTRAL_RESPONSE)
+    })
+    expect([a.engine.settings, mappingStore.getState().response]).toEqual([DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE])
+    undoHistory.undo()
+    expect([a.engine.settings, mappingStore.getState().response]).toEqual([before.settings, before.response])
   })
 
   it('undoes adding, changing and removing a mapping', () => {

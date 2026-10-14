@@ -1,7 +1,8 @@
 // The page's side of the geometry worker: sends it the font and the glyphs to compute, keeps the
 // results, and tells React when new ones arrive. Live frames (parameters Sound is driving) keep their
 // results apart, so a song does not push out the results of normal editing, and reach React only when
-// complete, so each live frame appears whole (SOUND_PLAN §2).
+// complete, so each live frame appears whole (SOUND_PLAN §2). A live frame whose letters react by
+// different amounts asks for several parameter sets in one request (jobs).
 //
 // Glyphs are computed only in the worker, never on the page. Every request ends with an answer; a
 // worker that falls silent is restarted, and the glyph it was stuck on is marked failed so the rest of
@@ -11,7 +12,7 @@
 import { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { WorkerGeometry, WorkerRequest, WorkerResponse } from '../geometry/protocol'
-import type { GeometryParams } from '../geometry/types'
+import type { FrameJob, GeometryJob, GeometryParams } from '../geometry/types'
 import type { PolygonLookup } from '../specimen/scene'
 
 /** A result. `transient` marks a glyph that was not computed (the worker stopped): not a fault of the glyph. */
@@ -25,8 +26,11 @@ export interface GeometryLookup {
 
 /** Parameter sets whose results are kept, so stepping back to recent settings is instant. */
 const KEPT_KEYS = 4
-/** Live parameter sets whose results are kept: the frame on screen and the one being computed. */
-const LIVE_KEPT_KEYS = 2
+/**
+ * Live parameter sets whose results are kept, least recently asked for dropped first: the frame on
+ * screen and the one being computed, each up to three sets (letters reacting by different amounts).
+ */
+const LIVE_KEPT_KEYS = 6
 /** Worker results arriving within this many milliseconds are shown in one update. */
 const NOTIFY_MS = 50
 /**
@@ -60,12 +64,24 @@ type Origin = 'canvas' | 'prefetch' | 'export'
 
 interface InFlight {
   id: number
-  key: string
-  indices: Set<number>
+  /** The glyphs on their way, by parameter set. */
+  pairs: Map<string, Set<number>>
+  /** The first parameter set asked for (see RequestInfo.primary). */
+  primary: string | undefined
   live: boolean
   origin: Origin
   sentAt: number
   request: ComputeRequest
+}
+
+/** What is remembered of a request: whether it was live, and the first parameter set its asker wanted. */
+interface RequestInfo {
+  live: boolean
+  /**
+   * The key of the asker's first job (before glyphs already known were left out): the canvas's shown settings, or a
+   * live frame's shared set. Only its results stand in for a glyph (`latest`); a live frame's other levels never do.
+   */
+  primary: string | undefined
 }
 
 export interface GeometryClientOptions {
@@ -88,8 +104,8 @@ export class GeometryClient {
   /** The newest result per glyph that was computed or shown, used while the current one is computed. */
   private latest = new Map<number, GeometryEntry>()
   private inFlight: InFlight | null = null
-  /** Recent requests by id: their settings, for blaming a glyph. */
-  private requests = new Map<number, { key: string; live: boolean }>()
+  /** Recent requests by id, for blaming a glyph and for which results stand in (`latest`). */
+  private requests = new Map<number, RequestInfo>()
   private nextId = 1
   private listeners = new Set<() => void>()
   private idleListeners = new Set<() => void>()
@@ -99,8 +115,8 @@ export class GeometryClient {
 
   /** When the worker last sent anything (or started). */
   private lastHeard = 0
-  /** The glyph the worker said it started, while nothing has been heard since. */
-  private current: { requestId: number; index: number; at: number } | null = null
+  /** The glyph (and its settings) the worker said it started, while nothing has been heard since. */
+  private current: { requestId: number; key: string; index: number; at: number } | null = null
   private watchdog: ReturnType<typeof setTimeout> | null = null
   /** When the worker was last replaced for superseded settings (PREEMPT_GAP_MS). */
   private lastReplaced = -Infinity
@@ -176,7 +192,15 @@ export class GeometryClient {
    * `live` marks parameters Sound is driving: their results are kept apart (LIVE_KEPT_KEYS).
    */
   compute(font: LoadedFont, params: GeometryParams, key: string, indices: readonly number[], live = false) {
-    this.ask(font, params, key, indices, live, 'canvas')
+    this.computeJobs(font, [{ params, key, indices }], live)
+  }
+
+  /**
+   * Asks for glyphs under several parameter sets in one request (a live frame whose letters react by
+   * different amounts), the first set first. Otherwise as `compute`.
+   */
+  computeJobs(font: LoadedFont, jobs: readonly GeometryJob[], live = false) {
+    this.ask(font, jobs, live, 'canvas')
   }
 
   /** The font and glyphs the canvas shows (useGlyphGeometry), so prefetch knows what a frame needs. */
@@ -185,13 +209,16 @@ export class GeometryClient {
   }
 
   /**
-   * Asks for a live frame's glyphs before React renders it: the live scheduler commits the frame once
-   * they have arrived, so it renders once, complete. True while they are computed (idle listeners hear
-   * when the request ends); false when there is nothing to wait for.
+   * Asks for a live frame's glyphs before React renders it, every parameter set its letters show in one
+   * request (a job without `indices` asks for the glyphs the canvas shows): the live scheduler commits the
+   * frame once they have arrived, so it renders once, complete. True while they are computed (idle listeners
+   * hear when the request ends); false when there is nothing to wait for.
    */
-  prefetch(params: GeometryParams, key: string): boolean {
+  prefetchJobs(jobs: readonly FrameJob[]): boolean {
     const shown = this.shown
-    return shown !== null && this.ask(shown.font, params, key, shown.indices, true, 'prefetch')
+    if (shown === null) return false
+    const asked = jobs.map(({ params, key, indices }) => ({ params, key, indices: indices ?? shown.indices }))
+    return this.ask(shown.font, asked, true, 'prefetch')
   }
 
   /**
@@ -208,7 +235,7 @@ export class GeometryClient {
           if (this.inFlight?.origin === 'export') this.cancel()
           return
         }
-        if (this.inFlight === null && missing().length) this.ask(font, params, key, missing(), false, 'export')
+        if (this.inFlight === null && missing().length) this.ask(font, [{ params, key, indices: missing() }], false, 'export')
         // Done, or nothing left to wait for (glyphs that cannot be computed now have failed).
         if (!missing().length || this.inFlight === null) end(() => resolve(this.snapshot(key, indices)))
       }
@@ -241,48 +268,64 @@ export class GeometryClient {
     return this.byKey.get(key)?.get(index) ?? this.liveByKey.get(key)?.get(index)
   }
 
-  /** Sends a request for the glyphs still missing; true when one is on its way (now or already). */
-  private ask(font: LoadedFont, params: GeometryParams, key: string, indices: readonly number[], live: boolean, origin: Origin): boolean {
+  /**
+   * Sends one request for the glyphs still missing under each parameter set; true when one is on its way
+   * (now or already).
+   */
+  private ask(font: LoadedFont, jobs: readonly GeometryJob[], live: boolean, origin: Origin): boolean {
     this.useFont(font)
-    // Settings that were a live frame (Freeze keeps one) become ordinary kept results.
-    if (!live) this.promote(key)
-    const missing: number[] = []
-    for (const i of indices) {
-      const entry = this.entry(key, i)
-      // On the canvas, each glyph's shape under these settings is what is on screen now: it stands in
-      // while later settings are computed (after Sound stops, the sliders' own shapes, not the last live frame).
-      if (entry && origin === 'canvas') this.latest.set(i, entry)
-      else if (!entry) missing.push(i)
-    }
-    if (!missing.length) {
+    // The asker's first parameter set, even when its glyphs are all known and it is not sent.
+    const primary = jobs[0]?.key
+    const missing = new Map<string, { params: GeometryParams; indices: Set<number> }>()
+    jobs.forEach(({ params, key, indices }, n) => {
+      // Settings that were a live frame (Freeze keeps one) become ordinary kept results; live settings
+      // asked for again are dropped last.
+      if (live) this.touchLive(key)
+      else this.promote(key)
+      for (const i of indices) {
+        const entry = this.entry(key, i)
+        if (entry) {
+          // On the canvas, each glyph's shape under the first settings is what is on screen now: it stands in
+          // while later settings are computed (after Sound stops, the sliders' own shapes, not the last live frame).
+          if (origin === 'canvas' && n === 0) this.latest.set(i, entry)
+          continue
+        }
+        let job = missing.get(key)
+        if (!job) missing.set(key, (job = { params, indices: new Set() }))
+        job.indices.add(i)
+      }
+    })
+    if (!missing.size) {
       // The canvas has everything (e.g. back to recent settings): what it asked for before is no longer needed.
       if (origin === 'canvas' && this.inFlight?.origin === 'canvas') this.cancel()
       return false
     }
     const inFlight = this.inFlight
-    if (inFlight?.key === key && missing.every((i) => inFlight.indices.has(i))) {
+    if (inFlight && covers(inFlight.pairs, missing)) {
       // The canvas waits for it too, so its end must reach React.
       if (origin === 'canvas' && inFlight.origin === 'prefetch') inFlight.origin = 'canvas'
       return true
     }
-    if (!live && this.stuckElsewhere(key, missing)) this.replaceWorker()
+    const needed: GeometryJob[] = [...missing].map(([key, { params, indices }]) => ({ params, key, indices: [...indices] }))
+    if (!live && this.stuckElsewhere(needed)) this.replaceWorker()
     this.startWorker()
     const problem = this.getProblem()
     if (problem) {
       // No page-side computing: the glyphs fail (canvas, preview and exports alike) and the canvas says why.
-      for (const i of missing) this.store(key, i, { error: problem, transient: true }, live)
+      for (const { key, indices } of needed) for (const i of indices) this.store(key, i, { error: problem, transient: true }, live)
       if (origin !== 'prefetch') this.notify()
       return false
     }
-    this.request(font, params, key, missing, live, origin)
+    this.request(font, needed, live, origin, primary)
     return true
   }
 
-  private request(font: LoadedFont, params: GeometryParams, key: string, indices: number[], live: boolean, origin: Origin) {
+  private request(font: LoadedFont, jobs: GeometryJob[], live: boolean, origin: Origin, primary: string | undefined) {
     const id = this.nextId++
-    const request: ComputeRequest = { type: 'compute', requestId: id, fontId: font.id, params, key, indices, ...(live ? { live } : {}) }
-    this.inFlight = { id, key, indices: new Set(indices), live, origin, sentAt: performance.now(), request }
-    this.requests.set(id, { key, live })
+    const request: ComputeRequest = { type: 'compute', requestId: id, fontId: font.id, jobs, ...(live ? { live } : {}) }
+    const pairs = new Map(jobs.map((job) => [job.key, new Set(job.indices)]))
+    this.inFlight = { id, pairs, primary, live, origin, sentAt: performance.now(), request }
+    this.requests.set(id, { live, primary })
     while (this.requests.size > REMEMBERED_REQUESTS) this.requests.delete(this.requests.keys().next().value!)
     this.send(request)
     this.armWatchdog(this.watchdogMs)
@@ -300,12 +343,11 @@ export class GeometryClient {
    * True when the worker has been in one glyph for PREEMPT_MS that these settings do not need (the
    * glyph of superseded settings): replacing the worker is quicker than waiting for it.
    */
-  private stuckElsewhere(key: string, indices: number[]): boolean {
+  private stuckElsewhere(jobs: readonly GeometryJob[]): boolean {
     const current = this.current
     const now = performance.now()
     if (!this.worker || !current || now - current.at < PREEMPT_MS || now - this.lastReplaced < PREEMPT_GAP_MS) return false
-    const request = this.requests.get(current.requestId)
-    return !(request && request.key === key && indices.includes(current.index))
+    return !jobs.some(({ key, indices }) => key === current.key && indices.includes(current.index))
   }
 
   private useFont(font: LoadedFont) {
@@ -400,7 +442,7 @@ export class GeometryClient {
       const current = this.current
       const blamed = current && this.requests.get(current.requestId)
       if (current && blamed) {
-        this.store(blamed.key, current.index, { error: `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings` }, blamed.live)
+        this.store(current.key, current.index, { error: `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings` }, blamed.live)
       }
       this.restart('stopped responding')
     }, ms)
@@ -414,15 +456,18 @@ export class GeometryClient {
     const now = performance.now()
     this.lastHeard = now
     if (message.type === 'glyph') {
-      this.current = { requestId: message.requestId, index: message.index, at: now }
+      this.current = { requestId: message.requestId, key: message.key, index: message.index, at: now }
       return
     }
     if (message.type !== 'font-error') this.current = null
     if (message.type === 'results') {
       if (message.fontId !== this.fontId) return
+      // A live frame's quiet and strong levels are not what a glyph shows everywhere: they never stand in for it.
+      const asked = this.requests.get(message.requestId)
+      const standsIn = !asked || asked.primary === undefined || message.key === asked.primary
       for (const result of message.results) {
         const entry: GeometryEntry = 'error' in result ? { error: result.error } : { geometry: result.geometry }
-        this.store(message.key, result.index, entry, message.live === true)
+        this.store(message.key, result.index, entry, message.live === true, standsIn)
       }
       // Live results wait for their frame's 'done', so each live frame appears whole (SOUND_PLAN §2).
       if (!message.live) this.notifySoon()
@@ -449,14 +494,16 @@ export class GeometryClient {
       // The worker does not have the font (it was dropped, or never arrived): send it again and repeat the request, once.
       this.resentFont = true
       this.sendFont()
-      this.request(this.font, inFlight.request.params, inFlight.key, [...inFlight.indices], inFlight.live, inFlight.origin)
+      this.request(this.font, inFlight.request.jobs, inFlight.live, inFlight.origin, inFlight.primary)
       return
     }
     if (reason === 'font') {
       const problem = `The geometry worker could not open this font (${message}).`
       this.fontProblem = { fontId: inFlight.request.fontId, message: problem }
       this.inFlight = null
-      for (const i of inFlight.indices) if (!this.entry(inFlight.key, i)) this.store(inFlight.key, i, { error: problem, transient: true }, inFlight.live)
+      for (const [key, indices] of inFlight.pairs) {
+        for (const i of indices) if (!this.entry(key, i)) this.store(key, i, { error: problem, transient: true }, inFlight.live)
+      }
       this.notifyNow()
       this.idle()
       return
@@ -464,7 +511,8 @@ export class GeometryClient {
     this.restart('kept failing')
   }
 
-  private store(key: string, index: number, entry: GeometryEntry, live = false) {
+  /** Keeps a result; `standsIn`: it also becomes the glyph's newest result, shown while other settings are computed. */
+  private store(key: string, index: number, entry: GeometryEntry, live = false, standsIn = true) {
     const kept = live ? this.liveByKey : this.byKey
     let results = kept.get(key)
     if (!results) {
@@ -474,7 +522,15 @@ export class GeometryClient {
       while (kept.size > max) kept.delete(kept.keys().next().value!)
     }
     results.set(index, entry)
-    this.latest.set(index, entry)
+    if (standsIn) this.latest.set(index, entry)
+  }
+
+  /** Moves live results asked for again to the back of the kept ones, so the oldest frame's are dropped first. */
+  private touchLive(key: string) {
+    const results = this.liveByKey.get(key)
+    if (!results) return
+    this.liveByKey.delete(key)
+    this.liveByKey.set(key, results)
   }
 
   /** Moves a live frame's results to the kept results of normal editing (merging with any there). */
@@ -518,16 +574,36 @@ export class GeometryClient {
   }
 }
 
+/** True when every glyph in `missing` is among `pairs` (glyphs by parameter set). */
+function covers(pairs: Map<string, Set<number>>, missing: Map<string, { indices: Set<number> }>): boolean {
+  for (const [key, { indices }] of missing) {
+    const asked = pairs.get(key)
+    if (!asked) return false
+    for (const i of indices) if (!asked.has(i)) return false
+  }
+  return true
+}
+
 export const geometryClient = new GeometryClient()
 
 /**
  * Geometry for these glyphs under these settings, computed in the worker. Re-renders as results
  * arrive; until then `lookup` returns the glyph's previous shape (stale) or null. `live` marks
- * parameters Sound is driving (kept apart from the results of normal editing).
+ * parameters Sound is driving (kept apart from the results of normal editing). `extra` asks for more
+ * parameter sets in the same request (letters of a live frame that react by different amounts); their
+ * results are read with `geometryClient.lookup`.
  */
-export function useGlyphGeometry(font: LoadedFont | null, params: GeometryParams, key: string, indices: readonly number[], live = false) {
+export function useGlyphGeometry(
+  font: LoadedFont | null,
+  params: GeometryParams,
+  key: string,
+  indices: readonly number[],
+  live = false,
+  extra?: readonly GeometryJob[],
+) {
   const version = useSyncExternalStore(geometryClient.subscribe, geometryClient.getVersion)
   const indicesKey = indices.join(',')
+  const extraKey = extra?.map((job) => `${job.key}\u001f${job.indices.join(',')}`).join('\u001e') ?? ''
   // Before any effect: the live scheduler may ask for the next frame's glyphs in one.
   useLayoutEffect(
     () => geometryClient.show(font, indices),
@@ -535,10 +611,11 @@ export function useGlyphGeometry(font: LoadedFont | null, params: GeometryParams
     [font, indicesKey],
   )
   useEffect(() => {
-    if (font) geometryClient.compute(font, params, key, indices, live)
-    // `key` stands for `params`, and `indicesKey` for `indices`; `version` asks again after the worker restarts.
+    if (!font) return
+    geometryClient.computeJobs(font, [{ params, key, indices }, ...(extra ?? [])], live)
+    // `key` stands for `params`, `indicesKey` for `indices` and `extraKey` for `extra`; `version` asks again after the worker restarts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [font, key, indicesKey, version, live])
+  }, [font, key, indicesKey, extraKey, version, live])
   return useMemo(() => ({ lookup: (index: number) => geometryClient.lookup(key, index), version }), [key, version])
 }
 

@@ -142,6 +142,13 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Store every glyph a font file can hold: one that reaches beyond a font's limits, such as long Thorn tips, is trimmed to fit instead of left out, and the dialog names the glyphs trimmed or left out.
 - Build the file in the background so the editor stays responsive, with progress, an up-front estimate of its size (and a warning when it will be too large or slow), and a Cancel that stops the build at once.
 
+### P2: Video export
+
+- Record the canvas as Sound moves it, in real time and with the sound, so the moving letters can be shared. SVG, PNG, and font files keep using the slider values (section 11).
+- Write MP4 where the browser can, and otherwise WebM with a note. The video has the canvas export size, as PNG does, and the canvas's own colours or the preview look.
+- Start a take from the Sound tab's Record group or from Export → Video. Wherever it started, the header shows its time and a Stop button, and the file is saved when the take ends.
+- Record and encode in the browser, with no new dependency; nothing is uploaded.
+
 ### P2: Experimental effects (stackable)
 
 Creative effects in one **Experimental** tab beside Geometry: **Crumple** (crumpled paper), **Ripple** (waves from a point), and **Slipstream** (letters caught in a stream), built in that order, then **Whorl** (a swirl around each letter's middle) and **Thorn** (a few anchors jumping out into the canvas as thorns). Phase 9 renamed them (they were Noise, Curl, Wind, and Spikes) and reworked Crumple, Slipstream, and Thorn. Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
@@ -183,7 +190,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 1. **Deconstruction:** Flattening mode, curve approximation tolerance, lines per curve, anchor spacing, anchor reduction.
 2. **Geometry and grid:** Grid snapping, grid size, angle locking, fixed-anchor behavior.
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed (plus the few anchors mode, which has no control: only the Flicker preset sets it).
-4. **Export:** SVG settings, font glyph coverage, and font metadata.
+4. **Export:** SVG settings, font glyph coverage, font metadata, and the video's options (Format, Length, Include audio, Use the preview look).
 5. **Experimental** (its own tab beside Geometry): Crumple, Ripple, Whorl, Slipstream, and Thorn, stackable, with one shared seed.
 
 ### Tool hierarchy
@@ -191,7 +198,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Open on the font deconstruction workspace by default. Font handling, skeleton inspection, outline editing, and export form the primary navigation and canvas.
 - Place the control panel on the left and the live glyph canvas in the main area on the right. An exported file must never replace the live preview.
 - Offer Sound as a third tab beside Geometry and Experimental. It must not replace the core font editor or require audio input for font editing.
-- While Sound is live, sliders keep their own values (a marker shows the live value); switching Sound off restores them exactly, and exports use the slider values.
+- While Sound is live, sliders keep their own values (a marker shows the live value); switching Sound off restores them exactly. SVG, PNG, and font exports use the slider values; only a video records the moving letters.
 
 ### Visual and interaction principles
 
@@ -202,8 +209,8 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Give each core control a short explanation; explain specialized terms in tooltips.
 - Cover empty, loading, parsing-error, and export-complete states.
 - Support keyboard operation and make focus states easy to see.
-- Undo and redo every setting, the text, and the Sound mappings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo.
-- Restore the last session on the next visit: the settings, the text, the Sound mappings, and the font (a Google font is downloaded again; a local file must be imported again, and the canvas names it).
+- Undo and redo every setting, the text, the Sound mappings, and the Sound tab's Response settings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo.
+- Restore the last session on the next visit: the settings, the text, the Sound mappings and Response settings, and the font (a Google font is downloaded again; a local file must be imported again, and the canvas names it).
 
 ### Visual reference for outline transformation
 
@@ -238,7 +245,8 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - If font export cannot preserve certain features, the app explains this before export.
 - An exported font keeps the source's pair kerning between the exported glyphs and the canvas's line spacing, and Cancel stops a build at once.
 - The preview shows the same outlines as the exported SVG.
-- Undo and redo bring back settings, text, and mappings; reloading the page restores the last session.
+- A video recorded from the Sound tab or from Export → Video is saved as MP4, or as WebM with a note where the browser cannot write MP4, at the canvas export size and with the sound. A take ends on Stop, at its length, when the sound stops, or when the tab is hidden, and saves what it recorded.
+- Undo and redo bring back settings, text, mappings, and the Sound tab's Response settings; reloading the page restores the last session.
 - Experimental effects can all be on at once; any combination within 100% gives valid outlines (no crossings, counters inside) and adds no curve-like runs, apart from the few known cases listed in EXPERIMENTAL_PLAN section 4.9. Beyond 100%, with thorns, or with Slipstream's cuts, the letters are merged into non-crossing outlines that export. Heavy combinations stay responsive: the vertex budget simplifies the letter instead.
 - The fast automated test suite passes on every pull request into `develop` and before every deploy.
 
@@ -267,14 +275,14 @@ The canvas is the primary feedback area and remains visible during editing. Load
 Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-driven carved letterforms" direction (new carving operators, a timeline, audio spread across the letters of a text, and recipe export), which is dropped.
 
 - **Concept:** a **Sound** tab beside Geometry and Experimental. Live sound, from a local audio file (the default source) or from the microphone after an explicit start, drives the parameters that already exist in both tabs; there is no Off source: Pause stops a file and Stop listening the microphone. The letters move with the music: anchors jump on the beat, outlines crumple when it gets loud, petals open on the bass.
-- **No new geometry:** sound only changes parameter values, within each slider's range (a seed: whole numbers within its field's range). Every frame is a result the sliders and seed fields could produce by hand, so it has straight edges only, is validated like every result, and can be exported. There is no tweening between frames.
-- **Features:** 10, in five groups, listed the same way in the meters and in a mapping's Feature list (merged from the 20 first measured in phase 3):
+- **No new geometry:** sound only changes parameter values, within each slider's range (a seed: whole numbers within its field's range). Every letter on screen, in every frame, is a result the sliders and seed fields could produce by hand, so it has straight edges only, is validated like every result, and can be exported. Letters may react by different amounts (Response, below), but each letter's shape is still one setting of the sliders. There is no tweening between frames.
+- **Features:** 11, in five groups, listed the same way in the meters and in a mapping's Feature list (merged from the 20 first measured in phase 3, plus Melody):
   - **Loudness:** Level (short-time RMS) and Swell (Level followed slowly: it rises over about 300 ms and falls over about 2 s).
   - **Bands:** Bass / Mids / Treble band energy (20–250 Hz, 250–2000 Hz, 2000 Hz – Nyquist), each against its own recent loudest moment.
-  - **Tone:** Brightness (spectral centroid); Pitch (the note being played or sung, 55 Hz to 1760 Hz on a log scale; it holds the last note between notes and reads 0 in silence).
-  - **Rhythm:** Beat (onsets from the whole spectrum and from a separate bass-drum detector, counted only while the sound's energy actually rises, so a steady hum or buzzy bass gives no beats), a pulse that jumps to 1 on each onset and falls back with the Smoothing time; Activity (how busy the sound is: the larger of how much the spectrum is changing, near 0 on steady sound, noise included, and high on attacks, and how many beats came in the last 2 s, 8 a second reading 1).
+  - **Tone:** Brightness (spectral centroid); Pitch (the note being played or sung, 55 Hz to 1760 Hz on a log scale; it holds the last note between notes and reads 0 in silence); Melody (a pulse each time the melody moves to a new note at least half a semitone away and holds it briefly, even at a steady loudness; vibrato and drum hits do not count; it falls back with the Release time).
+  - **Rhythm:** Beat (onsets from the whole spectrum and from a separate bass-drum detector, counted only while the sound's energy actually rises, so a steady hum or buzzy bass gives no beats), a pulse that jumps to 1 on each onset and falls back with the Release time; Activity (how busy the sound is: the larger of how much the spectrum is changing, near 0 on steady sound, noise included, and high on attacks, and how many beats came in the last 2 s, 8 a second reading 1).
   - **Stereo:** Pan (left −1 to right +1, the only two-sided feature). In practice for files only: a mono microphone reads centred.
-  - Most features follow the sound with a fast attack and the adjustable release (Smoothing), behind a silence gate; Swell and Pitch have their own fixed times.
+  - Most features follow the sound with a fast attack and an adjustable fall time (Release), behind a silence gate; Swell and Pitch have their own fixed times.
 - **Mappings:** up to 8 rows, each connecting one feature to one target. They are saved between visits with the settings, and every change to them can be undone; Drive letters is not saved.
   - **Continuous:** slider position (0–1 along the slider as drawn) + Depth × feature, clamped to the slider's ends and rounded to its step; contributions to one target add up before clamping. On an ordinary slider this is slider value + Depth × feature × the slider's range; a log-scaled slider such as Tolerance moves evenly along its track.
   - **Events** (Beat), in three kinds:
@@ -294,28 +302,48 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
     - Choosing one in the **Preset** list only selects it.
     - **Load** resets every Geometry and Experimental setting to its default, keeping the three seeds; sets the preset's start values; replaces the mappings with the preset's; and shows a notice under the Preset row, for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." So every preset starts from the same letters, whatever was set before. Load is one undo step that brings back the earlier settings and mappings.
     - Picking a target by hand still only switches on what it needs; it resets nothing.
+- **Response:** six sliders in the Sound tab's **Response** group set how the letters answer the sound, over every mapping. At their defaults Sound moves the letters exactly as it did before they existed. They are saved between visits and undone like the mappings (one drag is one step); presets leave them alone, and **Reset sound** sets all six back as one step.
+  - **Sensitivity** (−24 to +24 dB, default 0): boosts or cuts the input before measuring, for quiet or loud sources.
+  - **Strength** (0–400%, default 100%): scales how far every mapping moves the letters, and every seed's Rate; sliders still stop at their ends. At 0% the letters hold still, and the slider values and seeds come back exactly.
+  - **Motion contrast** (0–100%, default 0): each letter, meaning each place it appears in the text, reacts by its own amount. Some stay calm while others move up to 3.6 times as far, and which letters lead drifts every few seconds. At 100% about a sixth of the letters are calm, two thirds move by the shared amount, and a sixth move more. Strength sets the overall amount; Motion contrast only spreads it.
+  - **Release** (20–1000 ms, default 150 ms; formerly called Smoothing): how slowly the readings fall back after a sound. They always rise at once.
+  - **Pitch reactive** (0–200%, default 0): the low notes of the recent melody move the letters on the left more, its high notes those on the right, so a tune sweeps the whole text whatever its register. The range follows the notes of the last few seconds: it widens to a new higher or lower note within about 0.15 s, closes in on the last note over about 8 s, starts afresh after 8 s without a note, and is always at least an octave wide; notes at the very ends of Pitch's scale, where chords and drums read, are ignored. It needs a clear single note, such as a voice or one instrument.
+  - **Melody tracking** (0–200%, default 0): adds the Melody pulse to every slider mapping, so the letters move each time the melody changes note, even at a steady loudness. Pan rows, Melody's own rows, and seeds are left as they are.
+  - **Letters at three strengths:** with Motion contrast or Pitch reactive above 0, each letter shows the shared values or a calm or strong level. The levels are fixed for a setting and stay within fixed limits. A level scales each driven slider's live offset from the slider's own value, then clamps it to the slider's ends and rounds it to its step, so every letter is still a value the slider can produce. Seeds stay shared by every letter. A letter leaves its level only once its weight is clearly past the boundary, so it does not flicker between two levels.
 - **Slider and seed values preserved:**
   - Sliders keep their own values, and a marker shows the live value. Seed fields keep their own seeds, and a small number beside a driven seed shows the live one; the Distortion and Random anchors statistics show the live seed too.
-  - Pausing, stopping listening, turning Drive letters off, switching a mapping off, or setting Depth to 0 restores the slider value exactly. Pausing, stopping, or turning Drive letters off also returns the seeds to their fields' values exactly, and playing again starts from them.
-  - **Freeze** writes the live values into the sliders, and the live seeds into the seed fields, and pauses the sound; it can be undone as one step. Live frames themselves never enter the undo history.
-  - Exports always use the slider values, never live audio.
+  - Pausing, stopping listening, turning Drive letters off, setting Strength to 0%, switching a mapping off, or setting Depth to 0 restores the slider value exactly. Pausing, stopping, turning Drive letters off, or setting Strength to 0% also returns the seeds to their fields' values exactly, and playing again starts from them.
+  - **Freeze** writes the live values into the sliders, and the live seeds into the seed fields, and pauses the sound; it can be undone as one step. When letters react by different amounts, Freeze writes the shared values, and every letter then takes them. Freeze is off while a video is recording. Live frames themselves never enter the undo history.
+  - SVG, PNG, and font exports always use the slider values, never live audio. A video is the one export that records the moving letters (below).
+- **Video:** records the canvas as the sound moves it, in real time, with the sound.
+  - A take starts from the **Record** group at the bottom of the Sound tab, or from **Export → Video**, whose Record button closes the dialog and starts it. While it runs, the header shows "Recording 0:12" with a Stop button, wherever it started.
+  - **Format:** MP4 or WebM. MP4 is used when the browser can write it; otherwise the take is saved as WebM with "MP4 isn't supported in this browser: saved as WebM."
+  - **Length:** Until stopped, 5, 10, 15, 30, or 60 s, or Whole file (the audio file from its start, with Loop off for the take). A file take otherwise starts from the current position; a microphone take starts listening if it was not already.
+  - **Include audio** (on by default; with the microphone, its sound goes into the file) and **Use the preview look** (off by default: the canvas's ink and paper; on: the preview's colours and blur).
+  - The options are per visit: not saved and not undone.
+  - **Size and frame rate:** the canvas export size, as for PNG, scaled down to at most 3840 px on its longest side and 3840 × 2160 in area, in even pixel sizes. The paper is always painted, since a video has no transparency. The frame rate is the live rate, up to 30 fps; the Record group shows "Live · N fps" and warns when it is too slow. A canvas that stands still is still recorded as frames.
+  - **Ending:** a take stops and saves on Stop, at its length, when the sound stops, ends, or switches source, when the tab is hidden ("Recording stopped because the tab was hidden."), when the canvas size changes, or when the recorder fails (what was recorded is saved). It stops at 10 minutes. Leaving the page during a take asks first.
+  - **Sound:** the file holds the sound as measured (the file, or the microphone), delayed by about as long as the letters take to answer it (measured while Sound runs), so the two line up; what the speakers play does not change.
+  - Saved as `Family-Style-video.mp4` or `.webm` (`-video-preview` with the preview look), through the browser's own recorder.
 - **Performance:**
-  - The pipeline is unchanged, with at most one request in flight; live requests carry a flag that keeps their results apart. A live frame is shown only once all its glyphs have arrived, so it renders once and complete. The frame rate adapts to the cost, is capped at 30 fps, and is shown in the tab.
-  - Live values are rounded to slider steps so they reuse cached results, and live frames have a separate cache.
-  - Measuring the 10 features takes about 90 µs per frame at 48 kHz. A seed jump recomputes every glyph in about 2–3.5 ms (Arial, 24 distinct glyphs).
+  - The pipeline is unchanged, with at most one request in flight; live requests carry a flag that keeps their results apart. A live frame is one request, even when its letters react by different amounts (up to three parameter sets). It is shown only once all its glyphs have arrived, so it renders once and complete. The frame rate adapts to the cost, is capped at 30 fps, and is shown in the tab; it counts new shapes, not how often the sound is read. The sound is read every animation frame, so while the tab is hidden or covered it is not read and the letters stop following it until the tab is shown again.
+  - Live values are rounded to slider steps so they reuse cached results, and live frames have a separate cache that keeps the 6 most recently used parameter sets.
+  - Measuring the first 10 features takes about 90 µs per frame at 48 kHz; Melody follows the Pitch reading. A seed jump recomputes every glyph in about 2–3.5 ms (Arial, 24 distinct glyphs).
+  - Letters at different strengths cost more glyph computations per frame. On Roboto's default text (196 letters drawn, 24 distinct glyphs; measured in Node on one thread, every frame computed afresh), Motion contrast 100%, Pitch reactive 200%, or both take a light mapping from 3.3 ms to 6–7 ms a frame, a Thorn setup from 15 ms to 25–31 ms, the Flare preset from 6 ms to 14–16 ms, and four heavy Experimental effects together from 75 ms to 311–503 ms (the Pitch reactive figures were measured before it followed the melody's range; how a frame is computed has not changed). A steady sound reuses levels already computed. In the browser, the Jitter preset on the test track's hi-hat section runs at 23 fps with Motion contrast at 0% and at 16–17 fps at 60%.
+  - Recording draws each frame onto its own canvas without long tasks on the page.
 - **Safety:**
   - Against flashing, all Sound mappings together make at most 3 flashes a second: the driven sliders and the seed jumps share one limit of 6 large changes in any 1.25 s. A large change is a slider swinging back by 10% or more of its travel, several sliders swinging back that much together, or a seed jump (seeds jumping in the same frame count once). When the limit is reached, a slider swinging back keeps its last value until it frees up, and a further jump is skipped, so seeds jump less often while sliders are busy. Pausing and playing again does not reset this count.
+  - The limit holds for every letter on screen, not only the shared values. A calm or strong letter turns back exactly when the shared value does, so the largest of those swings is what counts, and holding the shared value holds every letter. Letters moving between levels are a large change of their own when, weighted by their width, they move 10% of the travel; a move that reaches the screen over several frames within 250 ms, as a note change does, counts as one change. When the limit is reached, every letter keeps the level it shows.
   - Sound drives the letters only while a font is loaded; without one it waits, and nothing moves.
   - **Drive letters** is an on/off switch. With reduced motion it starts off (and switches off if reduced motion is turned on during the visit), and the Sound tab says why.
   - The microphone starts only on an explicit click and shows an indicator. Each way it can fail (refused, missing, busy, not connected to the analyser, stopped while listening) has its own message.
-  - Audio never leaves the browser.
+  - Audio never leaves the browser, and a video is recorded and saved on the user's own computer.
 - **Delivery order:**
   1. Audio engine, features, and meters.
   2. Continuous mappings, the live scheduler, and Freeze.
   3. Event mappings, the rate limit, and presets.
   4. Pitch and stereo (Pan).
-
-  Video recording comes later.
+  5. Per-letter response, the Response controls, and video recording (PHASE.md, Phase H).
 
 ## 12. Implementation status
 
@@ -329,8 +357,9 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked on the canvas; the preview draws the SVG export itself |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, the source's pair kerning (GPOS) and the canvas's line spacing (`USE_TYPO_METRICS`), built in a worker of its own with progress, a size estimate, and an immediate Cancel, glyphs beyond a font's limits trimmed to fit, verified with fontkit and the browser's font engine after writing |
 | P2 Experimental effects | Implemented: Crumple (with Detail), Ripple (with petals), Whorl, Slipstream (with Slip, Cuts, and Trails), and Thorn (with Root and Refraction, and Reach measured on the canvas), stackable, with folds beyond 100% and a per-glyph vertex budget |
-| Undo, redo, and saved sessions (sections 6 and 7) | Implemented: one history of up to 100 steps for the settings, the text, and the Sound mappings; the session saved in `localStorage` and restored on the next visit |
+| P2 Video export | Implemented: real-time recording of the canvas with its sound, as MP4 or WebM (WebM with a note where MP4 is not supported), from the Sound tab's Record group or Export → Video, with a header indicator and Stop; see section 11 |
+| Undo, redo, and saved sessions (sections 6 and 7) | Implemented: one history of up to 100 steps for the settings, the text, the Sound mappings, and the Sound tab's Response settings; the session saved in `localStorage` and restored on the next visit |
 | Background computation (section 7) | Implemented: geometry only in the worker, with a 60 s watchdog and restarts (a canvas alert when the worker cannot run); font export in its own worker; automated tests in CI |
-| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, targets that switch themselves on (43, including the reworked Experimental effects' sliders), and ten presets (Preset and Load, which resets the Geometry and Experimental settings and sets the preset's start values; Flicker's few anchors mode); Pitch and Pan (phase 4) built early, among 10 features in five groups with compact meters; File as the default source with no Off, and Drive letters as a switch; one flash limit shared by sliders and seeds, a Beat that ignores steady bass, and mappings saved between visits. Not implemented yet: Step mappings (Allowed directions, Sides, Rings) and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
+| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, targets that switch themselves on (43, including the reworked Experimental effects' sliders), and ten presets (Preset and Load, which resets the Geometry and Experimental settings and sets the preset's start values; Flicker's few anchors mode); Pitch and Pan (phase 4) built early, among 10 features in five groups with compact meters; File as the default source with no Off, and Drive letters as a switch; one flash limit shared by sliders and seeds, a Beat that ignores steady bass, and mappings saved between visits; from Phase H, letters that react by different amounts (Motion contrast, Pitch reactive) within the same flash limit, the Response group (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, Melody tracking; saved and undone), Melody as an eleventh feature, and video recording. Not implemented yet: Step mappings (Allowed directions, Sides, Rings) and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; pair kerning between the exported glyphs is exported (GPOS `kern` feature), but contextual and language-specific kerning, ligatures, mark positioning, and other GPOS / GSUB features, hinting, and variation axes are not (a variable font exports the instance shown on the canvas, with the kerning values its variations change rounded to whole units); line spacing is the canvas's (hhea ascender, descender, and line gap, also as the typographic metrics with `USE_TYPO_METRICS`); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units. Each glyph must fit in a square 32,766 font units across (16 em at 2,048 units per em, 32.8 em at 1,000), along each axis the glyph's own extent where that fits and otherwise centred on its em box, moved where needed to stay within the glyph's extent: outline parts beyond it, such as long Thorn tips, are cut off with straight cuts at its edge instead of the glyph being left out, and the Export dialog lists those glyphs under "Trimmed to fit"; only the font file is trimmed, and the canvas, SVG, and PNG keep them whole. A glyph whose advance is above 32,767 units is left out with the reason, under "Left out of the font file". Read-back verification also checks the head and CFF bounding boxes and that every glyph stays within these limits.
