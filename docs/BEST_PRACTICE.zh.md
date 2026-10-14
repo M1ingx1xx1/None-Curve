@@ -36,7 +36,8 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 生成的文件不提交。Sound 测试音轨由 `npm run test-track`（来自 `scripts/test-track.ts`）渲染为 `test-audio/sound-test.wav`，git 会忽略它；有一个测试检查它每次渲染出的采样都相同。
 - 需要测试里跑不了的浏览器 API（MediaRecorder、画布捕获、Web Audio、标签页是否可见）的代码，要拆成纯模块和一个控制器：控制器通过注入的依赖拿到这些 API，上面再加一层很薄的页面单例。视频录制就是范例：`RecordingController`（`src/export/recorder.ts`）把时钟和计时器、声音引擎、画布、MediaRecorder、标签页可见性以及 `save` 作为 `RecorderDeps` 接收，`tests/export/recorder.test.ts` 用它们的假实现跑完每一次录制，完全不碰 DOM。画布绘制接收一个绘制器（`src/export/drawArtboard.ts`），所以一个记录调用的假绘制器就能拿它和 SVG 导出对照。
 - 绝不真的下载文件。测试传入假的 `save`（或其他注入的接收方），从不调用 `downloadFile`。要导出或录制的浏览器检查，先把 `HTMLAnchorElement.prototype.click` 换成只收集链接、不打开它的函数，并让 `URL.revokeObjectURL` 什么都不做，这样收集到的 blob 仍然能读。
-- `tests/sound/neutral.test.ts` 把 Response 设置为中性值（Strength 100%，Motion contrast、Pitch reactive 和 Melody tracking 为 0）时的 Sound 固定为提交 4a54e5d（这些设置出现之前）时的精确输出。永远不要修改它，包括其中的哈希值：它失败时，说明某处改动影响到了中性路径，应该修正那处改动。
+- `tests/sound/neutral.test.ts` 把 Response 设置为中性值（Strength 100%，Motion contrast、Pitch reactive 和 Melody tracking 为 0）时的 Sound 固定为提交 4a54e5d（这些设置出现之前）时的输出：除分析器的读数外都是精确值，读数按 10 位有效数字计算哈希（见下一条）。永远不要修改它，包括其中的哈希值：它失败时，说明某处改动影响到了中性路径，应该修正那处改动。
+- 来自 `Math` 函数（`log`、`exp`、`sin` 等）的数值要先取整再计算哈希，不要用精确值。V8 的 x64 版和 arm64 版在最后一位上可能不同（`Math.log2` 和 `Math.log10` 就是这样），而 CI 运行在 Linux x64 上，Apple 芯片的 Mac 是 arm64，所以在一边锁定的精确哈希到另一边会失败。`neutral.test.ts` 把这类数值取到 10 位有效数字：两边结果一致，而千万分之一的改动仍能被发现。锁定哈希前要在两边都核对过，例如在 Rosetta 下运行官方的 x64 版 Node。
 - 按屏幕显示的样子计算闪烁。`tests/sound/flash.test.ts` 中的 `lettersOnScreen` 把档位之间的移动从最近 250 ms 内显示过的任何一帧算起（`SPREAD_MS`，与 `LIVE_LIMITS.switchSpanMs` 是同一个时长），一帧里的变化只算一次；这样分几帧到达屏幕的一次变化只算一次，而摊薄在几帧里的变化也不会漏掉。
 - 在浏览器中检查 Sound 时让标签页保持可见。声音在 `requestAnimationFrame` 上读取，所以标签页被隐藏或被遮住时（包括隐藏起来的浏览器面板）没有帧，或只有一阵一阵的帧，字母也就不再跟随声音；"Live · N fps" 显示的是几何计算的速率，而不是读取声音的频率，所以看不出这一点。
 

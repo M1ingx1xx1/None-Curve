@@ -546,7 +546,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 引擎的音频分支：测量用的来源（听到的文件，或麦克风）经过一个延迟进入一个供录制使用的流；扬声器听到的不变。
    - 界面：Sound 标签页底部的 **Record** 组（Record 或 Stop、已录时长、Format、Length、Include audio、Use the preview look、尺寸一行、"Live · N fps"，以及上一次录制是怎样结束的）；Export 对话框中的 **Video**，它的 Record 会关闭对话框并开始录制；顶部栏依次显示 "Starting to record…"、带一个只有图标的 Stop 的 "Recording 0:12"，然后是 "Saving the video…"，结束后显示录制是怎样结束的，并带一个关闭按钮。录制期间 Freeze 不可用。录制用的画布放在屏幕之外，只在录制期间存在。录制期间离开页面会先询问。
 7. **测试：** 快速测试新增八个文件，现在共 31 个：
-   - `tests/sound/neutral.test.ts`，在提交 4a54e5d 时、任何其他改动之前写好，之后从不修改：在中性的 Response 设置下，`modulate`、实时调度的请求、提交和 Freeze、分析器的读数，以及 Roboto 默认文字一直到 SVG 的结果，哈希都与之前完全相同。
+   - `tests/sound/neutral.test.ts`，在提交 4a54e5d 时、任何其他改动之前写好：在中性的 Response 设置下，`modulate`、实时调度的请求、提交和 Freeze、分析器的读数，以及 Roboto 默认文字一直到 SVG 的结果，哈希都与之前相同（读数按 10 位有效数字，其余为精确值）。CI（Linux x64）显示 V8 的 `Math.log2` 和 `Math.log10` 在 x64 和 arm64 之间最后一位不同之后，读数的锁定值从 4a54e5d 在两边重新取过一次。
    - `tests/sound/letters.test.ts`、`tests/sound/jumps.test.ts`、`tests/specimen/occurrence.test.ts`、`tests/export/specimenPaths.test.ts`、`tests/export/videoFormat.test.ts`、`tests/export/drawArtboard.test.ts` 和 `tests/export/recorder.test.ts`（时钟和计时器、引擎、画布、MediaRecorder 以及标签页可见性都用假实现；完全不碰 DOM，也不下载任何东西）。
    - 闪烁、实时调度、特征、映射、会话保存、历史、Worker 和客户端的测试中都新增了用例。其中包括：特征测试里的旋律音域（5 个用例）；字母测试里的 `pitchPlace`；闪烁测试里按画面计数（从最近 250 ms 内显示过的任何一帧算起，档位之间的移动只算一次变化）、横跨整个音域每秒 6 次的八度，以及经过 `FeatureExtractor` 和调度器的真实音：C4 和 C5 交替时，每个 C4 都停在左边（强烈档位字母的平均位置低于 0.35），每个 C5 都停在右边（高于 0.65），Pitch reactive 100% 时每个音都到位，200% 时至少 80% 到位；测试音轨的旋律在 100% 时，第二遍从左到右再回来；两者每秒都最多 6 次大变化。慢速测试的测试音轨检查旋律段落中 11 次换音大约每次都有一个 Melody 脉冲（11 次，允许差一次），而之前的踩镲上一个也没有。
 8. **测量结果**（Node，单线程，每帧都重新计算，Roboto 默认文字：226 个字母，画出 196 个，24 个不同字形；每帧毫秒数的中位数）：
@@ -565,7 +565,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 
 阶段验收：
 - `npm run build`、`npm test`（31 个文件）和 `npm run test:slow` 通过；CJK 检查不输出任何内容；每个输出仍然只有 `M`、`L` 和 `Z`。
-- `tests/sound/neutral.test.ts` 不经修改即通过，所以 Response 设置都在默认值时，Sound 给出的请求、帧、Freeze、读数和 SVG 都与之前相同。
+- `tests/sound/neutral.test.ts` 在 x64 和 arm64 上都通过，所以 Response 设置都在默认值时，Sound 给出的请求、帧、Freeze、读数和 SVG 都与之前相同。
 - 画面上的每个字母都保持在每秒 3 次闪烁以内：在 Strength 400%、Motion contrast 100%、Pitch reactive 200% 下用方波驱动，音高每秒跳一个八度 6 次，画面上任意一秒内最多 6 次大变化，而字母仍在动。一次在 250 ms 内分几帧到达画面的档位移动只算一次变化，真实的 C4 和 C5 音仍能在限制之内分别落到左边和右边。
 - Jitter 播放时把 Motion contrast 设为 60%，画布上有 16–19 个字形显示不止一种形状，预览画出的不同路径比字形还多。回到 0%，或按 Freeze 之后，每个字形又只有一种形状，滑块停在冻结的值上，也从不显示 "Updating"。
 - WebM 和 MP4 各录 5 s、1200 × 800 的视频，保存后尺寸、时长和画面都正确。拒绝 MP4 时，录制保存为 WebM，并显示 "MP4 isn't supported in this browser: saved as WebM."。

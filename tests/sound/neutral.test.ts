@@ -1,12 +1,16 @@
-// Neutral Sound is today's Sound, byte for byte. The constants below were pinned at commit 4a54e5d, before the
-// per-letter Response controls (Strength, Motion contrast, Pitch reactive, Melody tracking) existed, and must never
-// be edited: with the Response settings at their neutral values (Strength 100%, the other three 0) every output
-// here must stay exactly what it was. A failure means a change reached the neutral path; fix the change, not the hash.
+// Neutral Sound is today's Sound. The constants below were pinned at commit 4a54e5d, before the per-letter Response
+// controls (Strength, Motion contrast, Pitch reactive, Melody tracking) existed, and must never be edited: with the
+// Response settings at their neutral values (Strength 100%, the other three 0) every output here must stay what it
+// was. A failure means a change reached the neutral path; fix the change, not the hash.
 //
-// Four outputs, each hashed (FNV-1a) over exact values: modulate for every preset over seeded frames and jumps; the
-// live scheduler's geometry requests, commits and Freeze over 3 s of seeded frames per preset (with fake time, as
-// live.test.ts); the FeatureFrame fields the analyser gives today; and the default text in Roboto under Flicker at
-// one frame, from the pipeline to the SVG.
+// Four outputs, each hashed (FNV-1a): modulate for every preset over seeded frames and jumps, and the live
+// scheduler's geometry requests, commits and Freeze over 3 s of seeded frames per preset (with fake time, as
+// live.test.ts), over exact values; the FeatureFrame fields the analyser gives today, to 10 significant digits; and
+// the default text in Roboto under Flicker at one frame, from the pipeline to the SVG.
+//
+// The features are rounded because V8's Math.log2 and Math.log10 can differ in the last bit between its x64 and arm64
+// builds (Pitch and Level dB here, by about 2e-16): exact, they hash differently on CI (Linux x64) than on an Apple
+// silicon Mac. Their pin was taken from 4a54e5d on both, which agree to 10 digits.
 
 import { describe, expect, it } from 'vitest'
 import { glyphGeometry, paramsKey } from '../../src/geometry/cache'
@@ -23,11 +27,11 @@ import { analyse, drumHits, hiHat, hitTimes, mix, noise, reseed, sine, type Prob
 import { loadFixture } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
 
-// Pinned at 4a54e5d. Never edit.
+// Pinned at 4a54e5d (features to 10 significant digits, on arm64 and x64). Never edit.
 const PINNED = {
   modulate: 'ef59f235',
   scheduler: '4d1c107e',
-  features: '79b8ec5a',
+  features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',
 } as const
@@ -226,7 +230,9 @@ describe('neutral Sound reproduces 4a54e5d', () => {
 
 /** Today's FeatureFrame fields, listed so that fields added later are left out. */
 function featureFields(f: ProbedFrame): string {
-  return [f.time, f.levelDb, f.level, f.swell, f.bass, f.mids, f.treble, f.brightness, f.pitch, f.beat, f.activity, f.pan, f.onset, f.silent].map(String).join(',')
+  return [f.time, f.levelDb, f.level, f.swell, f.bass, f.mids, f.treble, f.brightness, f.pitch, f.beat, f.activity, f.pan, f.onset, f.silent]
+    .map((v) => (typeof v === 'number' && Number.isFinite(v) ? v.toPrecision(10) : String(v)))
+    .join(',')
 }
 
 /**
