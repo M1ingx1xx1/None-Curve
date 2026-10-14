@@ -1,10 +1,12 @@
-// Undo and redo: the settings (every parameter group but the canvas view), the text and the Sound
-// mappings, as one history. A small store outside React state, read with a hook. Changes are recorded
-// where they are made (App's dispatch and text setters, the mapping store), never in the reducer, so it
-// stays pure; live Sound frames never dispatch, so they never enter the history.
+// Undo and redo: the settings (every parameter group but the canvas view), the text, the Sound mappings
+// and the Sound tab's Response group, as one history. A small store outside React state, read with a hook.
+// Changes are recorded where they are made (App's dispatch and text setters, the mapping store, the
+// Response sliders), never in the reducer, so it stays pure; live Sound frames never dispatch, so they
+// never enter the history.
 
 import { useSyncExternalStore } from 'react'
 import type { Mapping } from '../sound/mapping'
+import type { SoundSettings } from '../sound/types'
 import type { SettingsParams } from './types'
 
 /** What one undo step brings back. */
@@ -12,6 +14,8 @@ export interface Snapshot {
   params: SettingsParams
   text: string
   mappings: readonly Mapping[]
+  /** Sensitivity, Release and the response values; left out, a restore keeps them as they are. */
+  sound?: SoundSettings
 }
 
 /** Where the history reads the current state and puts a restored one (App). */

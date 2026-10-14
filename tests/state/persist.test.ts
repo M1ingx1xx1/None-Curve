@@ -1,9 +1,10 @@
 // The session saved between visits (src/state/persist.ts): it survives a round trip, and whatever is in storage
 // (damaged JSON, an older version, unknown keys, values out of range, a full or blocked storage) never breaks the
-// start: every leaf is checked against the defaults.
+// start: every leaf is checked against the defaults, the Sound tab's Response group too.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
+import { DEFAULT_SOUND_SETTINGS, SOUND_LIMITS } from '../../src/sound/types'
 import { initialState } from '../../src/state/editorState'
 import {
   capText,
@@ -68,7 +69,9 @@ function changedSession(): Session {
     mappings: [
       { id: 'm1', enabled: true, feature: 'bass', target: 'experimental.crumple.amount', depth: 0.5 },
       { id: 'm2', enabled: false, feature: 'beat', target: 'experimental.seed', depth: 0.25 },
+      { id: 'm3', enabled: true, feature: 'melody', target: 'distortion.amount', depth: -0.4 },
     ],
+    sound: { sensitivity: -6, releaseMs: 400, strength: 2.5, contrast: 0.6, pitchReactive: 1.25, melody: 0.15 },
     font: { kind: 'google', family: 'Roboto', weight: 400, italic: false, subset: 'latin' },
     glyph: { family: 'Roboto', style: 'Regular', index: 37, unicode: 0x41 },
   }
@@ -106,9 +109,36 @@ describe('saved session', () => {
       previewLook: { blur: 0, inverted: false },
       precision: DEFAULT_PRECISION,
       mappings: [],
+      sound: DEFAULT_SOUND_SETTINGS,
       font: null,
       glyph: null,
     })
+  })
+
+  it('checks the Sound settings: each clamped to its slider and rounded to its step, otherwise the default', () => {
+    const read = (sound: unknown) => readSession({ version: SESSION_VERSION, sound })!.sound
+    // A version 2 session saved before the Response group existed: neutral Sound, as it was.
+    expect(read(undefined)).toEqual(DEFAULT_SOUND_SETTINGS)
+    for (const garbage of [null, 'loud', 7, [], { strength: '2' }]) expect(read(garbage), JSON.stringify(garbage)).toEqual(DEFAULT_SOUND_SETTINGS)
+    expect(read({ sensitivity: 99, releaseMs: 1, strength: -3, contrast: 7, pitchReactive: Infinity, melody: Number.NaN })).toEqual({
+      ...DEFAULT_SOUND_SETTINGS,
+      sensitivity: SOUND_LIMITS.maxSensitivity,
+      releaseMs: SOUND_LIMITS.minReleaseMs,
+      strength: 0,
+      contrast: 1,
+    })
+    expect(read({ sensitivity: -3.4, releaseMs: 237, strength: 1.234, contrast: 0.456, pitchReactive: 0.33, melody: 1.97, extra: 1 })).toEqual({
+      sensitivity: -3,
+      releaseMs: 240,
+      strength: 1.25,
+      contrast: 0.46,
+      pitchReactive: 0.35,
+      melody: 1.95,
+    })
+    // Saved as JSON, the values come back exactly.
+    const storage = new MemoryStorage()
+    saveSession({ ...changedSession(), sound: { ...DEFAULT_SOUND_SETTINGS, strength: 0.15, contrast: 0.07 } }, storage)
+    expect(loadSession(storage).session!.sound).toEqual({ ...DEFAULT_SOUND_SETTINGS, strength: 0.15, contrast: 0.07 })
   })
 
   it('drops unknown keys and keeps the known ones', () => {

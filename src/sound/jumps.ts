@@ -47,8 +47,9 @@ export class JumpTracker {
   /**
    * Advances with one measured frame and returns the jumps so far by target id (the same Map object when nothing
    * changed). Uses frame.time for the time step and the flash budget. SILENT_FRAME / time <= 0: no change.
+   * `strength` (the Response group's Strength) multiplies every Rate, which still caps at 1.
    */
-  advance(frame: FeatureFrame, mappings: readonly Mapping[], base: GeometryParams): ReadonlyMap<string, number> {
+  advance(frame: FeatureFrame, mappings: readonly Mapping[], base: GeometryParams, strength = 1): ReadonlyMap<string, number> {
     if (frame === SILENT_FRAME || !(frame.time > 0)) return this.current
     const dt = this.lastTime === null ? 0 : Math.min(JUMP_LIMITS.maxStepMs, Math.max(0, frame.time - this.lastTime))
     this.lastTime = frame.time
@@ -62,7 +63,7 @@ export class JumpTracker {
       if (!spec || spec.kind !== 'jump' || spec.inactive(base) !== null) continue
       drivers.add(mapping.id)
       driven.add(spec.id)
-      const rate = Math.min(1, Math.abs(mapping.depth))
+      const rate = Math.min(1, strength * Math.abs(mapping.depth))
       const event = featureById(mapping.feature)?.event
       const step = event
         ? frame[event] === true ? rate : 0

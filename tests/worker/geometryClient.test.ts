@@ -1,6 +1,8 @@
 // The page's side of the geometry worker (src/state/geometryClient.ts) against a fake Worker and fake timers: the
 // watchdog restarts a silent worker and blames the glyph it was on, restarts are limited, a worker busy with
 // superseded settings is replaced, and a worker that cannot start or open the font fails the glyphs with a reason.
+// A request may hold several parameter sets (jobs, for letters of a live frame that react by different amounts):
+// only the missing glyphs of each are sent, and live sets asked for again are kept longest.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
@@ -25,8 +27,17 @@ class FakeWorker {
     this.onmessage?.({ data: message } as MessageEvent<WorkerResponse>)
   }
   /** The newest compute request it was sent. */
-  get lastCompute() {
+  get lastRequest() {
     return this.received.filter((m) => m.type === 'compute').at(-1) as Extract<WorkerRequest, { type: 'compute' }>
+  }
+  /** The newest compute request's id and its first job. */
+  get lastCompute() {
+    const { requestId, jobs } = this.lastRequest
+    return { requestId, ...jobs[0] }
+  }
+  /** Compute requests sent so far. */
+  get computes() {
+    return this.received.filter((m) => m.type === 'compute').length
   }
 }
 
@@ -62,7 +73,7 @@ describe('geometry client', () => {
     expect(worker().received.map((m) => m.type)).toEqual(['font', 'compute'])
     const { requestId } = worker().lastCompute
     expect(client.isComputing()).toBe(true)
-    worker().reply({ type: 'glyph', requestId, index: 1 })
+    worker().reply({ type: 'glyph', requestId, key: 'k1', index: 1 })
     worker().reply({ type: 'results', requestId, fontId: 'f', key: 'k1', results: [{ index: 1, geometry: geometry(1) }, { index: 2, error: 'bad glyph' }] })
     worker().reply({ type: 'done', requestId })
     expect(client.isComputing()).toBe(false)
@@ -81,7 +92,7 @@ describe('geometry client', () => {
     client.compute(font('f'), BASE, 'k1', [5, 6])
     const first = worker()
     const { requestId } = first.lastCompute
-    first.reply({ type: 'glyph', requestId, index: 5 })
+    first.reply({ type: 'glyph', requestId, key: 'k1', index: 5 })
     await vi.advanceTimersByTimeAsync(59_000)
     expect(workers).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(1_500)
@@ -101,7 +112,7 @@ describe('geometry client', () => {
     client.compute(font('f'), BASE, 'k1', [1, 2, 3])
     const { requestId } = worker().lastCompute
     for (const index of [1, 2, 3]) {
-      worker().reply({ type: 'glyph', requestId, index })
+      worker().reply({ type: 'glyph', requestId, key: 'k1', index })
       await vi.advanceTimersByTimeAsync(45_000)
     }
     expect(workers).toHaveLength(1)
@@ -114,7 +125,7 @@ describe('geometry client', () => {
     client = new GeometryClient({ createWorker: () => (workers.push(new FakeWorker()), worker() as unknown as Worker), watchdogMs: 5_000 })
     for (let k = 0; k < 4; k++) {
       client.compute(font('f'), BASE, `k${k}`, [k])
-      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, index: k })
+      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: `k${k}`, index: k })
       await vi.advanceTimersByTimeAsync(5_001)
       expect(client.lookup(`k${k}`, k)?.entry).toEqual({ error: 'Took longer than 5 s; try lighter settings' })
     }
@@ -143,7 +154,7 @@ describe('geometry client', () => {
   it('replaces a worker stuck on a glyph of superseded settings, without counting a restart', async () => {
     client.compute(font('f'), BASE, 'old', [1])
     const first = worker()
-    first.reply({ type: 'glyph', requestId: first.lastCompute.requestId, index: 1 })
+    first.reply({ type: 'glyph', requestId: first.lastCompute.requestId, key: 'old', index: 1 })
     await vi.advanceTimersByTimeAsync(800)
     client.compute(font('f'), BASE, 'new', [2])
     expect(first.terminated).toBe(true)
@@ -156,7 +167,7 @@ describe('geometry client', () => {
 
   it('cancels instead while the glyph is young', async () => {
     client.compute(font('f'), BASE, 'old', [1])
-    worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, index: 1 })
+    worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: 'old', index: 1 })
     await vi.advanceTimersByTimeAsync(100)
     client.compute(font('f'), BASE, 'new', [2])
     expect(workers).toHaveLength(1)
@@ -216,7 +227,137 @@ describe('geometry client', () => {
     w.reply({ type: 'results', requestId, fontId: 'f', key: 'k', results: [{ index: 1, geometry: geometry(1) }, { index: 2, error: 'bad' }] })
     w.reply({ type: 'done', requestId })
     const lookup = await done
-    expect(lookup(1)).toEqual({ polygon: geometry(1).polygon })
-    expect(lookup(2)).toEqual({ error: 'bad' })
+    expect(lookup(1, 0)).toEqual({ polygon: geometry(1).polygon })
+    expect(lookup(2, 1)).toEqual({ error: 'bad' })
+  })
+
+  describe('jobs: several parameter sets in one request', () => {
+    const job = (key: string, indices: number[], params = BASE) => ({ params, key, indices })
+    const results = (key: string, indices: readonly number[], live = false) =>
+      ({ type: 'results', requestId: worker().lastCompute.requestId, fontId: 'f', key, results: indices.map((index) => ({ index, geometry: geometry(index) })), ...(live ? { live } : {}) }) as WorkerResponse
+    const done = () => worker().reply({ type: 'done', requestId: worker().lastCompute.requestId })
+
+    it('sends only the missing glyphs of each set, in the order asked', () => {
+      const f = font('f')
+      client.compute(f, BASE, 'a', [1, 2])
+      worker().reply(results('a', [1, 2]))
+      done()
+      const other = { ...BASE, experimental: { ...BASE.experimental, seed: 9 } }
+      client.computeJobs(f, [job('a', [1, 2, 3]), job('b', [2, 1], other)], true)
+      expect(worker().lastRequest).toEqual({
+        type: 'compute',
+        requestId: expect.any(Number),
+        fontId: 'f',
+        jobs: [job('a', [3]), job('b', [2, 1], other)],
+        live: true,
+      })
+      // A set named twice is asked for once.
+      done()
+      client.computeJobs(f, [job('c', [4]), job('c', [4, 5])])
+      expect(worker().lastRequest.jobs).toEqual([job('c', [4, 5])])
+    })
+
+    it('waits for the request in flight when it has every missing glyph of every set', () => {
+      const f = font('f')
+      client.computeJobs(f, [job('a', [1, 2]), job('b', [3])])
+      expect(worker().computes).toBe(1)
+      client.computeJobs(f, [job('b', [3]), job('a', [2])])
+      expect(worker().computes).toBe(1)
+      // A glyph of a set it does not have, or of another set, needs a new request.
+      client.computeJobs(f, [job('a', [1]), job('b', [1])])
+      expect(worker().computes).toBe(2)
+      expect(worker().lastRequest.jobs).toEqual([job('a', [1]), job('b', [1])])
+    })
+
+    it('prefetches the shown glyphs for a set without indices, as one live request', () => {
+      expect(client.prefetchJobs([job('s', [1])])).toBe(false)
+      client.show(font('f'), [4, 5, 6])
+      expect(client.prefetchJobs([{ params: BASE, key: 's' }, job('q', [5])])).toBe(true)
+      expect(worker().lastRequest.jobs).toEqual([job('s', [4, 5, 6]), job('q', [5])])
+      expect(worker().lastRequest.live).toBe(true)
+      // A single set is the same request.
+      done()
+      expect(client.prefetchJobs([{ params: BASE, key: 't' }])).toBe(true)
+      expect(worker().lastRequest.jobs).toEqual([job('t', [4, 5, 6])])
+    })
+
+    it("only a live frame's shared set stands in for a glyph while other settings are computed, never its quiet or strong level", () => {
+      client.show(font('f'), [1, 2, 3])
+      // Each set's results told apart by their vertex count.
+      const counts: Record<string, number> = { S: 10, T: 20, Q: 30, T2: 40 }
+      const answer = () => {
+        const { requestId, jobs } = worker().lastRequest
+        for (const { key, indices } of jobs) {
+          worker().reply({ type: 'results', requestId, fontId: 'f', key, live: true, results: indices.map((index) => ({ index, geometry: geometry(counts[key]) })) })
+        }
+        done()
+      }
+      const standIn = (index: number) => {
+        const found = client.lookup('not yet computed', index)
+        return found && 'geometry' in found.entry ? found.entry.geometry.vertexCount : null
+      }
+      // The next frame, prefetched (not shown yet): the shared set for every glyph, strong letters of glyph 1, quiet ones of 2.
+      client.prefetchJobs([{ params: BASE, key: 'S' }, job('T', [1]), job('Q', [2])])
+      answer()
+      expect([1, 2, 3].map(standIn)).toEqual([10, 10, 10])
+      // The shared set already known: the request sent holds only a level, which still does not stand in.
+      client.prefetchJobs([{ params: BASE, key: 'S' }, job('T2', [1, 3])])
+      expect(worker().lastRequest.jobs.map((j) => j.key)).toEqual(['T2'])
+      answer()
+      expect([1, 2, 3].map(standIn)).toEqual([10, 10, 10])
+      expect(client.lookup('T2', 3)?.stale).toBe(false)
+    })
+
+    it('keeps a live set that every frame asks for, dropping the oldest frames first', () => {
+      client.show(font('f'), [1, 2])
+      // Four frames of three sets: one shared by all of them, two new ones each.
+      for (let n = 1; n <= 4; n++) {
+        client.prefetchJobs([{ params: BASE, key: 'S' }, job(`q${n}`, [1]), job(`r${n}`, [2])])
+        // The shared set is never computed again.
+        expect(worker().lastRequest.jobs.map((j) => j.key)).toEqual(n === 1 ? ['S', 'q1', 'r1'] : [`q${n}`, `r${n}`])
+        for (const { key, indices } of worker().lastRequest.jobs) worker().reply(results(key, indices, true))
+        done()
+      }
+      expect(client.lookup('S', 1)?.stale).toBe(false)
+      expect(client.lookup('S', 2)?.stale).toBe(false)
+      for (const key of ['q4', 'r4', 'q3', 'r3', 'r2']) expect(client.lookup(key, key.startsWith('q') ? 1 : 2)?.stale).toBe(false)
+      // Nine sets were made and six are kept: the three asked for longest ago went.
+      expect(client.lookup('q1', 1)?.stale).toBe(true)
+      expect(client.lookup('r1', 2)?.stale).toBe(true)
+      expect(client.lookup('q2', 1)?.stale).toBe(true)
+    })
+
+    it('blames a stuck glyph under the set the heartbeat names', async () => {
+      client.computeJobs(font('f'), [job('a', [1]), job('b', [2])])
+      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: 'b', index: 2 })
+      await vi.advanceTimersByTimeAsync(61_000)
+      expect(workers).toHaveLength(2)
+      expect(client.lookup('b', 2)?.entry).toEqual({ error: STUCK })
+      expect(client.lookup('a', 1)).toBeNull()
+    })
+
+    it('keeps a worker busy with a glyph that any set of the new request still needs', async () => {
+      client.compute(font('f'), BASE, 'a', [1])
+      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: 'a', index: 1 })
+      await vi.advanceTimersByTimeAsync(800)
+      client.computeJobs(font('f'), [job('b', [2]), job('a', [1])])
+      expect(workers).toHaveLength(1)
+      expect(worker().computes).toBe(2)
+    })
+
+    it('sends the same sets again when the worker does not have the font, and fails every set when it cannot open it', () => {
+      client.computeJobs(font('f'), [job('a', [1]), job('b', [2, 3])])
+      const w = worker()
+      const sent = w.lastRequest.jobs
+      w.reply({ type: 'failed', requestId: w.lastCompute.requestId, reason: 'no-font', message: 'no font' })
+      expect(w.received.map((m) => m.type)).toEqual(['font', 'compute', 'font', 'compute'])
+      expect(w.lastRequest.jobs).toEqual(sent)
+      w.reply({ type: 'results', requestId: w.lastCompute.requestId, fontId: 'f', key: 'b', results: [{ index: 2, geometry: geometry(2) }] })
+      w.reply({ type: 'failed', requestId: w.lastCompute.requestId, reason: 'font', message: 'bad tables' })
+      const problem = { error: 'The geometry worker could not open this font (bad tables).', transient: true }
+      expect(client.lookup('a', 1)?.entry).toEqual(problem)
+      expect(client.lookup('b', 3)?.entry).toEqual(problem)
+      expect(client.lookup('b', 2)?.entry).toEqual({ geometry: geometry(2) })
+    })
   })
 })

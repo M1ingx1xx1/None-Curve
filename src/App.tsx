@@ -6,15 +6,19 @@ import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
 import { HintsContext, useShowAllHints } from './components/Hint'
 import InputPanel from './components/InputPanel'
+import RecordingCanvas from './components/RecordingCanvas'
 import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
 import TextPreview from './components/TextPreview'
 import TextTools from './components/TextTools'
 import ToolHead from './components/ToolHead'
 import Workspace from './components/Workspace'
+import { useRecordingContext } from './export/recorder'
 import type { GeometryParams, GlyphRef } from './geometry/types'
-import { useLiveParams } from './sound/live'
+import { getSoundEngine } from './sound/engine'
+import { useLiveFrame, useLiveLetters } from './sound/live'
 import { mappingStore } from './sound/mappingStore'
+import type { SoundSettings } from './sound/types'
 import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from './specimen/artboard'
 import { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './specimen/previewLook'
 import { DEFAULT_TEXT } from './specimen/samples'
@@ -29,6 +33,11 @@ import { useFontImport } from './state/useFontImport'
 function settingsOf({ view: _view, ...settings }: EditorParams): SettingsParams {
   const experimental = withThornCanvasEm(settings.experimental, null)
   return experimental === settings.experimental ? settings : { ...settings, experimental }
+}
+
+/** Sensitivity and Release (the engine's) with the response values (the mappings store's): undone and saved together. */
+function soundSettings(): SoundSettings {
+  return { ...getSoundEngine().getState().settings, ...mappingStore.getState().response }
 }
 
 /** The editor's first state: the defaults, with the last visit's settings, view buttons and export precision. */
@@ -67,8 +76,10 @@ export default function App({ restored }: AppProps) {
     [flatten, random, squaring, anchors, grid, distortion, experimental, canvasEm],
   )
   // Without a font there are no letters to move: Sound does not drive.
-  const liveParams = useLiveParams(baseParams, font !== null)
-  const { derived, scene, layout, scenePending, loadSliderScene } = useGeometry(state, displayText, baseParams, liveParams)
+  const live = useLiveFrame(baseParams, font !== null)
+  const { derived, scene, layout, scenePending, loadSliderScene, letterSlots } = useGeometry(state, displayText, baseParams, live)
+  // After useGeometry, so a new text's first live frame asks for the glyphs the canvas now shows.
+  useLiveLetters(letterSlots)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.
@@ -100,14 +111,23 @@ export default function App({ restored }: AppProps) {
   useEffect(
     () =>
       undoHistory.connect({
-        read: () => ({ params: settingsOf(current.current.state.params), text: current.current.text, mappings: mappingStore.getState().mappings }),
-        restore: ({ params, text, mappings }) => {
+        read: () => ({
+          params: settingsOf(current.current.state.params),
+          text: current.current.text,
+          mappings: mappingStore.getState().mappings,
+          sound: soundSettings(),
+        }),
+        restore: ({ params, text, mappings, sound }) => {
           const action: Action = { type: 'restoreParams', params }
           current.current.state = editorReducer(current.current.state, action)
           dispatch(action)
           current.current.text = text
           setText(text)
           mappingStore.restore(mappings)
+          if (sound) {
+            getSoundEngine().setSettings({ sensitivity: sound.sensitivity, releaseMs: sound.releaseMs })
+            mappingStore.restoreResponse(sound)
+          }
         },
       }),
     [],
@@ -212,13 +232,17 @@ export default function App({ restored }: AppProps) {
     previewLook,
     precision,
     mappings: mappingStore.getState().mappings,
+    sound: soundSettings(),
     font: fontToSave,
     glyph: glyphToSave,
   }
   const session = useRef(sessionNow)
   session.current = sessionNow
-  // Live Sound frames never reach these values: only the sliders' own settings are saved.
-  const [saver] = useState(() => createSessionSaver(() => ({ ...session.current, mappings: mappingStore.getState().mappings })))
+  // Live Sound frames never reach these values: only the sliders' own settings are saved. The mappings and
+  // the Sound settings change outside React, so they are read when the save happens.
+  const [saver] = useState(() =>
+    createSessionSaver(() => ({ ...session.current, mappings: mappingStore.getState().mappings, sound: soundSettings() })),
+  )
   useEffect(
     () => saver.schedule(),
     [saver, flatten, random, squaring, anchors, grid, distortion, experimental, typography, palette, artboard,
@@ -240,6 +264,15 @@ export default function App({ restored }: AppProps) {
   }, [font, scene, scenePending])
 
   useEffect(() => {
+    const engine = getSoundEngine()
+    // The engine's state changes several times a second while a file plays; only Sensitivity and Release are saved.
+    let settings = engine.getState().settings
+    const unsubscribeSettings = engine.subscribeState(() => {
+      const next = engine.getState().settings
+      if (next.sensitivity === settings.sensitivity && next.releaseMs === settings.releaseMs) return
+      settings = next
+      saver.schedule()
+    })
     const unsubscribe = mappingStore.subscribe(saver.schedule)
     const onPageHide = () => {
       saver.flush()
@@ -253,6 +286,7 @@ export default function App({ restored }: AppProps) {
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       unsubscribe()
+      unsubscribeSettings()
       window.removeEventListener('pagehide', onPageHide)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       saver.flush()
@@ -299,8 +333,17 @@ export default function App({ restored }: AppProps) {
       .filter(Boolean)
       .join(' ') || null
 
+  // A video records the canvas as shown (recorder.ts): the font names the file, the artboard sets its size.
+  const onExported = useCallback(
+    (fileName: string) => dispatch({ type: 'updateExport', patch: { lastExport: { fileName, at: new Date().toISOString() } } }),
+    [],
+  )
+  useRecordingContext(
+    font ? { family: font.familyName, style: font.styleName, artboard, transparent: palette.transparent, onSaved: onExported } : null,
+  )
+
   // The snap grid (lines and label) follows the letters as shown: while Sound drives Grid size, the live size.
-  const shownGrid = liveParams.grid
+  const shownGrid = live.params.grid
   const gridSize = shownGrid.snap && shownGrid.size > 0 ? shownGrid.size : null
 
   return (
@@ -403,9 +446,16 @@ export default function App({ restored }: AppProps) {
         pending={derived.pending && !derived.live}
         precision={precision}
         onPrecisionChange={(precision) => dispatch({ type: 'updateExport', patch: { precision } })}
-        onExported={(fileName) =>
-          dispatch({ type: 'updateExport', patch: { lastExport: { fileName, at: new Date().toISOString() } } })
-        }
+        onExported={onExported}
+      />
+      {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
+      <RecordingCanvas
+        scene={scene}
+        layout={layout}
+        artboard={artboard}
+        palette={palette}
+        previewLook={previewLook}
+        previewScale={previewScale}
       />
     </div>
   )
