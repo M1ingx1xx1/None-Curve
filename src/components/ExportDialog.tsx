@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { downloadFile, safeFileName } from '../export/download'
+import { FONT_BOX_LIMITS } from '../export/fitGlyph'
 import { runFontExport } from '../export/fontExportClient'
 import {
   FONT_EXPORT_LIMITS,
@@ -485,10 +486,18 @@ export default function ExportDialog(props: ExportDialogProps) {
                     </p>
                     {currentBuild.result.excluded.length > 0 && (
                       <p className="font-warning">
-                        Left out because a font file stores whole font units and these outlines have details finer than
-                        that (less Distortion or Anchor spacing usually helps):{' '}
+                        Left out of the font file:{' '}
                         {currentBuild.result.excluded.slice(0, 8).map((e) => `${e.label} (${e.reason})`).join('; ')}
                         {currentBuild.result.excluded.length > 8 ? `; and ${currentBuild.result.excluded.length - 8} more` : ''}.
+                      </p>
+                    )}
+                    {currentBuild.result.trimmed.length > 0 && (
+                      <p className="font-warning">
+                        Trimmed to fit: a font stores each glyph within a square 32,766 font units across (
+                        {Number((FONT_BOX_LIMITS.span / font.metrics.unitsPerEm).toFixed(1))} em for this font). Outline parts reaching further, such as long Thorn tips, were cut off at
+                        its edge in {currentBuild.result.trimmed.slice(0, 8).join(', ')}
+                        {currentBuild.result.trimmed.length > 8 ? `; and ${currentBuild.result.trimmed.length - 8} more` : ''}. Only the font file is
+                        trimmed: the canvas, SVG and PNG are not.
                       </p>
                     )}
                   </div>

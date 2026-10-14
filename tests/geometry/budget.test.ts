@@ -12,7 +12,7 @@ import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { SILENT_FRAME, type FeatureFrame } from '../../src/sound/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { allFinite, contoursOf, outlineCrossings } from '../helpers/outline'
-import { ALL_DEFAULT, ALL_MAX, BASE, EFFECTS, GEOMETRY, paramsWith, SLIDER_MAX, withoutEffects } from '../helpers/params'
+import { ALL_DEFAULT, ALL_MAX, BASE, EFFECTS, GEOMETRY, paramsWith, SLIDER_MAX, THORN_FARTHEST, withoutEffects } from '../helpers/params'
 
 /** The glyphs under the budget, by index, where it fired, with each one's label. */
 function budgetFired(font: Awaited<ReturnType<typeof loadFixture>>, glyphs: { index: number; char: string }[], params: GeometryParams) {
@@ -39,9 +39,12 @@ const LOUD = (pan: number): FeatureFrame => ({
 })
 
 describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
-  it('fires at all five effects at slider max, and keeps the outline bounded and valid', async () => {
+  it.each([
+    ['', ALL_MAX],
+    [', Thorn reaching 256 em', { ...ALL_MAX, ...THORN_FARTHEST }],
+  ])('fires at all five effects at slider max%s, and keeps the outline bounded and valid', async (_, effects) => {
     const font = await loadFixture(fontName)
-    const params = paramsWith(GEOMETRY.plain, ALL_MAX)
+    const params = paramsWith(GEOMETRY.plain, effects)
     const problems: string[] = []
     const unmerged: string[] = []
     const glyphs = sampleGlyphs(font, 'AgQ@&W8')
@@ -81,6 +84,8 @@ describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
     const glyphs = sampleGlyphs(font)
     expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, ALL_DEFAULT)), 'all five default').toEqual([])
     for (const effect of EFFECTS) expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, SLIDER_MAX[effect])), `${effect} at slider max`).toEqual([])
+    // Thorn's refraction covers only the letter, so however far the thorns reach, they add only a few points.
+    expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, THORN_FARTHEST)), 'thorn at slider max, reaching 256 em').toEqual([])
   })
 
   it('does not fire on any Sound preset, quiet or at its loudest', async () => {

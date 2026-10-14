@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore, type Dispatch } from 'react'
 import { paramsKey } from '../geometry/cache'
 import type { GeometryParams } from '../geometry/types'
-import type { Action } from '../state/editorState'
+import { withThornCanvasEm, type Action } from '../state/editorState'
 import { geometryClient } from '../state/geometryClient'
 import { getSoundEngine } from './engine'
 import { FLASH_LIMITS, FlashBudget } from './flash'
@@ -388,7 +388,8 @@ export class LiveScheduler {
   /**
    * The groups Freeze writes into the sliders and seed fields, each as a whole group object: the frame
    * and jumps on screen applied to the current slider values and mappings (what is shown, unless a
-   * slider moved since). Null when nothing differs.
+   * slider moved since). Null when nothing differs. Without Thorn's derived canvasEm, which never goes
+   * into the state.
    */
   freezeChanges(): Partial<GeometryParams> | null {
     const { base, committed } = this
@@ -402,6 +403,7 @@ export class LiveScheduler {
       Object.assign(changes, { [group]: params[group] })
       any = true
     }
+    if (changes.experimental) changes.experimental = withThornCanvasEm(changes.experimental, null)
     return any ? changes : null
   }
 

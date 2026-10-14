@@ -16,6 +16,17 @@ export function allFinite(contours: Contours): boolean {
   return contours.every((c) => c.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)))
 }
 
+/** The box around every point of the contours, or null when there are none. */
+export function boundsOf(contours: Contours): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let box: { minX: number; minY: number; maxX: number; maxY: number } | null = null
+  for (const p of contours.flat()) {
+    box = box
+      ? { minX: Math.min(box.minX, p.x), minY: Math.min(box.minY, p.y), maxX: Math.max(box.maxX, p.x), maxY: Math.max(box.maxY, p.y) }
+      : { minX: p.x, minY: p.y, maxX: p.x, maxY: p.y }
+  }
+  return box
+}
+
 function segDist2(a: Point, b: Point, p: Point): number {
   const dx = b.x - a.x
   const dy = b.y - a.y

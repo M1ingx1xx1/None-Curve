@@ -4,7 +4,8 @@
 // and the overlaps are merged into clean outlines at the end (see overlaps.ts). After its warp, Slipstream adds trails that
 // never cross the letter and cuts it with thin wedges, redrawing the outline (merging any folds so far). Thorn moves a few anchors far out, each
 // pulling the letter around it along by a one-to-one warp, and can show the letter through fluted glass (thorn.ts); a
-// thorn may cross the letter, so its outlines are merged the same way. Each glyph has a vertex budget (budget.ts): one
+// thorn may cross the letter, so its outlines are merged the same way; layout measures the letter as it was before
+// Thorn (PolygonGlyph.layoutBox and layoutHull), so thorns never move the text. Each glyph has a vertex budget (budget.ts): one
 // that grows beyond it is simplified, and merged afterwards.
 
 import { GlyphBudget, type BudgetStats } from './budget'
@@ -13,7 +14,7 @@ import { emptyOverlapStats, type OverlapStats } from './overlaps'
 import { inkBox, rippleFolds, rippleIsOn, rippleWarp } from './ripple'
 import { emptySlipstreamStats, slipstreamFolds, slipstreamIsOn, slipstreamMerges, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
 import { applyThorn, emptyThornStats, thornIsOn, type ThornStats } from './thorn'
-import type { ExperimentalParams, PolygonGlyph } from './types'
+import type { ExperimentalParams, Point, PolygonGlyph } from './types'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type WarpStats } from './warp'
 import { whorlFolds, whorlIsOn, whorlWarp } from './whorl'
 
@@ -127,7 +128,11 @@ export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalPar
   }
   // Slipstream's merge adds a vertex at every crossing, and Thorn picks its anchors from what is left.
   withinBudget()
+  // The letter before its thorns grow, which layout measures instead of the outline (see PolygonGlyph.layoutBox).
+  let layout: Required<Pick<PolygonGlyph, 'layoutBox' | 'layoutHull'>> | null = null
   if (thornIsOn(params.thorn)) {
+    const layoutBox = inkBox(result)
+    if (layoutBox) layout = { layoutBox, layoutHull: convexHull(result) }
     const reductions = budget.reductions
     // Once Slipstream has merged the folds, the outlines no longer cross, so Thorn's warps are checked again.
     ;({ polygon: result, stats: stats.thorn } = applyThorn(result, params.thorn, seed, unitsPerEm, marks, tangled, budget))
@@ -148,5 +153,26 @@ export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalPar
         }
       : merged.stats
   }
-  return { polygon: result, stats }
+  return { polygon: layout ? { ...result, ...layout } : result, stats }
+}
+
+/**
+ * The convex hull of every point of the outline, counterclockwise and without collinear points (monotone chain).
+ * Slanting is linear, so the slanted letter reaches exactly as far as its hull (see PolygonGlyph.layoutHull).
+ */
+function convexHull(polygon: PolygonGlyph): Point[] {
+  const points = polygon.contours.flatMap((c) => c.points.map(({ x, y }) => ({ x, y }))).sort((a, b) => a.x - b.x || a.y - b.y)
+  if (points.length < 3) return points
+  const turn = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+  const half = (from: Point[]) => {
+    const kept: Point[] = []
+    for (const p of from) {
+      while (kept.length >= 2 && turn(kept[kept.length - 2], kept[kept.length - 1], p) <= 0) kept.pop()
+      kept.push(p)
+    }
+    // Its last point starts the other half.
+    kept.pop()
+    return kept
+  }
+  return [...half(points), ...half([...points].reverse())]
 }

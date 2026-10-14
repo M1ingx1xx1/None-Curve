@@ -153,23 +153,40 @@ export interface ArtboardLayout {
 }
 
 /**
- * The box the text is placed by: where its outlines are (slant included), so at an anchor the letters
- * themselves sit the margin away from the canvas edges. Without outlines (only spaces), the lines' box.
+ * The box the text is placed by: where its letters are (slant included), so at an anchor the letters
+ * themselves sit the margin away from the canvas edges. Thorns are left out (see SpecimenScene.body):
+ * they may reach across the whole canvas without moving, fitting, or blocking the text. Without
+ * outlines (only spaces), the lines' box.
  */
 export function textBox(scene: SpecimenScene) {
-  if (scene.ink) {
-    const { minX, minY, maxX, maxY } = scene.ink
+  if (scene.body) {
+    const { minX, minY, maxX, maxY } = scene.body
     return { minX, minY, width: maxX - minX, height: maxY - minY }
   }
   return { minX: 0, minY: scene.textTop, width: scene.blockWidth, height: scene.textBottom - scene.textTop }
 }
 
 /**
+ * True when the letters run past the artboard edge (by more than half a font unit), so the preview and
+ * exports cut them off. Thorns past the edge are intended and do not count.
+ */
+export function textOverflows(scene: SpecimenScene, layout: ArtboardLayout): boolean {
+  const { body } = scene
+  return (
+    body !== null &&
+    (body.minX < layout.x - 0.5 ||
+      body.maxX > layout.x + layout.width + 0.5 ||
+      body.minY < layout.y - 0.5 ||
+      body.maxY > layout.y + layout.height + 0.5)
+  )
+}
+
+/**
  * Places the text block on the artboard. The em is `size` pixels, which fixes the scale between font
- * units and pixels. At an anchor the outlines' box sits against the left margin, in the middle, or
- * against the right margin, and against the top margin, in the middle, or against the bottom margin
- * (EDGE_MARGIN_PX from the canvas edges, whatever the font size); the lines are already aligned inside
- * the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
+ * units and pixels. At an anchor the letters' box (textBox) sits against the left margin, in the
+ * middle, or against the right margin, and against the top margin, in the middle, or against the bottom
+ * margin (EDGE_MARGIN_PX from the canvas edges, whatever the font size); the lines are already aligned
+ * inside the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
  */
 export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
   const emPx = clamp(typography.size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
@@ -235,9 +252,9 @@ export function moveFreeText(
 const round3 = (v: number) => Math.round(v * 1000) / 1000
 
 /**
- * The font size (pixels per em) at which the outlines, slant included, fit inside the margin on both
- * axes: the text fills the artboard less EDGE_MARGIN_PX on each side. Rounded down to a whole pixel so
- * it never overflows.
+ * The font size (pixels per em) at which the letters (textBox, slant included, thorns left out) fit
+ * inside the margin on both axes: the text fills the artboard less EDGE_MARGIN_PX on each side. Rounded
+ * down to a whole pixel so it never overflows.
  */
 export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): number {
   const box = textBox(scene)

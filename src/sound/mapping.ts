@@ -3,7 +3,7 @@
 // (see docs/SOUND_PLAN.md §5–6).
 //
 // Most targets are one slider of the Geometry or Experimental tab, with that slider's own range, step
-// and scale (Tolerance is logarithmic), shared with its control through src/state/sliderScales.ts. A
+// and scale (Tolerance is logarithmic, Thorn's Reach cubic), shared with its control through src/state/sliderScales.ts. A
 // mapping moves the slider's position, not the raw value, and the live value is always one the slider
 // itself can produce (highest rule, SOUND_PLAN §2): positions snap to the slider's step before converting back.
 // The seeds are jump targets: a seed moves on by one whole number on each jump (jumps.ts), so every
@@ -15,7 +15,7 @@ import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { THORN_FALLBACK } from '../geometry/thorn'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
-import { sliderRange, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
+import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
 import type { FeatureFrame } from './types'
 
 const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
@@ -153,6 +153,15 @@ const toleranceScale: Scale = {
   position: (tol) => Math.log(tol / TOLERANCE.min) / Math.log(TOLERANCE.max / TOLERANCE.min),
   // The range input at step `index`, as FlattenControls reads it.
   valueAt: (index) => toleranceFromSlider(toleranceSlider.min + index * toleranceSlider.step),
+}
+
+// Thorn's Reach slider (cubic, see THORN_REACH in src/state/sliderScales.ts); its range input runs 0–1.
+const reachSlider = THORN_REACH.slider
+const reachScale: Scale = {
+  steps: Math.round((reachSlider.max - reachSlider.min) / reachSlider.step),
+  position: reachToSlider,
+  // The range input at step `index`, as ExperimentalControls reads it.
+  valueAt: (index) => reachFromSlider(reachSlider.min + index * reachSlider.step),
 }
 
 // ---- What a target needs to act ----
@@ -424,7 +433,18 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('slipstream', 'cuts', 'Cuts', { fallback: 0 }),
   experimental('slipstream', 'trails', 'Trails', { fallback: 0 }),
   experimental('thorn', 'count', 'Anchors'),
-  experimental('thorn', 'reach', 'Reach'),
+  // Cubic slider: min and max are its values, step roundReach's unit; the scale holds the slider's real steps.
+  target({
+    field: effectField('thorn', 'canvasReach'),
+    tab: 'experimental',
+    section: EFFECT_NAMES.thorn,
+    label: 'Reach',
+    min: 0,
+    max: THORN_REACH.max,
+    step: 0.0001,
+    scale: reachScale,
+    requires: [effectOn('thorn')],
+  }),
   experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root }),
   experimental('thorn', 'spread', 'Spread'),
   experimental('thorn', 'width', 'Width'),

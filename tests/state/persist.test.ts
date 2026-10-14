@@ -3,6 +3,7 @@
 // start: every leaf is checked against the defaults.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
 import { initialState } from '../../src/state/editorState'
 import {
   capText,
@@ -16,7 +17,7 @@ import {
   SESSION_VERSION,
   type Session,
 } from '../../src/state/persist'
-import { SLIDER_RANGES } from '../../src/state/sliderScales'
+import { roundReach, SLIDER_RANGES } from '../../src/state/sliderScales'
 import { DEFAULT_TEXT } from '../../src/specimen/samples'
 import type { SettingsParams } from '../../src/state/types'
 
@@ -136,6 +137,75 @@ describe('saved session', () => {
       { id: 'm1', enabled: true, feature: 'bass', target: 'experimental.crumple.amount', depth: 0.4 },
       { id: 'm2', enabled: true, feature: 'beat', target: 'experimental.thorn.count', depth: 0.2 },
     ])
+  })
+
+  it('reads a version 1 Thorn Reach (em) as the same share of the canvas diagonal, and its Sound rows', () => {
+    const v1 = (reach: unknown, sizes: Record<string, unknown> = {}) =>
+      readSession({
+        version: 1,
+        params: { experimental: { thorn: { enabled: true, reach } }, ...sizes },
+        mappings: [
+          { feature: 'level', target: 'experimental.thorn.reach', depth: 0.3 },
+          { feature: 'beat', target: 'experimental.thorn.count', depth: 0.15 },
+        ],
+      })!
+    const session = v1(0.6, { typography: { size: 48 }, artboard: { width: 1200, height: 800 } })
+    const thorn = session.params.experimental.thorn
+    // Rounded to 4 decimals, like every value the slider writes.
+    expect(thorn.canvasReach).toBe(roundReach((0.6 * 48) / Math.hypot(1200, 800)))
+    expect(thorn.canvasReach).toBe(0.02)
+    expect(thorn.enabled).toBe(true)
+    expect('reach' in thorn).toBe(false)
+    expect(session.mappings).toEqual([
+      { id: 'm1', enabled: true, feature: 'level', target: 'experimental.thorn.canvasReach', depth: 0.3 },
+      { id: 'm2', enabled: true, feature: 'beat', target: 'experimental.thorn.count', depth: 0.15 },
+    ])
+    // The saved text size and canvas, read as the session reads them (missing ones at their defaults, out of range clamped).
+    expect(v1(0.6).params.experimental.thorn.canvasReach).toBe(thorn.canvasReach)
+    expect(v1(1, { typography: { size: 96 }, artboard: { width: 600, height: 400 } }).params.experimental.thorn.canvasReach).toBe(
+      roundReach(96 / Math.hypot(600, 400)),
+    )
+    expect(v1(2, { typography: { size: 1e9 }, artboard: { width: 1, height: 1 } }).params.experimental.thorn.canvasReach).toBe(1)
+    // Thorn caps the canvas diagonal at THORN_LIMITS.maxReachEm, so on small text or a large canvas the reach is a share
+    // of the cap (the same length again), and a reach that was on never rounds to off.
+    const small = (reach: number, size: number, width: number, height: number) =>
+      v1(reach, { typography: { size }, artboard: { width, height } }).params.experimental.thorn
+    expect(small(0.6, 12, 4000, 4000).canvasReach).toBe(roundReach(0.6 / THORN_LIMITS.maxReachEm))
+    expect(small(0.6, 4, 1200, 800).canvasReach).toBe(roundReach(0.6 / THORN_LIMITS.maxReachEm))
+    expect(small(2, 4, 4000, 4000).canvasReach).toBe(roundReach(2 / THORN_LIMITS.maxReachEm))
+    expect(small(0.05, 4, 4000, 4000).canvasReach).toBe(0.0002)
+    for (const [reach, size, width, height] of [
+      [0.6, 12, 4000, 4000],
+      [0.6, 4, 1200, 800],
+      [0.1, 4, 4000, 4000],
+      [0.05, 4, 4000, 4000],
+      [2, 4, 4000, 4000],
+    ]) {
+      const thorn = small(reach, size, width, height)
+      const em = Math.min(canvasDiagonalEm(width, height, size), THORN_LIMITS.maxReachEm)
+      expect(thornIsOn({ ...thorn, canvasEm: em }), `${reach} em`).toBe(true)
+      // Within the rounding to a hundredth of a percent.
+      expect(Math.abs(thorn.canvasReach * em - reach), `${reach} em`).toBeLessThanOrEqual(0.00005 * em + 1e-9)
+    }
+    expect(v1(0.001, { typography: { size: 4 }, artboard: { width: 4000, height: 4000 } }).params.experimental.thorn.canvasReach).toBe(0.0001)
+    expect(v1(0).params.experimental.thorn.canvasReach).toBe(0)
+    // No usable reach: the default.
+    expect(v1('far').params.experimental.thorn.canvasReach).toBe(DEFAULT_SETTINGS.experimental.thorn.canvasReach)
+  })
+
+  it('round-trips a version 2 Reach, and never saves Thorn\'s derived canvasEm', () => {
+    const storage = new MemoryStorage()
+    const session = changedSession()
+    const thorn = { ...session.params.experimental.thorn, enabled: true, canvasReach: 0.4321 }
+    session.params = { ...session.params, experimental: { ...session.params.experimental, thorn } }
+    session.mappings = [{ id: 'm1', enabled: true, feature: 'level', target: 'experimental.thorn.canvasReach', depth: -0.5 }]
+    saveSession({ ...session, params: { ...session.params, experimental: { ...session.params.experimental, thorn: { ...thorn, canvasEm: 30.04 } } } }, storage)
+    const raw = JSON.parse(storage.items.get(SESSION_KEY)!)
+    expect(raw.version).toBe(2)
+    expect('canvasEm' in raw.params.experimental.thorn).toBe(false)
+    expect(loadSession(storage)).toEqual({ session, crashed: false })
+    // Nor is one read back from storage.
+    expect('canvasEm' in readSession({ version: 2, params: { experimental: { thorn: { canvasEm: 12 } } } })!.params.experimental.thorn).toBe(false)
   })
 
   it('clamps numbers to their sliders and drops wrong types, enums and choices', () => {

@@ -84,6 +84,7 @@ The app keeps your work in this browser by itself, a moment after each change, a
 - **Kept:** the text; every setting in the Geometry, Experimental, Typography, and Color tabs; the canvas size; the canvas view buttons (Original / Flattened / Compare and the layers, but not the zoom or where you moved to); the preview's Blur and Invert; the export's **Coordinate precision**; the Sound tab's mappings; the selected letter (when the same font opens again); and the font itself.
 - **The font:** a Google font is downloaded again by itself when the page opens (this needs an internet connection). A font from your computer cannot be reopened for you: the canvas says "Last font: *name*. Import it again to continue." Import the same file and carry on — your settings are already in place.
 - **Not kept:** the Sound tab's **Drive letters**, source (file or microphone), **Sensitivity**, and **Smoothing**; open dialogs; the light or dark look; and the undo steps. (As before, the app also remembers the size of the areas, the tabs you had open, whether the **Canvas size** settings are open, and **Show all explanations**.)
+- **Work saved by an older version of the app:** Thorn's **Reach** used to be a share of the em (the letters' design square) and is now a share of the canvas (see Thorn in the Experimental tab). Older saved work is converted to the share that gives the thorns the same length with the text size and canvas size it was saved with, so they come back as they were. Thorns that were on stay on: however short they were, they come back at least as long as the slider's first step. Sound rows on Reach keep their **Depth**.
 - **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, and mappings still come back.
 - **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
 - **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it.
@@ -185,6 +186,7 @@ If a new font fails to load, the previous font stays on screen.
 ### Looking at one letter
 
 - Click a letter on the canvas to select it (clicking anywhere in the letter's own space is enough). It changes colour wherever it appears. The colour is worked out from your text and background colours so that it stands out and is still easy to read — for black text on cream paper it is a vermilion red. Pointing at a letter colours it the same way. Inserting a character from the Glyphs list selects it too.
+- Thorns (see Thorn in the Experimental tab) are not part of a letter's space: clicking a thorn where it reaches out of its letter is the same as clicking whatever lies behind it, such as another letter or, most often, the empty canvas. Click the letter itself. While Thorn is on, a letter is clicked by its own space and its original shape from the font, so other parts that effects drew far out of it, such as Slipstream's trails, do not select it either.
 - Click an empty part of the canvas, or press Escape, to remove the highlight. Dragging the canvas around does not remove it.
 - The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter — or, after you removed the highlight, the letter you selected last. The **Statistics** line at the top of each tab always says which letter that is, for example "Statistics: l U+006C".
 - The preview never shows the highlight, because it shows exactly what will be exported.
@@ -213,7 +215,9 @@ The text sits on a **canvas** of a fixed size in pixels, like a page or an artbo
 - **1:1, 4:3, 16:9, 4:5, 3:2, 3:4** — common picture shapes. The width stays and the height follows. **Swap** turns a landscape canvas into a portrait one and back.
 - **1×, 2×, 3×, 4×** — how many times larger a PNG export is. The layout stays the same; a higher number just gives a sharper, larger image (shown underneath, for example 2400 × 1600 px).
 
-If the text is too big for the canvas, a red note appears on the big canvas; the preview and exports cut the text off at the edge. **Typography → Fit text** makes it fit.
+If the text is too big for the canvas, a red note appears on the big canvas ("The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography → Fit text."); the preview and exports cut the text off at the edge. **Typography → Fit text** makes it fit.
+
+Thorns (see Thorn in the Experimental tab) do not count: they may reach far past the canvas edge without the red note. On the big canvas you see them carry on into the darker area around the canvas; the preview and SVG and PNG exports cut them off at the canvas edge.
 
 ---
 
@@ -319,7 +323,7 @@ Next to the **Geometry** tab at the top of the tools panel. The effects here wor
 
 - "Simplified: these settings make too many vertices or crossings, so the outline was reduced (tolerance N u)." — details smaller than about N font units were left out. When this is the selected letter, the status line also adds **(simplified)** after its vertex count.
 - "Too complex to merge; lower the settings." — even simplified, the overlapping parts were too many to merge, so the letter is shown simplified but unmerged. It still looks filled, but lighter settings give a cleaner result.
-- "Overlaps could not be merged; the outline is left as it is." — rare: merging went wrong for this letter, so its overlapping parts were left unmerged rather than broken.
+- "Overlaps could not be merged; the outline is left as it is." — rare: merging went wrong for this letter, or its thorns reached too far to be merged, so its overlapping parts were left unmerged rather than broken.
 - "This glyph is left without *effect*: too complex." (for Thorn: "…without roots or refraction…") — that one effect would have made far too many corners in this letter, so the letter is shown without it.
 
 At the far ends of several sliders together, the letters turn into a few coarse, broad slabs. That is expected: there is no room left for detail. Lower one or two of the effects to bring the detail back.
@@ -372,20 +376,27 @@ A few points (anchors) on the outside of each letter jump straight out into the 
 
 - **Use thorn** — turns it on.
 - **Anchors** — how many points of each letter jump, from 1 to 12 (3 to start with).
-- **Reach** — how far they jump, as a share of the em, up to 200 % (60 % to start with). Each point goes its own distance, somewhere between about a third of Reach and all of it, so the thorns come out in different lengths. At 200 % the longest reach two ems out, far into the neighbouring letters. At 0 % nothing jumps.
+- **Reach** — how far they jump, as a share of the canvas (10 % to start with; the number reads, for example, "10% canvas"). 100 % is the canvas's diagonal, from one corner to the opposite one, so at 100 % a thorn can cross the whole canvas. Each point goes its own distance, somewhere between about a third of Reach and all of it, so the thorns come out in different lengths. At 0 % nothing jumps.
+  - The slider is fine at the left and coarse at the right, so short thorns are easy to set exactly: the middle of the track is only 12.5 %, and the right half covers the rest up to 100 %. At the far left, each step (or each press of an arrow key) adds 0.01 %, so even the first step grows tiny thorns; only 0 grows none. Below 1 % the number shows two decimals, below 10 % one, and above that none; it reads 0.0 only at 0.
+  - Because Reach is measured on the canvas, the thorns keep the same share of the canvas when you change the text **Size** or the canvas size (**W** and **H**): with smaller text or a larger canvas they reach further past the letters. While Thorn is on, such a change makes the app work the letters out again. The PNG multiplier (1×–4×) changes nothing.
+  - The **ⓘ** next to Reach says how many ems 100 % is at your current text size and canvas: about 30 em on the starting canvas (1200 × 800 pixels with 48-pixel text). It never goes beyond 256 em, however small the text.
+  - Only the tips get longer: **Root**, **Width**, and **Flute width** are still measured on the letters, so they do not change with the canvas.
+  - The status line at the bottom and the export dialog show it with its length in ems, for example "reach 10% canvas (about 3.0 em)".
 - **Root** — how much of the letter around each point the thorn pulls along (50 % to start with). The thorn grows out of a wide base that narrows to a sharp tip, and the strokes and holes nearby lean and bend towards it. At 0 % the thorns are simply stuck on, and the letter around them stays as it was.
 - **Spread** — which way they jump (50 % to start with). At 0 % every point jumps straight out, at right angles to the outline; the higher the Spread, the further each one may lean to either side, up to 90° at 100 %, so the thorns fan out in all directions.
 - **Width** — how wide each thorn's tip is where it leaves its base (30 % to start with). At 0 % it is a thin needle; at 100 % the tip is as wide as the base where it starts to narrow.
-- **Refraction** — shows the letters as if through ribbed (fluted) glass (0 %, off, to start with). The letters are cut into upright strips, each magnified a little and moved up or down, so thorns and strokes look broken and shifted.
+- **Refraction** — shows the letters as if through ribbed (fluted) glass (0 %, off, to start with). The letters are cut into upright strips, each magnified a little and moved up or down, so strokes and thorns look broken and shifted. The glass covers only the width of the letter itself, plus one strip on either side: where a thorn reaches out to the left or right beyond it, that part of the thorn stays sharp and straight. A thorn that points up or down stays behind the glass along its whole length.
 - **Flute width** — how wide each strip of the glass is, as a share of the em (10 % to start with). It is greyed out while **Refraction** is 0 %.
 - The numbers show how many points jumped (**Thorns**), how many of them pulled the letter along (**Roots**), and how far the longest one went, in font units (**Longest**).
 - **The seed decides where.** Which points jump, which way they lean, how far each goes, and how the glass strips move are picked by the tab's **Seed** (below): the same seed always gives the same thorns, and **Next variant** makes them jump somewhere else. When the Sound tab drives the Seed (for example **Beat** → **Seed**, or the **Flare** preset), they jump somewhere new on every beat.
 - **Thorns may cross.** A thorn can cut across its own letter or another thorn. There the shapes are merged into one clean outline, as with folds above, so the font still exports. Every thorn is made of straight lines only.
-- **Try it:** tick **Use thorn**, set **Anchors** to 1 and **Reach** to 100 %, then press **Next variant** under Seed a few times: each time, one point of every letter shoots out somewhere else and drags the letter with it. Then raise **Refraction** to see it all through fluted glass.
+- **Thorns do not move the text.** Where the text sits (**Position** and **Free** in the Typography tab), **Fit text**, and the red note about text running past the canvas edge all go by the letters without their thorns, just as if Thorn were off, also with **Slant**. So thorns may run out of the canvas: on the big canvas they carry on into the darker area around it, and the preview and SVG and PNG exports cut them off at the canvas edge. To select a letter, or drag the text with **Free**, click or drag the letter itself, not a thorn.
+- **Very long thorns in a font file.** A font file stores each letter within a square of limited size (16 em across in a font with 2048 units per em, 32.8 em in one with 1000; see [As a font (OTF)](#as-a-font-otf)). Thorn tips that reach further are cut off at its edge in the exported font; the canvas, SVG, and PNG are not affected.
+- **Try it:** tick **Use thorn**, set **Anchors** to 1 and **Reach** to 20 %, then press **Next variant** under Seed a few times: each time, one point of every letter shoots out somewhere else and drags the letter with it. Then raise **Refraction** to see the letters through fluted glass.
 
 **Seed** — one number for all the effects on this tab: it picks Crumple's folds; Slipstream's gusts, slips, cuts, and trails; and which points Thorn moves and how its glass strips shift (Ripple and Whorl have no randomness). The same seed and settings always give the same letters; **Next variant** tries the next one. **Reset experimental** turns every effect off and restores its settings, but keeps your seed.
 
-Every copy of a letter gets the same folds, cuts, trails, and thorns, so an exported font looks exactly like the canvas.
+Every copy of a letter gets the same folds, cuts, trails, and thorns, so an exported font looks exactly like the canvas, apart from very long thorns, which a font file cuts short (see Thorn above).
 
 ### Sound tab — letters that move with the sound
 
@@ -440,7 +451,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - **Rate** — for a seed, the same slider reads **Rate** instead, from 0 % to 100 %: how often the seed jumps (see **Seeds** below). 0 % does nothing.
   - A tick box that switches the row on or off without deleting it, and an **×** button that removes it.
 - **How far a slider moves:** it starts from where you left it. If a slider sits a quarter of the way along and Depth is +50 %, full sound takes it to three quarters; silence leaves it where it is. It never goes past either end of its track, and it moves in the same steps as the slider itself. Two rows on the same slider add up.
-- Some sliders change faster towards one end, like **Tolerance**. The sound still takes them evenly along the track, just as your hand would.
+- Some sliders change faster towards one end, like **Tolerance** and Thorn's **Reach**. The sound still takes them evenly along the track, just as your hand would.
 - **Settings switched on for you.** Many targets only have an effect while another setting is on: Ripple's sliders need **Use ripple**, **Grid size** needs **Snap to grid**, and so on. When you pick such a target (or **Add mapping** adds one), the app switches that setting on and says what it changed in a note under the row, for example "Turned on Ripple." or "Set Noise amplitude to 40.":
   - a Crumple, Ripple, Whorl, Slipstream, or Thorn slider turns its effect on; **Flute width** also sets **Refraction** to 50 % when it is 0 % (the glass strips only show with some refraction);
   - the Experimental **Seed** acts while Crumple, Slipstream, or Thorn is on (Ripple and Whorl have no randomness); when all three are off, it turns on Crumple;
@@ -487,7 +498,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - **Jitter** — hiss and cymbals make the outlines tremble; brighter sound makes the trembling finer.
   - **Facet** — curves break into a few straight sides as it gets louder and on each beat; higher notes smooth them again.
   - **Bloom** — ripples run through the letters and swell on each beat; the bass bends them into petals. Loading it turns on Ripple.
-  - **Flare** — no thorns while it is quiet; as it gets louder, thorns shoot out of a few points of each letter; on every beat they jump somewhere new and briefly multiply. Loading it turns on Thorn.
+  - **Flare** — no thorns while it is quiet; as it gets louder, thorns shoot out of a few points of each letter; on every beat they jump somewhere new and briefly multiply. Loading it turns on Thorn and sets **Reach** to 0 %; loudness (**Level**) drives Reach with a Depth of +50 %, so at the loudest the thorns reach up to an eighth of the canvas (about 4 em on the starting canvas).
   - **Gale** — loud sound slides slices of the letters past each other; beats cut thin slits along the stream, and busy passages draw trails. Nothing moves while it is quiet. Loading it turns on Slipstream.
 
 **While the sound moves the letters:**
@@ -526,12 +537,12 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
 
 - **Size** — the letter size in pixels (how tall one em is on the canvas). It stays the same when you change the canvas size. You can drag the slider or type a number.
-- **Fit text** — makes the text as large as possible while keeping a 25-pixel gap to the canvas edges.
+- **Fit text** — makes the text as large as possible while keeping a 25-pixel gap to the canvas edges. Thorns do not count: they may still reach past the edges (see Thorn in the Experimental tab).
 - **Tracking** — extra space between letters. Negative values pull letters closer.
 - **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.
 - **Slant** — leans the letters, like a quick italic. Positive leans right, negative leans left.
 - **Align** — the three buttons with lines line up the lines of text on the left, in the centre, or on the right.
-- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The text moves there, keeping a 25-pixel gap to the edges, and its lines line up to match: dots on the left line up left, in the middle centred, on the right line up right. The chosen dot glows. Click **Free** to place the text yourself: it first goes back to the starting position, then you drag it on the big canvas (click Free again any time to send it back). It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view.
+- **Position** — where the text sits on the canvas. Click one of the nine dots: a corner, the middle of an edge, or the very middle. The text moves there, keeping a 25-pixel gap to the edges, and its lines line up to match: dots on the left line up left, in the middle centred, on the right line up right. The chosen dot glows. Click **Free** to place the text yourself: it first goes back to the starting position, then you drag it on the big canvas (click Free again any time to send it back). It stops at the canvas edges, so it can never be dragged off the page. Dragging anywhere else on the canvas still moves the view. With Thorn on, the gap, the edges, and where you can grab the text go by the letters without their thorns: drag a letter, not a thorn.
 - **Reset typography** puts these back to their starting values.
 
 ### Color tab — text and background colours
@@ -588,7 +599,7 @@ Experimental tab → **Use slipstream** on, **Strength** 30 %, **Slip** 0, **Cut
 Experimental tab → **Use slipstream** on, **Strength** 0 %, **Slip** 20–40 %, **Cuts** 2–4, **Trails** 0. The letters break into slices that slide past each other, with thin slits along the stream. Change **Direction** to 90° for slices that slide up and down.
 
 **Thorny letters behind glass**
-Experimental tab → **Use thorn** on, **Anchors** 2–3, **Reach** 60–100 %, **Root** 50–80 %, then raise **Refraction** to 50 % with **Flute width** 8–15 %. Press **Next variant** until the thorns land where you like them.
+Experimental tab → **Use thorn** on, **Anchors** 2–3, **Reach** 3–10 %, **Root** 50–80 %, then raise **Refraction** to 50 % with **Flute width** 8–15 %. Press **Next variant** until the thorns land where you like them.
 
 **Unreadable, shattered letters**
 Experimental tab → **Use crumple** at 300–500 %, or **Use ripple** at 200–400 %, or **Use slipstream** with **Gustiness** 150–200 %. Combine them for total chaos, and press **Next variant** until the shapes surprise you. With several of them near their maximum the letters are simplified into coarse slabs (see "When the settings get very heavy" in the Experimental tab). Exporting a whole large font with every effect at its maximum can exceed the file's point limit; export only the characters in the text instead.
@@ -639,7 +650,8 @@ Good to know:
 - The new font keeps the original's **kerning** — the fine spacing between pairs such as "AV" — for the letters it contains, so text sets as it does on the canvas. Ligatures, the placing of accents on letters, kerning that depends on the neighbouring letters or on the language, and the original's other advanced features are not included. **What the font file does not include** in the dialog lists them all.
 - Letters are saved with the same weight, style (for example italic), slant, line spacing, and copyright and license details as the original font, so a Regular and a Bold you make install side by side like the originals.
 - Lines are spaced as on the canvas, on Mac and Windows alike. If letters reach far above or below their usual height (for example with Slipstream), a few older apps may space the lines further apart.
-- Very rarely a letter may be left out if its shape has details too fine for a font file to store; the app lists them. Less **Distortion** or **Anchor spacing** usually helps.
+- **Letters that reach very far are trimmed.** A font file stores each letter within a square 32,766 font units across — 16 em in a font with 2048 units per em, 32.8 em in one with 1000 — placed around the letter. Parts of an outline that reach further, such as long Thorn tips, are cut off with straight cuts at the square's edge, so the letter is still saved. The dialog lists these letters under "Trimmed to fit". This only changes the font file: the canvas, SVG, and PNG show them as before.
+- Very rarely a letter cannot be stored in a font file at all — for example, its shape has details finer than one font unit, or it takes up more than 32,767 font units of width (from its start to where the next letter begins). The dialog then says "Left out of the font file:" and names each such letter with the reason. For details that are too fine, less **Distortion** or **Anchor spacing** usually helps.
 - With very dense settings (Anchor spacing near 1, or strong Experimental effects) a whole font can have too many points for one file. The dialog warns you before you build, and suggests a larger Anchor spacing, weaker Experimental effects, or exporting only the characters in your text.
 - Variable fonts are saved in the version you see on screen, with their kerning rounded to whole font units.
 - **Licensing:** a modified font is still based on someone else's design. Check the original font's license before sharing it — many open-source fonts require a new name for modified versions. If the original reserves its name, the export dialog tells you to choose a different family name.
@@ -698,6 +710,12 @@ That target only has an effect while that setting is on, so the app switched it 
 
 **My export does not look like the moving letters.**
 Exports use the sliders, not the sound. Press **Freeze** at the moment you want, then export.
+
+**The thorns got longer or shorter when I changed the text size or the canvas.**
+Thorn's **Reach** is a share of the canvas, not of the letters, so the thorns keep the same share of the canvas: smaller text or a larger canvas makes them longer next to the letters. Lower or raise **Reach** to get the length you want; the **ⓘ** next to it says how many ems 100 % is right now.
+
+**My thorns are cut off at the canvas edge.**
+Thorns may reach past the canvas. The big canvas shows them in full, but the preview and SVG and PNG exports cut them off at the canvas edge, like anything outside it; no red note appears for thorns. Lower **Reach**, or press **Next variant** until they point into the canvas. A font file has no canvas: there, only very long thorns are trimmed (see [As a font (OTF)](#as-a-font-otf)).
 
 **Does anything get uploaded?**
 No. Local fonts and audio files stay on your computer, and the microphone's sound is only measured in your browser. Google fonts are downloaded from Google; nothing is sent anywhere else.

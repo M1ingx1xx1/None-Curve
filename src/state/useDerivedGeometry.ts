@@ -62,16 +62,14 @@ export interface GeometryState {
  * first (for its statistics), then the text's glyphs in reading order; the canvas keeps showing each
  * glyph's previous shape until its new one arrives, so nothing waits on a long computation. Shaping
  * the text is deferred so typing and typography sliders stay responsive. `text` is the text as shown
- * (letter case applied). `live` is the parameters Sound is driving (useLiveParams): when they differ
- * from the sliders, the glyphs are computed and shown with them, as live requests.
+ * (letter case applied). `params` is the sliders' geometry parameters as App builds them (with Thorn's
+ * canvasEm), so the canvas, Sound's live frames and the exports share one key. `live` is the parameters
+ * Sound is driving (useLiveParams): when they differ from the sliders, the glyphs are computed and shown
+ * with them, as live requests.
  */
-export function useGeometry(state: AppState, text: string, live?: GeometryParams): GeometryState {
+export function useGeometry(state: AppState, text: string, params: GeometryParams, live?: GeometryParams): GeometryState {
   const { font, selectedGlyph } = state.document
-  const { flatten, random, squaring, anchors, grid, distortion, experimental, typography, artboard } = state.params
-  const params = useMemo<GeometryParams>(
-    () => ({ flatten, random, squaring, anchors, grid, distortion, experimental }),
-    [flatten, random, squaring, anchors, grid, distortion, experimental],
-  )
+  const { typography, artboard } = state.params
   const key = useMemo(() => paramsKey(params), [params])
   // Live parameters equal to the sliders' change nothing: the sliders' own params and key are used, as without Sound.
   const liveKey = useMemo(() => (live && live !== params ? paramsKey(live) : key), [live, params, key])

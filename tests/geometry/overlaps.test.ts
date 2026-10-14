@@ -1,6 +1,7 @@
 // mergeOverlaps on synthetic outlines: crossings on grid-cell corners and sides (report item #1), a merge of tens of
-// thousands of vertices in one piece (#2, the union-find that used to recurse once per vertex), and the `maxHot`
-// budget that gives up early on glyphs too complex to merge.
+// thousands of vertices in one piece (#2, the union-find that used to recurse once per vertex), the `maxHot`
+// budget that gives up early on glyphs too complex to merge, outlines as far out as Thorn reaches (256 em), and thin
+// contours: slivers left out, letters with long thin thorns kept.
 
 import { describe, expect, it } from 'vitest'
 import { mergeOverlaps } from '../../src/geometry/overlaps'
@@ -73,8 +74,16 @@ function triangle(e: readonly number[]): Point[] {
 /**
  * Pairs of long segments that cross exactly at a cell's corner (both coordinates half-integers) or on a cell's side
  * (one of them), most of them where the floating-point crossing rounds into a different cell than the exact one.
+ * `areas`: how long the segments are (about) and how far from the origin they cross (at most).
  */
-function cornerCases(hardPerKind: number, easyPerKind: number) {
+function cornerCases(
+  hardPerKind: number,
+  easyPerKind: number,
+  areas: readonly (readonly [number, number])[] = [
+    [4000, 1000],
+    [8000, 100000],
+  ],
+) {
   let seed = 12345
   const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x80000000
   const int = (a: number, b: number) => a + Math.floor(random() * (b - a + 1))
@@ -82,10 +91,7 @@ function cornerCases(hardPerKind: number, easyPerKind: number) {
   // The segment through (cx2 / 2, cy2 / 2) along (p, q), u half-steps back and w forward.
   const through = (cx2: number, cy2: number, p: number, q: number, u: number, w: number) => [(cx2 - u * p) / 2, (cy2 - u * q) / 2, (cx2 + w * p) / 2, (cy2 + w * q) / 2]
   const cases: { s: number[]; t: number[]; hard: boolean; kind: string }[] = []
-  for (const [size, spread] of [
-    [4000, 1000],
-    [8000, 100000],
-  ] as const) {
+  for (const [size, spread] of areas) {
     for (const kind of ['corner', 'side']) {
       let hard = 0
       let easy = 0
@@ -201,5 +207,105 @@ describe('mergeOverlaps: the maxHot budget', () => {
     const full = time(() => mergeOverlaps(input))
     const early = time(() => mergeOverlaps(input, 'nonzero', { maxHot: Math.floor(vertices / 2) }))
     expect(early).toBeLessThan(full / 3)
+  })
+})
+
+// ---- Far out: Thorn reaches up to 256 em (THORN_LIMITS.maxReachEm) ----
+
+/** A thin thorn: a triangle from a base (b0–b1) to a tip, counter-clockwise. */
+function thorn(b0: Point, b1: Point, tip: Point): Point[] {
+  const points = [b0, b1, tip]
+  return signedArea2(points) > 0 ? points : points.reverse()
+}
+
+/**
+ * A letter-sized square at 4096 units per em with four thin thorns reaching `length` units across, two each way, each
+ * pair crossing at a shallow angle about halfway out.
+ */
+function farThorns(length: number): Contours {
+  const em = 4096
+  return [
+    rect(0, 0, em, em),
+    thorn({ x: 1000, y: 0 }, { x: 1300, y: 0 }, { x: length, y: length / 2 + 2000 }),
+    thorn({ x: 1000, y: em }, { x: 1300, y: em }, { x: length, y: length / 2 - 2000 }),
+    thorn({ x: 2800, y: 0 }, { x: 3100, y: 0 }, { x: -length, y: -length / 2 + 2000 }),
+    thorn({ x: 2800, y: em }, { x: 3100, y: em }, { x: -length, y: -length / 2 - 2000 }),
+  ]
+}
+
+describe('mergeOverlaps: far out', () => {
+  // The merge tries a grid of whole units at 4096 units per em, then one twice as fine: 256 em out is 2^20 cells on the
+  // first and 2^21 on the second. The arithmetic depends only on the grid coordinates, so 512 em out on the first grid
+  // stands for 256 em on the second.
+  for (const em of [256, 512]) {
+    it(`merges thorns ${em} em long at 4096 units per em exactly`, () => {
+      const input = polygonOf(farThorns(em * 4096), 4096)
+      const { polygon, stats } = mergeOverlaps(input)
+      expect(stats).toMatchObject({ applied: true, failed: false, tooComplex: false })
+      expect(stats.crossings).toBeGreaterThanOrEqual(4)
+      const { crossings, ink } = check(input, polygon, 4000)
+      expect(crossings).toBe(0)
+      expect(Math.abs(ink - 1)).toBeLessThan(0.01)
+    })
+  }
+
+  it('merges corner and side cases 2^21 grid cells out correctly or reports them failed', () => {
+    const cases = cornerCases(20, 5, [[8000, 2 ** 21 - 40000]])
+    expect(cases.filter((c) => c.hard).length).toBeGreaterThanOrEqual(30)
+    const outcomes = cases.map(({ s, t, kind, hard }) => expectMergedOrFailed(polygonOf([triangle(s), triangle(t)]), `${kind}${hard ? ' hard' : ''} ${s} x ${t}`))
+    expect(outcomes.filter((o) => o === 'failed').length).toBeLessThanOrEqual(cases.length / 20)
+  })
+
+  it('reports a glyph beyond the grid failed, and leaves it as it is', () => {
+    const input = polygonOf(farThorns(2 ** 22), 4096)
+    const { polygon, stats } = mergeOverlaps(input)
+    expect(polygon).toBe(input)
+    expect(stats).toMatchObject({ applied: false, failed: true, tooComplex: false })
+  })
+})
+
+// ---- Thin contours: slivers too thin to show, and letters made thin on average by long thorns ----
+
+describe('mergeOverlaps: thin contours', () => {
+  it('leaves out hair-thin slivers, however long', () => {
+    // Half a unit wide on average, 4 em and 30 em long (0.015 em² of area), beside a letter-sized square.
+    const slivers = [thorn({ x: 0, y: 0 }, { x: 4000, y: 0 }, { x: 4000, y: 1 }), thorn({ x: 0, y: -100 }, { x: 30_000, y: -100 }, { x: 30_000, y: -99 })]
+    const input = polygonOf([rect(0, 100, 500, 600), ...slivers])
+    const { polygon, stats } = mergeOverlaps(input)
+    expect(stats.removed).toBe(2)
+    expect(contoursOf(polygon)).toHaveLength(1)
+    expect(inkArea(contoursOf(polygon))).toBeCloseTo(500 * 500, -2)
+  })
+
+  it('keeps a letter whose long thin thorn makes it narrow on average', () => {
+    // A square 0.1 em across with a thorn 200 em long and 1 unit wide at its base: twice the area over the perimeter
+    // is about half a unit, yet the square is plain to see. The merge used to leave all of it out.
+    const input = polygonOf([rect(0, 0, 100, 100), thorn({ x: 100, y: 50 }, { x: 100, y: 51 }, { x: 200_000, y: 50 })])
+    const { polygon, stats } = mergeOverlaps(input)
+    expect(stats).toMatchObject({ applied: true, failed: false, removed: 0 })
+    expect(contoursOf(polygon)).toHaveLength(1)
+    const { crossings, ink } = check(input, polygon)
+    expect(crossings).toBe(0)
+    expect(Math.abs(ink - 1)).toBeLessThan(0.01)
+  })
+
+  it('keeps a hole that a long thin crack makes narrow on average', () => {
+    // A square hole 0.2 em across with a crack 200 em long and 1 unit wide, in a bar around both (clockwise: a hole).
+    const hole = [
+      { x: 100, y: 100 },
+      { x: 100, y: 300 },
+      { x: 300, y: 300 },
+      { x: 300, y: 201 },
+      { x: 200_000, y: 200 },
+      { x: 300, y: 200 },
+      { x: 300, y: 100 },
+    ]
+    const input = polygonOf([rect(0, 0, 200_100, 1000), hole])
+    const { polygon, stats } = mergeOverlaps(input)
+    expect(stats).toMatchObject({ applied: true, failed: false, removed: 0 })
+    expect(contoursOf(polygon)).toHaveLength(2)
+    const { crossings, ink } = check(input, polygon)
+    expect(crossings).toBe(0)
+    expect(Math.abs(ink - 1)).toBeLessThan(0.01)
   })
 })

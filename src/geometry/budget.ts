@@ -31,9 +31,10 @@ export const BUDGET_LIMITS = {
   warpFactor: 16,
   /**
    * The simplification's tolerance starts at the warps' drift limit (WARP_LIMITS.maxDrift × the em) and doubles at most
-   * this many times (to about 40 em, more than the effects can spread a letter), leaving out every contour smaller than
-   * the tolerance but never all of them, so a glyph can nearly always be simplified until it fits. Only the strongest
-   * settings need more than a few doublings, and the letter then turns into a few broad strokes.
+   * this many times (to about 40 em, more than the effects spread a letter's body; a thorn can reach further, up to
+   * 256 em, but adds only its tip and base), leaving out every contour smaller than the tolerance but never all of them,
+   * so a glyph can nearly always be simplified until it fits. Only the strongest settings need more than a few
+   * doublings, and the letter then turns into a few broad strokes.
    */
   maxDoublings: 12,
 } as const
