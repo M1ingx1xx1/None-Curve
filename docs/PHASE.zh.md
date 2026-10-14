@@ -330,7 +330,7 @@ p' = p + amplitude × noise(seed, vertexIndex, frequency)
 
 # 阶段 D：分步实施路线图
 
-> **实现状态：** 里程碑 1–3 已完成（含样张、SVG 导出、OTF 生成与回读校验）；几何流水线在 Web Worker 中运行（`src/geometry/geometry.worker.ts`、`src/state/geometryClient.ts`）；里程碑 4 的 GitHub Pages 部署工作流已就绪（Vite `base` 代替 Webpack public path）。阶段 E（声音驱动几何）进行中：第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、Freeze）已完成，第 3、4 阶段中随声音跳动的种子、会自己打开所需设置的目标，以及 20 个特征（含 Pitch 和 Balance）也已完成，见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。详见 README 的“功能状态”。
+> **实现状态：** 里程碑 1–3 已完成（含样张、SVG 导出、OTF 生成与回读校验）；几何流水线在 Web Worker 中运行（`src/geometry/geometry.worker.ts`、`src/state/geometryClient.ts`）；里程碑 4 的 GitHub Pages 部署工作流已就绪（Vite `base` 代替 Webpack public path）。阶段 E（声音驱动几何）进行中：第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、Freeze）已完成，第 3、4 阶段中随声音跳动的种子、会自己打开所需设置的目标，以及 10 个特征（含 Pitch 和 Pan）也已完成，见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。详见 README 的“功能状态”。
 
 ## 里程碑 1：MVP
 
@@ -392,26 +392,25 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 
 # 阶段 E：声音驱动几何
 
-> **实现状态：** 进行中。第 1、2 阶段已完成：第 1、2 步；第 3 步中的连续映射（滑块位置 + Depth × 特征，截断后取整到滑块档位）；第 4 步（同一时间最多一个几何请求，上限 30 fps，实时帧使用单独的缓存，连续映射带闪烁限制）；以及第 5 步中的 Source、电平表、Sensitivity、Smoothing、Reset sound、带 Drive letters 开关的映射列表、Freeze、滑块上的实时值标记，和 Sound 标签页与状态栏中的 "Live · N fps"。第 3、4 阶段中也已完成：20 个特征，含 Pitch 和 Balance（第 2 步），以及它们需要的立体声分支（第 1 步）；三个种子上的 Jump 映射（带 Rate 和闪烁限制），以及通过 Beat 和 Kick 脉冲实现的 Kick（第 3 步）；会自己打开所需设置的目标、紧凑的电平表、实时种子，以及带 Preset 和 Load 的十个预设（第 5 步）。第 3 步中的 Step 映射（Allowed directions、Sides、Rings）、实时 SVG 重绘的测量，以及第 6 步中的视频录制尚未实现。见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
+> **实现状态：** 进行中。第 1、2 阶段已完成：第 1、2 步；第 3 步中的连续映射（滑块位置 + Depth × 特征，截断后取整到滑块档位）；第 4 步（同一时间最多一个几何请求，上限 30 fps，实时帧使用单独的缓存，连续映射带闪烁限制）；以及第 5 步中的 Source、电平表、Sensitivity、Smoothing、Reset sound、带 Drive letters 开关的映射列表、Freeze、滑块上的实时值标记，和 Sound 标签页与状态栏中的 "Live · N fps"。第 3、4 阶段中也已完成：10 个特征，分五组，含 Pitch 和 Pan（第 2 步），以及它们需要的立体声分支（第 1 步）；三个种子上的 Jump 映射（带 Rate 和闪烁限制），以及滑块上的 Beat 脉冲（第 3 步）；会自己打开所需设置的目标（连同重做后的 Experimental 效果的滑块共 43 个）、紧凑的电平表、实时种子、带 Preset 和 Load 的十个预设、作为默认来源且没有 Off 的 File，以及改为开关的 Drive letters（第 5 步）。第 3 步中的 Step 映射（Allowed directions、Sides、Rings）、实时 SVG 重绘的测量，以及第 6 步中的视频录制尚未实现。见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
 
 这是次要产品路线（约占规划重点的 30%）。Sound 标签页用实时声音驱动 Geometry 和 Experimental 中已有的参数。该功能保持可选；关闭时，字体工具的表现与之前完全相同。
 
 产品要求以 [PRD 第 11 节](PRD.zh.md#11-声音驱动几何新增产品方向) 和详细的 [声音计划](SOUND_PLAN.zh.md) 为准。
 
-1. **音频引擎：** 通过 Web Audio 接入 File 和 Microphone 两种来源，在本地解码和分析。麦克风只在用户明确点击后启动，停止时释放。
+1. **音频引擎：** 通过 Web Audio 接入 File（默认）和 Microphone 两种来源，在本地解码和分析；没有 Off 来源。音频上下文在第一次需要它的用户操作中创建，空闲时暂停。麦克风只在用户明确点击后启动，停止时释放。
    - 在 20 Hz 高通之后，一条立体声测量分支（上混到两个声道、一个声道分离器和两个分析器）给出左右声道；单声道来源读作居中。左右声道的读数会与混合后的数据块核对，如果两次读取之间音频线程渲染了新数据就重新读取；仍对不上时，保持上一对对得上的读数。扬声器和麦克风的连接方式不变。
-2. **特征：** 对每个分析帧计算的纯函数，共 20 个，分六组（`src/sound/mapping.ts` 中的 `FEATURES`）：
+2. **特征：** 对每个分析帧计算的纯函数，共 10 个，分五组（`src/sound/mapping.ts` 中的 `FEATURES`），由第 3 阶段最初测量的 20 个合并而来：
    - Loudness：Level（RMS）和 Swell（缓慢平滑的 Level：上升 300 ms，回落 2 s）。
-   - Bands：Low / Mid / High 频带能量。
-   - Narrow bands：Sub 20–60 Hz、Bass 60–250 Hz、Low mid 250–500 Hz、High mid 2–4 kHz、Presence 4–6 kHz、Air 6–20 kHz，和 Low / Mid / High 一样，每个都与自己最近最响的时刻相比。
-   - Tone：Brightness（频谱质心）；Noisiness（频谱平坦度，只量到这一帧实际的带宽，即距最响频点 60 dB 以内的最高频点，但至少 1 kHz，所以有损压缩的文件也读得准；−24 dB 读作 0，−3 dB 读作 1）；Pitch（对降采样到最高 24 kHz 的样本做 YIN，55 Hz → 0 到 1760 Hz → 1，对数刻度；无音高时保持上一个音，静音时为 0）。
-   - Rhythm：Beat 和 Kick（基于频谱通量和自适应阈值的起音），各带一个脉冲：起音时跳到 1，再按释放时间回落；Change（频谱变化的多少：频谱通量比最近的中位数高出多少，与最近这种高出量的最大值相比，但比较的基准从不低于这一帧压缩后频谱的四分之一，所以持续的声音（包括噪声）接近 0）；Pace（最近 2 s 内每秒的 Beat 起音数，÷ 8）。
-   - Stereo：Balance（左 −1 到右 +1，唯一的双向特征）和 Width（侧声道 RMS 与中声道 RMS 之比：单声道为 0，很宽的立体声约为 1）。
+   - Bands：Bass / Mids / Treble 频带能量（20–250 Hz、250–2000 Hz、2000 Hz 到奈奎斯特频率），每个都与自己最近最响的时刻相比。
+   - Tone：Brightness（频谱质心）；Pitch（在降到最多 24 kHz 的采样上用 YIN 求音高，55 Hz → 0 到 1760 Hz → 1，对数刻度；无音高时保持上一个音，静音时为 0）。
+   - Rhythm：Beat（基于频谱通量和自适应阈值的起音，来自两个检测器：整个频谱，以及专门听底鼓的 20–150 Hz），一个在起音时跳到 1、再按释放时间回落的脉冲；Activity（取 Change 和 Pace 中较大的那个：Change 是频谱通量比最近中位数高出多少，相对于最近这种高出量的最大值，但比较基准从不低于这一帧压缩后频谱的四分之一，所以持续的声音（包括噪声）保持在 0 附近；Pace 是最近 2 s 内每秒的 Beat 起音数 ÷ 8）。
+   - Stereo：Pan（左 −1 到右 +1，唯一的双向特征）。
    - 快速起音、可调释放和静音门限（Swell 和 Pitch 有自己固定的时间）。
-   - 开销：在 48 kHz 下每帧约 90 µs（增加新特征之前约 35 µs）。
-3. **调制：** 一个纯函数，把滑块值、特征和映射转换为实时参数，并取整到滑块档位、截断到范围内。连续映射把 Depth × 特征 加到滑块位置上（沿滑块的绘制方向，0–1），所以对数刻度的滑块（如 Tolerance）沿滑道均匀移动。事件映射分为 Jump（种子）、Step（可选值）和 Kick（跃起后回落），限制在每秒 3 次闪烁以内。
-   - Jump：三个种子（Distortion · Seed、Random anchors · Seed、Experimental 的 Seed）是 `jump` 类型的目标（`src/sound/jumps.ts`）。Depth 就是 Rate（0–100%）：配 Beat 或 Kick 时，Rate 100% 每次起音种子前进一个（50%：每隔一次起音，25%：每四次起音）；配其他特征时，每秒最多跳 4.8 次 × Rate × 特征值。任意 1.25 s 内最多 6 个跳变帧（同一帧中一起跳的种子只算一次），计数方式与滑块的闪烁限制相同；超出的跳变直接跳过。种子始终是字段范围内（0–999 999）的整数，超过最大值后回到 0，所以每一个实时帧仍然是面板本身能得到的一组值。
-   - Kick：Beat 和 Kick 的脉冲用在任意滑块上。
+   - 开销：在 48 kHz 下每帧约 90 µs（加入第 3 阶段的特征之前约 35 µs；合并成 10 个之后不变）。
+3. **调制：** 一个纯函数，把滑块值、特征和映射转换为实时参数，并取整到滑块档位、截断到范围内。连续映射把 Depth × 特征 加到滑块位置上（沿滑块的绘制方向，0–1），所以对数刻度的滑块（如 Tolerance）沿滑道均匀移动。事件映射分为 Jump（种子）、Step（可选值）和脉冲（跃起后回落），限制在每秒 3 次闪烁以内。
+   - Jump：三个种子（Distortion · Seed、Random anchors · Seed、Experimental 的 Seed）是 `jump` 类型的目标（`src/sound/jumps.ts`）。Depth 就是 Rate（0–100%）：配 Beat 时，Rate 100% 每次起音种子前进一个（50%：每隔一次起音，25%：每四次起音）；配其他特征时，每秒最多跳 4.8 次 × Rate × 特征值。任意 1.25 s 内最多 6 个跳变帧（同一帧中一起跳的种子只算一次），计数方式与滑块的闪烁限制相同；超出的跳变直接跳过。种子始终是字段范围内（0–999 999）的整数，超过最大值后回到 0，所以每一个实时帧仍然是面板本身能得到的一组值。
+   - 脉冲：Beat 的脉冲用在任意滑块上。
    - Step：尚未实现。
    - 每个目标还会说明自己起作用需要什么，以及如何打开（`activate`），供 Sound 标签页自动打开所需设置。
 4. **实时调度：**
@@ -419,9 +418,9 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 流程不变；实时请求带 `live` 标记，Worker 会把它们的结果分开保存。
    - 实时帧使用单独的小缓存。
    - 只在 Sound 能驱动时统计种子的跳变。暂停、停止或关闭 Drive letters 时，种子完全回到字段中的值（再次播放时从这些值开始）；闪烁计数的时间窗口在这期间保留。Freeze 把实时种子写入种子字段。
-   - 在 Worker 中测量（Arial，24 个不同字形）：种子跳一次会重新计算每个字形，用时约 2–3.5 ms；Level → Noise amplitude 每帧 2.4 ms，三个映射一起 12 ms，所有 Experimental 效果全开 37–41 ms（24–27 fps）。
+   - 在 Worker 中测量（Arial，24 个不同字形）：种子跳一次会重新计算每个字形，用时约 2–3.5 ms；Level → Noise amplitude 每帧 2.4 ms，三个映射一起 12 ms，所有 Experimental 效果全开 37–41 ms（24–27 fps）。Experimental 的数字测于 Crumple、Slipstream 和 Thorn 重做之前，重做让它们都变重了。
 5. **界面：** 第三个标签页 **Sound**，包含：
-   - Source、电平表、Sensitivity 和 Smoothing。电平表每个特征一行（名称、条、数值），分六组，每组有一个 ⓘ；Balance 从中间向两边填充，显示为 "L 40" / "R 40" / "C"，Pitch 以 Hz 显示，Beat 和 Kick 是脉冲条，取代了原来的指示灯（开启减少动态效果时仍然工作）。
+   - Source（File 或 Microphone）、电平表、Sensitivity、Smoothing，以及 Drive letters 开关。电平表每个特征一行（名称、条、数值），分五组，每组有一个 ⓘ；Pan 从中间向两边填充，显示为 "L 40" / "R 40" / "C"，Pitch 以 Hz 显示，Beat 是脉冲条，取代了原来的指示灯（开启减少动态效果时仍然工作）。
    - 带预设的映射列表。Feature 列表与电平表分组相同；目标显示为 "Section · Label"，Experimental 的种子只显示 "Seed"；在种子上，Depth 显示为 Rate。选中一个设置处于关闭状态的目标时，会打开该设置并在这一行下面说明（"Turned on Ripple."）；不会再自动关闭任何东西。如果用户之后又关掉了设置，这一行会说明原因并提供 Enable。用键盘时，按 Enter 或焦点离开列表时才应用目标。Add mapping 优先选已经起作用的目标。在 Preset 列表中选择只是选中；Load 把 Geometry 和 Experimental 的设置恢复为默认值（保留种子），设好预设的起始值，用预设的映射替换当前映射，并在 Preset 一行下方说明关闭了什么；一个 ⓘ 列出每个预设，各一行说明。
    - Freeze 和 Reset sound。
    - 被驱动滑块上的实时值标记，以及被驱动的种子字段旁边显示实时种子的小数字。
@@ -431,15 +430,15 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 流水线：
 
 ```text
-音频文件 / 麦克风 → Web Audio 分析器（混合后；左右声道）→ 20 个特征（Loudness、Bands、Narrow bands、Tone、Rhythm、Stereo）
+音频文件 / 麦克风 → Web Audio 分析器（混合后；左右声道）→ 10 个特征（Loudness、Bands、Tone、Rhythm、Stereo）
 滑块值 + 种子 + 特征 + 映射 → 实时参数（取整到滑块档位并截断；种子按跳变次数前进）
 实时参数 → 现有几何流程（Worker）→ 画布        Freeze → 滑块值和种子 → 导出
 ```
 
 阶段验收：
 - 合成信号得到预期的特征。
-- 测试音轨 `test-audio/sound-test.wav`（42 s，16 位立体声，44.1 kHz）每一段都读出应有的特征：0–26 s 与之前相同（只有底鼓、底鼓加踩镲、上升的和弦、静音、渐弱的完整混音、每秒 16 次的踩镲），之后是从 A2 到 A5 再回来的单音旋律（26–32 s，Pitch），每半秒在最左和最右之间切换的踩镲，下面是居中的轻低音（32–38 s，Balance），以及渐弱的宽阔不相关噪声（38–42 s，Width）。
-- 关闭 Sound、关闭映射或 Depth 为 0 时，完全恢复滑块值；暂停时完全恢复种子。
+- 测试音轨 `test-audio/sound-test.wav`（42 s，16 位立体声，44.1 kHz）每一段都读出应有的特征：0–26 s 与之前相同（只有底鼓、底鼓加踩镲、上升的和弦、静音、渐弱的完整混音、每秒 16 次的踩镲），之后是从 A2 到 A5 再回来的单音旋律（26–32 s，Pitch），每半秒在最左和最右之间切换的踩镲，下面是居中的轻低音（32–38 s，Pan），以及渐弱的宽阔不相关噪声（38–42 s，Pan 保持居中）。
+- 暂停、停止收音、关闭 Drive letters、关闭映射或 Depth 为 0 时，完全恢复滑块值；暂停时完全恢复种子。
 - 在测试音轨上，Beat → Distortion · Seed 在只有底鼓的部分每拍都跳（每秒 1.89 次），在每秒 8 拍时被限制在每秒约 4.3–4.5 次。
 - 每一帧都是一组普通参数，因此保持有效且没有曲线。
 - 逐个预设测量帧率。

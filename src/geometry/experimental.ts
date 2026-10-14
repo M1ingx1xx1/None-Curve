@@ -1,72 +1,98 @@
-// The Experimental effects, run after the whole Geometry pipeline in a fixed order: Noise, Ripple, Curl, Wind, Spikes.
+// The Experimental effects, run after the whole Geometry pipeline in a fixed order: Crumple, Ripple, Whorl, Slipstream, Thorn.
 // The first four are piecewise-linear warps (see warp.ts) that add vertices only at creases. Within their safe ranges the
 // warps are one-to-one, so any combination of them keeps the glyph valid. Beyond them (folds) the letter overlaps itself,
-// and the overlaps are merged into clean outlines at the end (see overlaps.ts). Spikes moves a few anchors far out
-// (spikes.ts); a spike may cross the letter, so its outlines are merged the same way.
+// and the overlaps are merged into clean outlines at the end (see overlaps.ts). After its warp, Slipstream adds trails that
+// never cross the letter and cuts it with thin wedges, redrawing the outline (merging any folds so far). Thorn moves a few anchors far out, each
+// pulling the letter around it along by a one-to-one warp, and can show the letter through fluted glass (thorn.ts); a
+// thorn may cross the letter, so its outlines are merged the same way.
 
-import { curlFolds, curlIsOn, curlWarp } from './curl'
-import { noiseFolds, noiseIsOn, noiseWarp } from './noise'
+import { crumpleFolds, crumpleIsOn, crumpleWarp } from './crumple'
 import { emptyOverlapStats, mergeOverlaps, type OverlapStats } from './overlaps'
 import { inkBox, rippleFolds, rippleIsOn, rippleWarp } from './ripple'
-import { applySpikes, emptySpikeStats, spikesIsOn, type SpikeStats } from './spikes'
-import { windFolds, windIsOn, windWarp } from './wind'
+import { emptySlipstreamStats, slipstreamFolds, slipstreamIsOn, slipstreamMerges, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
+import { applyThorn, emptyThornStats, thornIsOn, type ThornStats } from './thorn'
 import type { ExperimentalParams, PolygonGlyph } from './types'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type WarpStats } from './warp'
+import { whorlFolds, whorlIsOn, whorlWarp } from './whorl'
 
 export const EXPERIMENTAL_LIMITS = { maxSeed: 999_999 } as const
 
 export interface ExperimentalStats {
-  noise: WarpStats
+  crumple: WarpStats
   ripple: WarpStats
-  curl: WarpStats
-  wind: WarpStats
-  spikes: SpikeStats
-  /** The merge of overlaps when an effect goes beyond its safe range, or Spikes is on. */
+  whorl: WarpStats
+  slipstream: SlipstreamStats
+  thorn: ThornStats
+  /** The merge of overlaps when an effect goes beyond its safe range, Thorn is on, or Slipstream cuts the letters. */
   folds: OverlapStats
 }
 
-/** True when the outlines are merged at the end: Spikes is on, so a spike may cross the letter. */
+/** True when the outlines are merged: Thorn is on, so a thorn may cross the letter, or Slipstream cuts the letters. */
 export function experimentalMerges(params: ExperimentalParams): boolean {
-  return experimentalFolds(params) || spikesIsOn(params.spikes)
+  return experimentalFolds(params) || thornIsOn(params.thorn) || slipstreamMerges(params.slipstream)
 }
 
 /** True when any effect goes beyond its safe range, so the letters fold onto themselves. */
 export function experimentalFolds(params: ExperimentalParams): boolean {
-  return noiseFolds(params.noise) || rippleFolds(params.ripple) || curlFolds(params.curl) || windFolds(params.wind)
+  return crumpleFolds(params.crumple) || rippleFolds(params.ripple) || whorlFolds(params.whorl) || slipstreamFolds(params.slipstream)
 }
 
 export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalParams): { polygon: PolygonGlyph; stats: ExperimentalStats } {
   const seed = Math.trunc(Number.isFinite(params.seed) ? params.seed : 1) | 0
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
-  const stats: ExperimentalStats = { noise: emptyWarpStats(), ripple: emptyWarpStats(), curl: emptyWarpStats(), wind: emptyWarpStats(), spikes: emptySpikeStats(), folds: emptyOverlapStats() }
+  const stats: ExperimentalStats = { crumple: emptyWarpStats(), ripple: emptyWarpStats(), whorl: emptyWarpStats(), slipstream: emptySlipstreamStats(), thorn: emptyThornStats(), folds: emptyOverlapStats() }
   // Once one effect folds, the outlines cross, so no effect checks them; they are merged at the end.
   const folds = experimentalFolds(params)
   let result = polygon
   // Which vertices earlier effects added at creases, so a later effect's tidying may remove them too.
   let marks: CreaseMarks | undefined
-  if (noiseIsOn(params.noise)) {
-    const noised = applyWarp(result, (scale) => noiseWarp(params.noise, seed, unitsPerEm, scale), unitsPerEm, marks, folds)
-    ;({ polygon: result, stats: stats.noise, marks } = noised)
+  if (crumpleIsOn(params.crumple)) {
+    // Crumple holds the middle of each glyph's ink box in place, so letters bend without drifting.
+    const box = inkBox(result)
+    const anchor = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : undefined
+    const crumpled = applyWarp(result, (scale) => crumpleWarp(params.crumple, seed, unitsPerEm, scale, polygon.ref.index, anchor), unitsPerEm, marks, folds)
+    ;({ polygon: result, stats: stats.crumple, marks } = crumpled)
   }
-  // Ripple, Curl, and Wind place themselves by the ink box of what they receive, so the same letter
+  // Ripple, Whorl, and Slipstream place themselves by the ink box of what they receive, so the same letter
   // always looks alike.
   const rippleBox = rippleIsOn(params.ripple) ? inkBox(result) : null
   if (rippleBox) {
     const rippled = applyWarp(result, (scale) => rippleWarp(params.ripple, rippleBox, unitsPerEm, scale), unitsPerEm, marks, folds)
     ;({ polygon: result, stats: stats.ripple, marks } = rippled)
   }
-  const curlBox = curlIsOn(params.curl) ? inkBox(result) : null
-  if (curlBox) {
-    const curled = applyWarp(result, (scale) => curlWarp(params.curl, curlBox, unitsPerEm, scale), unitsPerEm, marks, folds)
-    ;({ polygon: result, stats: stats.curl, marks } = curled)
+  const whorlBox = whorlIsOn(params.whorl) ? inkBox(result) : null
+  if (whorlBox) {
+    const whorled = applyWarp(result, (scale) => whorlWarp(params.whorl, whorlBox, unitsPerEm, scale), unitsPerEm, marks, folds)
+    ;({ polygon: result, stats: stats.whorl, marks } = whorled)
   }
-  const windBox = windIsOn(params.wind) ? inkBox(result) : null
-  if (windBox) {
-    const blown = applyWarp(result, (scale) => windWarp(params.wind, seed, windBox, unitsPerEm, scale), unitsPerEm, marks, folds)
-    ;({ polygon: result, stats: stats.wind, marks } = blown)
+  const slipstreamBox = slipstreamIsOn(params.slipstream) ? inkBox(result) : null
+  // True once Slipstream's cuts have redrawn the outline, which merges any folds so far.
+  let streamMerged = false
+  if (slipstreamBox) {
+    const streamed = applyWarp(result, (scale) => slipstreamWarp(params.slipstream, seed, slipstreamBox, unitsPerEm, scale), unitsPerEm, marks, folds)
+    ;({ polygon: result, marks } = streamed)
+    const marked = slipstreamTrailsAndCuts(result, params.slipstream, seed, unitsPerEm)
+    stats.slipstream = { ...streamed.stats, trails: marked.trails, cuts: marked.cuts }
+    if (marked.trails > 0 || marked.merge) {
+      result = marked.polygon
+      // Trails and the redrawn outline bring vertices of their own: the crease marks no longer line up.
+      marks = undefined
+    }
+    if (marked.merge) {
+      stats.folds = marked.merge
+      streamMerged = true
+    }
   }
-  const spikes = spikesIsOn(params.spikes)
-  if (spikes) ({ polygon: result, stats: stats.spikes } = applySpikes(result, params.spikes, seed, unitsPerEm))
-  if (folds || stats.spikes.applied) ({ polygon: result, stats: stats.folds } = mergeOverlaps(result))
+  const thorn = thornIsOn(params.thorn)
+  // Once Slipstream has merged the folds, the outlines no longer cross, so Thorn's warps are checked again.
+  if (thorn) ({ polygon: result, stats: stats.thorn } = applyThorn(result, params.thorn, seed, unitsPerEm, marks, folds && !streamMerged))
+  if ((folds && !streamMerged) || stats.thorn.applied) {
+    const merged = mergeOverlaps(result)
+    result = merged.polygon
+    // After Slipstream's cut merge, count both merges' crossings and removed contours.
+    stats.folds = streamMerged
+      ? { ...merged.stats, crossings: stats.folds.crossings + merged.stats.crossings, removed: stats.folds.removed + merged.stats.removed, contoursIn: stats.folds.contoursIn }
+      : merged.stats
+  }
   return { polygon: result, stats }
 }
