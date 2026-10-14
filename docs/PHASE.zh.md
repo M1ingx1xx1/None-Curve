@@ -310,6 +310,7 @@ p' = p + amplitude × noise(seed, vertexIndex, frequency)
 - **SVG 规范：** 单位、viewBox 行为、填充规则和数值精度。
 - **OTF 元数据：** 字族名称、字形样式、每 em 单位数以及命名字段。
 - **字体覆盖范围：** 当前选中字形、当前字符集或所有已解析字形。
+- **视频**（阶段 H）：Format（MP4 或 WebM）、Length、Include audio 和 Use the preview look；尺寸一行显示视频的像素、帧率和格式。
 - 下载前显示校验摘要，包括缺失或不受支持的字形数据。
 
 ## 4. 滑块、公式与设计效果对应关系
@@ -330,7 +331,7 @@ p' = p + amplitude × noise(seed, vertexIndex, frequency)
 
 # 阶段 D：分步实施路线图
 
-> **实现状态：** 里程碑 1–3 已完成（含样张、SVG 导出、OTF 生成与回读校验）；几何流水线只在 Web Worker 中运行（`src/geometry/geometry.worker.ts`、`src/state/geometryClient.ts`），带看门狗和重启，没有主线程后备（阶段 F）；里程碑 4 的 GitHub Pages 部署工作流已就绪（Vite `base` 代替 Webpack public path），构建之前先运行自动测试。阶段 F（稳健性、会话保存、撤销与测试）已完成。阶段 E（声音驱动几何）进行中：第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、Freeze）已完成，第 3、4 阶段中随声音跳动的种子、会自己打开所需设置的目标，以及 10 个特征（含 Pitch 和 Pan）也已完成，见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。详见 README 的“功能状态”。
+> **实现状态：** 里程碑 1–3 已完成（含样张、SVG 导出、OTF 生成与回读校验）；几何流水线只在 Web Worker 中运行（`src/geometry/geometry.worker.ts`、`src/state/geometryClient.ts`），带看门狗和重启，没有主线程后备（阶段 F）；里程碑 4 的 GitHub Pages 部署工作流已就绪（Vite `base` 代替 Webpack public path），构建之前先运行自动测试。阶段 F（稳健性、会话保存、撤销与测试）已完成。阶段 E（声音驱动几何）进行中：第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、Freeze）已完成，第 3、4 阶段中随声音跳动的种子、会自己打开所需设置的目标，以及 10 个特征（含 Pitch 和 Pan）也已完成；阶段 H 加入了作为第 11 个特征的 Melody、按不同幅度反应的字母、Response 控件和视频录制，见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。详见 README 的“功能状态”。
 
 ## 里程碑 1：MVP
 
@@ -392,7 +393,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 
 # 阶段 E：声音驱动几何
 
-> **实现状态：** 进行中。第 1、2 阶段已完成：第 1、2 步；第 3 步中的连续映射（滑块位置 + Depth × 特征，截断后取整到滑块档位）；第 4 步（同一时间最多一个几何请求，上限 30 fps，实时帧使用单独的缓存，连续映射带闪烁限制）；以及第 5 步中的 Source、电平表、Sensitivity、Smoothing、Reset sound、带 Drive letters 开关的映射列表、Freeze、滑块上的实时值标记，和 Sound 标签页与状态栏中的 "Live · N fps"。第 3、4 阶段中也已完成：10 个特征，分五组，含 Pitch 和 Pan（第 2 步），以及它们需要的立体声分支（第 1 步）；三个种子上的 Jump 映射（带 Rate 和闪烁限制），以及滑块上的 Beat 脉冲（第 3 步）；会自己打开所需设置的目标（连同重做后的 Experimental 效果的滑块共 43 个）、紧凑的电平表、实时种子、带 Preset 和 Load 的十个预设、作为默认来源且没有 Off 的 File，以及改为开关的 Drive letters（第 5 步）。第 3 步中的 Step 映射（Allowed directions、Sides、Rings）、实时 SVG 重绘的测量，以及第 6 步中的视频录制尚未实现。阶段 F（见下文）把闪烁限制改成滑块和种子共用的一份额度，给 Beat 加上对持续低音的门控，让 Sound 在没有载入字体时不驱动，并在两次访问之间保存映射。见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
+> **实现状态：** 进行中。第 1、2 阶段已完成：第 1、2 步；第 3 步中的连续映射（滑块位置 + Depth × 特征，截断后取整到滑块档位）；第 4 步（同一时间最多一个几何请求，上限 30 fps，实时帧使用单独的缓存，连续映射带闪烁限制）；以及第 5 步中的 Source、电平表、Sensitivity、Smoothing（现名 Release）、Reset sound、带 Drive letters 开关的映射列表、Freeze、滑块上的实时值标记，和 Sound 标签页与状态栏中的 "Live · N fps"。第 3、4 阶段中也已完成：10 个特征，分五组，含 Pitch 和 Pan（第 2 步），以及它们需要的立体声分支（第 1 步）；三个种子上的 Jump 映射（带 Rate 和闪烁限制），以及滑块上的 Beat 脉冲（第 3 步）；会自己打开所需设置的目标（连同重做后的 Experimental 效果的滑块共 43 个）、紧凑的电平表、实时种子、带 Preset 和 Load 的十个预设、作为默认来源且没有 Off 的 File，以及改为开关的 Drive letters（第 5 步）。第 3 步中的 Step 映射（Allowed directions、Sides、Rings）和实时 SVG 重绘的测量尚未实现；视频录制（第 6 步）已在阶段 H 中完成。阶段 F（见下文）把闪烁限制改成滑块和种子共用的一份额度，给 Beat 加上对持续低音的门控，让 Sound 在没有载入字体时不驱动，并在两次访问之间保存映射。见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
 
 这是次要产品路线（约占规划重点的 30%）。Sound 标签页用实时声音驱动 Geometry 和 Experimental 中已有的参数。该功能保持可选；关闭时，字体工具的表现与之前完全相同。
 
@@ -400,7 +401,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 
 1. **音频引擎：** 通过 Web Audio 接入 File（默认）和 Microphone 两种来源，在本地解码和分析；没有 Off 来源。音频上下文在第一次需要它的用户操作中创建，空闲时暂停。麦克风只在用户明确点击后启动，停止时释放。
    - 在 20 Hz 高通之后，一条立体声测量分支（上混到两个声道、一个声道分离器和两个分析器）给出左右声道；单声道来源读作居中。左右声道的读数会与混合后的数据块核对，如果两次读取之间音频线程渲染了新数据就重新读取；仍对不上时，保持上一对对得上的读数。扬声器和麦克风的连接方式不变。
-2. **特征：** 对每个分析帧计算的纯函数，共 10 个，分五组（`src/sound/mapping.ts` 中的 `FEATURES`），由第 3 阶段最初测量的 20 个合并而来：
+2. **特征：** 对每个分析帧计算的纯函数，共 10 个，分五组（`src/sound/mapping.ts` 中的 `FEATURES`），由第 3 阶段最初测量的 20 个合并而来（阶段 H 在 Tone 中加入第 11 个：Melody）：
    - Loudness：Level（RMS）和 Swell（缓慢平滑的 Level：上升 300 ms，回落 2 s）。
    - Bands：Bass / Mids / Treble 频带能量（20–250 Hz、250–2000 Hz、2000 Hz 到奈奎斯特频率），每个都与自己最近最响的时刻相比。
    - Tone：Brightness（频谱质心）；Pitch（在降到最多 24 kHz 的采样上用 YIN 求音高，55 Hz → 0 到 1760 Hz → 1，对数刻度；无音高时保持上一个音，静音时为 0）。
@@ -422,17 +423,17 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 只在 Sound 能驱动时统计种子的跳变。暂停、停止或关闭 Drive letters 时，种子完全回到字段中的值（再次播放时从这些值开始）；共用的闪烁额度在这期间保留，精确恢复本身也从中扣一次大变化。Freeze 把实时种子写入种子字段。
    - 在 Worker 中测量（Arial，24 个不同字形）：种子跳一次会重新计算每个字形，用时约 2–3.5 ms；Level → Noise amplitude 每帧 2.4 ms，三个映射一起 12 ms，所有 Experimental 效果全开 37–41 ms（24–27 fps）。Experimental 的数字测于 Crumple、Slipstream 和 Thorn 重做之前，重做让它们都变重了。
 5. **界面：** 第三个标签页 **Sound**，包含：
-   - Source（File 或 Microphone）、电平表、Sensitivity、Smoothing，以及 Drive letters 开关。电平表每个特征一行（名称、条、数值），分五组，每组有一个 ⓘ；Pan 从中间向两边填充，显示为 "L 40" / "R 40" / "C"，Pitch 以 Hz 显示，Beat 是脉冲条，取代了原来的指示灯（开启减少动态效果时仍然工作）。
+   - Source（File 或 Microphone）、电平表、Sensitivity、Smoothing（阶段 H 中改名为 Release 并移入 Response 组），以及 Drive letters 开关。电平表每个特征一行（名称、条、数值），分五组，每组有一个 ⓘ；Pan 从中间向两边填充，显示为 "L 40" / "R 40" / "C"，Pitch 以 Hz 显示，Beat 是脉冲条，取代了原来的指示灯（开启减少动态效果时仍然工作）。
    - 带预设的映射列表。Feature 列表与电平表分组相同；目标显示为 "Section · Label"，Experimental 的种子只显示 "Seed"；在种子上，Depth 显示为 Rate。选中一个设置处于关闭状态的目标时，会打开该设置并在这一行下面说明（"Turned on Ripple."）；不会再自动关闭任何东西。如果用户之后又关掉了设置，这一行会说明原因并提供 Enable。用键盘时，按 Enter 或焦点离开列表时才应用目标。Add mapping 优先选已经起作用的目标。在 Preset 列表中选择只是选中；Load 把 Geometry 和 Experimental 的设置恢复为默认值（保留种子），设好预设的起始值，用预设的映射替换当前映射，并在 Preset 一行下方说明关闭了什么，这些合起来是一个撤销步骤；一个 ⓘ 列出每个预设，各一行说明。映射在两次访问之间保存。
    - Freeze 和 Reset sound。
    - 被驱动滑块上的实时值标记，以及被驱动的种子字段旁边显示实时种子的小数字。
    - 状态栏中的 "Live · N fps"。
-6. **以后：** 视频录制。
+6. **视频录制：** 已在阶段 H（见下文）中完成。
 
 流水线：
 
 ```text
-音频文件 / 麦克风 → Web Audio 分析器（混合后；左右声道）→ 10 个特征（Loudness、Bands、Tone、Rhythm、Stereo）
+音频文件 / 麦克风 → Web Audio 分析器（混合后；左右声道）→ 11 个特征（Loudness、Bands、Tone、Rhythm、Stereo）
 滑块值 + 种子 + 特征 + 映射 → 实时参数（取整到滑块档位并截断；种子按跳变次数前进）
 实时参数 → 现有几何流程（Worker）→ 画布        Freeze → 滑块值和种子 → 导出
 ```
@@ -443,7 +444,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 - 测试音轨 `test-audio/sound-test.wav`（42 s，16 位立体声，44.1 kHz；由 `scripts/test-track.ts` 在内存中生成，`npm run test-track` 写成文件，不提交到仓库）每一段都读出应有的特征：0–26 s 与之前相同（只有底鼓、底鼓加踩镲、上升的和弦、静音、渐弱的完整混音、每秒 16 次的踩镲），之后是从 A2 到 A5 再回来的单音旋律（26–32 s，Pitch），每半秒在最左和最右之间切换的踩镲，下面是居中的轻低音（32–38 s，Pan），以及渐弱的宽阔不相关噪声（38–42 s，Pan 保持居中）。
 - 暂停、停止收音、关闭 Drive letters、关闭映射或 Depth 为 0 时，完全恢复滑块值；暂停时完全恢复种子。
 - 在测试音轨上，Beat → Distortion · Seed 在只有底鼓的部分每拍都跳（每秒 1.89 次），在每秒 8 拍时被限制在每秒约 4.3–4.5 次。
-- 每一帧都是一组普通参数，因此保持有效且没有曲线。
+- 画面上的每个字母都显示一组普通参数（阶段 H 起每帧最多三组），因此保持有效且没有曲线。
 - 逐个预设测量帧率。
 - 先 Freeze 再 Export，能复现冻结时的样子。
 
@@ -509,3 +510,64 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 - 合并时，被又长又细的刺弄得平均宽度很窄的字母会保留下来。
 - 两种测试字体的拉丁样本在 120 em 的对角线上以 Reach 100% 导出，没有字形被排除，回读时都在字体的限制之内。
 - 以 em 计 Reach 保存的会话，在它保存的字号和画布上恢复出同样长度的刺。
+
+---
+
+# 阶段 H：逐字母的声音响应、Response 控件与视频录制
+
+> **实现状态：** 已完成（分支 `feature/sound-visuals`，2026-10-14）。每个字母可以按自己的幅度回应声音，六个 Response 控件决定字母怎样回应声音，画布可以连同声音录成视频。Response 设置都在默认值时，Sound 的表现与之前完全相同。详见 PRD 第 11 节和 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md)。
+
+1. **字母**（`src/sound/letters.ts`，纯函数）：文字中字形的每一处出现都是一个字母，按画布摆放它们的顺序计数（空格和缺失的字形也计数，但从不驱动）。每个字母有它在文字块中的横向位置（左端 0，右端 1），以及按前进宽度算出的它占整段文字的份额。
+   - **Motion contrast：** 字母的权重来自它所在位置的一个稳定哈希和一个缓慢的波（6 s，每个字母错开一些），所以领头的字母每隔几秒就会换。100% 时权重从共享幅度的 1/3.6 到 3.6 倍，以 1 为中心均衡分布：画出的字母中大约 17% 平静、67% 共享、17% 强烈（Roboto 默认文字画出的 196 个字母中分别是 33、132 和 34 个）。Strength 决定整体幅度；Motion contrast 只负责把它拉开。
+   - **Pitch reactive：** 近来旋律中的低音让左边的字母权重更大，高音让右边的字母权重更大，所以无论曲调在哪个音区，都会扫过整段文字。音高放在旋律音域里（`pitchPlace`），这个音域由 `features.ts` 记在每一帧中（`pitchLow`、`pitchHigh`；`SOUND_LIMITS.melodyRangeAttackMs` 150、`melodyRangeReleaseMs` 8000、`melodyRangeMinSt` 12）：一开始是围绕第一个稳定下来的音的一个八度，遇到更高或更低的新音时约 0.15 秒内扩展过去，约 8 秒内向最后一个音收拢，超过 8 秒没有音就重新开始，始终至少一个八度宽，并忽略距 Pitch 的 55–1760 Hz 刻度两端一个半音以内的音（和弦和鼓会读在那里）。旋律第一次上行时，每个新的最高音都落在最右端；音域听过一遍之后，每个音都有自己的位置。需要清楚的单个音。
+   - **三个档位：** 权重被归到三个档位（平静、共享、强烈），档位在一个设置下固定，所以声音平稳时，字母只会换到已经算好的参数组上。两个控件合起来也保持在固定的界限之内。字母只有在权重明显越过边界后才离开它的档位（滞后），所以不会在两个档位之间来回闪。
+   - **每个字母都是滑块值：** 档位把每个被驱动滑块相对于滑块自身位置的实时偏移按比例缩放，再截断、取整到档位；结果落在滑块自身那一档时，就正好是滑块的值。Pan 保持它的正负号。种子由所有字母共用，Strength 缩放它们的 Rate。
+   - **已知限制：** 在档位很少的滑块上，只有共享值离开了滑块自身那一档之后，平静和强烈的字母才会拉开。
+2. **画面上每个字母的闪烁限制**（`src/sound/live.ts`、`src/sound/flash.ts`）：
+   - 一个滑块的折返量，取它的共享折返量和每个有字母正在显示或即将显示的档位的折返量中最大的那个。档位是共享值的单调映射，所以只在共享值折返时折返；让共享值停住，每个字母也就停住。
+   - 字母在档位之间切换：它们的移动量按每个字母占文字的份额加权，从画面上的档位量起（`switchSwing`），也从最近 250 ms 内显示过的每一帧的档位量起（`LIVE_LIMITS.switchSpanMs`），取较大者，所以一次分几帧到达画面的换音只算一次变化；一次从额度中扣除的移动之后，这串记录重新开始。移动量达到滑道的 10% 或以上就是一次大变化，每个显示出来的帧最多从同一份额度中扣一次；额度用完时，每个字母保持画面上的档位。
+   - Motion contrast 或 Pitch reactive 改变、文字变成不同数量的字母，或 Sound 停止时，档位重新开始。只改同一段文字的样式（字距、行高、对齐、倾斜）时，每个字母保留它的档位。
+3. **每帧一个请求**（`src/geometry/protocol.ts`、`workerCore.ts`、`src/state/geometryClient.ts`）：
+   - 一个计算请求带若干任务，每个任务是一个参数键和它的字形。实时帧先发共享值，覆盖画面上的每个字形，再发强烈和平静档位的字形，全部通过 `prefetchJobs()` 放在同一个请求里；全部到齐后才提交这一帧。
+   - Worker 按顺序执行任务，每个任务的结果用它自己的键发送，心跳中写明键，最后只发一个 `done`。正在处理的请求如果已经覆盖每一个缺少的（键，字形）对，客户端就沿用它。
+   - 实时结果按最近最少使用的顺序保留，最多 6 组参数（`LIVE_KEPT_KEYS`），所以下一帧计算时，画面上那一帧的档位仍然保留。只有请求的第一个任务会成为字形的替身形状，在其他设置计算时显示。
+   - 画布按字母在文字中的位置查找它（`PolygonLookup(index, occurrence)`），样张 SVG 按多边形为路径建索引，所以预览显示每个字母自己的形状。所有字母都用共享值时，输出与之前逐字节相同。
+4. **Response 控件**（`src/sound/types.ts`、`features.ts`、`mapping.ts`、`jumps.ts`、`mappingStore.ts`、`src/components/SoundControls.tsx`）：
+   - Analysis 组改为 **Response**：Sensitivity（−24 到 +24 dB，档位 1）、Strength（0–400%，档位 5）、Motion contrast（0–100%，档位 1）、Release（20–1000 ms，档位 10；原名 Smoothing，起音时间仍然固定）、Pitch reactive（0–200%，档位 5）和 Melody tracking（0–200%，档位 5）。范围写在 `SOUND_LIMITS` 和 `RESPONSE_LIMITS` 里；默认值都是中性的（`NEUTRAL_RESPONSE`）。
+   - Strength 乘到每个滑块映射的总和以及每个种子的 Rate 上（Rate 最多为 1）。0% 时 Sound 停止驱动，完全恢复滑块值和种子，Mappings 组显示 "Strength is 0%: the letters hold still."。
+   - **Melody** 是 Tone 中的新特征，有自己的电平表，也能像其他特征一样映射：音高换到一个相差至少半个半音的新音、并在那里稍作停留时，产生一次脉冲。颤音、鼓声以及静音后滑进一个音都不产生脉冲，它按 Release 回落。Melody tracking 把它的值的一半 × Melody 加到每个滑块映射的特征上，Pan 的行、Melody 的行和种子除外。
+   - 这六个值作为一个可选的 `sound` 块保存在会话中（会话版本仍是 2；没有这个块的会话按默认值读取），并像映射一样可以撤销：拖动一次算一步，把六个一起恢复的 Reset sound 也算一步。预设不改动它们。
+5. **Freeze 与状态：** Freeze 写入共享值和其中被停住的值，它们已经算好，所以切换是立即的，之后每个字母都采用它们；它的说明会写明这一点。滑块上的标记、实时种子、状态栏和选中字形的统计都显示共享值；"Live · N fps" 统计完整的帧，包括所有档位。它是几何计算的速率，而不是读取声音的频率：声音每个动画帧读取一次，所以标签页被隐藏或被遮住时一帧也不读，字母不再跟随声音，直到标签页重新显示。Motion contrast 或 Pitch reactive 大于 0 时，太慢的提示也会建议调低它们。
+6. **视频录制**（`src/export/videoFormat.ts`、`drawArtboard.ts`、`recorder.ts`、`src/sound/engine.ts` 中的音频分支、`src/components/RecordControls.tsx`、`RecordingCanvas.tsx`、`RecordingIndicator.tsx`、`Header.tsx`、`ExportDialog.tsx`）：
+   - `videoFormat.ts`（纯函数，`VIDEO_LIMITS`）：要尝试的 MIME 类型（H.264 High，然后 Baseline，然后任意 H.264，然后浏览器自己的 MP4；VP9，然后 VP8，然后浏览器自己的 WebM），MP4 不行时退回 WebM；尺寸（画布的导出尺寸，最长边不超过 3840 px，面积不超过 3840 × 2160，边长为偶数）；码率（每像素 4.5 比特，2–12 Mbps，所以 10 分钟约 0.9 GB）；音频延迟（实时延迟加 37 ms，在 40–400 ms 之间，测到第一帧之前用 90 ms）；文件名；以及时钟。
+   - `drawArtboard.ts`（纯函数）：按 SVG 导出的画法把场景画到画布上：总是先画纸色；每个字母各填充一次（nonzero），所以不同档位的字母各自显示自己的形状；倾斜画成错切；画布支持滤镜时，模糊通过第二个图层完成。`touchCanvas` 把一个像素复制到它自己上面，并裁剪到这个像素，所以静止的画布也照样产生帧。
+   - `recorder.ts`：一个通过注入依赖工作的控制器，加上一个带 hook 的页面单例。一次录制先锁定尺寸和 MIME 类型，需要时启动来源（Whole file 会跳到 0 并关闭 Loop），然后等待声音和第一个画好的帧（30 s 后放弃）。之后它捕获画布（`captureStream` 和 `requestFrame`），并加入引擎延迟后的音轨。
+   - 按 Stop、到达设定时长、声音停止、结束或切换、标签页被隐藏、画布尺寸改变或字体关闭、录制器出错（保存出错之前的内容），或到 10 分钟时，录制停止并保存。到达设定时长、或因文件暂停或结束而停止的录制，会多录音频延迟加 100 ms，让声音的结尾也进入文件；按 Stop、到达 10 分钟上限或麦克风停止后，多录 100 ms，留住最后一帧；标签页被隐藏、出错、画布或字体改变时立即停止。之后它恢复 Loop，只暂停由它自己启动的来源。
+   - 引擎的音频分支：测量用的来源（听到的文件，或麦克风）经过一个延迟进入一个供录制使用的流；扬声器听到的不变。
+   - 界面：Sound 标签页底部的 **Record** 组（Record 或 Stop、已录时长、Format、Length、Include audio、Use the preview look、尺寸一行、"Live · N fps"，以及上一次录制是怎样结束的）；Export 对话框中的 **Video**，它的 Record 会关闭对话框并开始录制；顶部栏依次显示 "Starting to record…"、带一个只有图标的 Stop 的 "Recording 0:12"，然后是 "Saving the video…"，结束后显示录制是怎样结束的，并带一个关闭按钮。录制期间 Freeze 不可用。录制用的画布放在屏幕之外，只在录制期间存在。录制期间离开页面会先询问。
+7. **测试：** 快速测试新增八个文件，现在共 31 个：
+   - `tests/sound/neutral.test.ts`，在提交 4a54e5d 时、任何其他改动之前写好：在中性的 Response 设置下，`modulate`、实时调度的请求、提交和 Freeze、分析器的读数，以及 Roboto 默认文字一直到 SVG 的结果，哈希都与之前相同（读数按 10 位有效数字，其余为精确值）。CI（Linux x64）显示 V8 的 `Math.log2` 和 `Math.log10` 在 x64 和 arm64 之间最后一位不同之后，读数的锁定值从 4a54e5d 在两边重新取过一次。
+   - `tests/sound/letters.test.ts`、`tests/sound/jumps.test.ts`、`tests/specimen/occurrence.test.ts`、`tests/export/specimenPaths.test.ts`、`tests/export/videoFormat.test.ts`、`tests/export/drawArtboard.test.ts` 和 `tests/export/recorder.test.ts`（时钟和计时器、引擎、画布、MediaRecorder 以及标签页可见性都用假实现；完全不碰 DOM，也不下载任何东西）。
+   - 闪烁、实时调度、特征、映射、会话保存、历史、Worker 和客户端的测试中都新增了用例。其中包括：特征测试里的旋律音域（5 个用例）；字母测试里的 `pitchPlace`；闪烁测试里按画面计数（从最近 250 ms 内显示过的任何一帧算起，档位之间的移动只算一次变化）、横跨整个音域每秒 6 次的八度，以及经过 `FeatureExtractor` 和调度器的真实音：C4 和 C5 交替时，每个 C4 都停在左边（强烈档位字母的平均位置低于 0.35），每个 C5 都停在右边（高于 0.65），Pitch reactive 100% 时每个音都到位，200% 时至少 80% 到位；测试音轨的旋律在 100% 时，第二遍从左到右再回来；两者每秒都最多 6 次大变化。慢速测试的测试音轨检查旋律段落中 11 次换音大约每次都有一个 Melody 脉冲（11 次，允许差一次），而之前的踩镲上一个也没有。
+8. **测量结果**（Node，单线程，每帧都重新计算，Roboto 默认文字：226 个字母，画出 196 个，24 个不同字形；每帧毫秒数的中位数）：
+
+   | 负载 | 中性 | Motion contrast 100% | Pitch reactive 200% | 两者都开 |
+   |---|---|---|---|---|
+   | 轻量（Level → Noise amplitude） | 3.3 | 6.6 | 7.1 | 6.1 |
+   | Thorn（Reach 和 Root） | 15.2 | 30.5 | 29.5 | 25.3 |
+   | Flare 预设 | 6.3 | 13.9 | 16.3 | 15.1 |
+   | Crumple、Ripple、Whorl 和 Slipstream | 74.7 | 446 | 311 | 503 |
+
+   - 每帧计算的字形数：中性时 24 个，字母分档时 54 到 61 个。跟踪档位本身每帧用时 0.09–0.15 ms。
+   - Pitch reactive 一列是在它跟随旋律音域之前测的；每帧的计算方式没有变化。
+   - 在浏览器中，Jitter 预设在测试音轨的底鼓段落是 30 fps；在踩镲段落，Motion contrast 为 0% 时是 23 fps，为 60% 时是 16–17 fps。
+   - 在无头 Chrome 中（标签页可见，测试音轨 25–33 秒，Roboto 的默认文字，Jitter 的映射），Pitch reactive 100% 时，每个音结束时强烈档位字母的平均位置（0 是文字左端，1 是右端）按 A2 A3 A4 A5 A4 A3 依次为：旋律第一遍 0.47 0.83 0.83 0.83 0.64 0.26，第二遍 0.15 0.36 0.70 0.82 0.64 0.26；音高放在 Pitch 整个刻度上时是 0.22 0.38 0.57 0.72 0.62 0.43；每秒约 60 个动画帧、13 次提交。标签页隐藏时没有帧，所以字母保持不动，直到它重新显示。
+
+阶段验收：
+- `npm run build`、`npm test`（31 个文件）和 `npm run test:slow` 通过；CJK 检查不输出任何内容；每个输出仍然只有 `M`、`L` 和 `Z`。
+- `tests/sound/neutral.test.ts` 在 x64 和 arm64 上都通过，所以 Response 设置都在默认值时，Sound 给出的请求、帧、Freeze、读数和 SVG 都与之前相同。
+- 画面上的每个字母都保持在每秒 3 次闪烁以内：在 Strength 400%、Motion contrast 100%、Pitch reactive 200% 下用方波驱动，音高每秒跳一个八度 6 次，画面上任意一秒内最多 6 次大变化，而字母仍在动。一次在 250 ms 内分几帧到达画面的档位移动只算一次变化，真实的 C4 和 C5 音仍能在限制之内分别落到左边和右边。
+- Jitter 播放时把 Motion contrast 设为 60%，画布上有 16–19 个字形显示不止一种形状，预览画出的不同路径比字形还多。回到 0%，或按 Freeze 之后，每个字形又只有一种形状，滑块停在冻结的值上，也从不显示 "Updating"。
+- WebM 和 MP4 各录 5 s、1200 × 800 的视频，保存后尺寸、时长和画面都正确。拒绝 MP4 时，录制保存为 WebM，并显示 "MP4 isn't supported in this browser: saved as WebM."。
+- Export → Video → Record 会关闭对话框，顶部栏显示 "Recording 0:02" 和 Stop，按 Stop 保存这次录制。隐藏标签页会停止并保存，并显示 "Recording stopped because the tab was hidden."。录制不增加长任务，静止的画布也照样录成帧。
+- 撤销能恢复 Response 的值；Sensitivity、Release 和四个响应值在重新载入页面后仍然保留。

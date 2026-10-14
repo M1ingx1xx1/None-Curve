@@ -1,5 +1,6 @@
 // The session saved between visits in localStorage: the settings, the canvas view's buttons, the text,
-// the preview look, the export precision, the Sound mappings, and which font and glyph were open. Read
+// the preview look, the export precision, the Sound mappings and Response group (Sensitivity, Release,
+// Strength, Motion contrast, Pitch reactive, Melody tracking), and which font and glyph were open. Read
 // once on start and checked leaf by leaf against the defaults, so a damaged or older entry never breaks
 // the app; written a moment after each change.
 
@@ -12,6 +13,7 @@ import type { GoogleFontRequest } from '../font/google'
 import type { LoadedFont } from '../font/model'
 import { featureById, targetById, type FeatureId, type Mapping } from '../sound/mapping'
 import { clampDepth, MAPPING_LIMITS } from '../sound/mappingStore'
+import { DEFAULT_SOUND_SETTINGS, RESPONSE_LIMITS, snapToStep, SOUND_LIMITS, type SoundSettings } from '../sound/types'
 import {
   ARTBOARD_LIMITS,
   normalizeHex,
@@ -54,6 +56,8 @@ export interface Session {
   previewLook: PreviewLook
   precision: number
   mappings: readonly Mapping[]
+  /** The Sound tab's Response group; readSession always fills it (missing in sessions saved before it existed). */
+  sound?: SoundSettings
   font: SavedFont | null
   glyph: SavedGlyph | null
 }
@@ -252,6 +256,29 @@ function readMappings(saved: unknown): Mapping[] {
   return mappings
 }
 
+/** Range and step of each saved Sound setting: the Response group's sliders. */
+const SOUND_RANGES: { [K in keyof SoundSettings]: { min: number; max: number; step: number } } = {
+  sensitivity: { min: SOUND_LIMITS.minSensitivity, max: SOUND_LIMITS.maxSensitivity, step: SOUND_LIMITS.sensitivityStep },
+  releaseMs: { min: SOUND_LIMITS.minReleaseMs, max: SOUND_LIMITS.maxReleaseMs, step: SOUND_LIMITS.releaseStepMs },
+  strength: RESPONSE_LIMITS.strength,
+  contrast: RESPONSE_LIMITS.contrast,
+  pitchReactive: RESPONSE_LIMITS.pitchReactive,
+  melody: RESPONSE_LIMITS.melody,
+}
+
+/** The saved Sound settings: each a finite number, clamped to its slider and rounded to its step; otherwise the default. */
+export function readSound(saved: unknown): SoundSettings {
+  const source = isObject(saved) ? saved : {}
+  const sound = { ...DEFAULT_SOUND_SETTINGS }
+  for (const key of Object.keys(SOUND_RANGES) as (keyof SoundSettings)[]) {
+    const value = source[key]
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue
+    const { min, max, step } = SOUND_RANGES[key]
+    sound[key] = snapToStep(clamp(value, min, max), step)
+  }
+  return sound
+}
+
 const shortText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max
 
 function readFont(saved: unknown): SavedFont | null {
@@ -289,6 +316,7 @@ export function readSession(raw: unknown): Session | null {
         ? precision
         : initialState.document.export.precision,
     mappings: readMappings(saved.mappings),
+    sound: readSound(saved.sound),
     font: readFont(saved.font),
     glyph: readGlyph(saved.glyph),
   }

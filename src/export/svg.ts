@@ -97,14 +97,15 @@ export type SvgPathCache = WeakMap<PolygonGlyph, { decimals: number; d: string; 
 export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, decimals: number, cache?: SvgPathCache): SpecimenPaths {
   const scale = Number((1 / layout.unitsPerPx).toPrecision(8))
   const skew = scene.slant ? ` skewX(${num(-scene.slant, 4)})` : ''
-  const shapes = new Map<number, { d: string; vertices: number }>()
+  // By polygon, not glyph id: a letter that reacts to Sound by its own amount has a shape of its own.
+  const shapes = new Map<PolygonGlyph, { d: string; vertices: number }>()
   const paths: SvgGlyphPath[] = []
   let vertices = 0
   for (const line of scene.lines) {
     for (const glyph of line.glyphs) {
       const { polygon } = glyph
       if (!polygon || polygon.contours.length === 0) continue
-      let shape = shapes.get(glyph.index)
+      let shape = shapes.get(polygon)
       if (!shape) {
         const cached = cache?.get(polygon)
         if (cached && cached.decimals === decimals) shape = cached
@@ -114,7 +115,7 @@ export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, deci
           cache?.set(polygon, entry)
           shape = entry
         }
-        shapes.set(glyph.index, shape)
+        shapes.set(polygon, shape)
       }
       paths.push({ transform: `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`, d: shape.d })
       vertices += shape.vertices

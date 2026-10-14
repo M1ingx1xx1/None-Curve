@@ -231,6 +231,16 @@ export interface GeometryParams {
   experimental: ExperimentalParams
 }
 
+/** Glyphs to compute under one parameter set (`key` stands for `params`), most important first. */
+export interface GeometryJob {
+  params: GeometryParams
+  key: string
+  indices: readonly number[]
+}
+
+/** A live frame's parameter set (a GeometryJob): without `indices`, the glyphs the canvas shows. */
+export type FrameJob = Omit<GeometryJob, 'indices'> & { indices?: readonly number[] }
+
 // ---- Canonical polygon geometry (single source of truth for canvas and export) ----
 
 export interface PolygonContour {

@@ -17,6 +17,7 @@ You can:
 - Look at one letter closely, with its original curve points.
 - Save a letter or your text as an **SVG** image, or turn the reshaped letters into a new **font file** (`.otf`).
 - Play an audio file or use the microphone and let the sound move the letters live — for example, outlines that roughen when the music gets loud, petals that open on the bass, or points that jump to new places on every beat.
+- Record the moving letters as a **video** (MP4 or WebM), with the sound in it.
 
 Everything happens inside your web browser. Your font and audio files are never uploaded anywhere.
 
@@ -54,7 +55,7 @@ The screen is split into two rows and five areas:
 4. **Text input** — type the text you want to see on the canvas.
 5. **Preview** — a small picture of exactly what an SVG export would save: all your text, filled, on the canvas, with its own **Blur** slider and **Invert** button.
 
-At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo and redo](#undo-and-redo) below), and an **Export…** button. Along the bottom a status line tells you what is shown and which settings are active.
+At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo and redo](#undo-and-redo) below), and an **Export…** button. While a video is being recorded, a red light, the time recorded (for example "Recording 0:12"), and a square stop button appear beside them (see [Record a video](#record-a-video)). Along the bottom a status line tells you what is shown and which settings are active.
 
 **Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
 
@@ -71,9 +72,9 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 
 **Undo** takes back your last change and **Redo** puts it back again. Use the two arrow buttons at the top right, or the keyboard: on a Mac, ⌘Z undoes and ⇧⌘Z redoes; on Windows and Linux, Ctrl+Z undoes and Ctrl+Shift+Z or Ctrl+Y redoes. Pointing at a button shows its shortcut. The app keeps up to 100 steps.
 
-- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and the Sound tab's mappings. The reset buttons count too, so Undo brings back what a reset cleared.
+- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and in the Sound tab the mappings and the six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking). The reset buttons count too, so Undo brings back what a reset (including **Reset sound**) cleared.
 - **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, and picking a mapping target together with the settings it switched on.
-- **What is not undone:** the canvas view (Original / Flattened / Compare, the layer buttons, zoom, and moving around), which letter is selected, the preview's Blur and Invert, the export settings, loading a font, and the Sound tab's **Drive letters**, source, **Sensitivity**, and **Smoothing**. Sound moving the letters is never recorded either: only your own changes are.
+- **What is not undone:** the canvas view (Original / Flattened / Compare, the layer buttons, zoom, and moving around), which letter is selected, the preview's Blur and Invert, the export settings, loading a font, the Sound tab's **Drive letters** and source, and the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**). Sound moving the letters is never recorded either: only your own changes are.
 - **Inside a typing box** — the text box, or a box you type a number, colour code, or name into — the shortcuts undo your typing in that box only, as in any text field. The buttons at the top still undo whole steps. While a dialog (such as **Export…**) is open, the shortcuts do nothing.
 - The steps are forgotten when you close the page: the next visit starts with nothing to undo.
 
@@ -81,11 +82,11 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 
 The app keeps your work in this browser by itself, a moment after each change, and brings it back the next time you open it on the same computer in the same browser.
 
-- **Kept:** the text; every setting in the Geometry, Experimental, Typography, and Color tabs; the canvas size; the canvas view buttons (Original / Flattened / Compare and the layers, but not the zoom or where you moved to); the preview's Blur and Invert; the export's **Coordinate precision**; the Sound tab's mappings; the selected letter (when the same font opens again); and the font itself.
+- **Kept:** the text; every setting in the Geometry, Experimental, Typography, and Color tabs; the canvas size; the canvas view buttons (Original / Flattened / Compare and the layers, but not the zoom or where you moved to); the preview's Blur and Invert; the export's **Coordinate precision**; the Sound tab's mappings and its six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking); the selected letter (when the same font opens again); and the font itself.
 - **The font:** a Google font is downloaded again by itself when the page opens (this needs an internet connection). A font from your computer cannot be reopened for you: the canvas says "Last font: *name*. Import it again to continue." Import the same file and carry on — your settings are already in place.
-- **Not kept:** the Sound tab's **Drive letters**, source (file or microphone), **Sensitivity**, and **Smoothing**; open dialogs; the light or dark look; and the undo steps. (As before, the app also remembers the size of the areas, the tabs you had open, whether the **Canvas size** settings are open, and **Show all explanations**.)
+- **Not kept:** the Sound tab's **Drive letters** and source (file or microphone); the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**), which last until you close the page; open dialogs; the light or dark look; and the undo steps. (As before, the app also remembers the size of the areas, the tabs you had open, whether the **Canvas size** settings are open, and **Show all explanations**.)
 - **Work saved by an older version of the app:** Thorn's **Reach** used to be a share of the em (the letters' design square) and is now a share of the canvas (see Thorn in the Experimental tab). Older saved work is converted to the share that gives the thorns the same length with the text size and canvas size it was saved with, so they come back as they were. Thorns that were on stay on: however short they were, they come back at least as long as the slider's first step. Sound rows on Reach keep their **Depth**.
-- **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, and mappings still come back.
+- **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, mappings, and **Response** sliders still come back.
 - **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
 - **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it.
 
@@ -200,7 +201,7 @@ The **Preview** (bottom right) shows the whole canvas exactly as an SVG export w
 - Its outlines are rounded the same way as the SVG file (see **Coordinate precision** in [Saving your work](#10-saving-your-work-export)), so what you see here is what you get.
 - With **Transparent background** (Color tab) on, the empty background shows as a checkerboard.
 - If saving the text as an SVG would fail, the preview says "Export would fail: …" with the reason instead.
-- While the Sound tab moves the letters, the preview moves with them. Exports still use your sliders (see **Freeze**).
+- While the Sound tab moves the letters, the preview moves with them. SVG, PNG, and font exports still use your sliders (see **Freeze**); a video records the moving letters (see [Record a video](#record-a-video)).
 
 - **Blur** softens the preview, as if you looked at the text from far away or squinted. This shows the overall shape and rhythm of the letters without the details — a quick way to check whether a rough or faceted style still reads well.
 - **Invert** swaps the text and background colours in the preview — dark letters on light become light on dark, and back. Useful to check how the text works both ways, for example for a sign or a dark poster.
@@ -213,7 +214,7 @@ The text sits on a **canvas** of a fixed size in pixels, like a page or an artbo
 
 - **W** and **H** — the width and height in pixels. Drag the slider or type a number (it takes effect when you press Enter or click elsewhere).
 - **1:1, 4:3, 16:9, 4:5, 3:2, 3:4** — common picture shapes. The width stays and the height follows. **Swap** turns a landscape canvas into a portrait one and back.
-- **1×, 2×, 3×, 4×** — how many times larger a PNG export is. The layout stays the same; a higher number just gives a sharper, larger image (shown underneath, for example 2400 × 1600 px).
+- **1×, 2×, 3×, 4×** — how many times larger a PNG export is. The layout stays the same; a higher number just gives a sharper, larger image (shown underneath, for example 2400 × 1600 px). A video uses the same size, unless that is larger than 4K (see [Record a video](#record-a-video)).
 
 If the text is too big for the canvas, a red note appears on the big canvas ("The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography → Fit text."); the preview and exports cut the text off at the edge. **Typography → Fit text** makes it fit.
 
@@ -400,9 +401,9 @@ Every copy of a letter gets the same folds, cuts, trails, and thorns, so an expo
 
 ### Sound tab — letters that move with the sound
 
-The third tab, next to **Experimental**. It plays an audio file or listens to the microphone and measures the sound as it goes: how loud it is, how much bass, middle, and treble it has, how bright it sounds, which note is playing, where the beats fall and how busy the sound is, and where the sound sits between left and right. It can also move the letters with the sound: you connect a reading, such as loudness, to a slider, such as Distortion's **Noise amplitude**, and while the music plays the letters roughen when it gets loud and calm down when it gets quiet. You can also connect a reading to a **seed**, so that the points of the letters jump to new places on every beat (see **Mappings** and **Seeds** below).
+The third tab, next to **Experimental**. It plays an audio file or listens to the microphone and measures the sound as it goes: how loud it is, how much bass, middle, and treble it has, how bright it sounds, which note is playing, where the beats fall and how busy the sound is, and where the sound sits between left and right. It can also move the letters with the sound: you connect a reading, such as loudness, to a slider, such as Distortion's **Noise amplitude**, and while the music plays the letters roughen when it gets loud and calm down when it gets quiet. You can also connect a reading to a **seed**, so that the points of the letters jump to new places on every beat (see **Mappings** and **Seeds** below). The **Response** sliders set how strongly the letters answer, and **Record** saves the moving letters as a video (see [Record a video](#record-a-video)).
 
-The sound only ever moves sliders and seeds, and only within their own range, so every shape you see is one you could also make by hand with the sliders and seed boxes — built from straight lines, like everything else in the app.
+The sound only ever moves sliders and seeds, and only within their own range, so every letter you see is one you could also make by hand with the sliders and seed boxes — built from straight lines, like everything else in the app. (With **Motion contrast** or **Pitch reactive**, letters can react by different amounts at the same moment, so two letters may sit at different slider values; each one is still a shape the sliders can make.)
 
 Your audio stays in your browser: a file is read on your computer and never uploaded, and the microphone is only used while you listen.
 
@@ -423,7 +424,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 - There is no "off" choice: to stop, press **Pause** (for a file) or **Stop listening** (for the microphone). Switching back to **File** keeps the file you chose, paused.
 - If a file plays or the microphone listens but nothing is heard for 3 seconds, the tab says **No sound detected.** Check the volume and that the microphone is not muted, or raise **Sensitivity** (below).
 
-**Levels** — what the sound is like right now: 10 readings in five groups, each on one line with its name, a bar, and a number. Click the **ⓘ** next to a group's name for a short explanation. While nothing plays or listens, the bars are empty and the numbers show "—". Most numbers are percentages: a full bar is 100 %.
+**Levels** — what the sound is like right now: 11 readings in five groups, each on one line with its name, a bar, and a number. Click the **ⓘ** next to a group's name for a short explanation. While nothing plays or listens, the bars are empty and the numbers show "—". Most numbers are percentages: a full bar is 100 %.
 
 - **Loudness**
   - **Level** — how loud the sound is overall. The number is in decibels (dB): the bar is empty at −60 dB and full at 0 dB, the loudest a recording can be. It shows "—" when it is silent.
@@ -432,8 +433,9 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 - **Tone**
   - **Brightness** — where the energy sits: dull, bass-heavy sound reads low; hiss and cymbals read high.
   - **Pitch** — the note being played or sung. It is made for one note at a time, such as a voice or a melody. The number is in hertz (Hz): the higher the number, the higher the note (440 Hz is the A that orchestras tune to). The bar is empty at 55 Hz (the lowest A of a bass guitar) and full at 1760 Hz, five octaves higher; each octave takes a fifth of the bar. Between notes (for example during a drum hit) it keeps the last note; in silence it drops back and shows "—".
+  - **Melody** — a bar that jumps each time the tune moves to a new note and falls back as fast as **Release** (below) sets. The bigger the step to the new note and the clearer the note, the higher it jumps. Like Pitch, it is made for one note at a time, such as a voice or a melody. A held note does not count, and neither does the slide into the first note after a pause or the small wobble of a singer's voice (vibrato). The new note has to last a moment, so some notes of a very quick run can be missed, and a strong wobble can now and then count as a new note.
 - **Rhythm**
-  - **Beat** — a bar that jumps to full at once and falls back, as fast as **Smoothing** (below) sets. It jumps on every new sound that starts suddenly: a drum hit, a clap, a plucked note. It listens for the bass drum separately too, so the deep "boom" of most dance and pop music makes it jump even when other sound drowns the drum out. A steady sound does not count, even a buzzy, droning bass note: Beat only jumps when the sound in some range of notes suddenly gets louder. Because of that, a bass drum much quieter than a loud bass note playing at the same time may be missed. It works the same with reduced motion turned on in your computer's settings.
+  - **Beat** — a bar that jumps to full at once and falls back, as fast as **Release** (below) sets. It jumps on every new sound that starts suddenly: a drum hit, a clap, a plucked note. It listens for the bass drum separately too, so the deep "boom" of most dance and pop music makes it jump even when other sound drowns the drum out. A steady sound does not count, even a buzzy, droning bass note: Beat only jumps when the sound in some range of notes suddenly gets louder. Because of that, a bass drum much quieter than a loud bass note playing at the same time may be missed. It works the same with reduced motion turned on in your computer's settings.
   - **Activity** — how busy the sound is right now. It jumps on every sudden change — drum hits, new notes — and stays up while beats come quickly: 8 beats a second fill the bar, 4 a second fill half. On a steady sound, such as a held note, a hum, or steady hiss, it stays near 0 %.
 - **Stereo** — where the sound sits between the left and right speakers. This needs a stereo source, so it is mainly for files: a microphone that records a single channel (mono) always reads "C".
   - **Pan** — the side the sound leans to: "C" when it is centred, "L 40" when it leans 40 % to the left, "R 40" when it leans 40 % to the right ("L 100": only the left speaker plays). Its bar grows from the middle towards that side. It is the only reading that goes both ways.
@@ -441,11 +443,11 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 
 **Mappings** — which sliders and seeds the sound moves, and how. Each mapping connects one reading to one slider or seed.
 
-- **Drive letters** — the main on/off switch. The sound moves the letters only while it is on **and** a file plays or the microphone listens (and a font is loaded: without one, the meters still work, but nothing moves). Switch it off to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts off and the tab says "Off because your system asks for reduced motion."; switch it on if you want the letters to move anyway. If you turn on reduce motion while the page is open, it switches itself off.
+- **Drive letters** — the main on/off switch. The sound moves the letters only while it is on **and** a file plays or the microphone listens (and a font is loaded: without one, the meters still work, but nothing moves). Switch it off to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts off and the tab says "Off because your system asks for reduced motion."; switch it on if you want the letters to move anyway. If you turn on reduce motion while the page is open, it switches itself off. If **Strength** (under **Response**, below) is at 0 %, the letters do not move either, and a note under the switch says "Strength is 0%: the letters hold still."
 - **Preset** and **Load** — set the letters up and fill in ready-made rows in one go; see **Presets** below.
 - **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a target that no row uses yet — one that already has an effect, if there is one. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
 - Each row has:
-  - **Feature** — the reading that drives it: any of the 10 readings above, listed in the same five groups.
+  - **Feature** — the reading that drives it: any of the 11 readings above, listed in the same five groups.
   - **Target** — what it moves. A slider is named after its group and its label, for example "Ripple · Petals". There are also three seeds: "Distortion · Seed", "Random anchors · Seed", and just "Seed" for the Experimental tab's seed. The list has two parts, **Geometry** and **Experimental**, in the same order as the tabs.
   - **Depth** — for a slider: how far it moves, from −100 % to +100 %. At +100 % the strongest sound takes the slider the whole length of its track; at +50 %, half of it. Negative values move it the other way, so louder sound turns the value down. 0 % does nothing. **Pan** goes both ways: with a positive Depth, sound on the right turns the value up and sound on the left turns it down.
   - **Rate** — for a seed, the same slider reads **Rate** instead, from 0 % to 100 %: how often the seed jumps (see **Seeds** below). 0 % does nothing.
@@ -485,7 +487,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 3. Press **Load**.
 4. Press **Play** (or **Start listening**).
 
-- **Load starts the letters afresh.** It first puts every setting in the **Geometry** and **Experimental** tabs back to its starting value — your three seeds are kept — then sets the few sliders the preset starts from, and replaces your rows with the preset's. So a preset always looks the same, whatever you had set before. Your text, typography, colours, canvas, and the Sound settings themselves (source, Sensitivity, Smoothing) are not touched.
+- **Load starts the letters afresh.** It first puts every setting in the **Geometry** and **Experimental** tabs back to its starting value — your three seeds are kept — then sets the few sliders the preset starts from, and replaces your rows with the preset's. So a preset always looks the same, whatever you had set before. Your text, typography, colours, canvas, the sound source, and the six **Response** sliders are not touched.
 - **A note under Preset says what Load did,** for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." It names the effects it switched off, so you know what went. The note goes away when you load again or pick another preset.
 - Load does not ask first, but it is a single undo step: press **Undo** (⌘Z on a Mac, Ctrl+Z elsewhere) right after it to get your earlier settings and rows back. The note under **Preset** then goes away. Picking a target yourself, as described above, never puts anything back to its default: it only switches on what that target needs.
 - After loading, change, add, or remove rows, or move any slider, as usual. The **ⓘ** next to **Preset** lists the presets too.
@@ -504,17 +506,24 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 **While the sound moves the letters:**
 
 - **Your sliders stay where you put them.** On each driven slider, a thin coloured line moves along the track to show where the sound has taken it right now (a driven seed shows its live seed beside its box instead; see **Seeds** above). When you pause, the file ends, you stop listening, or you switch off **Drive letters**, the letters go back exactly to your slider settings and seeds, and the lines and live seeds disappear.
-- **Live · N fps** — shown in the Sound tab and in the status line at the bottom: how many new shapes a second the app can keep up with (fps means frames per second). The app draws the next shape as soon as the last one is ready, at most 30 a second, so heavy settings and long texts give fewer.
-- **No flashing:** every driven slider and seed shares one limit, so that together they make the letters flash at most 3 times a second. A flash is a big change and the change back, so that is about 5 big changes a second. A big change is a slider turning back by a tenth of its track or more (several sliders turning back at the same moment count together once their moves add up to a tenth), or a seed jump (see **Seeds** above). When the music would go faster (fast drums with a short **Smoothing**, for example), the sliders wait a moment before they turn back again, and seed jumps are skipped.
-- If that falls below about 8 a second, the tab says "Too slow to follow the sound: try fewer effects or a shorter text." Turning off some Experimental effects, using a shorter text, or choosing lighter settings helps.
-- **Freeze** — copies what the letters look like right now into the sliders and seed boxes and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters. Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound. **Undo** puts the sliders and seeds back as they were before Freeze (the sound stays paused).
-- **Exports always use the sliders and seed boxes**, never the moving letters. To save a moment of the music, press **Freeze** first, then **Export…**. While the sound is moving the letters, the export dialog reminds you of this. **Fit text** and **Free** (in the Typography tab) also measure the letters as your sliders make them, as exports do.
+- **Letters can react by different amounts.** With **Motion contrast** or **Pitch reactive** (under **Response**, below) above 0 %, some letters move less than the others and some move more, so the same letter can look different in two places of the text. The line on a slider shows the shared value: where the sound takes the letters that react by the usual amount. Seeds jump the same way for every letter. At 0 % (where both start), all letters move together.
+- **Live · N fps** — shown in the Sound tab and in the status line at the bottom: how many new shapes a second the app can keep up with (fps means frames per second). The app draws the next shape as soon as the last one is ready, at most 30 a second, so heavy settings and long texts give fewer. Motion contrast and Pitch reactive give the app up to three versions of each letter to work out, so they lower the number too. It counts new shapes, not how often the app listens to the sound (that happens at the screen's own pace, and only while the tab is in view).
+- **No flashing:** every driven slider and seed shares one limit, so that together they make the letters flash at most 3 times a second. A flash is a big change and the change back, so that is about 5 big changes a second. A big change is a slider turning back by a tenth of its track or more (several sliders turning back at the same moment count together once their moves add up to a tenth), or a seed jump (see **Seeds** above). When the music would go faster (fast drums with a short **Release**, for example), the sliders wait a moment before they turn back again, and seed jumps are skipped. The limit watches every letter on screen: with Motion contrast or Pitch reactive, the letters that move furthest count, and a letter switching between moving less and moving more counts as a change too. A change that reaches the screen in a few quick steps, as when the melody moves to a new note, counts once.
+- If that falls below about 8 a second, the tab says "Too slow to follow the sound: try fewer effects or a shorter text." (with Motion contrast or Pitch reactive on: "Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive."). Turning off some Experimental effects, using a shorter text, choosing lighter settings, or lowering those two sliders helps.
+- **Freeze** — copies what the letters look like right now into the sliders and seed boxes and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters, and while a video is recording ("Freeze is off while recording."). Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound. **Undo** puts the sliders and seeds back as they were before Freeze (the sound stays paused).
+  - With Motion contrast or Pitch reactive, Freeze writes the shared values (the ones the lines on the sliders show). Every letter then takes them, so the letters that moved more or less than the others look like the rest again.
+- **SVG, PNG, and font exports always use the sliders and seed boxes**, never the moving letters. To save a moment of the music, press **Freeze** first, then **Export…**. While the sound is moving the letters, the export dialog reminds you of this. To keep the movement itself, record a video: it shows the letters exactly as they move, each with its own amount (see [Record a video](#record-a-video)). **Fit text** and **Free** (in the Typography tab) also measure the letters as your sliders make them, as exports do.
 
-**Analysis** — how the sound is measured:
+**Response** — how the sound is measured and how strongly the letters answer it. Six sliders, each with an **ⓘ** that explains it. At their starting values the letters move just as the mappings set them.
 
 - **Sensitivity** — boosts or cuts the input before measuring, for quiet or loud sources (−24 to +24 dB, default 0 dB). Raise it for a quiet room or a distant microphone, which also helps Beat catch quiet hits; lower it if the bars are always full.
-- **Smoothing** — how slowly the readings fall back after a sound: short is jumpy, long is calm (20–1000 ms, default 150 ms). Most readings rise at once, and Beat falls back at this speed too; Swell and Pitch keep their own speed.
-- **Reset sound** — puts Sensitivity and Smoothing back to 0 dB and 150 ms. It is greyed out when they already are.
+- **Strength** — how far all the mappings move the letters, from 0 % to 400 % (default 100 %). At 50 % they move half as far, at 200 % twice as far; a slider still stops at the end of its track. It also scales every seed's **Rate** (which never goes past 100 %). At 0 % the letters hold still. Larger moves are held back more often by the no-flashing limit (see **No flashing** above).
+- **Motion contrast** — lets each letter react by its own amount (0–100 %, default 0 %). At 0 % every letter moves the same. Above 0 %, about one letter in six moves less than the rest, about one in six moves more, and the others move by the shared amount; the higher the value, the bigger the difference (at 100 %, the letters that move more go several times as far as the shared amount, and those that move less go only a fraction of it). Which letters lead drifts slowly, every few seconds. **Strength** still sets the overall amount. It can lower the frame rate.
+- **Release** — how slowly the readings fall back after a sound: short is jumpy, long is calm (20–1000 ms, default 150 ms). Most readings rise at once; Beat and Melody fall back at this speed; Swell and Pitch keep their own speed. (Earlier versions called it **Smoothing**.)
+- **Pitch reactive** — lets the note decide which letters move most (0–200 %, default 0 %): the low notes of the tune move the letters on the left more, its high notes those on the right, so a tune sweeps across the whole text, whether it is sung low or high. The app learns the tune's range from the last few seconds of notes: it starts with an octave around the first clear note, stretches almost at once (in about 0.15 seconds) when a higher or lower note comes, and slowly narrows towards the latest note over about 8 seconds; after 8 seconds without a note it starts afresh. The range is never narrower than an octave, so a steady voice does not throw the letters from side to side, and notes at the very bottom or top of the **Pitch** meter (within a semitone of 55 Hz or 1760 Hz) are ignored, because chords and drums tend to read there. Because the range stretches with each new note, the first time a tune climbs, each new highest note sits at the right edge; once the app has heard the whole tune, each note gets its own place. It needs a clear single note, such as a voice or one instrument. The higher the value, the bigger the difference; at high values a quick jump of an octave is now and then held back by the flash limit (see **No flashing** above). It can lower the frame rate.
+- **Melody tracking** — adds movement each time the tune moves to a new note, even while the loudness stays the same (0–200 %, default 0 %). It gives every slider row a push from the **Melody** reading (see **Levels** above): the higher the value, the bigger the push. Rows on **Pan** or on **Melody** itself, and seeds, get no push. To move a slider with the melody alone, pick **Melody** as a row's **Feature** instead.
+- **Reset sound** — puts all six back to their starting values: 0 dB, 100 %, 0 %, 150 ms, 0 %, and 0 %. It is greyed out when they already are.
+- All six are kept with your work and can be undone like any other setting (see [Coming back later](#coming-back-later)). Loading a preset does not change them.
 
 **If something goes wrong**, a message appears under the source (pointing at it may show the browser's own technical detail):
 
@@ -531,6 +540,51 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 | The microphone opened, but this browser could not analyse it. | The microphone works, but the browser could not pass its sound on to be measured. | Try again; if it keeps happening, try another browser or another microphone. |
 | The microphone stopped. | The microphone stopped while listening: it was unplugged, or the browser's permission was taken away. | Plug it in again or allow it again, then click **Start listening**. |
 | The microphone needs a secure page (https or localhost). | The page was opened from an address starting with `http://`. | Open the app's `https://` address. |
+
+#### Record a video
+
+The **Record** group, at the bottom of the Sound tab, saves the canvas as a video while the sound moves the letters, in real time and with the sound in it. Unlike the other exports, a video keeps the movement: every letter exactly as it moves, including letters that react by their own amounts. It records what the canvas shows, so a change you make during a take is in the video too. Like a PNG, it shows only the canvas: anything past its edge is cut off. (A **take** is one recording, from **Record** until it ends.)
+
+1. Choose the sound — **File** → **Choose file**, or **Microphone** — and set up the letters and mappings as usual.
+2. Set the options below.
+3. Press **Record**. If the file is paused, Record starts playing it from the current **Position**; with the microphone, it starts listening (the first time, the browser asks for permission). Recording begins as soon as the sound runs.
+4. Press **Stop**, or let the chosen **Length** end the take. The video is saved to your computer like any other export (usually into your Downloads folder). If Record started the file or the microphone, it pauses the file or stops listening again.
+
+- **Record** / **Stop** — beside it, the time recorded and, for a set length, how long the take will be (for example "0:03 / 0:10"), and **Live · N fps** while the sound moves the letters. When Record cannot start, it is greyed out and the reason shows underneath: "Load a font to record.", "Choose an audio file first.", "Opening the sound…", or "This browser cannot record video."
+- **Format** — **MP4** (the starting choice; it plays almost everywhere) or **WebM**. A browser that cannot write MP4 saves WebM instead and says "MP4 isn't supported in this browser: saved as WebM." A format the browser cannot write at all is greyed out and marked "(not supported in this browser)".
+- **Length** — how long a take runs: **Until stopped** (the starting choice), **5 s**, **10 s**, **15 s**, **30 s**, **60 s**, or **Whole file**. **Whole file** plays the audio file from its start to its end, with **Loop** off for the take (it comes back on afterwards if it was on). It needs a chosen audio file, so it is greyed out for the microphone or before you choose a file; if it was already chosen, a note says "Whole file needs an audio file: this take runs until stopped." Every take stops after 10 minutes at the latest ("Stopped at the 10-minute limit."), because the browser holds the video in its memory until it is saved.
+- **Include audio** — puts the sound into the video, lined up with the letters (on at the start). With the microphone, its sound goes into the file, but it is still never played through your speakers. Recording does not change what you hear.
+- **Use the preview look** — off (the start): the canvas in its **Color** settings, as a PNG export shows it. On: the look of the small preview at the bottom right, with its **Blur** and, if **Invert** is on, its swapped colours.
+- **The size line** under the options says what the next take will be, for example "1200 × 800 px · up to 30 fps · MP4". The size is the PNG size: the canvas's **W** × **H** times its 1×–4× multiplier (see [Canvas size](#canvas-size)). A video larger than 4K (longer than 3840 px, or more pixels than 3840 × 2160) is scaled down to fit, and the line adds "(scaled down to the 4K limit)". A video cannot be transparent: with **Transparent background** on, the background colour is painted, and a note says "Videos have no transparency: the background colour is painted."
+- **Frames:** the video gets a new frame each time the canvas shows a new shape, at most 30 a second — the same number as **Live · N fps**. While the letters stand still, the video holds the picture (with at least one frame a second, so players keep time). If the app cannot keep up, the group says "Too slow for a smooth video: try fewer effects or a shorter text."
+- If nothing would move — **Drive letters** is off, **Strength** is 0 %, or no row has a Depth — a note says "Sound is not moving the letters: the video will be still." You can still record.
+- **In the header:** while a take runs, the top of the screen shows "Starting to record…", then a red light with "Recording 0:12", then "Saving the video…", with a square stop button that stays in reach whichever tab is open in the tools. When the take has ended, the header says how it went until you close the note with its **×**.
+- **From the export dialog:** **Export…** → **Video — live sound** shows the same options (changing them there changes them here). Its **Record** button closes the dialog and starts the take at once; stop it in the header. If you open the dialog again during a take, it has its own **Stop**. See [As a video](#as-a-video).
+- **What ends a take** (what was recorded so far is always saved):
+  - **Stop** — in the group, in the header, or in the export dialog;
+  - the chosen **Length**, or the end of the file with **Whole file**;
+  - the sound stopping — you press **Pause** or **Stop listening**, the file ends with **Loop** off, the microphone stops, or you switch between **File** and **Microphone**: "The sound stopped, so the recording ended.";
+  - hiding the tab — switching to another tab or minimising the window: "Recording stopped because the tab was hidden." (a hidden page is not drawn, so the video would freeze);
+  - changing the canvas size or its multiplier: "Recording stopped because the canvas size changed.";
+  - the 10-minute limit.
+  - Closing the page during a take asks you first.
+- **When it is saved,** the group and the header say so, for example "Saved Roboto-Regular-video.mp4: 0:05, 1200 × 800 px." The file is named after the font's family and style, then "video" — or "video-preview" with **Use the preview look** — for example `Roboto-Regular-video.mp4` or `Roboto-Regular-video-preview.webm`.
+- **Good to know:**
+  - Some players show no total length for a WebM file, or let you jump around in it only after it has played once. The video itself is complete; web browsers and players such as VLC play it.
+  - Long takes at a large size make large files: up to about 1 GB for 10 minutes at the 4K limit.
+  - The options last until you close the page. They are not saved with your work and are not undone.
+
+If a take goes wrong, the group and the header say why:
+
+| Message | What it means | What to do |
+|---|---|---|
+| This browser cannot record video. | Your browser cannot record the canvas as a video. | Use a recent Chrome, Edge, Firefox, or Safari. |
+| The sound did not start, so nothing was recorded. | The file did not play, or the microphone did not open. | Check the message under the source (see the table above), then press **Record** again. |
+| The sound stopped before recording began, so nothing was recorded. | The sound started but stopped again before recording began. | Press **Record** again. |
+| The video did not start, so nothing was recorded. | The sound ran, but the canvas gave no picture for 30 seconds. | Keep the tab in view, try lighter settings, and press **Record** again. |
+| The sound could not be recorded: the video is silent. | The video was saved, but without its sound. | Record again; if it keeps happening, try another browser, or turn off **Include audio**. |
+| Blur isn't available for video in this browser: recorded without it. | **Use the preview look** was on with a blur, but this browser cannot blur a video. | Use another browser for a blurred video, or save stills with **Export the preview look** (PNG). |
+| Recording failed: … | The browser's video recorder stopped with an error (its own description follows). "Saved what was recorded: …" means the part before the error was saved; "Nothing was recorded." means nothing was. | Try again, or try the other **Format**. |
 
 ### Typography tab — size, spacing, and alignment
 
@@ -620,9 +674,9 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 ## 10. Saving your work (Export)
 
-Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button.
+Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button (a video is saved when its take ends).
 
-Exports always use your slider settings and seeds. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see.
+SVG, PNG, and font exports always use your slider settings and seeds. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see. A video is different: it records the letters as they move with the sound (see [As a video](#as-a-video)).
 
 ### As an image (SVG or PNG)
 
@@ -656,6 +710,15 @@ Good to know:
 - Variable fonts are saved in the version you see on screen, with their kerning rounded to whole font units.
 - **Licensing:** a modified font is still based on someone else's design. Check the original font's license before sharing it — many open-source fonts require a new name for modified versions. If the original reserves its name, the export dialog tells you to choose a different family name.
 
+### As a video
+
+1. Choose **Video — live sound**. It needs a font and a sound: an audio file chosen in the Sound tab, or the microphone.
+2. Set **Format**, **Length**, **Include audio**, and **Use the preview look**. These are the same options as in the Sound tab's **Record** group: changing them here changes them there. The line under them shows the video's size, for example "1200 × 800 px · up to 30 fps · MP4".
+3. Click **Record**. The dialog closes and the take starts at once: a paused file starts playing, or the microphone starts listening. The top of the screen shows, for example, "Recording 0:02" and a square stop button.
+4. Click the stop button, or wait for the chosen **Length**. The video is saved when the take ends, and the header says what was saved.
+
+What each option does, what ends a take, and how the file is named are explained in [Record a video](#record-a-video).
+
 ---
 
 ## 11. Questions and answers
@@ -685,7 +748,7 @@ That setting would have made part of a letter collapse, cross over itself, or ru
 The font does not contain that character, or (for Google Fonts) it is in another character subset. Load a different subset or font.
 
 **Will my results change if I reload the page?**
-No. Your text, settings, and Sound mappings are kept in this browser and come back when the page opens again, and the same settings and seed always give the same result. A Google font is downloaded again by itself; a font from your computer has to be imported again. See [Coming back later](#coming-back-later). To keep a result for sure, export it.
+No. Your text, settings, Sound mappings, and **Response** sliders are kept in this browser and come back when the page opens again, and the same settings and seed always give the same result. A Google font is downloaded again by itself; a font from your computer has to be imported again. See [Coming back later](#coming-back-later). To keep a result for sure, export it.
 
 **I changed something by mistake.**
 Press **Undo** (the arrow at the top right, or ⌘Z on a Mac, Ctrl+Z elsewhere). See [Undo and redo](#undo-and-redo).
@@ -700,7 +763,7 @@ The app gives up on a letter that takes longer than 60 seconds to work out. That
 The letters are worked out in the background by a part of the app called the geometry worker. If it could not start, or kept failing or stopped responding several times in a row, the letters cannot be drawn any more: reload the page. If a heavy setting was the cause, lower it after reloading. "The geometry worker could not open this font" means the font file could not be read for drawing; try another copy of the font.
 
 **The letters do not move with the music.**
-In the Sound tab, check that a font is loaded, that the file is playing (or the microphone is listening), that **Drive letters** is switched on, and that there is at least one mapping that is ticked and has a **Depth** (or **Rate**) other than 0 %. If a grey note sits under the row, click **Enable** next to it — for example, "Turn on Crumple to hear this." means the Crumple effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**.
+In the Sound tab, check that a font is loaded, that the file is playing (or the microphone is listening), that **Drive letters** is switched on, that **Strength** (under **Response**) is above 0 % (at 0 % a note under Drive letters says "Strength is 0%: the letters hold still."), and that there is at least one mapping that is ticked and has a **Depth** (or **Rate**) other than 0 %. If a grey note sits under the row, click **Enable** next to it — for example, "Turn on Crumple to hear this." means the Crumple effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**. The app listens only while its tab is in view: when you switch to another tab, minimise the window, or hide it behind another window, the letters stop following the sound, and they pick it up again when you come back.
 
 **The sliders and seeds do not move while the letters do.**
 That is on purpose: your sliders and seed boxes keep your settings. The thin line on each driven slider shows where the sound has taken it, and the small number beside a driven seed's box is the live seed. When the sound stops, the letters go back to your settings. Press **Freeze** to copy the current look into the sliders and seed boxes.
@@ -709,7 +772,19 @@ That is on purpose: your sliders and seed boxes keep your settings. The thin lin
 That target only has an effect while that setting is on, so the app switched it on and said so under the row (for example "Turned on Ripple."). It stays on when you change the row's target or remove the row; switch it off yourself if you do not want it.
 
 **My export does not look like the moving letters.**
-Exports use the sliders, not the sound. Press **Freeze** at the moment you want, then export.
+SVG, PNG, and font exports use the sliders, not the sound. Press **Freeze** at the moment you want, then export. With **Motion contrast** or **Pitch reactive**, Freeze gives every letter the shared values, so the frozen letters look more alike than the moving ones did. To keep the movement itself, record a video: **Video — live sound** in the export dialog, or **Record** in the Sound tab (see [Record a video](#record-a-video)).
+
+**The video is choppy.**
+A video gets as many frames a second as the app draws while the sound moves the letters — the **Live · N fps** number, at most 30. Heavy settings, a long text, **Motion contrast**, and **Pitch reactive** lower it; below about 8 a second the Record group says "Too slow for a smooth video: try fewer effects or a shorter text." Turn off some Experimental effects, use a shorter text, or lower Motion contrast and Pitch reactive, then record again. While the letters stand still, the video holds the picture: that is not a fault.
+
+**Why did I get a WebM file instead of MP4?**
+Not every browser can write MP4. When yours cannot, the app saves WebM instead and says "MP4 isn't supported in this browser: saved as WebM."; in the **Format** list, MP4 is then marked "(not supported in this browser)". WebM plays in web browsers and in players such as VLC. If you need MP4, record in another browser (for example a recent Chrome or Edge), or convert the file with a video converter. Some players show no total length for a WebM file; the video itself is complete.
+
+**Sound and picture are slightly out of step in the video.**
+The letters always follow the sound a moment late, because each new shape takes time to work out. The app delays the sound in the video by the same amount, measured when the take starts, but it can still be off by about one frame, and by more if the frame rate changes a lot during the take. Let the sound move the letters for a few seconds before you press **Record**, so the app can measure the delay, and use lighter settings so the frame rate stays steady. A video editor can shift the sound if you need it exact.
+
+**The recording stopped when I switched tabs.**
+A browser stops drawing a page you cannot see, so the video would freeze. The app therefore ends the take when its tab is hidden — you switch to another tab or minimise the window — saves what it recorded, and says "Recording stopped because the tab was hidden." Keep the app's tab open and in view until the take ends.
 
 **The thorns got longer or shorter when I changed the text size or the canvas.**
 Thorn's **Reach** is a share of the canvas, not of the letters, so the thorns keep the same share of the canvas: smaller text or a larger canvas makes them longer next to the letters. Lower or raise **Reach** to get the length you want; the **ⓘ** next to it says how many ems 100 % is right now.
@@ -718,7 +793,7 @@ Thorn's **Reach** is a share of the canvas, not of the letters, so the thorns ke
 Thorns may reach past the canvas. The big canvas shows them in full, but the preview and SVG and PNG exports cut them off at the canvas edge, like anything outside it; no red note appears for thorns. Lower **Reach**, or press **Next variant** until they point into the canvas. A font file has no canvas: there, only very long thorns are trimmed (see [As a font (OTF)](#as-a-font-otf)).
 
 **Does anything get uploaded?**
-No. Local fonts and audio files stay on your computer, and the microphone's sound is only measured in your browser. Google fonts are downloaded from Google; nothing is sent anywhere else.
+No. Local fonts and audio files stay on your computer, and the microphone's sound is only measured in your browser. Videos are made in your browser and saved straight to your computer. Google fonts are downloaded from Google; nothing is sent anywhere else.
 
 ---
 
@@ -741,7 +816,15 @@ No. Local fonts and audio files stay on your computer, and the microphone's soun
 | **Mapping** | In the Sound tab, a connection from one sound reading (such as **Level**) to one slider or seed, whose value then follows the sound (the slider or seed box itself stays put; a thin line on the slider, or a small number beside the seed box, shows the live value). |
 | **Depth** | How far a mapping moves its slider when the reading is at its strongest, as a share of the slider's track. |
 | **Rate** | How often a mapping moves its seed on to the next one, from 0 to 100 %. |
-| **fps (frames per second)** | How many new shapes a second the app can keep up with while the sound moves the letters. |
+| **fps (frames per second)** | How many new shapes a second the app can keep up with while the sound moves the letters. A video gets the same number of frames a second. |
+| **Strength** | In the Sound tab's **Response** group: how far all the mappings move the letters, from 0 % (they hold still) to 400 %; at 100 % they move just as the mappings set them. |
+| **Motion contrast** | In the **Response** group: lets each letter react by its own amount, so some letters move less and some more than the shared amount the slider lines show. |
+| **Pitch reactive** | In the **Response** group: lets the note decide which letters move most — the low notes of the recent tune move the letters on the left most, its high notes those on the right, whatever the tune's range. |
+| **Melody** | A Sound reading that jumps each time the tune moves to a new note. **Melody tracking** in the Response group uses it to give the slider mappings a push. |
+| **Release** | How slowly the Sound readings fall back after a sound (earlier versions called it Smoothing). |
+| **Take** | One video recording, from **Record** until it ends. |
+| **MP4** | A video file format that plays almost everywhere. |
+| **WebM** | An open video file format that web browsers and many players play; saved when the browser cannot write MP4. |
 | **Em / Units per em** | The invisible design square of a font and its size in font units (often 1000 or 2048). |
 | **Font unit (u)** | The measuring unit inside a font. All sizes in the controls use it. |
 | **Baseline** | The line letters sit on. |

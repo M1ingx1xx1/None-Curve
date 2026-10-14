@@ -1,4 +1,5 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode } from 'react'
+import { getRecorder } from '../export/recorder'
 import type { GeometryParams } from '../geometry/types'
 import type { SoundEngine } from '../sound/engine'
 import { FLASH_LIMITS } from '../sound/flash'
@@ -23,10 +24,13 @@ import { MAPPING_LIMITS, mappingStore, useMappingState } from '../sound/mappingS
 import { PRESETS, presetSettings } from '../sound/presets'
 import {
   DEFAULT_FEATURE_SETTINGS,
+  NEUTRAL_RESPONSE,
+  RESPONSE_LIMITS,
   SILENT_FRAME,
   SOUND_LIMITS,
   type FeatureFrame,
   type FeatureSettings,
+  type ResponseSettings,
   type SoundError,
   type SoundErrorKind,
   type SoundSource,
@@ -35,8 +39,10 @@ import {
 import { useSoundEngine, useSoundFrames, useSoundState } from '../sound/useSound'
 import type { Action } from '../state/editorState'
 import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
+import type { EditorParams } from '../state/types'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
+import { RecordGroup } from './RecordControls'
 
 const sources: [SoundSource, string][] = [
   ['file', 'File'],
@@ -87,8 +93,8 @@ function run(action: Promise<void>): void {
 }
 
 interface SoundControlsProps {
-  /** The slider values: they decide which mapping targets currently act (their step or effect is on). */
-  params: GeometryParams
+  /** The slider values: they decide which mapping targets currently act (their step or effect is on). The artboard and palette set a video's size and background. */
+  params: EditorParams
   /** For Freeze, which copies the live values into the sliders. */
   dispatch: Dispatch<Action>
 }
@@ -119,7 +125,8 @@ function SoundControls({ params, dispatch }: SoundControlsProps) {
       <SourceGroup engine={engine} state={state} />
       <LevelsGroup />
       <MappingsGroup params={params} dispatch={dispatch} />
-      <AnalysisGroup engine={engine} settings={state.settings} />
+      <ResponseGroup engine={engine} settings={state.settings} />
+      <RecordGroup artboard={params.artboard} transparent={params.palette.transparent} />
     </>
   )
 }
@@ -311,8 +318,8 @@ const groupHelp: Record<FeatureGroup, string> = {
   Loudness: `Level is how loud the sound is now, from ${formatDb(SOUND_LIMITS.floorDb)} (empty bar) to ${formatDb(SOUND_LIMITS.ceilingDb)} (full). Swell follows it slowly, for big, calm movements.`,
   Bands:
     'Energy below 250 Hz (Bass), 250–2000 Hz (Mids), and above 2000 Hz (Treble), each compared with its own loudest moment of the last few seconds.',
-  Tone: `Brightness: dull, bass-heavy sound reads low; hiss and cymbals read high. Pitch: the note being played or sung, from ${pitchLowHz} Hz (empty bar) to ${pitchHighHz} Hz (full); it holds between notes.`,
-  Rhythm: `Beat jumps to full on every hit, the bass drum included, and falls back with Smoothing. Activity: how busy the sound is; it jumps on sudden changes and stays up while beats come quickly (${SOUND_LIMITS.paceMaxPerSecond} a second fill the bar).`,
+  Tone: `Brightness: dull, bass-heavy sound reads low; hiss and cymbals read high. Pitch: the note being played or sung, from ${pitchLowHz} Hz (empty bar) to ${pitchHighHz} Hz (full); it holds between notes. Melody jumps when the note changes and falls back with Release.`,
+  Rhythm: `Beat jumps to full on every hit, the bass drum included, and falls back with Release. Activity: how busy the sound is; it jumps on sudden changes and stays up while beats come quickly (${SOUND_LIMITS.paceMaxPerSecond} a second fill the bar).`,
   Stereo: 'Pan: where the sound sits, from left to right. Files only; the microphone reads as centred.',
 }
 
@@ -550,16 +557,18 @@ function applyActivation({ patches }: Pick<Activation, 'patches'>, dispatch: Dis
 /**
  * The mappings: which feature moves which slider and how far, the Drive letters switch over all of
  * them, the live frame rate, and Freeze. The mappings live in their own store (mappingStore), so the
- * sliders keep their values; the live values reach the canvas through useLiveParams in App.
+ * sliders keep their values; the live values reach the canvas through useLiveFrame in App.
  */
 function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch: Dispatch<Action> }) {
-  const { mappings, drive, reducedMotion } = useMappingState()
+  const { mappings, response, drive, reducedMotion } = useMappingState()
   const status = useLiveStatus()
   const driveHint = useHint()
   const freezeHint = useHint()
   const presetHint = useHint()
   const limitId = useId()
   const reducedId = useId()
+  const stillId = useId()
+  const recordingId = useId()
   const presetSelectId = useId()
   const [presetId, setPresetId] = useState(PRESETS[0]?.id ?? '')
   // What the last Load did, under the Preset row until the next Load or until another preset is chosen in the list.
@@ -574,7 +583,12 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
     setPresetNotice(null)
     setNotices(new Map())
   }
+  // Freeze would pause the sound and end a take, so it is off while one runs (re-renders only when that changes, not with the elapsed time).
+  const recorder = getRecorder()
+  const recording = useSyncExternalStore(recorder.subscribe, () => recorder.getState().phase !== 'idle')
   const reducedNote = reducedMotion && !drive
+  const stillNote = response.strength === 0
+  const perLetter = response.contrast > 0 || response.pitchReactive > 0
   const full = mappings.length >= MAPPING_LIMITS.maxMappings
   const addBlocked = full || TARGETS.length === 0
 
@@ -650,7 +664,7 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
                 type="checkbox"
                 role="switch"
                 checked={drive}
-                aria-describedby={reducedNote ? `${reducedId} ${driveHint.id}` : driveHint.id}
+                aria-describedby={[reducedNote && reducedId, stillNote && stillId, driveHint.id].filter(Boolean).join(' ')}
                 onChange={(e) => mappingStore.setDrive(e.target.checked)}
               />
               <span className="switch-track" aria-hidden="true" />
@@ -663,6 +677,11 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
           {reducedNote && (
             <p id={reducedId} className="field-hint">
               Off because your system asks for reduced motion.
+            </p>
+          )}
+          {stillNote && (
+            <p id={stillId} className="field-hint">
+              Strength is 0%: the letters hold still.
             </p>
           )}
           <HintText hint={driveHint}>
@@ -760,10 +779,10 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
             <button
               type="button"
               className="button-small"
-              aria-disabled={!status.driving || undefined}
-              aria-describedby={freezeHint.id}
+              aria-disabled={!status.driving || recording || undefined}
+              aria-describedby={[recording && recordingId, freezeHint.id].filter(Boolean).join(' ')}
               onClick={() => {
-                if (!status.driving) return
+                if (!status.driving || recording) return
                 // Every group it writes is one undo step.
                 undoHistory.transaction(() => freezeLive(dispatch))
               }}
@@ -775,13 +794,23 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
             {/* Not a live region: the status bar announces "Live" politely, and the number changes every second. */}
             {status.driving && <span className="sound-live">Live · {status.fps} fps</span>}
           </div>
+          {recording && (
+            <p id={recordingId} className="field-hint">
+              Freeze is off while recording.
+            </p>
+          )}
           <HintText hint={freezeHint}>
-            Copies the live values into the sliders and pauses the sound, so you can keep or export this moment.
+            Copies the live values into the sliders and pauses the sound, so you can keep or export this moment. Letters
+            that react more or less take the shared values.
           </HintText>
         </div>
         {/* Always in the document, so screen readers announce it when it fills; visually hidden while empty so it adds no gap. */}
         <p className={status.slow ? 'font-warning' : 'visually-hidden'} role="status">
-          {status.slow ? 'Too slow to follow the sound: try fewer effects or a shorter text.' : null}
+          {status.slow
+            ? perLetter
+              ? 'Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive.'
+              : 'Too slow to follow the sound: try fewer effects or a shorter text.'
+            : null}
         </p>
       </div>
     </fieldset>
@@ -977,16 +1006,73 @@ function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: Ma
   )
 }
 
-function AnalysisGroup({ engine, settings }: { engine: SoundEngine; settings: FeatureSettings }) {
+/** A response value as a whole percentage: "100%". */
+const percent = (value: number) => Math.round(value * 100)
+
+/** Each response value's slider: its id, label and ⓘ explanation (percent on the slider, a fraction in the store). */
+const RESPONSE_FIELDS: Record<keyof ResponseSettings, { id: string; label: string; hint: string }> = {
+  strength: {
+    id: 'sound-strength',
+    label: 'Strength',
+    hint:
+      'Scales how far every mapping moves the letters: 0% holds them still, 200% moves them twice as far (sliders stop at their ' +
+      'ends). Bigger moves are held back more often by the flash limit.',
+  },
+  contrast: {
+    id: 'sound-contrast',
+    label: 'Motion contrast',
+    hint:
+      'Lets each letter react by its own amount: some stay calm while others move several times as far, and which ones lead ' +
+      'drifts every few seconds. Strength sets the overall amount. Freeze writes the shared values. Can lower the frame rate.',
+  },
+  pitchReactive: {
+    id: 'sound-pitch-reactive',
+    label: 'Pitch reactive',
+    hint:
+      'The low notes of the melody move the letters on the left more, its high notes those on the right, so a tune sweeps ' +
+      'across the text. Follows the range of the last few seconds of notes. Needs a clear note, such as a voice or one ' +
+      'instrument. Can lower the frame rate.',
+  },
+  melody: {
+    id: 'sound-melody',
+    label: 'Melody tracking',
+    hint:
+      'Adds movement each time the melody moves to a new note, even at a steady loudness. Melody can also be mapped like any ' +
+      'other reading.',
+  },
+}
+
+/**
+ * How the sound is measured and how the letters answer it: Sensitivity and Release (the engine's settings) and the
+ * response values over every mapping (the mapping store). All six are saved and undone; presets leave them alone.
+ */
+function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: FeatureSettings }) {
+  const { response } = useMappingState()
   const sensitivityHint = useHint()
-  const smoothingHint = useHint()
+  const releaseHint = useHint()
   const isDefault =
-    settings.sensitivity === DEFAULT_FEATURE_SETTINGS.sensitivity && settings.releaseMs === DEFAULT_FEATURE_SETTINGS.releaseMs
+    settings.sensitivity === DEFAULT_FEATURE_SETTINGS.sensitivity &&
+    settings.releaseMs === DEFAULT_FEATURE_SETTINGS.releaseMs &&
+    (Object.keys(NEUTRAL_RESPONSE) as (keyof ResponseSettings)[]).every((key) => response[key] === NEUTRAL_RESPONSE[key])
   const releaseMs = Math.round(settings.releaseMs)
+
+  /** Sensitivity and Release: one undo step per drag, as the other sliders. */
+  const setSetting = (key: keyof FeatureSettings, value: number) => {
+    if (value === settings[key]) return
+    undoHistory.record(`sound:${key}`)
+    engine.setSettings({ [key]: value })
+  }
+
+  const resetSound = () =>
+    undoHistory.transaction(() => {
+      undoHistory.record(null)
+      engine.setSettings(DEFAULT_FEATURE_SETTINGS)
+      mappingStore.setResponse(NEUTRAL_RESPONSE)
+    })
 
   return (
     <fieldset className="group sound">
-      <legend>Analysis</legend>
+      <legend>Response</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <RangeField
@@ -995,33 +1081,60 @@ function AnalysisGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
           value={settings.sensitivity}
           min={SOUND_LIMITS.minSensitivity}
           max={SOUND_LIMITS.maxSensitivity}
-          step={1}
+          step={SOUND_LIMITS.sensitivityStep}
           display={formatDb(settings.sensitivity, true)}
           valueText={`${Math.round(settings.sensitivity)} decibels`}
           hint={sensitivityHint}
           hintText="Boosts or cuts the input before measuring, for quiet or loud sources."
-          onChange={(sensitivity) => engine.setSettings({ sensitivity })}
+          onChange={(sensitivity) => setSetting('sensitivity', sensitivity)}
         />
+        <ResponseField field="strength" response={response} />
+        <ResponseField field="contrast" response={response} />
         <RangeField
-          id="sound-smoothing"
-          label="Smoothing"
+          id="sound-release"
+          label="Release"
           value={settings.releaseMs}
           min={SOUND_LIMITS.minReleaseMs}
           max={SOUND_LIMITS.maxReleaseMs}
-          step={10}
+          step={SOUND_LIMITS.releaseStepMs}
           display={`${releaseMs} ms`}
           valueText={`${releaseMs} milliseconds`}
-          hint={smoothingHint}
+          hint={releaseHint}
           hintText="How slowly the readings fall back after a sound: short is jumpy, long is calm. They always rise at once."
-          onChange={(releaseMs) => engine.setSettings({ releaseMs })}
+          onChange={(releaseMs) => setSetting('releaseMs', releaseMs)}
         />
+        <ResponseField field="pitchReactive" response={response} />
+        <ResponseField field="melody" response={response} />
 
-        <button type="button" className="button-small" disabled={isDefault} onClick={() => engine.setSettings(DEFAULT_FEATURE_SETTINGS)}>
+        <button type="button" className="button-small" disabled={isDefault} onClick={resetSound}>
           <Icon name="reset" />
           Reset sound
         </button>
       </div>
     </fieldset>
+  )
+}
+
+/** One response value's slider, in percent of RESPONSE_LIMITS' range and step. */
+function ResponseField({ field, response }: { field: keyof ResponseSettings; response: ResponseSettings }) {
+  const hint = useHint()
+  const { id, label, hint: hintText } = RESPONSE_FIELDS[field]
+  const { min, max, step } = RESPONSE_LIMITS[field]
+  const value = percent(response[field])
+  return (
+    <RangeField
+      id={id}
+      label={label}
+      value={value}
+      min={percent(min)}
+      max={percent(max)}
+      step={percent(step)}
+      display={`${value}%`}
+      valueText={`${value} percent`}
+      hint={hint}
+      hintText={hintText}
+      onChange={(next) => mappingStore.setResponse({ [field]: next / 100 })}
+    />
   )
 }
 

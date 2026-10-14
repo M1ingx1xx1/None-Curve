@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { downloadFile, safeFileName } from '../export/download'
 import { FONT_BOX_LIMITS } from '../export/fitGlyph'
 import { runFontExport } from '../export/fontExportClient'
@@ -16,6 +16,7 @@ import {
   type KnownGlyph,
 } from '../export/fontFile'
 import { svgToPng } from '../export/png'
+import { getRecorder, useRecording } from '../export/recorder'
 import { specimenToSvg, type SvgLook } from '../export/svg'
 import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
@@ -26,8 +27,9 @@ import { placePolygons, shapeSpecimen } from '../specimen/scene'
 import { geometryClient } from '../state/geometryClient'
 import { previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import Icon from './Icon'
+import { RecordOptionsFields, useStillVideo } from './RecordControls'
 
-type Format = 'svg' | 'png' | 'otf'
+type Format = 'svg' | 'png' | 'otf' | 'video'
 
 /** Above this many outline points still to compute, the build may take minutes (heavy settings: about 5,000 points a second). */
 const SLOW_EXPORT_POINTS = 300_000
@@ -66,6 +68,7 @@ const formats: { value: Format; label: string; hint: string }[] = [
   { value: 'svg', label: 'SVG — main view', hint: 'The canvas with its text, colours, and size, as vector outlines.' },
   { value: 'png', label: 'PNG — main view', hint: 'The canvas as an image, at the size and multiplier set under Canvas size.' },
   { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download.' },
+  { value: 'video', label: 'Video — live sound', hint: 'Records the canvas as it moves with the sound, in real time, with its audio.' },
 ]
 
 /** The canvas's results for the plan's glyphs under these settings, which the build uses as they are. */
@@ -105,6 +108,55 @@ function estimateExport(font: LoadedFont, plan: FontExportPlan, key: string) {
   const mean = known ? points / known : geometryClient.meanVertexCount(key)
   if (mean === null) return null
   return { points: Math.round(points + mean * toCompute), toCompute, pointsToCompute: mean * toCompute }
+}
+
+/**
+ * The Video format: the take's options (shared with the Sound tab's Record group) and Record, which closes the
+ * dialog and starts the take. The header shows it running, with Stop; opened again during the take (the header
+ * is out of reach behind the dialog), the dialog has its own Stop, and then shows how the take ended.
+ */
+function VideoExport({ artboard, transparent, onRecord }: { artboard: ArtboardParams; transparent: boolean; onRecord: () => void }) {
+  const { phase, message } = useRecording()
+  const still = useStillVideo()
+  const blockerId = useId()
+  const idle = phase === 'idle'
+  // The recorder re-renders this when the reason changes (a font, a file, the sound opening).
+  const blocked = idle ? getRecorder().blocker() : null
+  return (
+    <div className="export-section">
+      <RecordOptionsFields artboard={artboard} transparent={transparent} />
+      {still && <p className="font-warning">Sound is not moving the letters: the video will be still.</p>}
+      {blocked !== null && (
+        <p id={blockerId} className="font-warning">
+          {blocked}
+        </p>
+      )}
+      {idle && message && (
+        <p className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'} data-tone={message.tone}>
+          {message.text}
+        </p>
+      )}
+      <div className="export-actions">
+        {idle ? (
+          <button type="button" className="button-primary" disabled={blocked !== null} aria-describedby={blocked !== null ? blockerId : undefined} onClick={onRecord}>
+            <Icon name="record" />
+            Record
+          </button>
+        ) : (
+          // aria-disabled, not disabled: keeps keyboard focus while the file is saved.
+          <button
+            type="button"
+            className="button-primary"
+            aria-disabled={phase === 'stopping' || undefined}
+            onClick={() => getRecorder().stop('user')}
+          >
+            <Icon name="stop" />
+            Stop
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /** Loads the font through the browser's own font engine (OTS sanitizer in Chrome and Firefox). */
@@ -303,10 +355,10 @@ export default function ExportDialog(props: ExportDialogProps) {
         ) : (
           <>
             <p className="gf-intro">
-              Exports use the final polygons shown on the canvas: {fontName}, pipeline {pipeline.join(' → ')}. Nothing is
-              downloaded until you press the download button.
+              Exports use the final polygons shown on the canvas: {fontName}, pipeline {pipeline.join(' → ')}.{' '}
+              {format === 'video' ? 'The video is saved when the take ends.' : 'Nothing is downloaded until you press the download button.'}
             </p>
-            {soundLive && (
+            {soundLive && format !== 'video' && (
               <p className="font-warning">Sound is moving the letters: exports use the sliders. To export the live look, press Freeze.</p>
             )}
 
@@ -333,9 +385,9 @@ export default function ExportDialog(props: ExportDialogProps) {
               ))}
             </fieldset>
 
-            {pending && <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>}
+            {pending && format !== 'video' && <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>}
 
-            {format !== 'otf' && (
+            {(format === 'svg' || format === 'png') && (
               <div className="export-section">
                 <div className="field field-toggle">
                   <input
@@ -504,6 +556,18 @@ export default function ExportDialog(props: ExportDialogProps) {
                 )}
                 {built && !currentBuild && <p className="field-hint">Settings changed since the last build. Build again to download.</p>}
               </div>
+            )}
+
+            {format === 'video' && (
+              <VideoExport
+                artboard={artboard}
+                transparent={palette.transparent}
+                onRecord={() => {
+                  // In the same click: the dialog closes and the take starts the sound (play() needs the click).
+                  close()
+                  getRecorder().start()
+                }}
+              />
             )}
 
             <div className="export-status" aria-live="polite">
