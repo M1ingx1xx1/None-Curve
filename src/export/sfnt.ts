@@ -1,6 +1,7 @@
 // Small edits to a finished OpenType file: fields the font writer (opentype.js) always fills in
-// itself. The file is split into its tables, the tables are edited, and the file is put back
-// together with fresh table checksums and head.checkSumAdjustment. No React, no DOM.
+// itself, and tables it cannot write. The file is split into its tables, the tables are edited or
+// added, and the file is put back together with fresh table checksums and head.checkSumAdjustment.
+// No React, no DOM.
 
 export interface FontPatch {
   /** hhea.lineGap. */
@@ -9,6 +10,8 @@ export interface FontPatch {
   macStyle: number
   /** The CFF FontBBox: the union of every glyph's bounds (xMin, yMin, xMax, yMax). */
   fontBBox: [number, number, number, number]
+  /** Whole tables to add (or replace), by tag, e.g. GPOS. */
+  tables?: Record<string, Uint8Array>
 }
 
 export function patchFont(bytes: ArrayBuffer, patch: FontPatch): ArrayBuffer {
@@ -22,6 +25,7 @@ export function patchFont(bytes: ArrayBuffer, patch: FontPatch): ArrayBuffer {
   edit('hhea', (view) => view.setInt16(8, patch.lineGap))
   edit('head', (view) => view.setUint16(44, patch.macStyle))
   edit('CFF ', (_, data) => setCffFontBBox(data, patch.fontBBox))
+  for (const [tag, data] of Object.entries(patch.tables ?? {})) tables.set(tag, data)
   return writeTables(flavor, tables)
 }
 

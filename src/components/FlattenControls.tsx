@@ -3,6 +3,7 @@ import type { BreakRule } from '../geometry/curveRuns'
 import type { FlattenStats } from '../geometry/flatten'
 import type { FlattenMode, FlattenParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES, TOLERANCE, toleranceFromSlider, toleranceToSlider } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import LiveMarker from './LiveMarker'
 import { sameControlProps } from './sameControlProps'
@@ -27,19 +28,6 @@ const modes: [FlattenMode, string][] = [
   ['adaptive', 'Adaptive'],
   ['segments', 'Fixed segments'],
 ]
-
-// Tolerance slider is logarithmic: 0.1 to 500 font units. The top of the range only matters with
-// Merge joined curves, where a whole bowl can become a single edge.
-const TOL_MIN = 0.1
-const TOL_MAX = 500
-const toSlider = (tol: number) => (100 * Math.log(tol / TOL_MIN)) / Math.log(TOL_MAX / TOL_MIN)
-const fromSlider = (pos: number) => roundTolerance(TOL_MIN * Math.pow(TOL_MAX / TOL_MIN, pos / 100))
-
-function roundTolerance(tol: number): number {
-  if (tol < 1) return Math.round(tol * 100) / 100
-  if (tol < 10) return Math.round(tol * 10) / 10
-  return Math.round(tol)
-}
 
 function formatUnits(value: number): string {
   return value < 10 ? value.toFixed(2) : value.toFixed(1)
@@ -119,13 +107,11 @@ function FlattenControls({
               <input
                 id="flatten-tolerance"
                 type="range"
-                min={0}
-                max={100}
-                step={0.5}
-                value={toSlider(params.tolerance)}
+                {...TOLERANCE.slider}
+                value={toleranceToSlider(params.tolerance)}
                 aria-valuetext={`${params.tolerance} font units`}
                 aria-describedby={toleranceHint.id}
-                onChange={(e) => update({ tolerance: fromSlider(Number(e.target.value)) })}
+                onChange={(e) => update({ tolerance: toleranceFromSlider(Number(e.target.value)) })}
               />
               <LiveMarker target="flatten.tolerance" />
             </span>
@@ -151,9 +137,7 @@ function FlattenControls({
               <input
                 id="flatten-segments"
                 type="range"
-                min={1}
-                max={32}
-                step={1}
+                {...SLIDER_RANGES['flatten.segmentsPerCurve']}
                 value={params.segmentsPerCurve}
                 onChange={(e) => update({ segmentsPerCurve: Number(e.target.value) })}
               />
@@ -245,9 +229,7 @@ function FlattenControls({
                   <input
                     id="flatten-corner"
                     type="range"
-                    min={1}
-                    max={90}
-                    step={1}
+                    {...SLIDER_RANGES['flatten.cornerAngle']}
                     value={params.cornerAngle}
                     aria-valuetext={`${params.cornerAngle} degrees`}
                     aria-describedby={cornerHint.id}

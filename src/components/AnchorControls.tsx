@@ -2,6 +2,7 @@ import { memo, type Dispatch } from 'react'
 import { ANCHOR_LIMITS, type AnchorStats } from '../geometry/anchors'
 import type { AnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -15,9 +16,6 @@ interface AnchorControlsProps {
   disabled: boolean
   dispatch: Dispatch<Action>
 }
-
-const SPACING_MAX = 200
-const SIMPLIFY_MAX = 100
 
 function emPercent(value: number, unitsPerEm: number | null): string {
   return unitsPerEm ? ` (${((value / unitsPerEm) * 100).toFixed(2)}% of the em)` : ''
@@ -67,9 +65,7 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
             <input
               id="anchor-spacing"
               type="range"
-              min={0}
-              max={SPACING_MAX}
-              step={1}
+              {...SLIDER_RANGES['anchors.spacing']}
               value={params.spacing}
               aria-valuetext={spacingOn ? `${params.spacing} font units` : 'Off'}
               aria-describedby={spacingHint.id}
@@ -98,9 +94,7 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
             <input
               id="anchor-simplify"
               type="range"
-              min={0}
-              max={SIMPLIFY_MAX}
-              step={0.5}
+              {...SLIDER_RANGES['anchors.simplify']}
               value={params.simplify}
               aria-valuetext={reductionOn ? `${params.simplify} font units` : 'Off'}
               aria-describedby={simplifyHint.id}

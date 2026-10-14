@@ -75,6 +75,8 @@ export interface WarpStats {
   reducedContours: number
   /** Contours left as they were because no tried strength kept them valid. */
   fallbackContours: number
+  /** The warp would have made more points than it may (`maxPoints`), so the glyph was left as it was. */
+  tooComplex: boolean
 }
 
 export const emptyWarpStats = (): WarpStats => ({
@@ -83,6 +85,7 @@ export const emptyWarpStats = (): WarpStats => ({
   addedVertices: 0,
   reducedContours: 0,
   fallbackContours: 0,
+  tooComplex: false,
 })
 
 /** For each vertex of each contour: true where an earlier Experimental effect added it at a crease. */
@@ -94,7 +97,8 @@ export type CreaseMarks = (readonly boolean[])[]
  * which input vertices earlier effects added at creases: tidying may remove those as well, so a run
  * that only the creases of several effects together make curve-like is broken up too. Returns the
  * marks for the result. With `folds`, the warp may fold the plane: every contour takes its tidied
- * image at full strength, unchecked.
+ * image at full strength, unchecked. A warp whose exact images would have more than `maxPoints` points
+ * in all leaves the glyph as it was (stats.tooComplex), before the costly tidying (see budget.ts).
  */
 export function applyWarp(
   polygon: PolygonGlyph,
@@ -102,6 +106,7 @@ export function applyWarp(
   unitsPerEm: number,
   marks?: CreaseMarks,
   folds = false,
+  maxPoints = Infinity,
 ): { polygon: PolygonGlyph; stats: WarpStats; marks: CreaseMarks } {
   const stats = emptyWarpStats()
   stats.applied = true
@@ -116,9 +121,18 @@ export function applyWarp(
     const kept = removeFoldBacks(c.points)
     return { points: kept.map((i) => c.points[i]), marks: kept.map((i) => inputMarks[k][i] ?? false) }
   })
-  const images = polygon.contours.map((c, k) =>
-    usable(c) && sources[k].points.length >= 3 ? warpContour(sources[k].points, full, sources[k].marks) : null,
-  )
+  const images: (Warped | null)[] = []
+  let room = maxPoints
+  for (const [k, c] of polygon.contours.entries()) {
+    if (!usable(c) || sources[k].points.length < 3) {
+      images.push(null)
+      continue
+    }
+    const image = warpContour(sources[k].points, full, sources[k].marks, room)
+    if (!image) return { polygon, stats: { ...emptyWarpStats(), applied: true, tooComplex: true }, marks: inputMarks }
+    images.push(image)
+    room -= image.points.length
+  }
   const current = polygon.contours.map((c, k) => images[k]?.points ?? c.points)
   const result: Warped[] = []
 
@@ -140,7 +154,7 @@ export function applyWarp(
     if (!chosen) {
       for (const scale of WARP_LIMITS.retryScales) {
         const weaker = warpContour(before, makeWarp(scale), sources[index].marks)
-        if (valid(weaker)) {
+        if (weaker && valid(weaker)) {
           chosen = weaker
           stats.reducedContours++
           break
@@ -313,9 +327,10 @@ interface Warped {
 
 /**
  * The exact image of a closed contour: every vertex mapped, plus a vertex wherever an edge crosses a
- * crease. `marks` flags the input vertices that earlier effects added at creases.
+ * crease. `marks` flags the input vertices that earlier effects added at creases. Null once the image
+ * has more than `maxPoints` points.
  */
-export function warpContour(points: readonly Point[], warp: Warp, marks?: readonly boolean[]): Warped {
+export function warpContour(points: readonly Point[], warp: Warp, marks?: readonly boolean[], maxPoints = Infinity): Warped | null {
   const n = points.length
   const images: Point[] = []
   const kinds: Kind[] = []
@@ -342,6 +357,7 @@ export function warpContour(points: readonly Point[], warp: Warp, marks?: readon
       push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, 'new', i)
       last = t
     }
+    if (images.length > maxPoints) return null
   }
   return { points: images, kinds, edges, origins: images.map((_, k) => k), exactCount: images.length, maxShift }
 }
@@ -446,6 +462,33 @@ export function curveLikeRuns(points: readonly Point[], shortEdge: number): Run[
   }
   close()
   return runs
+}
+
+/**
+ * The contour without the vertices flagged in `removable` that make a curve-like run long enough (see curveLikeRuns),
+ * weakest turn first, like the warps' tidying but with no drift limit: only for outlines that are merged next anyway
+ * (Thorn's, and those the vertex budget simplified). Such a vertex turns gently between short edges, so leaving it out
+ * barely moves the outline.
+ */
+export function breakRuns(contour: PolygonContour, removable: readonly boolean[] | undefined, shortEdge: number): PolygonContour {
+  if (!removable) return contour
+  let points = contour.points
+  let kept = removable
+  for (let round = 0; round < WARP_LIMITS.maxTidyRounds; round++) {
+    const m = points.length
+    const drop = new Set<number>()
+    for (const run of curveLikeRuns(points, shortEdge)) {
+      if (run.filter((k) => !kept[k]).length >= WARP_LIMITS.curveRun) continue
+      let weakest = -1
+      for (const k of run) if (kept[k] && (weakest < 0 || run.turn(k) < run.turn(weakest))) weakest = k
+      // Never two neighbours in one round: each removal is measured against the other's current place.
+      if (weakest >= 0 && !drop.has((weakest + 1) % m) && !drop.has((weakest - 1 + m) % m)) drop.add(weakest)
+    }
+    if (drop.size === 0 || m - drop.size < 3) break
+    points = points.filter((_, k) => !drop.has(k))
+    kept = kept.filter((_, k) => !drop.has(k))
+  }
+  return points === contour.points ? contour : { points, clockwise: signedArea(points) < 0 }
 }
 
 function distanceToSegment(p: Point, a: Point, b: Point): number {

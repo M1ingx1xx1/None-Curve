@@ -4,7 +4,7 @@ import { paramsKey } from '../geometry/cache'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
 import { layoutArtboard, type ArtboardLayout } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen, type SpecimenScene } from '../specimen/scene'
-import { exportPolygonLookup, useGlyphGeometry } from './geometryClient'
+import { geometryClient, useGlyphGeometry } from './geometryClient'
 import type { AppState } from './types'
 
 export type GlyphGeometry =
@@ -49,11 +49,12 @@ export interface GeometryState {
   /** True while text or typography changes are being laid out, or glyphs are being computed. */
   scenePending: boolean
   /**
-   * The text set with the sliders' own polygons, built on demand. It equals `scene` unless Sound is
-   * driving the letters. Used by actions that save typography values measured from the outlines (Fit
-   * text, Free), so a live frame never leaks into them.
+   * The text set with the sliders' own polygons, built on demand. It is `scene` unless Sound is driving
+   * the letters; then it resolves once the geometry worker has computed every glyph for the sliders
+   * (nothing is computed on the page). Used by actions that save typography values measured from the
+   * outlines (Fit text, Free, dragging the text in Free position), so a live frame never leaks into them.
    */
-  sliderScene: () => SpecimenScene | null
+  loadSliderScene: () => Promise<SpecimenScene | null>
 }
 
 /**
@@ -110,10 +111,10 @@ export function useGeometry(state: AppState, text: string, live?: GeometryParams
         : null,
     [shaped, geometry, isLive],
   )
-  const sliderScene = useCallback(
-    () => (isLive && font && shaped ? placePolygons(shaped, exportPolygonLookup(font, params, key)) : scene),
-    [isLive, font, shaped, params, key, scene],
-  )
+  const loadSliderScene = useCallback(async () => {
+    if (!isLive || !font || !shaped) return scene
+    return placePolygons(shaped, await geometryClient.ensure(font, params, key, shaped.indices))
+  }, [isLive, font, shaped, params, key, scene])
   const layout = useMemo(
     () => (font && scene ? layoutArtboard(scene, deferredTypography, artboard, font.metrics.unitsPerEm) : null),
     [font, scene, deferredTypography, artboard],
@@ -142,6 +143,6 @@ export function useGeometry(state: AppState, text: string, live?: GeometryParams
     scene,
     layout,
     scenePending: deferredText !== text || deferredTypography !== typography || (scene?.pendingGlyphs ?? 0) > 0,
-    sliderScene,
+    loadSliderScene,
   }
 }

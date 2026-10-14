@@ -1,6 +1,6 @@
 import { simplifyClosed } from '../geometry/anchors'
 import { ContourLayout } from '../geometry/contourLayout'
-import { findRingCrossings, findSelfCrossings, type Crossing } from '../geometry/crossings'
+import { findRingCrossings, findSelfCrossings, ringBox, type Crossing } from '../geometry/crossings'
 import { signedArea } from '../geometry/flatten'
 import type { Point, PolygonGlyph } from '../geometry/types'
 
@@ -24,6 +24,14 @@ export function roundTo(value: number, decimals: number): number {
 const RETRY_TOLERANCES = [0.5, 1, 2]
 /** Vertex removals tried per contour to undo crossings that rounding introduced. */
 const MAX_REPAIRS = 12
+/**
+ * A contour that already crosses itself more than this many times is a tangle (an outline left
+ * unmerged): any crossing rounding adds there is noise below one rounding step, so it is rounded once
+ * and kept as it is, without the repairs, the checks of each new crossing, or the simplified retries,
+ * whose cost grows with the square of its crossings. Its direction and its place among the other
+ * contours are still checked.
+ */
+const TANGLE_CROSSINGS = 2000
 /** A contour smaller than this many square rounding steps is too small to show; if rounding
     collapses it, it is left out instead of the whole glyph. */
 const NEGLIGIBLE_AREA = 4
@@ -42,7 +50,8 @@ const NEGLIGIBLE_WIDTH = 1
  * fonts), or whose parts nearly touch, cannot avoid that at this precision, and the difference is
  * smaller than the rounding step. Rounding crossings are first repaired by removing one of the
  * vertices involved; if a new crossing remains, the contour is simplified very slightly (below the
- * rounding step) and tried again. Every result must also sit against the glyph's other contours as
+ * rounding step) and tried again; a tangle, crossing itself thousands of times, is not (see
+ * TANGLE_CROSSINGS). Every result must also sit against the glyph's other contours as
  * before: no contour moving into or out of another, and no new crossing between two contours except
  * where they already ran within two rounding steps of each other. A contour too small to show that
  * collapses is left out. Contours are rounded in order, and in the reverse order if that fails. Throws ExportError naming the glyph only when nothing works; `advice` (for example "Use a higher
@@ -83,23 +92,25 @@ function roundInOrder(
   const unrounded = polygon.contours.map((c) => c.points)
   const current: (readonly Point[] | null)[] = unrounded.slice()
   const layout = new ContourLayout(unrounded)
+  const near = neighbours(unrounded, 2 * step)
   for (const k of order) {
     const contour = polygon.contours[k]
     const area = signedArea(contour.points)
     const direction = Math.sign(area)
-    const original = new Original(contour.points)
-    const fits = (points: readonly Point[]) => fitsLayout(k, points, current, unrounded, layout, step)
+    const original = new Original(contour.points, 2 * step)
+    const fits = (points: readonly Point[]) => fitsLayout(k, points, current, unrounded, layout, step, near[k])
 
     let failure: 'collapse' | 'cross' | 'contours' = 'collapse'
     let result: Point[] | null = null
     for (const tolerance of [0, ...RETRY_TOLERANCES]) {
       const source = tolerance === 0 ? contour.points : simplifyClosed(contour.points, tolerance * step).points
-      const attempt = roundContour(source, decimals, direction, step, original, fits)
+      const attempt = roundContour(source, decimals, direction, original, fits)
       if (Array.isArray(attempt)) {
         result = attempt
         break
       }
       failure = attempt
+      if (original.tangled) break
     }
     if (result) current[k] = result
     else if (failure === 'collapse' && negligible(contour.points, area, step)) current[k] = null
@@ -123,7 +134,8 @@ function negligible(points: readonly Point[], area: number, step: number): boole
 /**
  * True when contour k, rounded to `points`, sits against the other contours as before. A new
  * crossing with another contour is accepted where both unrounded contours ran within two rounding
- * steps of it: contours that nearly touch cannot avoid that at this precision.
+ * steps of it: contours that nearly touch cannot avoid that at this precision. Only the contours
+ * `around` it can sit otherwise (see neighbours).
  */
 function fitsLayout(
   k: number,
@@ -132,34 +144,84 @@ function fitsLayout(
   unrounded: readonly (readonly Point[])[],
   layout: ContourLayout,
   step: number,
+  around: readonly number[],
 ): boolean {
   const radius = 2 * step
   const near = (at: Point, ring: readonly Point[]) =>
     ring.some((p, i) => distanceToSegment(at, p, ring[(i + 1) % ring.length]) <= radius)
-  for (let m = 0; m < current.length; m++) {
+  for (const m of around) {
     const other = current[m]
-    if (m === k || !other || layout.pairKept(k, m, points, other)) continue
+    if (!other || layout.pairKept(k, m, points, other)) continue
     const found = findRingCrossings(points, other)
     if (found.length === 0 || !found.every((c) => near(c.at, unrounded[k]) && near(c.at, unrounded[m]))) return false
   }
   return true
 }
 
-/** The unrounded contour, for telling rounding noise from real damage. */
+/**
+ * For each contour, the others whose boxes come within `margin` of its box, in index order. Every
+ * contour tried while rounding is made of rounded points of the unrounded one, at most half a rounding
+ * step away, so with a margin of a step or more, contours farther apart stay apart, and sit as they did
+ * (neither crossing nor inside one another). A glyph merged from strong effects can have thousands of
+ * contours, nearly all of them far from each other.
+ */
+function neighbours(contours: readonly (readonly Point[])[], margin: number): number[][] {
+  const boxes = contours.map((points) => ringBox(points))
+  const around: number[][] = contours.map(() => [])
+  const order = contours.map((_, k) => k).sort((k, m) => boxes[k].minX - boxes[m].minX)
+  for (let a = 0; a < order.length; a++) {
+    const p = boxes[order[a]]
+    for (let b = a + 1; b < order.length; b++) {
+      const q = boxes[order[b]]
+      if (q.minX > p.maxX + margin) break
+      if (q.minY > p.maxY + margin || q.maxY < p.minY - margin) continue
+      around[order[a]].push(order[b])
+      around[order[b]].push(order[a])
+    }
+  }
+  for (const list of around) list.sort((k, m) => k - m)
+  return around
+}
+
+/**
+ * The unrounded contour, for telling rounding noise from real damage within `radius` (two rounding
+ * steps). Its crossings with itself are kept by grid cell, so finding one near a point does not go
+ * through them all: a tangle can have hundreds of thousands.
+ */
 class Original {
-  private crossings: Point[] | null = null
-  constructor(readonly points: readonly Point[]) {}
+  private crossings: { cells: Map<number, Map<number, Point[]>>; count: number } | null = null
+  constructor(
+    readonly points: readonly Point[],
+    readonly radius: number,
+  ) {}
+
+  /** True when the contour crosses itself more than TANGLE_CROSSINGS times. */
+  get tangled(): boolean {
+    return this.indexed().count > TANGLE_CROSSINGS
+  }
 
   /** True when the contour crossed itself near `at`. */
-  hasCrossingNear(at: Point, radius: number): boolean {
-    this.crossings ??= findSelfCrossings(this.points).map((c) => c.at)
-    return this.crossings.some((k) => Math.abs(k.x - at.x) <= radius && Math.abs(k.y - at.y) <= radius)
+  hasCrossingNear(at: Point): boolean {
+    const { cells } = this.indexed()
+    const { radius } = this
+    const x = this.cell(at.x)
+    const y = this.cell(at.y)
+    for (let dx = -1; dx <= 1; dx++) {
+      const column = cells.get(x + dx)
+      if (!column) continue
+      for (let dy = -1; dy <= 1; dy++) {
+        const found = column.get(y + dy)
+        if (found?.some((k) => Math.abs(k.x - at.x) <= radius && Math.abs(k.y - at.y) <= radius)) return true
+      }
+    }
+    return false
   }
 
   /** True when the contour crossed itself, or ran within `radius` of itself, near `at`. */
-  explains(at: Point, radius: number): boolean {
-    if (this.hasCrossingNear(at, radius)) return true
+  explains(at: Point): boolean {
+    if (this.hasCrossingNear(at)) return true
     // Two parts of the outline close to the point that are not neighbouring edges: a near touch.
+    const { radius } = this
     const n = this.points.length
     const near: number[] = []
     for (let i = 0; i < n; i++) {
@@ -169,6 +231,33 @@ class Original {
       const gap = Math.abs(a - b)
       return Math.min(gap, n - gap) >= 2
     }))
+  }
+
+  /**
+   * The grid column (or row) of a coordinate. A cell is twice the radius wide, so everything within
+   * the radius of a point lies in the three by three cells around it.
+   */
+  private cell(value: number): number {
+    return Math.floor(value / (2 * this.radius))
+  }
+
+  /** The contour's crossings with itself, by column and then row (see cell), and how many there are. */
+  private indexed() {
+    if (!this.crossings) {
+      const cells = new Map<number, Map<number, Point[]>>()
+      const found = findSelfCrossings(this.points)
+      for (const { at } of found) {
+        const x = this.cell(at.x)
+        const y = this.cell(at.y)
+        let column = cells.get(x)
+        if (!column) cells.set(x, (column = new Map()))
+        const list = column.get(y)
+        if (list) list.push(at)
+        else column.set(y, [at])
+      }
+      this.crossings = { cells, count: found.length }
+    }
+    return this.crossings
   }
 }
 
@@ -188,25 +277,27 @@ function roundContour(
   points: readonly Point[],
   decimals: number,
   direction: number,
-  step: number,
   original: Original,
   fits: (points: readonly Point[]) => boolean,
 ): Point[] | 'collapse' | 'cross' | 'contours' {
   const rounded = clean(points.map((p) => ({ x: roundTo(p.x, decimals), y: roundTo(p.y, decimals) })))
   if (!healthy(rounded, direction)) return 'collapse'
+  const found = findSelfCrossings(rounded)
+  // A tangle is taken as rounded (see TANGLE_CROSSINGS).
+  if (found.length > 0 && original.tangled) return fits(rounded) ? rounded : 'contours'
   // Repair any crossing rounding added (cleaner outlines), then accept what is only rounding noise.
   // A repair moves an edge, so if the repaired contour is not acceptable, the plain one may still be.
   let out = rounded
-  let added = addedCrossings(out, original, step, false)
+  let added = addedCrossings(out, original, false, found)
   for (let i = 0; added.length > 0 && i < MAX_REPAIRS; i++) {
-    const repaired = repair(out, added[0], direction, original, step, added.length)
+    const repaired = repair(out, added[0], direction, original, added.length)
     if (!repaired) break
     out = repaired.points
     added = repaired.added
   }
   let failure: 'cross' | 'contours' = 'cross'
   for (const candidate of out === rounded ? [out] : [out, rounded]) {
-    if (addedCrossings(candidate, original, step, true).length > 0) continue
+    if (addedCrossings(candidate, original, true).length > 0) continue
     if (fits(candidate)) return candidate
     failure = 'contours'
   }
@@ -248,7 +339,6 @@ function repair(
   crossing: Crossing,
   direction: number,
   original: Original,
-  step: number,
   currentCount: number,
 ): { points: Point[]; added: Crossing[] } | null {
   const n = points.length
@@ -258,7 +348,7 @@ function repair(
   for (const index of candidates) {
     const trial = clean(points.filter((_, k) => k !== index))
     if (!healthy(trial, direction)) continue
-    const added = addedCrossings(trial, original, step, false)
+    const added = addedCrossings(trial, original, false)
     if (added.length >= currentCount) continue
     const areaChange = Math.abs(signedArea(trial) - area)
     if (!best || added.length < best.added.length || (added.length === best.added.length && areaChange < best.areaChange)) {
@@ -269,14 +359,13 @@ function repair(
 }
 
 /**
- * Crossings of the rounded contour that the original did not have. With `allowNearTouch`, crossings
- * where the original ran within two rounding steps of itself are accepted as rounding noise.
+ * Crossings of the rounded contour (`found`, when already known) that the original did not have. With
+ * `allowNearTouch`, crossings where the original ran within two rounding steps of itself are accepted
+ * as rounding noise.
  */
-function addedCrossings(points: readonly Point[], original: Original, step: number, allowNearTouch: boolean): Crossing[] {
-  const found = findSelfCrossings(points)
+function addedCrossings(points: readonly Point[], original: Original, allowNearTouch: boolean, found = findSelfCrossings(points)): Crossing[] {
   if (!found.length) return found
-  const radius = 2 * step
-  return found.filter((c) => (allowNearTouch ? !original.explains(c.at, radius) : !original.hasCrossingNear(c.at, radius)))
+  return found.filter((c) => (allowNearTouch ? !original.explains(c.at) : !original.hasCrossingNear(c.at)))
 }
 
 function cross(a: Point, b: Point, c: Point): number {

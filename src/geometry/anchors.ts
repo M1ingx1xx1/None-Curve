@@ -197,8 +197,11 @@ export function simplifyClosed(
   return { points: valid ? simplified : points.slice(), valid, maxDeviation: valid ? maxDeviation : 0 }
 }
 
-/** Iterative RDP over points[from..to] (to may equal points.length, meaning index 0). */
-function rdpChain(points: readonly Point[], from: number, to: number, tolerance: number, keep: Uint8Array): number {
+/**
+ * Iterative RDP over points[from..to] (to may equal points.length, meaning index 0): marks in `keep` the points that lie
+ * further than `tolerance` from the simplified chain, and returns the largest distance of a point left out.
+ */
+export function rdpChain(points: readonly Point[], from: number, to: number, tolerance: number, keep: Uint8Array): number {
   const at = (i: number) => points[i % points.length]
   let accepted = 0
   const stack: [number, number][] = [[from, to]]

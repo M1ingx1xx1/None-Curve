@@ -205,6 +205,11 @@ input[type='range']:disabled {
   gap: 8px;
 }
 
+/* Icon-only buttons (Undo, Redo): as much padding at the sides as above and below. */
+.header-actions .icon-button {
+  padding-inline: 8px;
+}
+
 .workspace {
   /* Two rows that always fill the space between the header and the status bar. The split is set
      inline by Workspace; the rows always add up to the same height. */
@@ -910,6 +915,12 @@ input[type='range']:disabled {
   color: var(--muted);
 }
 
+/* "Export would fail": a warning, with its bar set in as far as the empty preview's message. */
+.text-preview-empty.font-warning {
+  margin: 12px;
+  padding: 0 0 0 8px;
+}
+
 .text-input {
   flex: 1;
   min-height: 4.5em;
@@ -996,9 +1007,10 @@ input[type='range']:disabled {
   cursor: pointer;
 }
 
-/* On the canvas and the preview, glyphs use the Color settings (set on the SVG as --artboard-ink).
-   Hover and selection recolour the glyph with --artboard-highlight, computed from the text and
-   background colours to stand out while staying readable (see highlightColor). */
+/* On the canvas, glyphs use the Color settings (set on the SVG as --artboard-ink); the preview sets
+   their fill directly, as the SVG export does. Hover and selection recolour the glyph with
+   --artboard-highlight, computed from the text and background colours to stand out while staying
+   readable (see highlightColor). */
 .specimen-view .glyph-fill {
   fill: var(--artboard-ink, var(--text));
 }
@@ -1688,6 +1700,12 @@ input[type='range']:disabled {
   color: var(--muted);
 }
 
+/* The face menu of a font collection, in place of the style name: compact, and never wider than the panel. */
+.font-name select {
+  max-width: 100%;
+  padding: 2px 6px;
+}
+
 .font-meta {
   color: var(--muted);
   font-size: 0.78rem;
@@ -1817,10 +1835,6 @@ input[type='range']:disabled {
 .specimen-view-static {
   cursor: default;
   touch-action: auto;
-}
-
-.specimen-view-static .specimen-glyph {
-  pointer-events: none;
 }
 
 .glyph-view:focus-visible {
@@ -2128,6 +2142,8 @@ input[type='range']:disabled {
   pointer-events: none;
 }
 
+/* Above the bottom row, where a regular note (left) and the legend (right) may show: a one-line note
+   is 24px high and the legend 28px, both 8px from the bottom, so this clears them with a gap of 4-8px. */
 .canvas-note-error {
   color: var(--danger);
   border-color: var(--danger);
@@ -2620,10 +2636,6 @@ input[type='range']:disabled {
   gap: 10px;
   border-top: 1px solid var(--border);
   padding-top: 12px;
-}
-
-.export-section > .button-primary {
-  align-self: flex-start;
 }
 
 .export-names {

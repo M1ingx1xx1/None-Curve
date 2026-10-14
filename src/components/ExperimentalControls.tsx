@@ -1,13 +1,12 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
 import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
-import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SLIPSTREAM_LIMITS, type SlipstreamStats } from '../geometry/slipstream'
+import type { SlipstreamStats } from '../geometry/slipstream'
 import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
 import type { CrumpleParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
-import { WHORL_LIMITS } from '../geometry/whorl'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES, type SliderId } from '../state/sliderScales'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -59,9 +58,10 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
           Each effect folds the letters along straight creases, so it adds corners but never curves. Up to 100%, any
           combination keeps every letter as it was arranged. Beyond that, parts of a letter fold over other parts; the
           overlaps are merged into one clean outline, so the letters still export. Slipstream’s cuts and Thorn’s thorns
-          are merged the same way. Statistics are for the selected glyph.
+          are merged the same way. Where several dense effects together would add too many vertices, the letter is
+          simplified, so it stays quick to draw and export. Statistics are for the selected glyph.
         </HintText>
-        {experimentalMerges(params) && <FoldStats stats={stats} pending={pending} />}
+        {(experimentalMerges(params) || stats?.budget.applied) && <FoldStats stats={stats} pending={pending} />}
       </div>
 
       <CrumpleGroup params={params.crumple} stats={stats?.crumple ?? null} pending={pending} disabled={disabled} onChange={(crumple) => update({ crumple })} />
@@ -169,9 +169,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           target="experimental.crumple.amount"
           label="Amount"
           value={params.amount}
-          min={0}
-          max={CRUMPLE_LIMITS.maxAmount}
-          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -184,9 +181,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           target="experimental.crumple.detail"
           label="Detail"
           value={params.detail ?? CRUMPLE_LIMITS.defaultDetail}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)}%`}
           valueText={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)} percent`}
           disabled={off}
@@ -199,9 +193,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           target="experimental.crumple.facet"
           label="Facet size"
           value={params.facet}
-          min={CRUMPLE_LIMITS.minFacet}
-          max={CRUMPLE_LIMITS.maxFacet}
-          step={0.02}
           display={percent(params.facet)}
           unit="% em"
           valueText={`${percent(params.facet)} percent of the em`}
@@ -215,9 +206,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           target="experimental.crumple.turn"
           label="Turn"
           value={params.turn ?? 0}
-          min={0}
-          max={345}
-          step={15}
           display={`${Math.round(params.turn ?? 0)}°`}
           valueText={`${Math.round(params.turn ?? 0)} degrees`}
           disabled={off}
@@ -264,9 +252,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.amount"
           label="Amount"
           value={params.amount}
-          min={0}
-          max={RIPPLE_LIMITS.maxAmount}
-          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -279,9 +264,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.wavelength"
           label="Wavelength"
           value={params.wavelength}
-          min={RIPPLE_LIMITS.minWavelength}
-          max={RIPPLE_LIMITS.maxWavelength}
-          step={0.02}
           display={percent(params.wavelength)}
           unit="% em"
           valueText={`${percent(params.wavelength)} percent of the em`}
@@ -295,9 +277,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.sides"
           label="Sides"
           value={params.sides}
-          min={RIPPLE_LIMITS.minSides}
-          max={RIPPLE_LIMITS.maxSides}
-          step={1}
           display={params.sides}
           valueText={`${params.sides} sides`}
           disabled={off}
@@ -308,9 +287,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.centerX"
           label="Center X"
           value={params.centerX}
-          min={RIPPLE_LIMITS.minCenter}
-          max={RIPPLE_LIMITS.maxCenter}
-          step={0.1}
           display={`${percent(params.centerX)}%`}
           valueText={`${percent(params.centerX)} percent across the letter`}
           disabled={off}
@@ -323,9 +299,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.centerY"
           label="Center Y"
           value={params.centerY}
-          min={RIPPLE_LIMITS.minCenter}
-          max={RIPPLE_LIMITS.maxCenter}
-          step={0.1}
           display={`${percent(params.centerY)}%`}
           valueText={`${percent(params.centerY)} percent up the letter`}
           disabled={off}
@@ -336,9 +309,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.fade"
           label="Fade"
           value={params.fade}
-          min={0}
-          max={1}
-          step={0.1}
           display={`${percent(params.fade)}%`}
           valueText={`${percent(params.fade)} percent`}
           disabled={off}
@@ -351,9 +321,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.petals"
           label="Petals"
           value={params.petals ?? 0}
-          min={0}
-          max={RIPPLE_LIMITS.maxPetals}
-          step={0.1}
           display={`${percent(params.petals ?? 0)}%`}
           valueText={`${percent(params.petals ?? 0)} percent`}
           disabled={off}
@@ -398,9 +365,6 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           target="experimental.whorl.amount"
           label="Amount"
           value={params.amount}
-          min={-WHORL_LIMITS.maxAmount}
-          max={WHORL_LIMITS.maxAmount}
-          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -429,9 +393,6 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           target="experimental.whorl.rings"
           label="Rings"
           value={params.rings}
-          min={WHORL_LIMITS.minRings}
-          max={WHORL_LIMITS.maxRings}
-          step={1}
           display={params.rings}
           valueText={`${params.rings} rings`}
           disabled={off}
@@ -444,9 +405,6 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           target="experimental.whorl.sides"
           label="Sides"
           value={params.sides}
-          min={WHORL_LIMITS.minSides}
-          max={WHORL_LIMITS.maxSides}
-          step={1}
           display={params.sides}
           valueText={`${params.sides} sides`}
           disabled={off}
@@ -504,9 +462,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.direction"
           label="Direction"
           value={params.direction}
-          min={0}
-          max={345}
-          step={15}
           display={`${Math.round(params.direction)}°`}
           valueText={`${Math.round(params.direction)} degrees`}
           disabled={off}
@@ -519,9 +474,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.strength"
           label="Strength"
           value={params.strength}
-          min={0}
-          max={SLIPSTREAM_LIMITS.maxStrength}
-          step={0.1}
           display={`${percent(params.strength)}%`}
           valueText={`${percent(params.strength)} percent`}
           disabled={off}
@@ -534,9 +486,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.slip"
           label="Slip"
           value={slip}
-          min={0}
-          max={SLIPSTREAM_LIMITS.maxSlip}
-          step={0.01}
           display={percent(slip)}
           unit="% em"
           valueText={`${percent(slip)} percent of the em`}
@@ -550,9 +499,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.gust"
           label="Gust size"
           value={params.gust}
-          min={SLIPSTREAM_LIMITS.minGust}
-          max={SLIPSTREAM_LIMITS.maxGust}
-          step={0.02}
           display={percent(params.gust)}
           unit="% em"
           valueText={`${percent(params.gust)} percent of the em`}
@@ -566,9 +512,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.gustiness"
           label="Gustiness"
           value={params.gustiness}
-          min={0}
-          max={SLIPSTREAM_LIMITS.maxGustiness}
-          step={0.1}
           display={`${percent(params.gustiness)}%`}
           valueText={`${percent(params.gustiness)} percent`}
           disabled={off}
@@ -581,9 +524,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.cuts"
           label="Cuts"
           value={cuts}
-          min={0}
-          max={SLIPSTREAM_LIMITS.maxCuts}
-          step={1}
           display={cuts}
           valueText={`${cuts} ${cuts === 1 ? 'cut' : 'cuts'} per letter`}
           disabled={off}
@@ -596,9 +536,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.trails"
           label="Trails"
           value={trails}
-          min={0}
-          max={SLIPSTREAM_LIMITS.maxTrails}
-          step={1}
           display={trails}
           valueText={`${trails} ${trails === 1 ? 'trail' : 'trails'} per letter`}
           disabled={off}
@@ -671,9 +608,6 @@ function ThornGroup({
           target="experimental.thorn.count"
           label="Anchors"
           value={params.count}
-          min={THORN_LIMITS.minCount}
-          max={THORN_LIMITS.maxCount}
-          step={1}
           display={params.count}
           valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
           disabled={off}
@@ -686,9 +620,6 @@ function ThornGroup({
           target="experimental.thorn.reach"
           label="Reach"
           value={params.reach}
-          min={0}
-          max={THORN_LIMITS.maxReach}
-          step={0.05}
           display={percent(params.reach)}
           unit="% em"
           valueText={`${percent(params.reach)} percent of the em`}
@@ -702,9 +633,6 @@ function ThornGroup({
           target="experimental.thorn.root"
           label="Root"
           value={root}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(root)}%`}
           valueText={`${percent(root)} percent`}
           disabled={off}
@@ -717,9 +645,6 @@ function ThornGroup({
           target="experimental.thorn.spread"
           label="Spread"
           value={params.spread}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(params.spread)}%`}
           valueText={`${percent(params.spread)} percent`}
           disabled={off}
@@ -732,9 +657,6 @@ function ThornGroup({
           target="experimental.thorn.width"
           label="Width"
           value={params.width}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(params.width)}%`}
           valueText={`${percent(params.width)} percent`}
           disabled={off}
@@ -747,9 +669,6 @@ function ThornGroup({
           target="experimental.thorn.refraction"
           label="Refraction"
           value={refraction}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(refraction)}%`}
           valueText={`${percent(refraction)} percent`}
           disabled={off}
@@ -762,9 +681,6 @@ function ThornGroup({
           target="experimental.thorn.flute"
           label="Flute width"
           value={flute}
-          min={THORN_LIMITS.minFlute}
-          max={THORN_LIMITS.maxFlute}
-          step={0.01}
           display={percent(flute)}
           unit="% em"
           valueText={`${percent(flute)} percent of the em`}
@@ -802,6 +718,7 @@ function ThornGroup({
         {(stats?.fallbackContours ?? 0) > 0 && (
           <p className="font-warning">This glyph is left without roots or refraction: no strength kept it valid.</p>
         )}
+        {stats?.tooComplex && <p className="font-warning">This glyph is left without roots or refraction: too complex.</p>}
       </div>
     </fieldset>
   )
@@ -809,13 +726,10 @@ function ThornGroup({
 
 interface RangeFieldProps {
   id: string
-  /** The Sound target this slider is ("experimental.crumple.amount"), for its live marker. */
-  target: string
+  /** The Sound target this slider is ("experimental.crumple.amount"): its range, and its live marker. */
+  target: SliderId
   label: string
   value: number
-  min: number
-  max: number
-  step: number
   display: ReactNode
   unit?: string
   valueText: string
@@ -826,7 +740,7 @@ interface RangeFieldProps {
 }
 
 /** A labelled slider with its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
-function RangeField({ id, target, label, value, min, max, step, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+function RangeField({ id, target, label, value, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
   return (
     <div className="field">
       <div className="field-head">
@@ -843,9 +757,7 @@ function RangeField({ id, target, label, value, min, max, step, display, unit, v
         <input
           id={id}
           type="range"
-          min={min}
-          max={max}
-          step={step}
+          {...SLIDER_RANGES[target]}
           value={value}
           disabled={disabled}
           aria-valuetext={valueText}
@@ -859,20 +771,31 @@ function RangeField({ id, target, label, value, min, max, step, display, unit, v
   )
 }
 
-/** What merging the overlaps did, when an effect goes beyond 100%. */
+/** What merging the overlaps did, when an effect goes beyond 100% or the glyph was simplified, and why it may not have. */
 function FoldStats({ stats, pending }: { stats: ExperimentalStats | null; pending: boolean }) {
   const folds = stats?.folds
+  const budget = stats?.budget
   return (
-    <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
-      <div>
-        <dt>Crossings merged</dt>
-        <dd>{folds?.applied ? folds.crossings : '–'}</dd>
-      </div>
-      <div>
-        <dt>Slivers dropped</dt>
-        <dd>{folds?.applied ? folds.removed : '–'}</dd>
-      </div>
-    </dl>
+    <>
+      <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+        <div>
+          <dt>Crossings merged</dt>
+          <dd>{folds?.applied ? folds.crossings : '–'}</dd>
+        </div>
+        <div>
+          <dt>Slivers dropped</dt>
+          <dd>{folds?.applied ? folds.removed : '–'}</dd>
+        </div>
+      </dl>
+      {budget?.applied && (
+        <p className="font-warning">
+          Simplified: these settings make too many vertices or crossings, so the outline was reduced (tolerance{' '}
+          {Math.round(budget.tolerance).toLocaleString('en-US')} u).
+        </p>
+      )}
+      {folds?.failed && <p className="font-warning">Overlaps could not be merged; the outline is left as it is.</p>}
+      {folds?.tooComplex && <p className="font-warning">Too complex to merge; lower the settings.</p>}
+    </>
   )
 }
 
@@ -901,6 +824,7 @@ function EffectStats({ stats, pending, effect }: { stats: WarpStats | null; pend
         </p>
       )}
       {stats.fallbackContours > 0 && <p className="font-warning">This glyph is left without {effect}: no strength kept it valid.</p>}
+      {stats.tooComplex && <p className="font-warning">This glyph is left without {effect}: too complex.</p>}
     </>
   )
 }

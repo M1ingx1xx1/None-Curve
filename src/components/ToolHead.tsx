@@ -14,7 +14,13 @@ export default function ToolHead({ document, importer, onOpenGoogleFonts }: Tool
   return (
     <section className="panel tool-head" aria-label="Font">
       <ImportMenu busy={document.status.kind === 'loading'} onLocalFile={importer.importLocal} onOpenGoogleFonts={onOpenGoogleFonts} />
-      <FontStatus status={document.status} font={document.font} onRetry={importer.retry} onCancel={importer.cancel} />
+      <FontStatus
+        status={document.status}
+        font={document.font}
+        onRetry={importer.retry}
+        onCancel={importer.cancel}
+        onFace={importer.selectFace}
+      />
     </section>
   )
 }

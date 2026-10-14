@@ -9,7 +9,7 @@
 // the other's final points, and a contour that keeps its old points was valid against all of them, so
 // the finished glyph is valid as a whole.
 
-import { findRingCrossings, insideRing, ringBox, type Box } from './crossings'
+import { findRingCrossings, insideRing, ringBox, type Box, type RingIndex } from './crossings'
 import type { Point } from './types'
 
 interface Relation {
@@ -22,13 +22,21 @@ interface Relation {
 }
 
 export class ContourLayout {
+  /** How pairs of reference contours sit, by lo × reference.length + hi (only pairs that are not plainly apart). */
   private relations = new Map<number, Relation>()
+  private referenceBoxes: Box[] = []
+  /** The points last passed for each contour, and their boxes: callers pass the same ones again and again. */
+  private seen: (readonly Point[] | undefined)[] = []
+  private seenBoxes: Box[] = []
 
   /** `reference`: the contours whose arrangement must be kept, such as the outline before a step. */
   constructor(private readonly reference: readonly (readonly Point[])[]) {}
 
   /** True when `a` (standing for contour k) and `b` (for contour m) sit like contours k and m of the reference. */
   pairKept(k: number, m: number, a: readonly Point[], b: readonly Point[]): boolean {
+    // Boxes apart, in the reference and now: neither crosses nor holds the other, then or now. Most pairs of a glyph
+    // with many contours (thousands, after strong effects) are, so they are told without remembering anything.
+    if (apart(this.referenceBox(k), this.referenceBox(m)) && apart(this.boxOf(k, a), this.boxOf(m, b))) return true
     const before = this.relation(k, m)
     if (before.meet) return true
     const now = relate(a, b)
@@ -49,7 +57,7 @@ export class ContourLayout {
 
   private relation(k: number, m: number): Relation {
     const [lo, hi] = k < m ? [k, m] : [m, k]
-    const key = lo * 65536 + hi
+    const key = lo * this.reference.length + hi
     let relation = this.relations.get(key)
     if (!relation) {
       relation = relate(this.reference[lo], this.reference[hi])
@@ -57,23 +65,39 @@ export class ContourLayout {
     }
     return k < m ? relation : { meet: relation.meet, aInB: relation.bInA, bInA: relation.aInB }
   }
+
+  private referenceBox(k: number): Box {
+    return (this.referenceBoxes[k] ??= ringBox(this.reference[k]))
+  }
+
+  private boxOf(k: number, points: readonly Point[]): Box {
+    if (this.seen[k] !== points) {
+      this.seen[k] = points
+      this.seenBoxes[k] = ringBox(points)
+    }
+    return this.seenBoxes[k]
+  }
 }
 
-/** Whether two closed rings cross or touch, and if not, whether either lies inside the other. */
-export function relate(a: readonly Point[], b: readonly Point[]): Relation {
+/**
+ * Whether two closed rings cross or touch, and if not, whether either lies inside the other. Indexes of
+ * either ring (see RingIndex) only make it faster.
+ */
+export function relate(a: readonly Point[], b: readonly Point[], indexA?: RingIndex, indexB?: RingIndex): Relation {
   const boxA = ringBox(a)
   const boxB = ringBox(b)
-  if (boxA.maxX < boxB.minX || boxB.maxX < boxA.minX || boxA.maxY < boxB.minY || boxB.maxY < boxA.minY) {
-    return { meet: false, aInB: false, bInA: false }
-  }
-  if (findRingCrossings(a, b, 0).length > 0) return { meet: true, aInB: false, bInA: false }
+  if (apart(boxA, boxB)) return { meet: false, aInB: false, bInA: false }
+  if (findRingCrossings(a, b, 0, indexA, indexB).length > 0) return { meet: true, aInB: false, bInA: false }
   // Rings that do not meet are either nested or apart, so one point of each tells which.
   return {
     meet: false,
-    aInB: encloses(boxB, boxA) && insideRing(a[0], b),
-    bInA: encloses(boxA, boxB) && insideRing(b[0], a),
+    aInB: encloses(boxB, boxA) && (indexB?.points === b ? indexB.contains(a[0]) : insideRing(a[0], b)),
+    bInA: encloses(boxA, boxB) && (indexA?.points === a ? indexA.contains(b[0]) : insideRing(b[0], a)),
   }
 }
+
+/** True when the boxes have no point in common. */
+const apart = (a: Box, b: Box) => a.maxX < b.minX || b.maxX < a.minX || a.maxY < b.minY || b.maxY < a.minY
 
 const encloses = (outer: Box, inner: Box) =>
   outer.minX <= inner.minX && outer.maxX >= inner.maxX && outer.minY <= inner.minY && outer.maxY >= inner.maxY

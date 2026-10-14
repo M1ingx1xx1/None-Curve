@@ -1,5 +1,5 @@
 // Audio features for the Sound tab, measured from one analyser frame at a time. Pure: no DOM, no Web
-// Audio; the engine passes in what the AnalyserNodes measured, so this runs in tests on synthetic signals.
+// Audio; the engine passes in what the AnalyserNodes measured, so tests/sound runs it on synthetic signals.
 //
 // Per frame: Level (RMS of the samples, DC offset removed) and Swell (Level, slowly); Bass / Mids / Treble (band
 // energy against each band's own recent loudest value); Brightness (spectral centroid of 20 Hz – 20 kHz on a log
@@ -9,8 +9,10 @@
 // two detectors, one on the spectral flux of the whole spectrum and one on the kick band only (a bass drum can
 // hide in the full-band flux under broadband sound), with a pulse that jumps to 1 and falls back. Each detector
 // fires above an adaptive threshold: the median of the last second × a factor plus a floor, and at least a fraction
-// of its last onset's own flux as it decays, so a hit's noisy tail does not count as new hits. Onsets are judged at
-// most about 60 times a second, so the thresholds mean the same on any display.
+// of its last onset's own flux as it decays, so a hit's noisy tail does not count as new hits; and only while some
+// octave band's energy rises above its recent loudest, so a steady buzzy bass (whose flux beats against the frame
+// rate) does not fire. Onsets are judged at most about 60 times a second, so the thresholds mean the same on any
+// display.
 
 import { type FeatureFrame, type FeatureSettings, type StereoSamples, SOUND_LIMITS } from './types'
 
@@ -41,6 +43,12 @@ const CHANGE_MAX_DECAY_PER_MS = Math.LN2 / (1000 * SOUND_LIMITS.bandMemorySecond
 const CHANGE_MIN_SHARE = 0.25
 /** Pace keeps this many onset times: all a paceWindowMs can hold, minBeatGapMs apart. */
 const PACE_CAPACITY = Math.ceil(SOUND_LIMITS.paceWindowMs / SOUND_LIMITS.minBeatGapMs) + 1
+/** Beat's energy gate keeps this many judged frames: all an onsetRiseWindowMs can hold, FLUX_MIN_STEP_MS apart. */
+const RISE_CAPACITY = Math.ceil(SOUND_LIMITS.onsetRiseWindowMs / FLUX_MIN_STEP_MS) + 1
+/** The energy gate's octave bands, each to the next band's edge; the last runs to Nyquist. */
+const RISE_BANDS = SOUND_LIMITS.onsetRiseBandsHz.map((lo, b, edges): [number, number] => [lo, edges[b + 1] ?? Infinity])
+/** The kick detector's gate looks at the first this many bands: those starting below the kick band's top. */
+const KICK_RISE_BANDS = RISE_BANDS.filter(([lo]) => lo < SOUND_LIMITS.kickBand[1]).length
 /** Pitch: log2 of pitchHighHz / pitchLowHz, the octaves from 0 to 1. */
 const PITCH_OCTAVES = Math.log2(SOUND_LIMITS.pitchHighHz / SOUND_LIMITS.pitchLowHz)
 /**
@@ -82,6 +90,8 @@ export class FeatureExtractor {
   private readonly centroidEnd: number
   private readonly bands: readonly BinRange[]
   private readonly kickBins: BinRange
+  /** The energy gate's octave bands (RISE_BANDS). */
+  private readonly riseBins: readonly BinRange[]
 
   /** Linear magnitudes of the current frame (reused). */
   private readonly mag: Float32Array
@@ -141,6 +151,8 @@ export class FeatureExtractor {
   /** Beat's two detectors: full-band flux (which also fires on every kick, see process) and the kick band's. */
   private readonly beat = new OnsetDetector(SOUND_LIMITS.fluxFactor, SOUND_LIMITS.fluxFloor)
   private readonly kick = new OnsetDetector(SOUND_LIMITS.kickFluxFactor, SOUND_LIMITS.kickFluxFloor)
+  /** Their energy gate: the octave bands' recent energy. */
+  private readonly rise = new RiseHistory(RISE_BANDS.length, KICK_RISE_BANDS, RISE_CAPACITY)
 
   /**
    * @param sampleRate the audio context's sample rate (Hz)
@@ -163,6 +175,7 @@ export class FeatureExtractor {
     this.centroidEnd = Math.max(this.firstBin, range([0, SOUND_LIMITS.maxFeatureHz]).end)
     this.bands = BANDS.map(range)
     this.kickBins = range(SOUND_LIMITS.kickBand)
+    this.riseBins = RISE_BANDS.map(range)
     this.mag = new Float32Array(this.binCount)
     this.compressed = new Float32Array(this.binCount)
     this.prevCompressed = new Float32Array(this.binCount)
@@ -212,6 +225,7 @@ export class FeatureExtractor {
       // from long ago, so onsets start afresh. Smoothing and band memory just see a long step.
       this.beat.clear()
       this.kick.clear()
+      this.rise.clear()
       this.hasPrev = false
     }
     this.prevTime = time
@@ -298,6 +312,18 @@ export class FeatureExtractor {
     // judged frames (fast displays) the previous spectrum is kept, so the next flux spans about 1/60 s.
     let onset = false
     let kick = false
+    if (judge) {
+      // The energy gate: each octave band's energy in dB (as the Bands', never below the silence threshold),
+      // against its loudest in the onsetRiseWindowMs before. Every judged frame adds to the history, the first too.
+      const energies = this.rise.current
+      for (let b = 0; b < this.riseBins.length; b++) {
+        const { start, end } = this.riseBins[b]
+        let energy = 0
+        for (let k = Math.max(start, this.firstBin); k < end; k++) energy += mag[k] * mag[k]
+        energies[b] = Math.max((energy > 0 ? 10 * Math.log10(energy) : -Infinity) + sensitivity, BAND_SILENCE_DB)
+      }
+      this.rise.measure(time)
+    }
     if (judge && this.hasPrev) {
       let kickFlux = 0
       const { start, end } = this.kickBins
@@ -306,9 +332,10 @@ export class FeatureExtractor {
       }
       // The kick detector first: a bass-drum onset is an onset, so it fires the full-band detector too. Full-band
       // flux alone can miss it under broadband sound (about 6 bass bins against about 1000 others). The full-band
-      // detector's own minimum gap still applies, so one hit heard by both detectors gives one onset.
-      kick = this.kick.detect(kickFlux, time, silent)
-      onset = this.beat.detect(flux, time, silent, kick)
+      // detector's own minimum gap still applies, so one hit heard by both detectors gives one onset. Each fires only
+      // while a band it listens to rises; the full-band detector listens to every band, so a kick's rise passes both.
+      kick = this.kick.detect(kickFlux, time, silent, false, !(this.rise.kick >= SOUND_LIMITS.onsetRiseDb))
+      onset = this.beat.detect(flux, time, silent, kick, !(this.rise.all >= SOUND_LIMITS.onsetRiseDb))
     }
     if (judge) {
       // Change's inputs: 0 without a previous spectrum; frames between judged ones keep the last judged ones.
@@ -444,6 +471,7 @@ export class FeatureExtractor {
     this.hasPrev = false
     this.beat.clear()
     this.kick.clear()
+    this.rise.clear()
   }
 
   /**
@@ -600,7 +628,7 @@ class Fft {
  * One onset detector: fires when the flux exceeds both the median flux of the last fluxWindowMs × its factor
  * plus an absolute floor, and onsetHoldRatio × the last onset's flux decaying with onsetHoldMs (the hold, so a
  * hit's own decaying tail does not fire again); at least minBeatGapMs after its last onset, once it has heard
- * onsetWarmupMs.
+ * onsetWarmupMs, and not while the energy gate holds it back.
  */
 class OnsetDetector {
   private readonly history = new FluxHistory(SOUND_LIMITS.fluxHistoryCapacity)
@@ -621,10 +649,12 @@ class OnsetDetector {
   ) {}
 
   /**
-   * Judges this frame's flux against the past (not including itself), then records it.
+   * Judges this frame's flux against the past (not including itself), then records it (vetoed or not, so the
+   * median does not depend on the gate).
    * @param also another detector found an onset in this frame: fire too (still subject to silence, warm-up and the gap)
+   * @param veto no band this detector listens to rose enough (SOUND_LIMITS.onsetRiseDb): do not fire
    */
-  detect(flux: number, time: number, silent: boolean, also = false): boolean {
+  detect(flux: number, time: number, silent: boolean, also = false, veto = false): boolean {
     const history = this.history
     history.prune(time - SOUND_LIMITS.fluxWindowMs)
     this.median = history.median()
@@ -632,6 +662,7 @@ class OnsetDetector {
     // (Before any onset, peak is 0 and peakTime -Infinity, so this is 0.)
     const held = this.peak * Math.exp(-(time - this.peakTime) / SOUND_LIMITS.onsetHoldMs)
     const fire =
+      !veto &&
       !silent &&
       history.span(time) >= SOUND_LIMITS.onsetWarmupMs &&
       time - this.lastOnset >= SOUND_LIMITS.minBeatGapMs &&
@@ -710,6 +741,71 @@ class FluxHistory {
     let lower = a[0]
     for (let j = 1; j < mid; j++) if (a[j] > lower) lower = a[j]
     return (lower + upper) / 2
+  }
+}
+
+/**
+ * Beat's energy gate (SOUND_LIMITS.onsetRiseDb): the octave bands' energy (dB) in the judged frames of the last
+ * onsetRiseWindowMs, in a ring buffer, so measuring a frame allocates nothing.
+ */
+class RiseHistory {
+  /** The frame being measured: each band's energy (dB), filled in by the caller before measure(). */
+  readonly current: Float64Array
+  /**
+   * After measure(): the most any band rose above its loudest in the window (dB), and the same over the first
+   * kickBands bands; Infinity with nothing to compare with (the detectors' warm-up holds those frames back anyway).
+   */
+  all = Infinity
+  kick = Infinity
+  private readonly times: Float64Array
+  /** Band energies by entry: entry i's band b at i × bands + b. */
+  private readonly values: Float64Array
+  private head = 0
+  private count = 0
+
+  constructor(
+    private readonly bands: number,
+    private readonly kickBands: number,
+    private readonly capacity: number,
+  ) {
+    this.current = new Float64Array(bands)
+    this.times = new Float64Array(capacity)
+    this.values = new Float64Array(capacity * bands)
+  }
+
+  clear(): void {
+    this.head = 0
+    this.count = 0
+  }
+
+  /** Measures `current` against the entries of the onsetRiseWindowMs before `time`, then adds it. */
+  measure(time: number): void {
+    while (this.count > 0 && this.times[this.head] < time - SOUND_LIMITS.onsetRiseWindowMs) {
+      this.head = (this.head + 1) % this.capacity
+      this.count--
+    }
+    const { bands, current, values } = this
+    this.all = this.kick = this.count > 0 ? -Infinity : Infinity
+    for (let b = 0; this.count > 0 && b < bands; b++) {
+      // Newest first; an entry the band has since fallen onsetRiseResetDb below, and all before it, no longer count.
+      let loudest = -Infinity
+      let lowest = Infinity
+      for (let j = this.count - 1; j >= 0; j--) {
+        const db = values[((this.head + j) % this.capacity) * bands + b]
+        if (db - lowest >= SOUND_LIMITS.onsetRiseResetDb) break
+        if (db > loudest) loudest = db
+        if (db < lowest) lowest = db
+      }
+      const rise = current[b] - loudest
+      if (rise > this.all) this.all = rise
+      if (b < this.kickBands && rise > this.kick) this.kick = rise
+    }
+    // When full, the oldest is dropped (the window then covers less time).
+    const i = (this.head + this.count) % this.capacity
+    this.times[i] = time
+    values.set(current, i * bands)
+    if (this.count < this.capacity) this.count++
+    else this.head = (this.head + 1) % this.capacity
   }
 }
 

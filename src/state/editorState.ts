@@ -2,7 +2,7 @@ import type { FontErrorKind } from '../font/errors'
 import { pickDefaultGlyph, type LoadedFont } from '../font/model'
 import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../specimen/artboard'
 import type { GlyphRef } from '../geometry/types'
-import type { AppState, EditorParams, ExportMeta, ImportOrigin, ViewParams } from './types'
+import type { AppState, EditorParams, ExportMeta, ImportOrigin, SettingsParams, ViewParams } from './types'
 
 const initialView: ViewParams = {
   outline: 'flattened',
@@ -48,6 +48,8 @@ type ParamGroup = keyof EditorParams
 
 export type Action =
   | { [G in ParamGroup]: { type: 'updateParams'; group: G; patch: Partial<EditorParams[G]> } }[ParamGroup]
+  /** Undo and redo: every settings group at once; the canvas view is kept. */
+  | { type: 'restoreParams'; params: SettingsParams }
   | { type: 'resetView' }
   | { type: 'updateExport'; patch: Partial<ExportMeta> }
   /** keepView leaves zoom and pan alone (selecting inside the text specimen). */
@@ -71,6 +73,8 @@ export function editorReducer(state: AppState, action: Action): AppState {
           [action.group]: { ...state.params[action.group], ...action.patch },
         },
       }
+    case 'restoreParams':
+      return { ...state, params: { ...action.params, view: state.params.view } }
     case 'resetView':
       return { ...state, params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } } }
     case 'updateExport':
@@ -94,19 +98,26 @@ export function editorReducer(state: AppState, action: Action): AppState {
           status: { kind: 'loading', requestId: action.requestId, origin: action.origin, label: action.label },
         },
       }
-    case 'importSucceeded':
+    case 'importSucceeded': {
       // A newer import has started since this one; drop the stale result.
       if (!isActiveRequest(state, action.requestId)) return state
+      const { font } = action
+      // Another face of the open collection (the same file in memory, see selectFace): the view stays, and so
+      // does the selected character when this face has it.
+      const otherFace = font.faces !== null && state.document.font?.bytes === font.bytes
+      const unicode = otherFace ? (state.document.selectedGlyph?.unicode ?? null) : null
+      const kept = unicode === null ? undefined : font.characters.find((c) => c.unicode === unicode)
       return {
         ...state,
         document: {
           ...state.document,
           status: { kind: 'ready' },
-          font: action.font,
-          selectedGlyph: pickDefaultGlyph(action.font),
+          font,
+          selectedGlyph: kept ?? pickDefaultGlyph(font),
         },
-        params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
+        params: otherFace ? state.params : { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
       }
+    }
     case 'importFailed':
       if (!isActiveRequest(state, action.requestId)) return state
       return {

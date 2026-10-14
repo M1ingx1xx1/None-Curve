@@ -31,9 +31,10 @@
 // winds once and everything else not at all; then the wedges are added the other way round, and the outline is
 // redrawn around what still winds positively.
 
+import type { GlyphBudget } from './budget'
 import { hashInts } from './distortion'
 import { signedArea } from './flatten'
-import { mergeOverlaps, type OverlapStats } from './overlaps'
+import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
 import type { Box } from './ripple'
 import type { Point, PolygonGlyph, SlipstreamParams } from './types'
 import { emptyWarpStats, type Warp, type WarpStats } from './warp'
@@ -306,16 +307,20 @@ function slipShear(seed: number, amount: number) {
 /**
  * Slipstream's trails, then its cuts, on the warped glyph. `merge` describes how the outline was redrawn for the
  * cuts (null when it was not: no cuts, or the glyph lies too far out to merge); the redrawn outline is clean, with
- * any folds already merged.
+ * any folds already merged. When the redraw broke down or was too complex (merge.applied false, with failed or
+ * tooComplex), the glyph comes back with its trails but without cuts, unmerged (and, when too complex, simplified).
+ * `budget` keeps the merges within the glyph's vertex budget (see budget.ts).
  */
 export function slipstreamTrailsAndCuts(
   polygon: PolygonGlyph,
   params: SlipstreamParams,
   seed: number,
   unitsPerEm: number,
+  budget?: GlyphBudget,
 ): { polygon: PolygonGlyph; trails: number; cuts: number; merge: OverlapStats | null } {
   const trailed = addTrails(polygon, params, seed, unitsPerEm)
-  const cut = addCuts(trailed.polygon, params, seed, unitsPerEm)
+  const merge = (glyph: PolygonGlyph, rule: FillRule) => (budget ? budget.merge(glyph, rule) : mergeOverlaps(glyph, rule))
+  const cut = addCuts(trailed.polygon, params, seed, unitsPerEm, merge)
   return { polygon: cut.polygon, trails: trailed.count, cuts: cut.count, merge: cut.merge }
 }
 
@@ -520,18 +525,20 @@ function pointOn(ring: Ring, distance: number): { point: Point; edge: number } {
   return { point, edge: lo }
 }
 
-/** Long, thin wedges cut into the letter along the stream (see the header). */
+/** Long, thin wedges cut into the letter along the stream (see the header), merging the outline with `merge`. */
 function addCuts(
   polygon: PolygonGlyph,
   params: SlipstreamParams,
   seed: number,
   unitsPerEm: number,
+  merge: (glyph: PolygonGlyph, rule: FillRule) => { polygon: PolygonGlyph; stats: OverlapStats },
 ): { polygon: PolygonGlyph; count: number; merge: OverlapStats | null } {
   const wanted = count(params.cuts, SLIPSTREAM_LIMITS.maxCuts)
   if (wanted === 0) return { polygon, count: 0, merge: null }
   // Redrawn by the nonzero rule: the ink winds once (outer contours counter-clockwise, holes clockwise).
-  const clean = mergeOverlaps(polygon)
-  if (!clean.stats.applied) return { polygon, count: 0, merge: null }
+  const clean = merge(polygon, 'nonzero')
+  // Too complex to merge: the glyph as the budget simplified it for its last try (see GlyphBudget.merge).
+  if (!clean.stats.applied) return { polygon: clean.polygon, count: 0, merge: clean.stats.failed || clean.stats.tooComplex ? clean.stats : null }
   const { wx, wy } = streamOf(params)
   const glyph = clean.polygon.ref.index | 0
   const contours = clean.polygon.contours.map((c) => c.points)
@@ -583,8 +590,9 @@ function addCuts(
   }
   if (wedges.length === 0) return { polygon: clean.polygon, count: 0, merge: clean.stats }
   const contoursWithCuts = [...clean.polygon.contours, ...wedges.map((points) => ({ points, clockwise: true }))]
-  const cut = mergeOverlaps({ ...clean.polygon, contours: contoursWithCuts }, 'positive')
-  if (!cut.stats.applied) return { polygon: clean.polygon, count: 0, merge: clean.stats }
+  const cut = merge({ ...clean.polygon, contours: contoursWithCuts }, 'positive')
+  // Without the cuts, the redrawn outline stays; why the cut merge did not apply goes along.
+  if (!cut.stats.applied) return { polygon: clean.polygon, count: 0, merge: { ...clean.stats, failed: cut.stats.failed, tooComplex: cut.stats.tooComplex } }
   return {
     polygon: cut.polygon,
     count: wedges.length,
@@ -594,6 +602,8 @@ function addCuts(
       contoursIn: clean.stats.contoursIn,
       contoursOut: cut.stats.contoursOut,
       removed: clean.stats.removed + cut.stats.removed,
+      failed: false,
+      tooComplex: false,
     },
   }
 }

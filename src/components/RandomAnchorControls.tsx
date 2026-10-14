@@ -3,6 +3,7 @@ import { RANDOM_ANCHOR_LIMITS, type RandomAnchorStats } from '../geometry/random
 import type { RandomAnchorParams } from '../geometry/types'
 import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -106,9 +107,7 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
             <input
               id="random-density"
               type="range"
-              min={RANDOM_ANCHOR_LIMITS.minDensity}
-              max={RANDOM_ANCHOR_LIMITS.maxDensity}
-              step={1}
+              {...SLIDER_RANGES['random.density']}
               value={params.density}
               disabled={off}
               aria-valuetext={`${params.density} anchors per 1000 font units`}
@@ -135,9 +134,7 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
             <input
               id="random-randomness"
               type="range"
-              min={0}
-              max={1}
-              step={0.05}
+              {...SLIDER_RANGES['random.randomness']}
               value={params.randomness}
               disabled={off}
               aria-valuetext={`${percent} percent`}

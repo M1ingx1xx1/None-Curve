@@ -1,6 +1,7 @@
 import { memo, type Dispatch } from 'react'
 import type { SquaringFailure, SquaringParams, SquaringScope, SquaringStats } from '../geometry/squaring'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import LiveMarker from './LiveMarker'
 import { sameControlProps } from './sameControlProps'
@@ -63,9 +64,7 @@ function SquaringControls({ params, stats, pending, disabled, dispatch }: Squari
             <input
               id="squaring-amount"
               type="range"
-              min={0}
-              max={1}
-              step={0.05}
+              {...SLIDER_RANGES['squaring.amount']}
               value={params.amount}
               aria-valuetext={percent > 0 ? `${percent} percent` : 'Off'}
               onChange={(e) => update({ amount: Number(e.target.value) })}

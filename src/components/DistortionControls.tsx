@@ -3,6 +3,7 @@ import { DISTORTION_LIMITS, type DistortionStats } from '../geometry/distortion'
 import type { DistortionParams } from '../geometry/types'
 import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -69,9 +70,7 @@ function DistortionControls({
             <input
               id="distortion-amount"
               type="range"
-              min={0}
-              max={DISTORTION_LIMITS.maxAmount}
-              step={1}
+              {...SLIDER_RANGES['distortion.amount']}
               value={params.amount}
               aria-valuetext={on ? `${params.amount} font units` : 'Off'}
               onChange={(e) => update({ amount: Number(e.target.value) })}
@@ -92,9 +91,7 @@ function DistortionControls({
             <input
               id="distortion-frequency"
               type="range"
-              min={DISTORTION_LIMITS.minFrequency}
-              max={DISTORTION_LIMITS.maxFrequency}
-              step={0.5}
+              {...SLIDER_RANGES['distortion.frequency']}
               value={params.frequency}
               aria-valuetext={`${params.frequency} per 1000 font units`}
               aria-describedby={frequencyHint.id}
@@ -120,9 +117,7 @@ function DistortionControls({
             <input
               id="distortion-bias"
               type="range"
-              min={0}
-              max={1}
-              step={0.05}
+              {...SLIDER_RANGES['distortion.normalBias']}
               value={params.normalBias}
               aria-valuetext={`${Math.round(params.normalBias * 100)} percent across the outline`}
               aria-describedby={biasHint.id}
