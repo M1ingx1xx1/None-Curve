@@ -4,25 +4,43 @@
 import type { Font, Glyph } from 'fontkit'
 import type { GlyphRef, Point, SourceContour, SourceGlyph } from '../geometry/types'
 import { FontLoadError } from './errors'
-import type { FontFormat, FontInfo, FontMetrics, FontNameKey, FontSource, LoadedFont, VariationAxis } from './model'
+import { readKerning } from './kerning'
+import type {
+  CollectionFace,
+  FontFormat,
+  FontInfo,
+  FontMetrics,
+  FontNameKey,
+  FontSource,
+  LoadedFont,
+  SourceKerning,
+  VariationAxis,
+} from './model'
 import { sniffFontFormat } from './sniff'
 import { woff2ToTrueType } from './woff2'
 
 let loadId = 0
 
 export async function parseFont(bytes: Uint8Array, source: FontSource, signal: AbortSignal): Promise<LoadedFont> {
-  const format = sniffFontFormat(bytes)
+  let format = sniffFontFormat(bytes)
   const fontkit = await import('fontkit')
   signal.throwIfAborted()
 
   let font: Font
+  let collection: Collection | null = null
   try {
     // fontkit's types ask for a Node Buffer; in the browser build a Uint8Array is what it reads.
     const parsed = fontkit.create(bytes as unknown as Buffer)
     if ('fonts' in parsed) {
-      throw new FontLoadError('unsupported-format', 'Font collections are not supported yet.')
+      const fonts = parsed.fonts // a new font object per face on every read
+      collection = openCollection(fonts, source.kind === 'local' ? source.face : undefined)
+      font = fonts[collection.face]
+      if (hasTable(font, 'CFF ')) format = 'otc'
+      // Record the face, so the geometry worker (which gets this source) opens the same one.
+      if (source.kind === 'local') source = { ...source, face: collection.face }
+    } else {
+      font = parsed
     }
-    font = parsed
     // Touch the required tables now so a damaged file fails here, not later in the canvas.
     void font.numGlyphs
     void font.unitsPerEm
@@ -42,9 +60,56 @@ export async function parseFont(bytes: Uint8Array, source: FontSource, signal: A
   if (weight !== null && axis && weight !== axis.default) {
     const value = Math.min(axis.max, Math.max(axis.min, weight))
     const instance = instanceAt(fontkit, font, bytes, { wght: value })
-    if (instance) return buildLoadedFont(instance, format, source, bytes, { wght: value })
+    if (instance) return buildLoadedFont(instance, format, source, bytes, { wght: value }, null)
   }
-  return buildLoadedFont(font, format, source, bytes, null)
+  return buildLoadedFont(font, format, source, bytes, null, collection)
+}
+
+interface Collection {
+  faces: CollectionFace[]
+  face: number
+}
+
+/**
+ * Lists a collection's faces and picks one: `requested` if it is a face of the file, else the upright
+ * face closest to Regular (weight 400, normal width), else the first. Faces whose PostScript name
+ * starts with a dot are hidden system faces (macOS) and are left out unless there is nothing else.
+ */
+function openCollection(fonts: Font[], requested: number | undefined): Collection {
+  if (!fonts.length) throw new FontLoadError('no-glyphs', 'The font collection contains no fonts.')
+  const all = fonts.map((font, index) => describeFace(font, index))
+  const shown = all.filter((f) => !f.hidden)
+  const faces = shown.length ? shown : all
+  if (requested !== undefined && Number.isInteger(requested) && requested >= 0 && requested < fonts.length) {
+    return { faces, face: requested }
+  }
+  // Upright first, then weight, then width; the earlier face wins a tie.
+  const score = (f: (typeof all)[number]) => (f.italic ? 1e6 : 0) + Math.abs(f.weight - 400) * 10 + Math.abs(f.width - 5)
+  const best = faces.reduce((a, b) => (score(b) < score(a) ? b : a))
+  return { faces, face: best.index }
+}
+
+function describeFace(font: Font, index: number): CollectionFace & { hidden: boolean; italic: boolean; weight: number; width: number } {
+  const read = <T,>(get: () => T, fallback: T): T => {
+    try {
+      return get() ?? fallback
+    } catch {
+      return fallback
+    }
+  }
+  const family = read(() => typographicName(font, 'preferredFamily') || font.familyName, '') || `Face ${index + 1}`
+  const style = read(() => typographicName(font, 'preferredSubfamily') || font.subfamilyName, '') || 'Regular'
+  const os2 = read(() => (font as unknown as Record<string, Record<string, unknown> | undefined>)['OS/2'], undefined)
+  const fsSelection = os2?.fsSelection as { italic?: boolean; oblique?: boolean } | undefined
+  return {
+    index,
+    family,
+    style,
+    hidden: read(() => font.postscriptName, '').startsWith('.'),
+    italic: Boolean(fsSelection?.italic || fsSelection?.oblique || read(() => font.italicAngle, 0) || /italic|oblique/i.test(style)),
+    weight: typeof os2?.usWeightClass === 'number' ? os2.usWeightClass : 400,
+    width: typeof os2?.usWidthClass === 'number' ? os2.usWidthClass : 5,
+  }
 }
 
 /**
@@ -85,6 +150,7 @@ function buildLoadedFont(
   source: FontSource,
   bytes: Uint8Array,
   instance: Record<string, number> | null,
+  collection: Collection | null,
 ): LoadedFont {
   const font = useOutlineGlyphs(colourFont)
   const metrics: FontMetrics = {
@@ -129,6 +195,7 @@ function buildLoadedFont(
 
   const outlineCache = new Map<number, SourceGlyph>()
   const previewCache = new Map<number, string>()
+  let kerning: SourceKerning | null | undefined
 
   const refFor = (index: number): GlyphRef => ({
     index,
@@ -157,6 +224,8 @@ function buildLoadedFont(
     source,
     format,
     bytes,
+    faces: collection?.faces.map(({ index, family, style }) => ({ index, family, style })) ?? null,
+    face: collection?.face ?? null,
     familyName: typographicName(font, 'preferredFamily') || font.familyName || 'Untitled',
     styleName,
     metrics,
@@ -168,6 +237,10 @@ function buildLoadedFont(
     axes,
     hasCharacter: (cp) => mappedCodePoints.has(cp),
     hasKerning: safeFeatures(font).includes('kern') || hasTable(font, 'kern'),
+    kerning() {
+      if (kerning === undefined) kerning = readKerning(font)
+      return kerning
+    },
     shapeLine(text) {
       const chars = [...text]
       let run: ReturnType<Font['layout']>

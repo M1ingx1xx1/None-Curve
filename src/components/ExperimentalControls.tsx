@@ -1,13 +1,12 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
-import { CURL_LIMITS } from '../geometry/curl'
+import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
-import { NOISE_LIMITS } from '../geometry/noise'
-import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SPIKE_LIMITS, type SpikeStats } from '../geometry/spikes'
-import type { CurlParams, ExperimentalParams, NoiseParams, RippleParams, SpikeParams, WindParams } from '../geometry/types'
+import type { SlipstreamStats } from '../geometry/slipstream'
+import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
+import type { CrumpleParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
-import { WIND_LIMITS } from '../geometry/wind'
 import type { Action } from '../state/editorState'
+import { reachFromSlider, reachPercent, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId, type SliderRange } from '../state/sliderScales'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -22,25 +21,32 @@ interface ExperimentalControlsProps {
   dispatch: Dispatch<Action>
   /** Which glyph the statistics describe, shown in the intro like on the Geometry tab. */
   statistics?: ReactNode
+  /** How far a thorn can reach at Reach 100% (em): the canvas diagonal at the current text size, up to Thorn's cap. */
+  reachEm: number
 }
 
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
-  noise: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
+  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0, detail: 0.5 },
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
-  curl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
-  wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
-  spikes: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3 },
+  whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
+  slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
+  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
 }
 
 const percent = (v: number) => Math.round(v * 100)
+/** Ems for a hint: one decimal below 10, whole above. */
+const ems = (v: number) => (Math.round(v * 10) < 100 ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)))
+
+// Reach is cubic (THORN_REACH): short thorns keep fine steps, and the top flings anchors across the whole canvas.
+const REACH_CURVE: SliderCurve = { slider: THORN_REACH.slider, toSlider: reachToSlider, fromSlider: reachFromSlider }
 
 /**
  * The Experimental tab: effects that run after the whole Geometry pipeline and can all be on at once.
  * Each folds the letter along straight creases, so it adds corners but never curves. Beyond 100% an
  * effect folds the letter onto itself, and the overlaps are merged into one outline.
  */
-function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics }: ExperimentalControlsProps) {
+function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics, reachEm }: ExperimentalControlsProps) {
   const update = (patch: Partial<ExperimentalParams>) => dispatch({ type: 'updateParams', group: 'experimental', patch })
   const introHint = useHint()
   const seedHint = useHint()
@@ -51,29 +57,31 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
     <>
       <div className="panel-notice panel-intro">
         <p className="field-title">
-          <span>Runs after Geometry: Noise → Ripple → Curl → Wind → Spikes. Effects can be on together.</span>
+          <span>Runs after Geometry: Crumple → Ripple → Whorl → Slipstream → Thorn. Effects can be on together.</span>
           <HintButton hint={introHint} topic="Experimental effects" />
         </p>
         {statistics}
         <HintText hint={introHint}>
           Each effect folds the letters along straight creases, so it adds corners but never curves. Up to 100%, any
           combination keeps every letter as it was arranged. Beyond that, parts of a letter fold over other parts; the
-          overlaps are merged into one clean outline, so the letters still export. Spikes are merged the same way.
-          Statistics are for the selected glyph.
+          overlaps are merged into one clean outline, so the letters still export. Slipstream’s cuts and Thorn’s thorns
+          are merged the same way. Where several dense effects together would add too many vertices, the letter is
+          simplified, so it stays quick to draw and export. Statistics are for the selected glyph.
         </HintText>
-        {experimentalMerges(params) && <FoldStats stats={stats} pending={pending} />}
+        {(experimentalMerges(params) || stats?.budget.applied) && <FoldStats stats={stats} pending={pending} />}
       </div>
 
-      <NoiseGroup params={params.noise} stats={stats?.noise ?? null} pending={pending} disabled={disabled} onChange={(noise) => update({ noise })} />
+      <CrumpleGroup params={params.crumple} stats={stats?.crumple ?? null} pending={pending} disabled={disabled} onChange={(crumple) => update({ crumple })} />
       <RippleGroup params={params.ripple} stats={stats?.ripple ?? null} pending={pending} disabled={disabled} onChange={(ripple) => update({ ripple })} />
-      <CurlGroup params={params.curl} stats={stats?.curl ?? null} pending={pending} disabled={disabled} onChange={(curl) => update({ curl })} />
-      <WindGroup params={params.wind} stats={stats?.wind ?? null} pending={pending} disabled={disabled} onChange={(wind) => update({ wind })} />
-      <SpikesGroup
-        params={params.spikes ?? DEFAULT_EXPERIMENTAL.spikes}
-        stats={stats?.spikes ?? null}
+      <WhorlGroup params={params.whorl} stats={stats?.whorl ?? null} pending={pending} disabled={disabled} onChange={(whorl) => update({ whorl })} />
+      <SlipstreamGroup params={params.slipstream} stats={stats?.slipstream ?? null} pending={pending} disabled={disabled} onChange={(slipstream) => update({ slipstream })} />
+      <ThornGroup
+        params={params.thorn ?? DEFAULT_EXPERIMENTAL.thorn}
+        stats={stats?.thorn ?? null}
         pending={pending}
         disabled={disabled}
-        onChange={(spikes) => update({ spikes })}
+        reachEm={reachEm}
+        onChange={(thorn) => update({ thorn })}
       />
 
       <fieldset className="group experimental" disabled={disabled}>
@@ -109,8 +117,8 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
               </button>
             </div>
             <HintText hint={seedHint}>
-              Picks Noise’s folds, Wind’s gusts and which anchors Spikes moves; Ripple and Curl have no randomness. The same seed
-              and settings always produce the same letters.
+              Picks Crumple’s folds, Slipstream’s gusts, slips, cuts and trails, and Thorn’s anchors and flutes; Ripple and Whorl have
+              no randomness. The same seed and settings always produce the same letters.
             </HintText>
           </div>
 
@@ -137,39 +145,38 @@ interface GroupProps<T> {
   onChange: (params: T) => void
 }
 
-function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<NoiseParams>) {
-  const update = (patch: Partial<NoiseParams>) => onChange({ ...params, ...patch })
+function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps<CrumpleParams>) {
+  const update = (patch: Partial<CrumpleParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const amountHint = useHint()
+  const detailHint = useHint()
   const facetHint = useHint()
   const turnHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Noise <HintButton hint={introHint} topic="Noise" />
+        Crumple <HintButton hint={introHint} topic="Crumple" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Crumples the letters like paper: the plane is cut into triangles that each move a little, so the outline bends
-          only along straight creases. Counters and the strokes around them fold together.
+          Crumples the letters like paper at three scales: large folds tilt and kink whole strokes, medium ones bend a
+          stroke end here and there, and small sharp creases gather in busy stretches between calm ones. The outline bends
+          only along straight creases; counters fold with the strokes around them.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="noise-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="noise-enabled">Use noise</label>
+          <input id="crumple-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="crumple-enabled">Use crumple</label>
         </div>
 
         <RangeField
-          id="noise-amount"
-          target="experimental.noise.amount"
+          id="crumple-amount"
+          target="experimental.crumple.amount"
           label="Amount"
           value={params.amount}
-          min={0}
-          max={NOISE_LIMITS.maxAmount}
-          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -178,29 +185,35 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           onChange={(amount) => update({ amount })}
         />
         <RangeField
-          id="noise-facet"
-          target="experimental.noise.facet"
+          id="crumple-detail"
+          target="experimental.crumple.detail"
+          label="Detail"
+          value={params.detail ?? CRUMPLE_LIMITS.defaultDetail}
+          display={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)}%`}
+          valueText={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)} percent`}
+          disabled={off}
+          hint={detailHint}
+          hintText="How the crumpling is shared between the scales. At 0 only the large folds bend whole strokes; higher values move strength to bent stroke ends and small sharp creases, and make their busy stretches longer. Up to 100% Amount the letter stays valid at any detail."
+          onChange={(detail) => update({ detail })}
+        />
+        <RangeField
+          id="crumple-facet"
+          target="experimental.crumple.facet"
           label="Facet size"
           value={params.facet}
-          min={NOISE_LIMITS.minFacet}
-          max={NOISE_LIMITS.maxFacet}
-          step={0.02}
           display={percent(params.facet)}
           unit="% em"
           valueText={`${percent(params.facet)} percent of the em`}
           disabled={off}
           hint={facetHint}
-          hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
+          hintText="Size of the medium triangles, as a share of the em; the large folds are 2.25 times as big, the small creases 0.4 times. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
           onChange={(facet) => update({ facet })}
         />
         <RangeField
-          id="noise-turn"
-          target="experimental.noise.turn"
+          id="crumple-turn"
+          target="experimental.crumple.turn"
           label="Turn"
           value={params.turn ?? 0}
-          min={0}
-          max={345}
-          step={15}
           display={`${Math.round(params.turn ?? 0)}°`}
           valueText={`${Math.round(params.turn ?? 0)} degrees`}
           disabled={off}
@@ -209,7 +222,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           onChange={(turn) => update({ turn })}
         />
 
-        <EffectStats stats={stats} pending={pending} effect="noise" />
+        <EffectStats stats={stats} pending={pending} effect="crumple" />
       </div>
     </fieldset>
   )
@@ -234,7 +247,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
       <div className="group-body">
         <HintText hint={introHint}>
           Waves spread from a point as rings of straight-sided polygons. Each ring is pushed out or pulled in, in turn, so
-          the outline zigzags where it crosses them. Runs after Noise.
+          the outline zigzags where it crosses them. Runs after Crumple.
         </HintText>
 
         <div className="field field-toggle">
@@ -247,9 +260,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.amount"
           label="Amount"
           value={params.amount}
-          min={0}
-          max={RIPPLE_LIMITS.maxAmount}
-          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -262,9 +272,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.wavelength"
           label="Wavelength"
           value={params.wavelength}
-          min={RIPPLE_LIMITS.minWavelength}
-          max={RIPPLE_LIMITS.maxWavelength}
-          step={0.02}
           display={percent(params.wavelength)}
           unit="% em"
           valueText={`${percent(params.wavelength)} percent of the em`}
@@ -278,9 +285,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.sides"
           label="Sides"
           value={params.sides}
-          min={RIPPLE_LIMITS.minSides}
-          max={RIPPLE_LIMITS.maxSides}
-          step={1}
           display={params.sides}
           valueText={`${params.sides} sides`}
           disabled={off}
@@ -291,9 +295,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.centerX"
           label="Center X"
           value={params.centerX}
-          min={RIPPLE_LIMITS.minCenter}
-          max={RIPPLE_LIMITS.maxCenter}
-          step={0.1}
           display={`${percent(params.centerX)}%`}
           valueText={`${percent(params.centerX)} percent across the letter`}
           disabled={off}
@@ -306,9 +307,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.centerY"
           label="Center Y"
           value={params.centerY}
-          min={RIPPLE_LIMITS.minCenter}
-          max={RIPPLE_LIMITS.maxCenter}
-          step={0.1}
           display={`${percent(params.centerY)}%`}
           valueText={`${percent(params.centerY)} percent up the letter`}
           disabled={off}
@@ -319,9 +317,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.fade"
           label="Fade"
           value={params.fade}
-          min={0}
-          max={1}
-          step={0.1}
           display={`${percent(params.fade)}%`}
           valueText={`${percent(params.fade)} percent`}
           disabled={off}
@@ -334,9 +329,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.petals"
           label="Petals"
           value={params.petals ?? 0}
-          min={0}
-          max={RIPPLE_LIMITS.maxPetals}
-          step={0.1}
           display={`${percent(params.petals ?? 0)}%`}
           valueText={`${percent(params.petals ?? 0)} percent`}
           disabled={off}
@@ -351,8 +343,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
   )
 }
 
-function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<CurlParams>) {
-  const update = (patch: Partial<CurlParams>) => onChange({ ...params, ...patch })
+function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<WhorlParams>) {
+  const update = (patch: Partial<WhorlParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const amountHint = useHint()
@@ -362,7 +354,7 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Curl <HintButton hint={introHint} topic="Curl" />
+        Whorl <HintButton hint={introHint} topic="Whorl" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
@@ -372,18 +364,15 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
         </HintText>
 
         <div className="field field-toggle">
-          <input id="curl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="curl-enabled">Use curl</label>
+          <input id="whorl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="whorl-enabled">Use whorl</label>
         </div>
 
         <RangeField
-          id="curl-amount"
-          target="experimental.curl.amount"
+          id="whorl-amount"
+          target="experimental.whorl.amount"
           label="Amount"
           value={params.amount}
-          min={-CURL_LIMITS.maxAmount}
-          max={CURL_LIMITS.maxAmount}
-          step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
@@ -393,14 +382,14 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
         />
         <div className="field field-toggle">
           <input
-            id="curl-pinned"
+            id="whorl-pinned"
             type="checkbox"
             checked={params.pinned}
             disabled={off}
             aria-describedby={pinHint.id}
             onChange={(e) => update({ pinned: e.target.checked })}
           />
-          <label htmlFor="curl-pinned">Pin top and bottom</label>
+          <label htmlFor="whorl-pinned">Pin top and bottom</label>
           <HintButton hint={pinHint} topic="Pin top and bottom" />
         </div>
         <HintText hint={pinHint}>
@@ -408,13 +397,10 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
           turns, the top and bottom with it.
         </HintText>
         <RangeField
-          id="curl-rings"
-          target="experimental.curl.rings"
+          id="whorl-rings"
+          target="experimental.whorl.rings"
           label="Rings"
           value={params.rings}
-          min={CURL_LIMITS.minRings}
-          max={CURL_LIMITS.maxRings}
-          step={1}
           display={params.rings}
           valueText={`${params.rings} rings`}
           disabled={off}
@@ -423,106 +409,117 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
           onChange={(rings) => update({ rings })}
         />
         <RangeField
-          id="curl-sides"
-          target="experimental.curl.sides"
+          id="whorl-sides"
+          target="experimental.whorl.sides"
           label="Sides"
           value={params.sides}
-          min={CURL_LIMITS.minSides}
-          max={CURL_LIMITS.maxSides}
-          step={1}
           display={params.sides}
           valueText={`${params.sides} sides`}
           disabled={off}
           onChange={(sides) => update({ sides })}
         />
 
-        <EffectStats stats={stats} pending={pending} effect="curl" />
+        <EffectStats stats={stats} pending={pending} effect="whorl" />
       </div>
     </fieldset>
   )
 }
 
-function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<WindParams>) {
-  const update = (patch: Partial<WindParams>) => onChange({ ...params, ...patch })
+function SlipstreamGroup({
+  params,
+  stats,
+  pending,
+  disabled,
+  onChange,
+}: Omit<GroupProps<SlipstreamParams>, 'stats'> & { stats: SlipstreamStats | null }) {
+  const update = (patch: Partial<SlipstreamParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const directionHint = useHint()
   const strengthHint = useHint()
+  const slipHint = useHint()
   const gustHint = useHint()
   const gustinessHint = useHint()
+  const cutsHint = useHint()
+  const trailsHint = useHint()
+  // Older saved settings have no slip, cuts or trails: they show as 0, as the effect reads them.
+  const slip = Number.isFinite(params.slip) ? params.slip : 0
+  const cuts = Number.isFinite(params.cuts) ? params.cuts : 0
+  const trails = Number.isFinite(params.trails) ? params.trails : 0
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Wind <HintButton hint={introHint} topic="Wind" />
+        Slipstream <HintButton hint={introHint} topic="Slipstream" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Draws the letters out in the wind’s direction. The side facing the wind stays put; the further downwind, the
-          more the outline is pulled, and gusts pull some bands further than others, leaving ragged, straight-edged
-          streaks. Runs after Curl.
+          Letters caught in a stream. Bands across the stream slide past each other like slices, and the stream draws the
+          letters out: the side facing it stays put, and gusts pull some bands further than others. Thin cuts run into the
+          letters along the stream, and trails stream off their downwind side. Runs after Whorl.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="wind-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="wind-enabled">Use wind</label>
+          <input id="slipstream-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="slipstream-enabled">Use slipstream</label>
         </div>
 
         <RangeField
-          id="wind-direction"
-          target="experimental.wind.direction"
+          id="slipstream-direction"
+          target="experimental.slipstream.direction"
           label="Direction"
           value={params.direction}
-          min={0}
-          max={345}
-          step={15}
           display={`${Math.round(params.direction)}°`}
           valueText={`${Math.round(params.direction)} degrees`}
           disabled={off}
           hint={directionHint}
-          hintText="Where the wind blows to: 0° to the right, 90° up, 180° to the left, 270° down."
+          hintText="Where the stream flows to: 0° to the right, 90° up, 180° to the left, 270° down. Slices, cuts and trails follow it."
           onChange={(direction) => update({ direction })}
         />
         <RangeField
-          id="wind-strength"
-          target="experimental.wind.strength"
+          id="slipstream-strength"
+          target="experimental.slipstream.strength"
           label="Strength"
           value={params.strength}
-          min={0}
-          max={WIND_LIMITS.maxStrength}
-          step={0.1}
           display={`${percent(params.strength)}%`}
           valueText={`${percent(params.strength)} percent`}
           disabled={off}
           hint={strengthHint}
-          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the wind, at 800% eight times as far. Nothing moves more than 4 em."
+          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the stream, at 800% eight times as far. Nothing moves more than 4 em. Stronger streams also draw longer trails."
           onChange={(strength) => update({ strength })}
         />
         <RangeField
-          id="wind-gust"
-          target="experimental.wind.gust"
+          id="slipstream-slip"
+          target="experimental.slipstream.slip"
+          label="Slip"
+          value={slip}
+          display={percent(slip)}
+          unit="% em"
+          valueText={`${percent(slip)} percent of the em`}
+          disabled={off}
+          hint={slipHint}
+          hintText="How far bands across the stream slide past each other along it, as a share of the em. Wide bands, a few gust sizes across, sway by up to this much; each gust-size band adds a small jolt of its own, so strokes break into offset slices with a few large steps and finer ones between. Slipping never folds the letter."
+          onChange={(value) => update({ slip: value })}
+        />
+        <RangeField
+          id="slipstream-gust"
+          target="experimental.slipstream.gust"
           label="Gust size"
           value={params.gust}
-          min={WIND_LIMITS.minGust}
-          max={WIND_LIMITS.maxGust}
-          step={0.02}
           display={percent(params.gust)}
           unit="% em"
           valueText={`${percent(params.gust)} percent of the em`}
           disabled={off}
           hint={gustHint}
-          hintText="Width of each band that a gust pulls, as a share of the em. With a level wind, every letter on a line shares the same bands."
+          hintText="Width of each band that a gust pulls or slides, as a share of the em. With a level stream, every letter on a line shares the same bands."
           onChange={(gust) => update({ gust })}
         />
         <RangeField
-          id="wind-gustiness"
-          target="experimental.wind.gustiness"
+          id="slipstream-gustiness"
+          target="experimental.slipstream.gustiness"
           label="Gustiness"
           value={params.gustiness}
-          min={0}
-          max={WIND_LIMITS.maxGustiness}
-          step={0.1}
           display={`${percent(params.gustiness)}%`}
           valueText={`${percent(params.gustiness)} percent`}
           disabled={off}
@@ -530,54 +527,96 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           hintText="How much the gusts differ from band to band. Above 100%, some gusts blow backwards and tear the letter."
           onChange={(gustiness) => update({ gustiness })}
         />
+        <RangeField
+          id="slipstream-cuts"
+          target="experimental.slipstream.cuts"
+          label="Cuts"
+          value={cuts}
+          display={cuts}
+          valueText={`${cuts} ${cuts === 1 ? 'cut' : 'cuts'} per letter`}
+          disabled={off}
+          hint={cutsHint}
+          hintText="Thin wedge-shaped slits per letter, along the stream. Each enters from the side facing the stream or the side away from it, widest where it enters, and tapers to a point inside a stroke; about one in four goes right through. The outline is redrawn around them."
+          onChange={(value) => update({ cuts: value })}
+        />
+        <RangeField
+          id="slipstream-trails"
+          target="experimental.slipstream.trails"
+          label="Trails"
+          value={trails}
+          display={trails}
+          valueText={`${trails} ${trails === 1 ? 'trail' : 'trails'} per letter`}
+          disabled={off}
+          hint={trailsHint}
+          hintText="Thin streaks per letter, dragged downwind out of its outside edges that face away from the stream; Strength makes them longer. A trail that would run into the letter or another trail grows elsewhere or not at all, so letters can get fewer."
+          onChange={(value) => update({ trails: value })}
+        />
 
-        <EffectStats stats={stats} pending={pending} effect="wind" />
+        <EffectStats stats={stats} pending={pending} effect="slipstream" />
+        {stats?.applied && (cuts > 0 || trails > 0) && (
+          <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+            <div>
+              <dt>Cuts</dt>
+              <dd>{stats.cuts}</dd>
+            </div>
+            <div>
+              <dt>Trails</dt>
+              <dd>{stats.trails}</dd>
+            </div>
+          </dl>
+        )}
       </div>
     </fieldset>
   )
 }
 
-function SpikesGroup({
+function ThornGroup({
   params,
   stats,
   pending,
   disabled,
+  reachEm,
   onChange,
-}: Omit<GroupProps<SpikeParams>, 'stats'> & { stats: SpikeStats | null }) {
-  const update = (patch: Partial<SpikeParams>) => onChange({ ...params, ...patch })
+}: Omit<GroupProps<ThornParams>, 'stats'> & { stats: ThornStats | null; reachEm: number }) {
+  const update = (patch: Partial<ThornParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
+  // Older saved settings lack the newer sliders.
+  const root = params.root ?? DEFAULT_EXPERIMENTAL.thorn.root
+  const refraction = params.refraction ?? 0
+  const flute = params.flute ?? DEFAULT_EXPERIMENTAL.thorn.flute
   const introHint = useHint()
   const countHint = useHint()
   const reachHint = useHint()
+  const rootHint = useHint()
   const spreadHint = useHint()
   const widthHint = useHint()
+  const refractionHint = useHint()
+  const fluteHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Spikes <HintButton hint={introHint} topic="Spikes" />
+        Thorn <HintButton hint={introHint} topic="Thorn" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          A few anchors on the outside of each letter jump out into the canvas, and their two edges stretch into long,
-          straight spikes. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump
-          somewhere new. Runs after Wind.
+          A few anchors on the outside of each letter jump out into the canvas as long, straight thorns and pull the letter
+          along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows the letter through fluted
+          glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump somewhere new.
+          Runs after Slipstream.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="spikes-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="spikes-enabled">Use spikes</label>
+          <input id="thorn-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="thorn-enabled">Use thorn</label>
         </div>
 
         <RangeField
-          id="spikes-count"
-          target="experimental.spikes.count"
+          id="thorn-count"
+          target="experimental.thorn.count"
           label="Anchors"
           value={params.count}
-          min={SPIKE_LIMITS.minCount}
-          max={SPIKE_LIMITS.maxCount}
-          step={1}
           display={params.count}
           valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
           disabled={off}
@@ -586,29 +625,36 @@ function SpikesGroup({
           onChange={(count) => update({ count })}
         />
         <RangeField
-          id="spikes-reach"
-          target="experimental.spikes.reach"
+          id="thorn-reach"
+          target="experimental.thorn.canvasReach"
+          curve={REACH_CURVE}
           label="Reach"
-          value={params.reach}
-          min={0}
-          max={SPIKE_LIMITS.maxReach}
-          step={0.05}
-          display={percent(params.reach)}
-          unit="% em"
-          valueText={`${percent(params.reach)} percent of the em`}
+          value={params.canvasReach}
+          display={reachPercent(params.canvasReach)}
+          unit="% canvas"
+          valueText={`${reachPercent(params.canvasReach)} percent of the canvas`}
           disabled={off}
           hint={reachHint}
-          hintText="How far the anchors jump, as a share of the em. Each goes a random 35–100% of it."
-          onChange={(reach) => update({ reach })}
+          hintText={`How far the anchors jump, as a share of the canvas diagonal: at 100% a thorn can cross the whole canvas. Each goes a random 35–100% of it. At this text size and canvas, 100% is about ${ems(reachEm)} em.`}
+          onChange={(canvasReach) => update({ canvasReach })}
         />
         <RangeField
-          id="spikes-spread"
-          target="experimental.spikes.spread"
+          id="thorn-root"
+          target="experimental.thorn.root"
+          label="Root"
+          value={root}
+          display={`${percent(root)}%`}
+          valueText={`${percent(root)} percent`}
+          disabled={off}
+          hint={rootHint}
+          hintText={`How much of the letter around each anchor its thorn pulls along, up to ${percent(THORN_LIMITS.maxRoot)}% of the em away. The thorn grows from a wide root that narrows to its tip, and the strokes and counters inside the root lean and bend with it. 0%: the thorns are only added on.`}
+          onChange={(root) => update({ root })}
+        />
+        <RangeField
+          id="thorn-spread"
+          target="experimental.thorn.spread"
           label="Spread"
           value={params.spread}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(params.spread)}%`}
           valueText={`${percent(params.spread)} percent`}
           disabled={off}
@@ -617,26 +663,52 @@ function SpikesGroup({
           onChange={(spread) => update({ spread })}
         />
         <RangeField
-          id="spikes-width"
-          target="experimental.spikes.width"
+          id="thorn-width"
+          target="experimental.thorn.width"
           label="Width"
           value={params.width}
-          min={0}
-          max={1}
-          step={0.05}
           display={`${percent(params.width)}%`}
           valueText={`${percent(params.width)} percent`}
           disabled={off}
           hint={widthHint}
-          hintText="How wide each spike is where it leaves the letter. 0%: a thin needle. 100%: the jumping anchor pulls its whole edges along."
+          hintText="How wide each thorn's tip is where it leaves its root. 0%: a thin needle. 100%: the tip starts where the root starts to narrow (at Root 0%, it pulls the anchor's whole edges along)."
           onChange={(width) => update({ width })}
+        />
+        <RangeField
+          id="thorn-refraction"
+          target="experimental.thorn.refraction"
+          label="Refraction"
+          value={refraction}
+          display={`${percent(refraction)}%`}
+          valueText={`${percent(refraction)} percent`}
+          disabled={off}
+          hint={refractionHint}
+          hintText="Shows the letter through fluted glass: it is cut into vertical strips, each magnified a little and moved up or down, so strokes and thorns look broken and offset. The glass covers the letter; thorn tips reaching past it to the left or right stay sharp. 0%: off."
+          onChange={(refraction) => update({ refraction })}
+        />
+        <RangeField
+          id="thorn-flute"
+          target="experimental.thorn.flute"
+          label="Flute width"
+          value={flute}
+          display={percent(flute)}
+          unit="% em"
+          valueText={`${percent(flute)} percent of the em`}
+          disabled={off || refraction === 0}
+          hint={fluteHint}
+          hintText="How wide each strip of the fluted glass is, as a share of the em."
+          onChange={(flute) => update({ flute })}
         />
 
         {stats?.applied && (
           <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
             <div>
-              <dt>Spikes</dt>
-              <dd>{stats.spikes}</dd>
+              <dt>Thorns</dt>
+              <dd>{stats.thorns}</dd>
+            </div>
+            <div>
+              <dt>Roots</dt>
+              <dd>{stats.roots}</dd>
             </div>
             <div>
               <dt>Longest</dt>
@@ -647,20 +719,32 @@ function SpikesGroup({
             </div>
           </dl>
         )}
+        {(stats?.reducedContours ?? 0) > 0 && (
+          <p className="font-warning">
+            {stats!.reducedContours} {stats!.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker root or refraction
+            to stay valid.
+          </p>
+        )}
+        {(stats?.fallbackContours ?? 0) > 0 && (
+          <p className="font-warning">This glyph is left without roots or refraction: no strength kept it valid.</p>
+        )}
+        {stats?.tooComplex && <p className="font-warning">This glyph is left without roots or refraction: too complex.</p>}
       </div>
     </fieldset>
   )
 }
 
-interface RangeFieldProps {
+/** A slider that is not linear: its range input's own range, and how a value maps to a position on it and back. */
+interface SliderCurve {
+  slider: SliderRange
+  toSlider: (value: number) => number
+  fromSlider: (position: number) => number
+}
+
+type RangeFieldProps = {
   id: string
-  /** The Sound target this slider is ("experimental.noise.amount"), for its live marker. */
-  target: string
   label: string
   value: number
-  min: number
-  max: number
-  step: number
   display: ReactNode
   unit?: string
   valueText: string
@@ -668,10 +752,16 @@ interface RangeFieldProps {
   hint?: HintState
   hintText?: string
   onChange: (value: number) => void
-}
+} & (
+  /** The Sound target this slider is ("experimental.crumple.amount"): its range, and its live marker. */
+  | { target: SliderId; curve?: undefined }
+  /** A curved slider (Reach): its Sound target, for the live marker, and its curve. */
+  | { target: string; curve: SliderCurve }
+)
 
 /** A labelled slider with its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
-function RangeField({ id, target, label, value, min, max, step, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+function RangeField({ id, target, curve, label, value, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+  const range = curve ? curve.slider : SLIDER_RANGES[target]
   return (
     <div className="field">
       <div className="field-head">
@@ -688,14 +778,12 @@ function RangeField({ id, target, label, value, min, max, step, display, unit, v
         <input
           id={id}
           type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
+          {...range}
+          value={curve ? curve.toSlider(value) : value}
           disabled={disabled}
           aria-valuetext={valueText}
           aria-describedby={hint?.id}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => onChange(curve ? curve.fromSlider(Number(e.target.value)) : Number(e.target.value))}
         />
         <LiveMarker target={target} />
       </span>
@@ -704,20 +792,31 @@ function RangeField({ id, target, label, value, min, max, step, display, unit, v
   )
 }
 
-/** What merging the overlaps did, when an effect goes beyond 100%. */
+/** What merging the overlaps did, when an effect goes beyond 100% or the glyph was simplified, and why it may not have. */
 function FoldStats({ stats, pending }: { stats: ExperimentalStats | null; pending: boolean }) {
   const folds = stats?.folds
+  const budget = stats?.budget
   return (
-    <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
-      <div>
-        <dt>Crossings merged</dt>
-        <dd>{folds?.applied ? folds.crossings : '–'}</dd>
-      </div>
-      <div>
-        <dt>Slivers dropped</dt>
-        <dd>{folds?.applied ? folds.removed : '–'}</dd>
-      </div>
-    </dl>
+    <>
+      <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+        <div>
+          <dt>Crossings merged</dt>
+          <dd>{folds?.applied ? folds.crossings : '–'}</dd>
+        </div>
+        <div>
+          <dt>Slivers dropped</dt>
+          <dd>{folds?.applied ? folds.removed : '–'}</dd>
+        </div>
+      </dl>
+      {budget?.applied && (
+        <p className="font-warning">
+          Simplified: these settings make too many vertices or crossings, so the outline was reduced (tolerance{' '}
+          {Math.round(budget.tolerance).toLocaleString('en-US')} u).
+        </p>
+      )}
+      {folds?.failed && <p className="font-warning">Overlaps could not be merged; the outline is left as it is.</p>}
+      {folds?.tooComplex && <p className="font-warning">Too complex to merge; lower the settings.</p>}
+    </>
   )
 }
 
@@ -746,6 +845,7 @@ function EffectStats({ stats, pending, effect }: { stats: WarpStats | null; pend
         </p>
       )}
       {stats.fallbackContours > 0 && <p className="font-warning">This glyph is left without {effect}: no strength kept it valid.</p>}
+      {stats.tooComplex && <p className="font-warning">This glyph is left without {effect}: too complex.</p>}
     </>
   )
 }

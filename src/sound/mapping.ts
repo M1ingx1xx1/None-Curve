@@ -3,21 +3,19 @@
 // (see docs/SOUND_PLAN.md §5–6).
 //
 // Most targets are one slider of the Geometry or Experimental tab, with that slider's own range, step
-// and scale (Tolerance is logarithmic), copied from its control component. A mapping moves the
-// slider's position, not the raw value, and the live value is always one the slider itself can
-// produce (highest rule, SOUND_PLAN §2): positions snap to the slider's step before converting back.
+// and scale (Tolerance is logarithmic, Thorn's Reach cubic), shared with its control through src/state/sliderScales.ts. A
+// mapping moves the slider's position, not the raw value, and the live value is always one the slider
+// itself can produce (highest rule, SOUND_PLAN §2): positions snap to the slider's step before converting back.
 // The seeds are jump targets: a seed moves on by one whole number on each jump (jumps.ts), so every
 // anchor lands somewhere new, and it stays within its field's range.
 
-import { CURL_LIMITS } from '../geometry/curl'
+import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { DISTORTION_LIMITS } from '../geometry/distortion'
 import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
-import { NOISE_LIMITS } from '../geometry/noise'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
-import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SPIKE_LIMITS } from '../geometry/spikes'
+import { THORN_FALLBACK } from '../geometry/thorn'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
-import { WIND_LIMITS } from '../geometry/wind'
+import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
 import type { FeatureFrame } from './types'
 
 const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
@@ -25,48 +23,36 @@ const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
 // ---- Features ----
 
 /** The features a mapping can follow: numeric fields of FeatureFrame. */
-export type FeatureId =
-  | 'level' | 'swell' | 'low' | 'mid' | 'high' | 'sub' | 'bass' | 'lowMid' | 'highMid' | 'presence' | 'air'
-  | 'brightness' | 'noisiness' | 'pitch' | 'beatPulse' | 'kickPulse' | 'change' | 'pace' | 'balance' | 'width'
+export type FeatureId = 'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'beat' | 'activity' | 'pan'
 /** The old name, kept so existing imports keep working. */
 export type ContinuousFeature = FeatureId
 
-export type FeatureGroup = 'Loudness' | 'Bands' | 'Narrow bands' | 'Tone' | 'Rhythm' | 'Stereo'
+export type FeatureGroup = 'Loudness' | 'Bands' | 'Tone' | 'Rhythm' | 'Stereo'
 
 export interface FeatureSpec {
   id: FeatureId
   label: string
   group: FeatureGroup
-  /** Runs −1…1 instead of 0…1 (Balance). */
+  /** Runs −1…1 instead of 0…1 (Pan). */
   bipolar?: true
-  /** On a seed (a jump target) this feature counts onsets instead: one step per Beat / Kick. */
-  event?: 'beat' | 'kick'
+  /** On a seed (a jump target) this feature counts the frame's onsets instead: one step per Beat. */
+  event?: 'onset'
 }
 
-export const FEATURE_GROUPS: readonly FeatureGroup[] = ['Loudness', 'Bands', 'Narrow bands', 'Tone', 'Rhythm', 'Stereo']
+export const FEATURE_GROUPS: readonly FeatureGroup[] = ['Loudness', 'Bands', 'Tone', 'Rhythm', 'Stereo']
 
 /** Every feature, in FEATURE_GROUPS order, as the Sound tab lists them. */
 export const FEATURES: readonly FeatureSpec[] = [
   { id: 'level', label: 'Level', group: 'Loudness' },
   { id: 'swell', label: 'Swell', group: 'Loudness' },
-  { id: 'low', label: 'Low', group: 'Bands' },
-  { id: 'mid', label: 'Mid', group: 'Bands' },
-  { id: 'high', label: 'High', group: 'Bands' },
-  { id: 'sub', label: 'Sub', group: 'Narrow bands' },
-  { id: 'bass', label: 'Bass', group: 'Narrow bands' },
-  { id: 'lowMid', label: 'Low mid', group: 'Narrow bands' },
-  { id: 'highMid', label: 'High mid', group: 'Narrow bands' },
-  { id: 'presence', label: 'Presence', group: 'Narrow bands' },
-  { id: 'air', label: 'Air', group: 'Narrow bands' },
+  { id: 'bass', label: 'Bass', group: 'Bands' },
+  { id: 'mids', label: 'Mids', group: 'Bands' },
+  { id: 'treble', label: 'Treble', group: 'Bands' },
   { id: 'brightness', label: 'Brightness', group: 'Tone' },
-  { id: 'noisiness', label: 'Noisiness', group: 'Tone' },
   { id: 'pitch', label: 'Pitch', group: 'Tone' },
-  { id: 'beatPulse', label: 'Beat', group: 'Rhythm', event: 'beat' },
-  { id: 'kickPulse', label: 'Kick', group: 'Rhythm', event: 'kick' },
-  { id: 'change', label: 'Change', group: 'Rhythm' },
-  { id: 'pace', label: 'Pace', group: 'Rhythm' },
-  { id: 'balance', label: 'Balance', group: 'Stereo', bipolar: true },
-  { id: 'width', label: 'Width', group: 'Stereo' },
+  { id: 'beat', label: 'Beat', group: 'Rhythm', event: 'onset' },
+  { id: 'activity', label: 'Activity', group: 'Rhythm' },
+  { id: 'pan', label: 'Pan', group: 'Stereo', bipolar: true },
 ]
 
 /** Kept for existing imports: the same list. */
@@ -98,7 +84,7 @@ export interface Activation {
 
 /** One parameter sound can drive: a slider or a seed of the Geometry or Experimental tab. */
 export interface TargetSpec {
-  /** Stable id, "<group>.<param>", e.g. "distortion.amount", "experimental.noise.amount". */
+  /** Stable id, "<group>.<param>", e.g. "distortion.amount", "experimental.crumple.amount". */
   id: string
   tab: 'geometry' | 'experimental'
   /** 'slider': live position = slider position + Depth × feature. 'jump': a seed that moves on by one on each jump (jumps.ts). */
@@ -159,23 +145,23 @@ function linearScale(min: number, max: number, step: number): Scale {
   }
 }
 
-// FlattenControls' Tolerance slider: logarithmic, 0.1–500 font units on a 0–100 slider in steps of 0.5,
-// rounded by roundTolerance. Reproduced exactly so the live value is one that slider produces.
-const TOL_MIN = 0.1
-const TOL_MAX = 500
-const TOL_SLIDER_STEP = 0.5
-
-function roundTolerance(tol: number): number {
-  if (tol < 1) return Math.round(tol * 100) / 100
-  if (tol < 10) return Math.round(tol * 10) / 10
-  return Math.round(tol)
+// The Tolerance slider (logarithmic, see TOLERANCE in src/state/sliderScales.ts), so the live value is one
+// that slider produces.
+const toleranceSlider = TOLERANCE.slider
+const toleranceScale: Scale = {
+  steps: Math.round((toleranceSlider.max - toleranceSlider.min) / toleranceSlider.step),
+  position: (tol) => Math.log(tol / TOLERANCE.min) / Math.log(TOLERANCE.max / TOLERANCE.min),
+  // The range input at step `index`, as FlattenControls reads it.
+  valueAt: (index) => toleranceFromSlider(toleranceSlider.min + index * toleranceSlider.step),
 }
 
-const toleranceScale: Scale = {
-  steps: 100 / TOL_SLIDER_STEP,
-  position: (tol) => Math.log(tol / TOL_MIN) / Math.log(TOL_MAX / TOL_MIN),
-  // Same expression as FlattenControls' fromSlider(pos), with pos = index × 0.5 on its 0–100 slider.
-  valueAt: (index) => roundTolerance(TOL_MIN * Math.pow(TOL_MAX / TOL_MIN, (index * TOL_SLIDER_STEP) / 100)),
+// Thorn's Reach slider (cubic, see THORN_REACH in src/state/sliderScales.ts); its range input runs 0–1.
+const reachSlider = THORN_REACH.slider
+const reachScale: Scale = {
+  steps: Math.round((reachSlider.max - reachSlider.min) / reachSlider.step),
+  position: reachToSlider,
+  // The range input at step `index`, as ExperimentalControls reads it.
+  valueAt: (index) => reachFromSlider(reachSlider.min + index * reachSlider.step),
 }
 
 // ---- What a target needs to act ----
@@ -189,12 +175,14 @@ interface Requirement {
   meet(params: GeometryParams): { patch: ParamPatch; notice: string }
 }
 
-type EffectKey = 'noise' | 'ripple' | 'curl' | 'wind' | 'spikes'
+type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
 
-const EFFECT_NAMES: Record<EffectKey, string> = { noise: 'Noise', ripple: 'Ripple', curl: 'Curl', wind: 'Wind', spikes: 'Spikes' }
+const EFFECT_NAMES: Record<EffectKey, string> = { crumple: 'Crumple', ripple: 'Ripple', whorl: 'Whorl', slipstream: 'Slipstream', thorn: 'Thorn' }
 
 /** Noise amplitude set by turning Distortion on for one of its targets: clearly visible, a fifth of the slider. */
 const ACTIVE_DISTORTION_AMOUNT = 40
+/** Thorn's Refraction set by turning it on for its Flute width target: clearly visible, half the slider. */
+const ACTIVE_REFRACTION = 0.5
 
 // Random anchors replace Flatten's sampling, so every Curve flattening slider needs them off.
 const flattenNotReplaced: Requirement = {
@@ -238,13 +226,22 @@ const effectOn = (effect: EffectKey): Requirement => ({
     notice: `Turned on ${EFFECT_NAMES[effect]}.`,
   }),
 })
-// The shared seed picks Noise's folds, Wind's gusts and which anchors Spikes moves; Ripple and Curl have no randomness.
+// Refraction 0 turns Thorn's fluted glass off (applyThorn), so its Flute width does nothing.
+const refractionOn: Requirement = {
+  unmet: (p) => ((p.experimental.thorn?.refraction ?? 0) > 0 ? null : 'Set Refraction above 0% to hear this.'),
+  meet: (p) => ({
+    patch: { group: 'experimental', patch: { thorn: { ...p.experimental.thorn, refraction: ACTIVE_REFRACTION } } as Partial<ExperimentalParams> },
+    notice: `Set Refraction to ${Math.round(ACTIVE_REFRACTION * 100)}%.`,
+  }),
+}
+// The shared seed picks Crumple's folds, Slipstream's gusts, slips, cuts and trails, and Thorn's anchors and
+// flutes; Ripple and Whorl have no randomness.
 const seededEffectOn: Requirement = {
   unmet: (p) =>
-    p.experimental.noise.enabled || p.experimental.wind.enabled || p.experimental.spikes?.enabled
+    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled
       ? null
-      : 'Turn on Noise, Wind or Spikes to hear this.',
-  meet: effectOn('noise').meet,
+      : 'Turn on Crumple, Slipstream or Thorn to hear this.',
+  meet: effectOn('crumple').meet,
 }
 
 /** The first reason a target does not act, or null. */
@@ -295,7 +292,7 @@ function groupField<G extends GroupKey>(group: G, key: NumericKeys<GeometryParam
 function effectField<E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    // Older saved settings may lack a whole effect (Spikes).
+    // Older saved settings may lack a whole effect (Thorn).
     read: (p) => p.experimental[effect]?.[key],
     write: (p, value) => ({
       ...p,
@@ -326,8 +323,9 @@ interface TargetDef {
   /** Defaults to the linear scale of min, max, step. */
   scale?: Scale
   /**
-   * Value when the field is missing (older saved settings lack Noise Turn and Ripple Petals; the panel
-   * shows them as 0). Defaults to min.
+   * Value when the field is missing, as the panel shows it (older saved settings lack Crumple Turn and
+   * Detail, Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction and Flute width).
+   * Defaults to min.
    */
   fallback?: number
   /** The settings it needs to act, checked and met in this order. */
@@ -364,88 +362,98 @@ function target(def: TargetDef): TargetSpec {
   }
 }
 
-const geometry = (section: string, field: Field, label: string, min: number, max: number, step: number, rest: Partial<TargetDef> = {}) =>
-  target({ field, tab: 'geometry', section, label, min, max, step, ...rest })
-const experimental = <E extends EffectKey>(
-  effect: E,
-  key: NumericKeys<ExperimentalParams[E]>,
-  label: string,
-  min: number,
-  max: number,
-  step: number,
-  rest: Partial<TargetDef> = {},
-) =>
-  target({
-    field: effectField(effect, key),
-    tab: 'experimental',
-    section: EFFECT_NAMES[effect],
-    label,
-    min,
-    max,
-    step,
-    requires: [effectOn(effect)],
-    ...rest,
-  })
+// Sliders take their range from SLIDER_RANGES (src/state/sliderScales.ts), as the panels do.
+const geometry = (section: string, field: Field, label: string, rest: Partial<TargetDef> = {}) =>
+  target({ field, tab: 'geometry', section, label, ...sliderRange(field.id), ...rest })
+const experimental = <E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>, label: string, rest: Partial<TargetDef> = {}) => {
+  const field = effectField(effect, key)
+  return target({ field, tab: 'experimental', section: EFFECT_NAMES[effect], label, ...sliderRange(field.id), requires: [effectOn(effect)], ...rest })
+}
 /** A seed field (whole numbers 0 to its largest seed): a jump target. */
 const seed = (tab: TargetSpec['tab'], section: string, field: Field, max: number, requires: readonly Requirement[]) =>
   target({ field, tab, kind: 'jump', section, label: 'Seed', min: 0, max, step: 1, requires })
 
 /** Every parameter sound can drive, Geometry tab first, in panel order. */
 export const TARGETS: readonly TargetSpec[] = [
-  // Geometry tab. Ranges, steps and labels as in FlattenControls, SquaringControls, AnchorControls,
-  // GridControls, DistortionControls and RandomAnchorControls (Random anchors sit at the bottom).
-  geometry('Curve flattening', groupField('flatten', 'tolerance'), 'Tolerance', TOL_MIN, TOL_MAX, 0.01, {
-    // Log slider: step here is roundTolerance's finest unit; the scale holds the slider's real steps.
+  // Geometry tab, labels as in FlattenControls, SquaringControls, AnchorControls, GridControls,
+  // DistortionControls and RandomAnchorControls (Random anchors sit at the bottom).
+  target({
+    field: groupField('flatten', 'tolerance'),
+    tab: 'geometry',
+    section: 'Curve flattening',
+    label: 'Tolerance',
+    // Log slider: min and max are its values, step roundTolerance's finest unit; the scale holds the slider's real steps.
+    min: TOLERANCE.min,
+    max: TOLERANCE.max,
+    step: 0.01,
     scale: toleranceScale,
     requires: [flattenNotReplaced, flattenMode('adaptive', 'Adaptive')],
   }),
-  geometry('Curve flattening', groupField('flatten', 'segmentsPerCurve'), 'Segments per curve', 1, 32, 1, {
+  geometry('Curve flattening', groupField('flatten', 'segmentsPerCurve'), 'Segments per curve', {
     requires: [flattenNotReplaced, flattenMode('segments', 'Fixed segments')],
   }),
   // Shown with Merge joined curves in either mode (FlattenControls' merge controls are shared by both
   // modes, and flatten() merges in both).
-  geometry('Curve flattening', groupField('flatten', 'cornerAngle'), 'Corner angle', 1, 90, 1, {
+  geometry('Curve flattening', groupField('flatten', 'cornerAngle'), 'Corner angle', {
     requires: [flattenNotReplaced, mergeCurvesOn],
   }),
-  geometry('Squaring', groupField('squaring', 'amount'), 'Amount', 0, 1, 0.05),
-  geometry('Anchors', groupField('anchors', 'spacing'), 'Anchor spacing', 0, 200, 1),
-  geometry('Anchors', groupField('anchors', 'simplify'), 'Anchor reduction', 0, 100, 0.5),
-  geometry('Grid & angles', groupField('grid', 'size'), 'Grid size', 0, 200, 1, { requires: [snapOn] }),
-  geometry('Distortion', groupField('distortion', 'amount'), 'Noise amplitude', 0, DISTORTION_LIMITS.maxAmount, 1),
-  geometry('Distortion', groupField('distortion', 'frequency'), 'Noise frequency', DISTORTION_LIMITS.minFrequency, DISTORTION_LIMITS.maxFrequency, 0.5, {
-    requires: [distortionOn],
-  }),
-  geometry('Distortion', groupField('distortion', 'normalBias'), 'Normal bias', 0, 1, 0.05, { requires: [distortionOn] }),
+  geometry('Squaring', groupField('squaring', 'amount'), 'Amount'),
+  geometry('Anchors', groupField('anchors', 'spacing'), 'Anchor spacing'),
+  geometry('Anchors', groupField('anchors', 'simplify'), 'Anchor reduction'),
+  geometry('Grid & angles', groupField('grid', 'size'), 'Grid size', { requires: [snapOn] }),
+  geometry('Distortion', groupField('distortion', 'amount'), 'Noise amplitude'),
+  geometry('Distortion', groupField('distortion', 'frequency'), 'Noise frequency', { requires: [distortionOn] }),
+  geometry('Distortion', groupField('distortion', 'normalBias'), 'Normal bias', { requires: [distortionOn] }),
   seed('geometry', 'Distortion', groupField('distortion', 'seed'), DISTORTION_LIMITS.maxSeed, [distortionOn]),
-  geometry('Random anchors', groupField('random', 'density'), 'Density', RANDOM_ANCHOR_LIMITS.minDensity, RANDOM_ANCHOR_LIMITS.maxDensity, 1, {
-    requires: [randomOn],
-  }),
-  geometry('Random anchors', groupField('random', 'randomness'), 'Randomness', 0, 1, 0.05, { requires: [randomOn] }),
+  geometry('Random anchors', groupField('random', 'density'), 'Density', { requires: [randomOn] }),
+  geometry('Random anchors', groupField('random', 'randomness'), 'Randomness', { requires: [randomOn] }),
   seed('geometry', 'Random anchors', groupField('random', 'seed'), RANDOM_ANCHOR_LIMITS.maxSeed, [randomOn, randomnessOn]),
 
   // Experimental tab, as in ExperimentalControls: each effect acts only while its "Use …" is on; the
   // shared Seed sits in its own group at the bottom.
-  experimental('noise', 'amount', 'Amount', 0, NOISE_LIMITS.maxAmount, 0.1),
-  experimental('noise', 'facet', 'Facet size', NOISE_LIMITS.minFacet, NOISE_LIMITS.maxFacet, 0.02),
-  experimental('noise', 'turn', 'Turn', 0, 345, 15, { fallback: 0 }),
-  experimental('ripple', 'amount', 'Amount', 0, RIPPLE_LIMITS.maxAmount, 0.1),
-  experimental('ripple', 'wavelength', 'Wavelength', RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength, 0.02),
-  experimental('ripple', 'sides', 'Sides', RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides, 1),
-  experimental('ripple', 'centerX', 'Center X', RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.1),
-  experimental('ripple', 'centerY', 'Center Y', RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.1),
-  experimental('ripple', 'fade', 'Fade', 0, 1, 0.1),
-  experimental('ripple', 'petals', 'Petals', 0, RIPPLE_LIMITS.maxPetals, 0.1, { fallback: 0 }),
-  experimental('curl', 'amount', 'Amount', -CURL_LIMITS.maxAmount, CURL_LIMITS.maxAmount, 0.1),
-  experimental('curl', 'rings', 'Rings', CURL_LIMITS.minRings, CURL_LIMITS.maxRings, 1),
-  experimental('curl', 'sides', 'Sides', CURL_LIMITS.minSides, CURL_LIMITS.maxSides, 1),
-  experimental('wind', 'direction', 'Direction', 0, 345, 15),
-  experimental('wind', 'strength', 'Strength', 0, WIND_LIMITS.maxStrength, 0.1),
-  experimental('wind', 'gust', 'Gust size', WIND_LIMITS.minGust, WIND_LIMITS.maxGust, 0.02),
-  experimental('wind', 'gustiness', 'Gustiness', 0, WIND_LIMITS.maxGustiness, 0.1),
-  experimental('spikes', 'count', 'Anchors', SPIKE_LIMITS.minCount, SPIKE_LIMITS.maxCount, 1),
-  experimental('spikes', 'reach', 'Reach', 0, SPIKE_LIMITS.maxReach, 0.05),
-  experimental('spikes', 'spread', 'Spread', 0, 1, 0.05),
-  experimental('spikes', 'width', 'Width', 0, 1, 0.05),
+  experimental('crumple', 'amount', 'Amount'),
+  experimental('crumple', 'detail', 'Detail', { fallback: CRUMPLE_LIMITS.defaultDetail }),
+  experimental('crumple', 'facet', 'Facet size'),
+  experimental('crumple', 'turn', 'Turn', { fallback: 0 }),
+  experimental('ripple', 'amount', 'Amount'),
+  experimental('ripple', 'wavelength', 'Wavelength'),
+  experimental('ripple', 'sides', 'Sides'),
+  experimental('ripple', 'centerX', 'Center X'),
+  experimental('ripple', 'centerY', 'Center Y'),
+  experimental('ripple', 'fade', 'Fade'),
+  experimental('ripple', 'petals', 'Petals', { fallback: 0 }),
+  experimental('whorl', 'amount', 'Amount'),
+  experimental('whorl', 'rings', 'Rings'),
+  experimental('whorl', 'sides', 'Sides'),
+  experimental('slipstream', 'direction', 'Direction'),
+  experimental('slipstream', 'strength', 'Strength'),
+  experimental('slipstream', 'slip', 'Slip', { fallback: 0 }),
+  experimental('slipstream', 'gust', 'Gust size'),
+  experimental('slipstream', 'gustiness', 'Gustiness'),
+  experimental('slipstream', 'cuts', 'Cuts', { fallback: 0 }),
+  experimental('slipstream', 'trails', 'Trails', { fallback: 0 }),
+  experimental('thorn', 'count', 'Anchors'),
+  // Cubic slider: min and max are its values, step roundReach's unit; the scale holds the slider's real steps.
+  target({
+    field: effectField('thorn', 'canvasReach'),
+    tab: 'experimental',
+    section: EFFECT_NAMES.thorn,
+    label: 'Reach',
+    min: 0,
+    max: THORN_REACH.max,
+    step: 0.0001,
+    scale: reachScale,
+    requires: [effectOn('thorn')],
+  }),
+  experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root }),
+  experimental('thorn', 'spread', 'Spread'),
+  experimental('thorn', 'width', 'Width'),
+  experimental('thorn', 'refraction', 'Refraction', { fallback: 0 }),
+  // The panel disables Flute width while Refraction is 0.
+  experimental('thorn', 'flute', 'Flute width', {
+    fallback: THORN_FALLBACK.flute,
+    requires: [effectOn('thorn'), refractionOn],
+  }),
   seed('experimental', 'Seed', experimentalField('seed'), EXPERIMENTAL_LIMITS.maxSeed, [seededEffectOn]),
 ]
 

@@ -1,7 +1,8 @@
 // Crossing tests for closed polygons. Every geometry step checks that it did not make a contour cross
 // itself or another contour, often several times per contour (retries, simplified copies), and
 // contours can have thousands of points (Anchor spacing 1), so the search sweeps segments sorted by x
-// and compares only pairs whose boxes overlap, and stops as soon as the answer is known.
+// (or along whichever direction suits them, see SegmentSweep) and compares only pairs whose boxes
+// overlap, and stops as soon as the answer is known.
 
 import type { Point } from './types'
 
@@ -15,44 +16,34 @@ export interface Crossing {
 
 /**
  * Every pair of non-adjacent segments of the closed ring that cross or touch, with where they meet.
- * With `limit`, the search stops once more than `limit` crossings are found.
+ * With `limit`, the search stops once more than `limit` crossings are found (which ones it found by then may vary:
+ * only how many tells anything).
  */
 export function findSelfCrossings(points: readonly Point[], limit = Infinity): Crossing[] {
   const n = points.length
   const found: Crossing[] = []
   if (n < 4) return found
-  const x0 = new Float64Array(n)
-  const x1 = new Float64Array(n)
-  const y0 = new Float64Array(n)
-  const y1 = new Float64Array(n)
-  for (let i = 0; i < n; i++) {
-    const a = points[i]
-    const b = points[(i + 1) % n]
-    x0[i] = Math.min(a.x, b.x)
-    x1[i] = Math.max(a.x, b.x)
-    y0[i] = Math.min(a.y, b.y)
-    y1[i] = Math.max(a.y, b.y)
-  }
-  const order = new Uint32Array(n)
-  for (let i = 0; i < n; i++) order[i] = i
-  order.sort((a, b) => x0[a] - x0[b])
-  for (let a = 0; a < n; a++) {
+  const sweep = new SegmentSweep(points)
+  const { order, u0, u1, v0, v1 } = sweep
+  const pairs: number[] = []
+  search: for (let a = 0; a < n; a++) {
     const s = order[a]
     for (let b = a + 1; b < n; b++) {
       const t = order[b]
-      if (x0[t] > x1[s]) break
-      if (y0[t] > y1[s] || y1[t] < y0[s]) continue
+      if (u0[t] > u1[s]) break
+      if (v0[t] > v1[s] || v1[t] < v0[s] || !sweep.boxesMeet(s, t)) continue
       const i = Math.min(s, t)
       const j = Math.max(s, t)
       if (j - i < 2 || (i === 0 && j === n - 1)) continue // neighbouring segments share a point
       const at = meet(points[i], points[(i + 1) % n], points[j], points[(j + 1) % n])
       if (at) {
         found.push({ i, j, at })
-        if (found.length > limit) return found
+        if (!sweep.alongX) pairs.push(s, t)
+        if (found.length > limit) break search
       }
     }
   }
-  return found
+  return sweep.inXOrder(found, pairs)
 }
 
 /**
@@ -75,9 +66,10 @@ export function addsCrossings(after: readonly Point[], before: () => number): bo
 
 /**
  * Pairs of segments, one from ring `a` and one from ring `b`, that cross or touch: `i` indexes `a`'s
- * segments and `j` `b`'s. With `limit`, the search stops once more than `limit` are found.
+ * segments and `j` `b`'s. With `limit`, the search stops once more than `limit` are found (only how many
+ * tells anything then). Indexes of either ring (see RingIndex) only make it faster.
  */
-export function findRingCrossings(a: readonly Point[], b: readonly Point[], limit = Infinity): Crossing[] {
+export function findRingCrossings(a: readonly Point[], b: readonly Point[], limit = Infinity, indexA?: RingIndex, indexB?: RingIndex): Crossing[] {
   const found: Crossing[] = []
   const boxA = ringBox(a)
   const boxB = ringBox(b)
@@ -87,50 +79,309 @@ export function findRingCrossings(a: readonly Point[], b: readonly Point[], limi
   const minY = Math.max(boxA.minY, boxB.minY)
   const maxY = Math.min(boxA.maxY, boxB.maxY)
   if (minX > maxX || minY > maxY) return found
-  const segments: { ring: 0 | 1; i: number; x0: number; x1: number; y0: number; y1: number }[] = []
-  for (const [ring, points] of [
-    [0, a],
-    [1, b],
+  // The segments of both rings in one list, the first `inA` of them `a`'s: each one's index in its ring, and its ends.
+  let inA = 0
+  const index: number[] = []
+  const ax: number[] = []
+  const ay: number[] = []
+  const bx: number[] = []
+  const by: number[] = []
+  for (const [r, points, lookup] of [
+    [0, a, indexA],
+    [1, b, indexB],
   ] as const) {
     const n = points.length
-    for (let i = 0; i < n; i++) {
+    const near = lookup?.points === points ? lookup.segmentsIn(minX, maxX, minY, maxY) : null
+    for (let k = 0; k < (near ? near.length : n); k++) {
+      const i = near ? near[k] : k
       const p = points[i]
       const q = points[(i + 1) % n]
-      const x0 = Math.min(p.x, q.x)
-      const x1 = Math.max(p.x, q.x)
-      const y0 = Math.min(p.y, q.y)
-      const y1 = Math.max(p.y, q.y)
-      if (x1 < minX || x0 > maxX || y1 < minY || y0 > maxY) continue
-      segments.push({ ring, i, x0, x1, y0, y1 })
+      if (Math.max(p.x, q.x) < minX || Math.min(p.x, q.x) > maxX || Math.max(p.y, q.y) < minY || Math.min(p.y, q.y) > maxY) continue
+      index.push(i)
+      ax.push(p.x)
+      ay.push(p.y)
+      bx.push(q.x)
+      by.push(q.y)
     }
+    if (r === 0) inA = index.length
   }
-  segments.sort((s, t) => s.x0 - t.x0)
-  for (let u = 0; u < segments.length; u++) {
-    const s = segments[u]
-    for (let v = u + 1; v < segments.length; v++) {
-      const t = segments[v]
-      if (t.x0 > s.x1) break
-      if (t.ring === s.ring || t.y0 > s.y1 || t.y1 < s.y0) continue
-      const [sa, sb] = s.ring === 0 ? [s, t] : [t, s]
-      const at = meet(a[sa.i], a[(sa.i + 1) % a.length], b[sb.i], b[(sb.i + 1) % b.length])
+  const sweep = new SegmentSweep({ ax, ay, bx, by })
+  const { order, u0, u1, v0, v1 } = sweep
+  const pairs: number[] = []
+  search: for (let u = 0; u < order.length; u++) {
+    const s = order[u]
+    for (let v = u + 1; v < order.length; v++) {
+      const t = order[v]
+      if (u0[t] > u1[s]) break
+      if (t < inA === s < inA || v0[t] > v1[s] || v1[t] < v0[s] || !sweep.boxesMeet(s, t)) continue
+      const [sa, sb] = s < inA ? [index[s], index[t]] : [index[t], index[s]]
+      const at = meet(a[sa], a[(sa + 1) % a.length], b[sb], b[(sb + 1) % b.length])
       if (at) {
-        found.push({ i: sa.i, j: sb.i, at })
-        if (found.length > limit) return found
+        found.push({ i: sa, j: sb, at })
+        if (!sweep.alongX) pairs.push(s, t)
+        if (found.length > limit) break search
       }
     }
   }
-  return found
+  return sweep.inXOrder(found, pairs)
+}
+
+/** Directions a sweep can run along (cos, sin): x, the rising diagonal, y, the falling diagonal. */
+const SWEEPS = [
+  [1, 0],
+  [Math.SQRT1_2, Math.SQRT1_2],
+  [0, 1],
+  [-Math.SQRT1_2, Math.SQRT1_2],
+] as const
+
+/**
+ * How much wider boxes are made off the axes (font units, plus a little per unit of the coordinates for rounding the
+ * turned points): more than the distance at which `meet` still counts a touch (its tests allow 1e-9, which near very
+ * short segments comes to about 6e-5), so they never leave out a pair whose boxes along x and y overlap.
+ */
+const TURNED_SLACK = 1e-4
+/** Fewer segments than this are swept along x: turning costs more than it could save. */
+const TURN_FROM = 64
+
+/** Segments by the coordinates of their ends: segment i runs from (ax[i], ay[i]) to (bx[i], by[i]). */
+export interface SegmentEnds {
+  ax: readonly number[]
+  ay: readonly number[]
+  bx: readonly number[]
+  by: readonly number[]
+}
+
+/**
+ * Segments ready for a sweep that compares the pairs whose boxes overlap or touch. A sweep along x compares the
+ * segments whose x ranges overlap, so long edges side by side along x (a comb, the streaks Slipstream draws) would
+ * compare nearly every pair: the sweep runs along y or a diagonal instead when the segments are less than half as
+ * long in total that way. Off x it compares pairs in another order, so what it finds is put back in the order of a
+ * sweep along x (`inXOrder`): callers that act on crossings one by one do the same as ever.
+ */
+export class SegmentSweep {
+  /** Segments by where their boxes start along the sweep. */
+  readonly order: number[]
+  /** Each segment's range along the sweep (u) and across it (v). */
+  readonly u0: number[]
+  readonly u1: number[]
+  readonly v0: number[]
+  readonly v1: number[]
+  readonly alongX: boolean
+  private readonly x0: number[] = []
+  private readonly x1: number[] = []
+  private readonly y0: number[] = []
+  private readonly y1: number[] = []
+
+  /** `segments`: a closed ring's (segment i from point i to the next), or the ends of each. */
+  constructor(segments: readonly Point[] | SegmentEnds) {
+    const ring = Array.isArray(segments) ? (segments as readonly Point[]) : null
+    const ends = ring ? null : (segments as SegmentEnds)
+    const n = ring ? ring.length : ends!.ax.length
+    const { x0, x1, y0, y1 } = this
+    // How long the segments are in total along each direction (see SWEEPS).
+    let lengthX = 0
+    let lengthRising = 0
+    let lengthY = 0
+    let lengthFalling = 0
+    for (let i = 0; i < n; i++) {
+      const j = i + 1 === n ? 0 : i + 1
+      const xa = ring ? ring[i].x : ends!.ax[i]
+      const ya = ring ? ring[i].y : ends!.ay[i]
+      const xb = ring ? ring[j].x : ends!.bx[i]
+      const yb = ring ? ring[j].y : ends!.by[i]
+      x0.push(Math.min(xa, xb))
+      x1.push(Math.max(xa, xb))
+      y0.push(Math.min(ya, yb))
+      y1.push(Math.max(ya, yb))
+      const dx = xb - xa
+      const dy = yb - ya
+      lengthX += Math.abs(dx)
+      lengthRising += Math.abs(dx + dy) * Math.SQRT1_2
+      lengthY += Math.abs(dy)
+      lengthFalling += Math.abs(dy - dx) * Math.SQRT1_2
+    }
+    const lengths = [lengthX, lengthRising, lengthY, lengthFalling]
+    let best = 1
+    for (let d = 2; d < SWEEPS.length; d++) if (lengths[d] < lengths[best]) best = d
+    this.alongX = n < TURN_FROM || !(2 * lengths[best] < lengthX)
+    if (this.alongX) {
+      this.u0 = x0
+      this.u1 = x1
+      this.v0 = y0
+      this.v1 = y1
+    } else {
+      const { ax, ay, bx, by } = ends ?? {
+        ax: ring!.map((p) => p.x),
+        ay: ring!.map((p) => p.y),
+        bx: ring!.map((_, i) => ring![(i + 1) % n].x),
+        by: ring!.map((_, i) => ring![(i + 1) % n].y),
+      }
+      const [c, s] = SWEEPS[best]
+      let extent = 0
+      for (let i = 0; i < n; i++) extent = Math.max(extent, Math.abs(ax[i]), Math.abs(ay[i]), Math.abs(bx[i]), Math.abs(by[i]))
+      // Along y the turned coordinates are exact.
+      const slack = best === 2 ? 0 : TURNED_SLACK + 1e-12 * extent
+      const u0: number[] = (this.u0 = [])
+      const u1: number[] = (this.u1 = [])
+      const v0: number[] = (this.v0 = [])
+      const v1: number[] = (this.v1 = [])
+      for (let i = 0; i < n; i++) {
+        const ua = ax[i] * c + ay[i] * s
+        const ub = bx[i] * c + by[i] * s
+        const va = ay[i] * c - ax[i] * s
+        const vb = by[i] * c - bx[i] * s
+        u0.push(Math.min(ua, ub) - slack)
+        u1.push(Math.max(ua, ub) + slack)
+        v0.push(Math.min(va, vb) - slack)
+        v1.push(Math.max(va, vb) + slack)
+      }
+    }
+    this.order = SegmentSweep.sorted(this.u0)
+  }
+
+  /** True when the boxes of segments s and t overlap or touch along x and y (always, for pairs a sweep along x compares). */
+  boxesMeet(s: number, t: number): boolean {
+    return this.alongX || !(this.x0[t] > this.x1[s] || this.x1[t] < this.x0[s] || this.y0[t] > this.y1[s] || this.y1[t] < this.y0[s])
+  }
+
+  /**
+   * What the sweep found, in the order a sweep along x finds it: by the first of its two segments in that sweep, then
+   * the second. `pairs` holds each item's two segments.
+   */
+  inXOrder<T>(found: T[], pairs: readonly number[]): T[] {
+    if (this.alongX || found.length < 2) return found
+    const rank: number[] = []
+    SegmentSweep.sorted(this.x0).forEach((s, k) => (rank[s] = k))
+    const first = found.map((_, k) => Math.min(rank[pairs[2 * k]], rank[pairs[2 * k + 1]]))
+    const second = found.map((_, k) => Math.max(rank[pairs[2 * k]], rank[pairs[2 * k + 1]]))
+    return found.map((_, k) => k).sort((k, m) => first[k] - first[m] || second[k] - second[m]).map((k) => found[k])
+  }
+
+  /**
+   * Indices by `start`, ties in index order. A merge sort that compares inline: two to four times as fast as sorting
+   * with a comparator, which matters for the many small rings each step checks.
+   */
+  private static sorted(start: readonly number[]): number[] {
+    const n = start.length
+    let order: number[] = []
+    for (let i = 0; i < n; i++) order.push(i)
+    // Runs of 8 by insertion, then merged in pairs, wider each round.
+    for (let lo = 0; lo < n; lo += 8) {
+      const hi = Math.min(lo + 8, n)
+      for (let i = lo + 1; i < hi; i++) {
+        const k = order[i]
+        let j = i
+        for (; j > lo && start[order[j - 1]] > start[k]; j--) order[j] = order[j - 1]
+        order[j] = k
+      }
+    }
+    let merged = order.slice()
+    for (let width = 8; width < n; width *= 2) {
+      for (let lo = 0; lo < n; lo += 2 * width) {
+        const mid = Math.min(lo + width, n)
+        const hi = Math.min(lo + 2 * width, n)
+        let i = lo
+        let j = mid
+        let k = lo
+        while (i < mid && j < hi) merged[k++] = start[order[j]] < start[order[i]] ? order[j++] : order[i++]
+        while (i < mid) merged[k++] = order[i++]
+        while (j < hi) merged[k++] = order[j++]
+      }
+      const done = merged
+      merged = order
+      order = done
+    }
+    return order
+  }
 }
 
 /** True when `p` lies inside the closed ring (even-odd rule; a point on the outline may go either way). */
 export function insideRing(p: Point, ring: readonly Point[]): boolean {
   let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i]
-    const b = ring[j]
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) if (rayCrosses(p, ring[i], ring[j])) inside = !inside
   return inside
+}
+
+/** True when the ray from p to the right crosses the edge between a and b (half-open in y). */
+function rayCrosses(p: Point, a: Point, b: Point): boolean {
+  return a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x
+}
+
+/**
+ * A ring's segments by horizontal strips, to find those near a box or a point without looking at all of them: when
+ * strong effects are merged, one contour can have tens of thousands of points and thousands of others inside it.
+ * Segment i runs from point i to the next. The ring must not change.
+ */
+export class RingIndex {
+  private readonly low: number
+  private readonly height: number
+  private readonly strips: number
+  /** The segments in strip k: segments[start[k]] up to segments[start[k + 1]]. */
+  private readonly start: Int32Array
+  private readonly segments: Int32Array
+  private readonly seen: Int32Array
+  private visits = 0
+
+  constructor(readonly points: readonly Point[]) {
+    const n = points.length
+    const box = ringBox(points)
+    this.strips = Math.max(1, Math.ceil(Math.sqrt(n)))
+    this.low = box.minY
+    this.height = (box.maxY - box.minY) / this.strips
+    this.start = new Int32Array(this.strips + 1)
+    for (let i = 0; i < n; i++) for (let k = this.stripOf(i, 0); k <= this.stripOf(i, 1); k++) this.start[k + 1]++
+    for (let k = 0; k < this.strips; k++) this.start[k + 1] += this.start[k]
+    this.segments = new Int32Array(this.start[this.strips])
+    const filled = this.start.slice(0, this.strips)
+    for (let i = 0; i < n; i++) for (let k = this.stripOf(i, 0); k <= this.stripOf(i, 1); k++) this.segments[filled[k]++] = i
+    this.seen = new Int32Array(n)
+  }
+
+  /** The segments whose boxes overlap or touch the box, in index order. */
+  segmentsIn(minX: number, maxX: number, minY: number, maxY: number): number[] {
+    const out: number[] = []
+    const box = ringBox(this.points)
+    if (box.maxX < minX || box.minX > maxX || box.maxY < minY || box.minY > maxY) return out
+    const visit = ++this.visits
+    const n = this.points.length
+    for (let k = this.strip(Math.max(minY, this.low)); k <= this.strip(Math.min(maxY, box.maxY)); k++) {
+      for (let e = this.start[k]; e < this.start[k + 1]; e++) {
+        const i = this.segments[e]
+        if (this.seen[i] === visit) continue
+        this.seen[i] = visit
+        const p = this.points[i]
+        const q = this.points[(i + 1) % n]
+        if (Math.max(p.x, q.x) < minX || Math.min(p.x, q.x) > maxX || Math.max(p.y, q.y) < minY || Math.min(p.y, q.y) > maxY) continue
+        out.push(i)
+      }
+    }
+    return out.sort((i, j) => i - j)
+  }
+
+  /** insideRing(p, points), from the segments in p's strip (the only ones a ray from p can cross). */
+  contains(p: Point): boolean {
+    const box = ringBox(this.points)
+    if (!(p.y >= box.minY && p.y <= box.maxY)) return false
+    const n = this.points.length
+    const k = this.strip(p.y)
+    let inside = false
+    for (let e = this.start[k]; e < this.start[k + 1]; e++) {
+      const i = this.segments[e]
+      if (rayCrosses(p, this.points[(i + 1) % n], this.points[i])) inside = !inside
+    }
+    return inside
+  }
+
+  private strip(y: number): number {
+    return this.height > 0 ? Math.min(this.strips - 1, Math.max(0, Math.floor((y - this.low) / this.height))) : 0
+  }
+
+  /** The strip of segment i's lower (end 0) or upper (end 1) end. */
+  private stripOf(i: number, end: 0 | 1): number {
+    const a = this.points[i].y
+    const b = this.points[(i + 1) % this.points.length].y
+    return this.strip(end === 0 ? Math.min(a, b) : Math.max(a, b))
+  }
 }
 
 export interface Box {

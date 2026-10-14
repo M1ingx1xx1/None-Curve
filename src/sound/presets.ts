@@ -22,15 +22,15 @@ const RESET_GROUPS = ['flatten', 'random', 'squaring', 'anchors', 'grid', 'disto
 
 const DEFAULTS: GeometryParams = initialState.params
 
-type EffectKey = 'noise' | 'ripple' | 'curl' | 'wind' | 'spikes'
+type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
 
 /** The Experimental effects, in panel order, with their names in the Experimental tab. */
 const EFFECTS: readonly [EffectKey, string][] = [
-  ['noise', 'Noise'],
+  ['crumple', 'Crumple'],
   ['ripple', 'Ripple'],
-  ['curl', 'Curl'],
-  ['wind', 'Wind'],
-  ['spikes', 'Spikes'],
+  ['whorl', 'Whorl'],
+  ['slipstream', 'Slipstream'],
+  ['thorn', 'Thorn'],
 ]
 
 const map = (feature: Mapping['feature'], target: string, depth: number): Omit<Mapping, 'id'> => ({
@@ -56,39 +56,39 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'flicker',
     name: 'Flicker',
-    description: 'On every beat a few other anchors jump while the rest hold the letter; louder sound and kicks throw them further.',
+    description: 'On every beat a few other anchors jump while the rest hold the letter; louder sound and each beat throw them further.',
     // Only a few seeded anchors move: no control sets this, only this preset. A tiny amplitude, so the Seed row acts while it is quiet.
     start: [set('distortion', { sparse: true, amount: 2, normalBias: 0.9 })],
-    mappings: [map('level', 'distortion.amount', 0.9), map('kickPulse', 'distortion.amount', 0.3), map('beatPulse', 'distortion.seed', 1)],
+    mappings: [map('level', 'distortion.amount', 0.9), map('beat', 'distortion.amount', 0.3), map('beat', 'distortion.seed', 1)],
   },
   {
     id: 'scatter',
     name: 'Scatter',
     description: 'Anchors are placed afresh on every other beat: close and even while it is quiet, fewer and further from even as it gets louder.',
     start: [set('random', { enabled: true, density: 10, randomness: 0.05 })],
-    mappings: [map('level', 'random.randomness', 0.9), map('level', 'random.density', -0.09), map('beatPulse', 'random.seed', 0.5)],
+    mappings: [map('level', 'random.randomness', 0.9), map('level', 'random.density', -0.09), map('beat', 'random.seed', 0.5)],
   },
   {
     id: 'pixel',
     name: 'Pixel',
     description: 'The letters snap to a grid that the bass makes coarser; hiss and cymbals drop anchors.',
     start: [set('grid', { snap: true })],
-    mappings: [map('bass', 'grid.size', 0.7), map('high', 'anchors.simplify', 0.4)],
+    mappings: [map('bass', 'grid.size', 0.7), map('treble', 'anchors.simplify', 0.4)],
   },
   {
     id: 'low-poly',
     name: 'Low poly',
-    description: 'Loud passages flatten the curves into fewer, longer sides; noisy sound drops anchors.',
+    description: 'Loud passages flatten the curves into fewer, longer sides; bright sound drops anchors.',
     // Merged curves, so a large Tolerance reaches whole bowls (each font curve keeps at least one edge otherwise).
     start: [set('flatten', { mergeCurves: true })],
-    mappings: [map('level', 'flatten.tolerance', 0.7), map('noisiness', 'anchors.simplify', 0.5)],
+    mappings: [map('level', 'flatten.tolerance', 0.7), map('brightness', 'anchors.simplify', 0.4)],
   },
   {
     id: 'block',
     name: 'Block',
-    description: 'The round strokes square off as the music swells, and a little more on each kick.',
+    description: 'The round strokes square off as the music swells, and a little more on each beat.',
     start: [],
-    mappings: [map('swell', 'squaring.amount', 0.9), map('kickPulse', 'squaring.amount', 0.4)],
+    mappings: [map('swell', 'squaring.amount', 0.9), map('beat', 'squaring.amount', 0.3)],
   },
   {
     id: 'jitter',
@@ -96,44 +96,51 @@ export const PRESETS: readonly Preset[] = [
     description: 'Hiss and cymbals make the outlines tremble; brighter sound makes the tremor finer.',
     // A tiny amplitude, so the Noise frequency row acts while it is quiet.
     start: [set('distortion', { amount: 2, frequency: 20 })],
-    mappings: [map('high', 'distortion.amount', 0.6), map('brightness', 'distortion.frequency', 0.3)],
+    mappings: [map('treble', 'distortion.amount', 0.6), map('brightness', 'distortion.frequency', 0.3)],
   },
   {
     id: 'facet',
     name: 'Facet',
-    description: 'Curves break into a few straight sides as it gets louder and on each kick; higher notes smooth them again.',
+    description: 'Curves break into a few straight sides as it gets louder and on each beat; higher notes smooth them again.',
     start: [set('flatten', { mode: 'segments', mergeCurves: true, segmentsPerCurve: 6 })],
     mappings: [
       map('level', 'flatten.segmentsPerCurve', -0.15),
-      map('kickPulse', 'flatten.segmentsPerCurve', -0.15),
+      map('beat', 'flatten.segmentsPerCurve', -0.05),
       map('pitch', 'flatten.segmentsPerCurve', 0.2),
     ],
   },
   {
     id: 'bloom',
     name: 'Bloom',
-    description: 'Ripples run through the letters and swell on each kick; the bass bends them into petals.',
+    description: 'Ripples run through the letters and swell on each beat; the bass bends them into petals.',
     start: [effect('ripple', { enabled: true, amount: 0.3 })],
-    mappings: [map('kickPulse', 'experimental.ripple.amount', 0.15), map('bass', 'experimental.ripple.petals', 0.3)],
+    // Petals change a letter's shape fast: 10% once the bass is up (20% is hard to read).
+    mappings: [map('beat', 'experimental.ripple.amount', 0.1), map('bass', 'experimental.ripple.petals', 0.05)],
   },
   {
     id: 'flare',
     name: 'Flare',
-    description: 'Spikes shoot out of one or two anchors per letter as it gets louder and jump somewhere new on every beat; kicks add more.',
-    // Reach 0: no spikes while it is quiet.
-    start: [effect('spikes', { enabled: true, count: 1, reach: 0 })],
+    description: 'Thorns shoot out of a few anchors per letter as it gets louder; on every beat they jump somewhere new and briefly multiply.',
+    // Reach 0: no thorns (and no root pull) while it is quiet. A shallower root keeps the strokes readable.
+    start: [effect('thorn', { enabled: true, count: 1, canvasReach: 0, root: 0.25 })],
     mappings: [
-      map('beatPulse', 'experimental.seed', 1),
-      map('level', 'experimental.spikes.reach', 0.4),
-      map('kickPulse', 'experimental.spikes.count', 0.2),
+      map('beat', 'experimental.seed', 1),
+      // Half the cubic Reach slider at full level: an eighth of the canvas diagonal (about 4 em on the default canvas).
+      map('level', 'experimental.thorn.canvasReach', 0.5),
+      map('beat', 'experimental.thorn.count', 0.15),
     ],
   },
   {
     id: 'gale',
     name: 'Gale',
-    description: 'Loudness drags the letters out along the wind; busy passages make the gusts uneven.',
-    start: [effect('wind', { enabled: true, strength: 0 })],
-    mappings: [map('level', 'experimental.wind.strength', 0.1), map('pace', 'experimental.wind.gustiness', 0.25)],
+    description: 'Loudness slides slices of the letters past each other; beats cut slits along the stream and busy passages draw trails.',
+    // Nothing streams while it is quiet. No stretch: it pushes letters into their neighbours.
+    start: [effect('slipstream', { enabled: true, strength: 0, slip: 0, cuts: 0, trails: 0 })],
+    mappings: [
+      map('level', 'experimental.slipstream.slip', 0.5),
+      map('beat', 'experimental.slipstream.cuts', 0.4),
+      map('activity', 'experimental.slipstream.trails', 0.35),
+    ],
   },
 ]
 
@@ -144,13 +151,13 @@ export interface PresetSettings {
   /** The groups that changed, each as the whole group object, ready for the editor's updateParams action. */
   patches: readonly ParamPatch[]
   /**
-   * "Loaded Flicker." and what was turned off ("Turned off Noise and Ripple.", "Turned off Random
+   * "Loaded Flicker." and what was turned off ("Turned off Crumple and Ripple.", "Turned off Random
    * anchors."), then whether any other setting the preset does not set went back to its default.
    */
   notice: string
 }
 
-/** A setting's path in the params, e.g. ['experimental', 'noise', 'amount']. */
+/** A setting's path in the params, e.g. ['experimental', 'crumple', 'amount']. */
 type Path = readonly string[]
 
 /** Every setting Load resets, from the defaults' shape. */
@@ -172,7 +179,7 @@ const NAMED_SWITCHES = new Set(['random.enabled', ...EFFECTS.map(([key]) => `exp
 
 const same = (a: unknown, b: unknown) => a === b || (Number.isNaN(a) && Number.isNaN(b))
 
-/** "Noise", "Noise and Ripple", "Noise, Ripple and Curl". */
+/** "Crumple", "Crumple and Ripple", "Crumple, Ripple and Whorl". */
 function listNames(names: readonly string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join('')
 }
@@ -198,7 +205,8 @@ export function presetSettings(current: GeometryParams, preset: Preset): PresetS
     SETTINGS.some((path) => path[0] === group && !same(read(current, path), read(params, path))),
   ).map((group) => ({ group, patch: params[group] }) as ParamPatch)
 
-  // A setting missing from older settings reads as its default, as the panel shows it.
+  // A setting missing from older settings reads as its default here; the panel may show it at the target's fallback
+  // instead (Slipstream's Slip, Cuts and Trails show 0).
   const before = (path: Path) => read(current, path) ?? read(DEFAULTS, path)
   const turnedOff = (path: Path) => before(path) === true && read(params, path) === false
   const effects = EFFECTS.filter(([key]) => turnedOff(['experimental', key, 'enabled'])).map(([, name]) => name)

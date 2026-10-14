@@ -13,8 +13,6 @@ interface WorkspaceProps {
   textTools: ReactNode
   /** Bottom right: text input and the canvas miniature. */
   input: ReactNode
-  /** Narrow screens only: whether the geometry parameters are expanded. */
-  geometryOpen: boolean
 }
 
 /**
@@ -23,9 +21,8 @@ interface WorkspaceProps {
  *   ╞═══════════════════════════════════╡   ← moves the border between the rows
  *   └ text tools       ║ input ║ preview  ┘   ← bottom row; the input / preview handle is in InputPanel
  * Each handle only moves a border: the panes on either side always add up to the same size.
- * Narrow screens stack tools, canvas, geometry (collapsible), input, text tools, without handles.
  */
-export default function Workspace({ tools, geometry, canvas, textTools, input, geometryOpen }: WorkspaceProps) {
+export default function Workspace({ tools, geometry, canvas, textTools, input }: WorkspaceProps) {
   const rows = useSplit<HTMLElement>({
     storageKey: 'none-curve:row-split',
     defaultValue: 0.62,
@@ -54,7 +51,7 @@ export default function Workspace({ tools, geometry, canvas, textTools, input, g
   })
 
   return (
-    <main ref={rows.containerRef} className="workspace" style={rows.style} data-geometry={geometryOpen ? 'open' : 'closed'}>
+    <main ref={rows.containerRef} className="workspace" style={rows.style}>
       <div ref={columns.containerRef} className="workspace-top" style={columns.style}>
         <div className="workspace-side">
           <div className="workspace-tools">{tools}</div>

@@ -1,6 +1,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode } from 'react'
 import type { GeometryParams } from '../geometry/types'
 import type { SoundEngine } from '../sound/engine'
+import { FLASH_LIMITS } from '../sound/flash'
 import { JUMP_LIMITS } from '../sound/jumps'
 import { freezeLive, useLiveStatus } from '../sound/live'
 import {
@@ -33,11 +34,11 @@ import {
 } from '../sound/types'
 import { useSoundEngine, useSoundFrames, useSoundState } from '../sound/useSound'
 import type { Action } from '../state/editorState'
+import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 
 const sources: [SoundSource, string][] = [
-  ['off', 'Off'],
   ['file', 'File'],
   ['microphone', 'Microphone'],
 ]
@@ -51,6 +52,8 @@ const errorText: Record<SoundErrorKind, string> = {
   'no-device': 'No microphone found.',
   'device-busy': 'The microphone could not be opened; another app may be using it.',
   insecure: 'The microphone needs a secure page (https or localhost).',
+  'mic-connect': 'The microphone opened, but this browser could not analyse it.',
+  'mic-ended': 'The microphone stopped.',
 }
 
 /** The message for an error. "Unsupported" depends on what was being opened: Web Audio or the microphone. */
@@ -61,8 +64,8 @@ const errorMessage = (error: SoundError, microphone: boolean) =>
 const TEXT_INTERVAL_MS = 100
 /** Screen readers get new meter values at most this often (ms). */
 const ARIA_INTERVAL_MS = 250
-/** Balance reads "C" (centred) while it leans less than this far to either side. */
-const BALANCE_CENTRE = 0.05
+/** Pan reads "C" (centred) while it leans less than this far to either side. */
+const PAN_CENTRE = 0.05
 /** Bars are drawn to a thousandth of their length (under a pixel), so a bar that holds still costs no style change. */
 const barScale = (value: number) => Math.round(value * 1000) / 1000
 
@@ -307,12 +310,10 @@ const pitchHz = (pitch: number) => pitchLowHz * (pitchHighHz / pitchLowHz) ** pi
 const groupHelp: Record<FeatureGroup, string> = {
   Loudness: `Level is how loud the sound is now, from ${formatDb(SOUND_LIMITS.floorDb)} (empty bar) to ${formatDb(SOUND_LIMITS.ceilingDb)} (full). Swell follows it slowly, for big, calm movements.`,
   Bands:
-    'Energy below 250 Hz (Low), 250–2000 Hz (Mid), and above 2000 Hz (High), each compared with its own loudest moment of the last few seconds.',
-  'Narrow bands':
-    'Finer slices, each compared with its own loudest moment: Sub 20–60 Hz, Bass 60–250 Hz, Low mid 250–500 Hz, High mid 2–4 kHz, Presence 4–6 kHz, Air above 6 kHz.',
-  Tone: `Brightness: dull, bass-heavy sound reads low; hiss and cymbals read high. Noisiness: hiss and drums read high, clear notes low. Pitch: the note being played or sung, from ${pitchLowHz} Hz (empty bar) to ${pitchHighHz} Hz (full); it holds between notes.`,
-  Rhythm: `Beat jumps to full on every onset, Kick only on sudden bass such as the bass drum; both fall back with Smoothing. Change: how fast the sound is changing. Pace: how many beats a second (${SOUND_LIMITS.paceMaxPerSecond} fill the bar).`,
-  Stereo: 'Balance: where the sound sits, from left to right. Width: how wide it spreads. Files only; the microphone reads as centred.',
+    'Energy below 250 Hz (Bass), 250–2000 Hz (Mids), and above 2000 Hz (Treble), each compared with its own loudest moment of the last few seconds.',
+  Tone: `Brightness: dull, bass-heavy sound reads low; hiss and cymbals read high. Pitch: the note being played or sung, from ${pitchLowHz} Hz (empty bar) to ${pitchHighHz} Hz (full); it holds between notes.`,
+  Rhythm: `Beat jumps to full on every hit, the bass drum included, and falls back with Smoothing. Activity: how busy the sound is; it jumps on sudden changes and stays up while beats come quickly (${SOUND_LIMITS.paceMaxPerSecond} a second fill the bar).`,
+  Stereo: 'Pan: where the sound sits, from left to right. Files only; the microphone reads as centred.',
 }
 
 /** A feature's meter elements, filled in by its refs. */
@@ -323,12 +324,12 @@ interface Meter {
   output: HTMLOutputElement | null
 }
 
-/** Nothing is running (Sound off, or the file paused or ended): the engine then sends SILENT_FRAME. */
+/** Nothing is running (the file paused or ended, or the microphone not listening): the engine then sends SILENT_FRAME. */
 const isIdle = (frame: FeatureFrame) => frame === SILENT_FRAME || frame.time <= 0
 
 /**
  * A meter's number: Level in dB after Sensitivity, matching its bar; Pitch in Hz ("—" in silence, like
- * Level, and once its bar is empty); Balance as the side it leans to ("L 40", "R 40", or "C" in the
+ * Level, and once its bar is empty); Pan as the side it leans to ("L 40", "R 40", or "C" in the
  * middle); the rest in percent; "—" with nothing to read.
  */
 function readout(feature: FeatureSpec, frame: FeatureFrame): string {
@@ -342,19 +343,19 @@ function readout(feature: FeatureSpec, frame: FeatureFrame): string {
     }
     case 'pitch':
       return frame.silent || barScale(value) === 0 ? '—' : `${Math.round(pitchHz(value))} Hz`
-    case 'balance':
-      return Math.abs(value) < BALANCE_CENTRE ? 'C' : `${value < 0 ? 'L' : 'R'} ${Math.round(Math.abs(value) * 100)}`
+    case 'pan':
+      return Math.abs(value) < PAN_CENTRE ? 'C' : `${value < 0 ? 'L' : 'R'} ${Math.round(Math.abs(value) * 100)}`
     default:
       return `${Math.round(value * 100)}%`
   }
 }
 
-/** The same for screen readers: Balance in words, and "No reading" for "—". */
+/** The same for screen readers: Pan in words, and "No reading" for "—". */
 function spokenReadout(feature: FeatureSpec, frame: FeatureFrame, text: string): string {
   if (text === '—') return 'No reading'
-  if (feature.id !== 'balance') return text
+  if (feature.id !== 'pan') return text
   const value = featureValue(frame, feature.id)
-  return Math.abs(value) < BALANCE_CENTRE ? 'Centre' : `${Math.round(Math.abs(value) * 100)} percent ${value < 0 ? 'left' : 'right'}`
+  return Math.abs(value) < PAN_CENTRE ? 'Centre' : `${Math.round(Math.abs(value) * 100)} percent ${value < 0 ? 'left' : 'right'}`
 }
 
 /**
@@ -376,7 +377,7 @@ class MeterBoard {
     this.latest = frame
     for (const { feature, fill } of this.meters) {
       if (!fill) continue
-      // Balance runs −1–1: its fill starts at the centre, and a negative scale mirrors it to the left.
+      // Pan runs −1–1: its fill starts at the centre, and a negative scale mirrors it to the left.
       const transform = `scaleX(${barScale(featureValue(frame, feature.id))})`
       if (fill.style.transform !== transform) fill.style.transform = transform
     }
@@ -447,8 +448,8 @@ const LevelsGroup = memo(function LevelsGroup() {
 })
 
 /**
- * One group's meters, each on one line: label, bar, and number. Beat and Kick are pulses: their bars
- * jump to full on each onset and fall back. The group's ⓘ explanation describes every meter in it.
+ * One group's meters, each on one line: label, bar, and number. Beat is a pulse: its bar jumps to full
+ * on each onset and falls back. The group's ⓘ explanation describes every meter in it.
  */
 function MeterGroup({ group, meters }: { group: FeatureGroup; meters: readonly Meter[] }) {
   const hint = useHint()
@@ -538,10 +539,12 @@ const featureOptions = FEATURE_GROUPS.map((group) => (
   </optgroup>
 ))
 
-/** Applies an activation's (or a preset's) changes to the sliders, as Freeze does. */
+/** Applies an activation's (or a preset's) changes to the sliders, as Freeze does: one undo step. */
 function applyActivation({ patches }: Pick<Activation, 'patches'>, dispatch: Dispatch<Action>): void {
-  // `group` and `patch` always match; TypeScript cannot pair a union key with its value here.
-  for (const { group, patch } of patches) dispatch({ type: 'updateParams', group, patch } as Action)
+  undoHistory.transaction(() => {
+    // `group` and `patch` always match; TypeScript cannot pair a union key with its value here.
+    for (const { group, patch } of patches) dispatch({ type: 'updateParams', group, patch } as Action)
+  })
 }
 
 /**
@@ -563,6 +566,14 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   const [presetNotice, setPresetNotice] = useState<string | null>(null)
   // What picking a target switched on, by mapping id, shown under its row until the row's target changes again.
   const [notices, setNotices] = useState<ReadonlyMap<string, string>>(new Map())
+  // Undo and redo put back settings and mappings these notices no longer describe.
+  const { restores } = useHistoryState()
+  const [noticesFor, setNoticesFor] = useState(restores)
+  if (noticesFor !== restores) {
+    setNoticesFor(restores)
+    setPresetNotice(null)
+    setNotices(new Map())
+  }
   const reducedNote = reducedMotion && !drive
   const full = mappings.length >= MAPPING_LIMITS.maxMappings
   const addBlocked = full || TARGETS.length === 0
@@ -590,8 +601,11 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
     if (addBlocked) return
     // From the store, not this render: two quick clicks must not both pick the same target.
     const target = nextTarget(mappingStore.getState().mappings, params)
-    const id = target ? mappingStore.add('level', target, DEFAULT_DEPTH) : null
-    if (target && id) activate(id, targetById(target))
+    // The row and what it switches on are one undo step.
+    undoHistory.transaction(() => {
+      const id = target ? mappingStore.add('level', target, DEFAULT_DEPTH) : null
+      if (target && id) activate(id, targetById(target))
+    })
   }
 
   /**
@@ -599,24 +613,27 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
    * preset's start values and replaces the mappings with its own (presetSettings). The rows should then
    * need nothing; should one, what it needs is switched on as when a target is picked by hand, row by
    * row against the settings the rows before it left (so a switch is turned on, and named, once).
+   * One undo step puts back the settings and the mappings from before.
    */
   const loadPreset = () => {
     const preset = PRESETS.find((p) => p.id === presetId)
     if (!preset) return
-    const loaded = presetSettings(params, preset)
-    applyActivation(loaded, dispatch)
-    setPresetNotice(loaded.notice)
-    mappingStore.replace(preset.mappings)
-    let current = loaded.params
-    const next = new Map<string, string>()
-    for (const mapping of mappingStore.getState().mappings) {
-      const activation = targetById(mapping.target)?.activate(current) ?? null
-      if (!activation) continue
-      applyActivation(activation, dispatch)
-      current = applyPatches(current, activation.patches)
-      next.set(mapping.id, activation.notice)
-    }
-    setNotices(next)
+    undoHistory.transaction(() => {
+      const loaded = presetSettings(params, preset)
+      applyActivation(loaded, dispatch)
+      setPresetNotice(loaded.notice)
+      mappingStore.replace(preset.mappings)
+      let current = loaded.params
+      const next = new Map<string, string>()
+      for (const mapping of mappingStore.getState().mappings) {
+        const activation = targetById(mapping.target)?.activate(current) ?? null
+        if (!activation) continue
+        applyActivation(activation, dispatch)
+        current = applyPatches(current, activation.patches)
+        next.set(mapping.id, activation.notice)
+      }
+      setNotices(next)
+    })
   }
 
   return (
@@ -626,13 +643,18 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
       <div className="group-body">
         <div className="field">
           <div className="field field-toggle">
-            <input
-              id="sound-drive"
-              type="checkbox"
-              checked={drive}
-              aria-describedby={reducedNote ? `${reducedId} ${driveHint.id}` : driveHint.id}
-              onChange={(e) => mappingStore.setDrive(e.target.checked)}
-            />
+            {/* A checkbox announced and drawn as an on/off switch: the track and knob are its sibling. */}
+            <span className="switch">
+              <input
+                id="sound-drive"
+                type="checkbox"
+                role="switch"
+                checked={drive}
+                aria-describedby={reducedNote ? `${reducedId} ${driveHint.id}` : driveHint.id}
+                onChange={(e) => mappingStore.setDrive(e.target.checked)}
+              />
+              <span className="switch-track" aria-hidden="true" />
+            </span>
             <span className="field-title">
               <label htmlFor="sound-drive">Drive letters</label>
               <HintButton hint={driveHint} topic="Drive letters" />
@@ -681,7 +703,7 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
           <HintText hint={presetHint}>
             Ready-made mappings to start from. Load resets the Geometry and Experimental settings to their defaults
             (seeds kept), then sets the preset up: its own starting values and its mappings, which replace the current
-            ones.
+            ones. Undo ({UNDO_KEYS.undo}) brings back the settings and mappings from before.
             <span className="preset-list">
               {PRESETS.map((p) => (
                 <span key={p.id} className="preset-item">
@@ -742,7 +764,8 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
               aria-describedby={freezeHint.id}
               onClick={() => {
                 if (!status.driving) return
-                freezeLive(dispatch)
+                // Every group it writes is one undo step.
+                undoHistory.transaction(() => freezeLive(dispatch))
               }}
             >
               <Icon name="freeze" />
@@ -765,11 +788,11 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   )
 }
 
-/** What Rate means on a seed, from the jump limits (jumps.ts). */
+/** What Rate means on a seed, from the jump and flash limits (jumps.ts, flash.ts). */
 const rateHelp =
-  'How often the seed moves on; each new seed is a new variant. With Beat or Kick, 100% moves on at every onset and 50% ' +
+  'How often the seed moves on; each new seed is a new variant. With Beat, 100% moves on at every hit and 50% ' +
   `at every other one. With other features, it moves on faster the higher they read, up to about ${Math.round(JUMP_LIMITS.maxRate)} ` +
-  `times a second at 100%. All seeds together jump at most about ${Math.round(JUMP_LIMITS.maxJumps / (JUMP_LIMITS.windowMs / 1000))} times a second.`
+  `times a second at 100%. Seeds and sliders share one limit of ${FLASH_LIMITS.maxFlashes} flashes a second, so busy sliders leave fewer jumps.`
 
 interface MappingRowProps {
   mapping: Mapping
@@ -807,7 +830,7 @@ function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: Ma
   const update = (patch: Partial<Omit<Mapping, 'id'>>) => mappingStore.update(mapping.id, patch)
   // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
   // what a target needs is switched on only once the choice is made, on Enter or on leaving the select; the
-  // settings passed on the way stay as they were. A pick with the mouse or a finger is made at once.
+  // settings passed on the way stay as they were. A pick with the mouse is made at once.
   const keyboard = useRef(false)
   const pendingTarget = useRef(false)
   const commitTarget = (value: string) => {
@@ -851,15 +874,19 @@ function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: Ma
             onBlur={(e) => commitTarget(e.currentTarget.value)}
             onChange={(e) => {
               const next = targetById(e.target.value)
-              // A seed's Rate is never negative: a negative Depth turns positive in the same update.
-              update(next?.kind === 'jump' && mapping.depth < 0 ? { target: e.target.value, depth: -mapping.depth } : { target: e.target.value })
-              if (keyboard.current) {
-                pendingTarget.current = true
-                // Nothing to switch on yet; this only clears the last target's notice.
-                onActivate(undefined)
-              } else {
-                onActivate(next)
-              }
+              const value = e.target.value
+              // The new target and what it switches on are one undo step.
+              undoHistory.transaction(() => {
+                // A seed's Rate is never negative: a negative Depth turns positive in the same update.
+                update(next?.kind === 'jump' && mapping.depth < 0 ? { target: value, depth: -mapping.depth } : { target: value })
+                if (keyboard.current) {
+                  pendingTarget.current = true
+                  // Nothing to switch on yet; this only clears the last target's notice.
+                  onActivate(undefined)
+                } else {
+                  onActivate(next)
+                }
+              })
             }}
           >
             {/* A target this version does not know (none should exist) still shows, so the select stays truthful. */}

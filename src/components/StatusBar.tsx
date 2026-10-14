@@ -31,7 +31,8 @@ const subscribeSound = (listener: () => void) => getSoundEngine().subscribeState
 const micStatus = (): MicStatus => {
   const s = getSoundEngine().getState()
   if (s.listening) return 'on'
-  return s.source === 'microphone' && s.error?.kind === 'no-device' ? 'lost' : 'off'
+  const kind = s.error?.kind
+  return s.source === 'microphone' && (kind === 'no-device' || kind === 'mic-ended') ? 'lost' : 'off'
 }
 
 export default function StatusBar({ state, glyphGeometry, shownParams, scene }: StatusBarProps) {
@@ -52,7 +53,9 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene }: 
     // The settings the canvas shows, so the method matches the vertex count beside it (also while Sound drives).
     const steps = describePipeline(shownParams)
     const method = steps.join(' → ')
-    const vertices = glyphGeometry.geometry ? `${glyphGeometry.geometry.vertexCount} vertices` : 'flattening failed'
+    const geometry = glyphGeometry.geometry
+    // Marked when the Experimental effects' vertex budget simplified the glyph.
+    const vertices = geometry ? `${geometry.vertexCount} vertices${geometry.experimental.budget.applied ? ' (simplified)' : ''}` : 'flattening failed'
     const target = `text (${scene?.glyphCount ?? 0} glyphs)`
     if (view.outline === 'source') viewing = `Original curves · ${target}`
     else if (view.outline === 'flattened') viewing = `Final polygon (${method}) · ${target} · selected glyph ${vertices}`
@@ -76,7 +79,7 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene }: 
         <span role="status">{live.driving ? 'Live' : ''}</span>
         {live.driving && ` · ${live.fps} fps`}
       </span>
-      {/* Visible from every tab (on narrow screens it floats in view), so the microphone is never on unnoticed.
+      {/* Visible from every tab, so the microphone is never on unnoticed.
           Always in the document and polite, so it is also announced from every tab when the microphone stops. */}
       <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}

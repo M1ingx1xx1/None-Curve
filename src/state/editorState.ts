@@ -1,8 +1,9 @@
 import type { FontErrorKind } from '../font/errors'
 import { pickDefaultGlyph, type LoadedFont } from '../font/model'
 import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../specimen/artboard'
-import type { GlyphRef } from '../geometry/types'
-import type { AppState, EditorParams, ExportMeta, ImportOrigin, ViewParams } from './types'
+import { canvasDiagonalEm } from '../geometry/thorn'
+import type { ExperimentalParams, GlyphRef } from '../geometry/types'
+import type { AppState, EditorParams, ExportMeta, ImportOrigin, SettingsParams, ViewParams } from './types'
 
 const initialView: ViewParams = {
   outline: 'flattened',
@@ -31,11 +32,11 @@ export const initialState: AppState = {
     distortion: { amount: 0, frequency: 8, normalBias: 0.7, seed: 1, sparse: false },
     experimental: {
       seed: 1,
-      noise: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
+      crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0, detail: 0.5 },
       ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
-      curl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
-      wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
-      spikes: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3 },
+      whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
+      slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
+      thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
     },
     view: initialView,
     typography: DEFAULT_TYPOGRAPHY,
@@ -44,10 +45,32 @@ export const initialState: AppState = {
   },
 }
 
+/**
+ * The canvas diagonal in em (canvasDiagonalEm), which Thorn's Reach is a share of, while Thorn is on; else
+ * null, so with Thorn off the text size and canvas never change the geometry. The PNG scale never counts.
+ */
+export function thornCanvasEm({ experimental, typography, artboard }: Pick<EditorParams, 'experimental' | 'typography' | 'artboard'>): number | null {
+  return experimental.thorn?.enabled ? canvasDiagonalEm(artboard.width, artboard.height, typography.size) : null
+}
+
+/**
+ * The Experimental params with Thorn's derived `canvasEm` set, or removed for null; the same object when
+ * nothing changes. It only rides on the geometry parameters: never in the state, undo history or saved sessions.
+ */
+export function withThornCanvasEm(experimental: ExperimentalParams, canvasEm: number | null): ExperimentalParams {
+  const { thorn } = experimental
+  if (!thorn || (thorn.canvasEm ?? null) === canvasEm) return experimental
+  if (canvasEm !== null) return { ...experimental, thorn: { ...thorn, canvasEm } }
+  const { canvasEm: _derived, ...settings } = thorn
+  return { ...experimental, thorn: settings }
+}
+
 type ParamGroup = keyof EditorParams
 
 export type Action =
   | { [G in ParamGroup]: { type: 'updateParams'; group: G; patch: Partial<EditorParams[G]> } }[ParamGroup]
+  /** Undo and redo: every settings group at once; the canvas view is kept. */
+  | { type: 'restoreParams'; params: SettingsParams }
   | { type: 'resetView' }
   | { type: 'updateExport'; patch: Partial<ExportMeta> }
   /** keepView leaves zoom and pan alone (selecting inside the text specimen). */
@@ -71,6 +94,8 @@ export function editorReducer(state: AppState, action: Action): AppState {
           [action.group]: { ...state.params[action.group], ...action.patch },
         },
       }
+    case 'restoreParams':
+      return { ...state, params: { ...action.params, view: state.params.view } }
     case 'resetView':
       return { ...state, params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } } }
     case 'updateExport':
@@ -94,19 +119,26 @@ export function editorReducer(state: AppState, action: Action): AppState {
           status: { kind: 'loading', requestId: action.requestId, origin: action.origin, label: action.label },
         },
       }
-    case 'importSucceeded':
+    case 'importSucceeded': {
       // A newer import has started since this one; drop the stale result.
       if (!isActiveRequest(state, action.requestId)) return state
+      const { font } = action
+      // Another face of the open collection (the same file in memory, see selectFace): the view stays, and so
+      // does the selected character when this face has it.
+      const otherFace = font.faces !== null && state.document.font?.bytes === font.bytes
+      const unicode = otherFace ? (state.document.selectedGlyph?.unicode ?? null) : null
+      const kept = unicode === null ? undefined : font.characters.find((c) => c.unicode === unicode)
       return {
         ...state,
         document: {
           ...state.document,
           status: { kind: 'ready' },
-          font: action.font,
-          selectedGlyph: pickDefaultGlyph(action.font),
+          font,
+          selectedGlyph: kept ?? pickDefaultGlyph(font),
         },
-        params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
+        params: otherFace ? state.params : { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
       }
+    }
     case 'importFailed':
       if (!isActiveRequest(state, action.requestId)) return state
       return {

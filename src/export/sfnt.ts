@@ -1,14 +1,20 @@
 // Small edits to a finished OpenType file: fields the font writer (opentype.js) always fills in
-// itself. The file is split into its tables, the tables are edited, and the file is put back
-// together with fresh table checksums and head.checkSumAdjustment. No React, no DOM.
+// itself, and tables it cannot write. The file is split into its tables, the tables are edited or
+// added, and the file is put back together with fresh table checksums and head.checkSumAdjustment.
+// No React, no DOM.
 
 export interface FontPatch {
   /** hhea.lineGap. */
   lineGap: number
   /** head.macStyle (bold, italic, …). */
   macStyle: number
-  /** The CFF FontBBox: the union of every glyph's bounds (xMin, yMin, xMax, yMax). */
+  /**
+   * The union of every glyph's bounds (xMin, yMin, xMax, yMax), .notdef included: head's bounding box (the writer
+   * leaves .notdef out and counts an empty glyph as reaching its advance) and the CFF FontBBox.
+   */
   fontBBox: [number, number, number, number]
+  /** Whole tables to add (or replace), by tag, e.g. GPOS. */
+  tables?: Record<string, Uint8Array>
 }
 
 export function patchFont(bytes: ArrayBuffer, patch: FontPatch): ArrayBuffer {
@@ -20,8 +26,16 @@ export function patchFont(bytes: ArrayBuffer, patch: FontPatch): ArrayBuffer {
     tables.set(tag, change(new DataView(copy.buffer), copy) ?? copy)
   }
   edit('hhea', (view) => view.setInt16(8, patch.lineGap))
-  edit('head', (view) => view.setUint16(44, patch.macStyle))
+  edit('head', (view) => {
+    patch.fontBBox.forEach((value, k) => {
+      // DataView wraps values that do not fit without a word; a wrapped box makes font engines reject the file.
+      if (!(Number.isInteger(value) && value >= -32768 && value <= 32767)) throw new Error(`the bounding box (${patch.fontBBox.join(' ')}) does not fit in head`)
+      view.setInt16(36 + 2 * k, value)
+    })
+    view.setUint16(44, patch.macStyle)
+  })
   edit('CFF ', (_, data) => setCffFontBBox(data, patch.fontBBox))
+  for (const [tag, data] of Object.entries(patch.tables ?? {})) tables.set(tag, data)
   return writeTables(flavor, tables)
 }
 

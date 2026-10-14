@@ -1,5 +1,6 @@
 import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
+import { sourceGlyphToPath } from '../geometry/sourcePath'
 import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
 import {
@@ -10,7 +11,7 @@ import {
   isDarkColor,
   SNAP_GRID_CONTRAST,
 } from '../specimen/color'
-import type { SpecimenScene } from '../specimen/scene'
+import type { Extent, SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
 import GlyphLayers from './GlyphLayers'
@@ -25,8 +26,6 @@ interface SpecimenViewProps {
   ink: string
   paper: string
   transparent?: boolean
-  /** Hide everything outside the artboard (the preview shows exactly what is exported). */
-  clip?: boolean
   view: ViewParams
   gridSize: number | null
   selectedGlyph: GlyphRef | null
@@ -37,10 +36,6 @@ interface SpecimenViewProps {
   onClearSelection?: () => void
   /** Free position: dragging the text moves it. Called once, on release, with the move in font units. */
   onMoveText?: (dx: number, dy: number) => void
-  /** False for a read-only miniature: no pan, zoom, keyboard focus, or glyph selection. */
-  interactive?: boolean
-  /** Gaussian blur of the glyphs, in screen pixels; 0 is off. The artboard itself stays sharp. */
-  blur?: number
 }
 
 interface SpecimenGlyphProps {
@@ -60,24 +55,29 @@ interface SpecimenGlyphProps {
   markerRadius: number
   showMarkers: boolean
   selected: boolean
-  /** Click handler (interactive canvas only). */
-  onSelect?: (index: number, text: string) => void
+  onSelect: (index: number, text: string) => void
 }
 
 /**
  * One glyph of the text. Memoised: when results for other glyphs arrive, or the view pans, the
  * glyphs whose shape and place did not change are not drawn again.
  */
-const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
+export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
   const { index, text, x, y, advance, skew, ascender, descender, source, polygon, view, markerRadius, showMarkers, selected, onSelect } = props
+  // The click target: the advance by the line (so small text and the inside of letters like "o" are
+  // easy to hit) and the drawn outlines. With Thorn, the drawn outlines ignore the pointer (see
+  // .specimen-glyph-thorned in styles.css), so thorns reaching across the canvas never catch clicks or
+  // drags; an invisible copy of the original outline takes the letter's clicks instead.
+  const thorned = polygon?.layoutBox !== undefined
   return (
     <g
-      className={selected ? 'specimen-glyph specimen-glyph-selected' : 'specimen-glyph'}
+      className={`specimen-glyph${selected ? ' specimen-glyph-selected' : ''}${thorned ? ' specimen-glyph-thorned' : ''}`}
       transform={`translate(${x} ${y})${skew} scale(1 -1)`}
-      onClick={onSelect ? () => onSelect(index, text) : undefined}
+      onClick={() => onSelect(index, text)}
     >
       <title>{text}</title>
-      {onSelect && <rect className="glyph-box" x={0} y={descender} width={advance} height={ascender - descender} />}
+      <rect className="glyph-box" x={0} y={descender} width={advance} height={ascender - descender} />
+      {thorned && <path className="glyph-box" d={sourceGlyphToPath(source)} />}
       <GlyphLayers source={source} polygon={polygon} view={view} markerRadius={markerRadius} showMarkers={showMarkers} />
     </g>
   )
@@ -102,7 +102,6 @@ export default function SpecimenView({
   ink,
   paper,
   transparent = false,
-  clip = false,
   view,
   gridSize,
   selectedGlyph,
@@ -111,18 +110,12 @@ export default function SpecimenView({
   onSelectGlyph,
   onClearSelection,
   onMoveText,
-  interactive = true,
-  blur = 0,
 }: SpecimenViewProps) {
   const { unitsPerEm, ascender, descender } = font.metrics
-  // Each glyph's invisible click target: its advance by the line (ascender to descender), so small
-  // text and the inside of letters like "o" are easy to hit.
 
   // Scene coordinates are y down (first baseline at 0); the canvas works in y up. Zoom 1 fits the artboard.
   const frame = useMemo(() => artboardViewFrame(layout), [layout])
   const ids = useId()
-  const blurId = `${ids}-blur`
-  const clipId = `${ids}-clip`
   const gridId = `${ids}-grid`
   const checkerId = `${ids}-checker`
   // Selected and hovered glyphs: a colour computed from the text and background to stand out.
@@ -140,7 +133,7 @@ export default function SpecimenView({
 
   // True while the text is being dragged (Free position); the grid then shows inside the artboard.
   const [draggingText, setDraggingText] = useState(false)
-  const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange, interactive)
+  const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange)
   const { left, right, top, bottom } = box
   // The view minus the artboard, as one even-odd path (scene coordinates, y down).
   const pasteboard =
@@ -185,7 +178,7 @@ export default function SpecimenView({
   // While dragging, only the text group's transform changes (nothing re-renders, so it follows the
   // pointer smoothly however long the text); the new position is committed once, on release, and the
   // transform is cleared when that position arrives back as a new layout.
-  const freeMove = interactive && onMoveText !== undefined
+  const freeMove = onMoveText !== undefined
   const movingRef = useRef<SVGGElement>(null)
   const textDrag = useRef<{ x: number; y: number; moved: boolean; dx: number; dy: number } | null>(null)
   const textMoved = useRef(false)
@@ -266,6 +259,9 @@ export default function SpecimenView({
   const sceneTop = -top
   const sceneBottom = -bottom
   const margin = unitsPerEm
+  // A line or glyph is drawn when its metric box (advance by line, plus an em for overhangs and the
+  // original outlines) or its ink is in view, so thorns reaching in from far away do not pop in and out.
+  const inView = (b: Extent | null) => b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
   const firstVisibleLine = scene.lines.findIndex((line) => line.baseline - descender >= sceneTop)
   // Metric guides span the artboard (or the visible part of it), not the whole view.
   const guideLeft = Math.max(left, layout.x)
@@ -274,16 +270,15 @@ export default function SpecimenView({
   return (
     <div
       ref={containerRef}
-      className={interactive ? 'glyph-view specimen-view' : 'glyph-view specimen-view specimen-view-static'}
-      tabIndex={interactive ? 0 : undefined}
+      className="glyph-view specimen-view"
+      tabIndex={0}
       role="img"
-      aria-label={
-        interactive
-          ? `${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.${freeMove ? ' Drag the text to move it.' : ''}`
-          : label
-      }
+      aria-label={`${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.${freeMove ? ' Drag the text to move it.' : ''}`}
       data-free-move={freeMove || undefined}
-      {...(interactive ? { ...handlers, ...pointer, onKeyDown, onClick } : {})}
+      {...handlers}
+      {...pointer}
+      onKeyDown={onKeyDown}
+      onClick={onClick}
     >
       {ready && (
         <svg
@@ -300,22 +295,10 @@ export default function SpecimenView({
           }
         >
           <defs>
-            {blur > 0 && (
-              <filter id={blurId} filterUnits="userSpaceOnUse" x={layout.x} y={layout.y} width={layout.width} height={layout.height}>
-                <feGaussianBlur stdDeviation={blur * u} />
-              </filter>
-            )}
-            {clip && (
-              <clipPath id={clipId}>
-                <rect x={layout.x} y={layout.y} width={layout.width} height={layout.height} />
-              </clipPath>
-            )}
-            {interactive && (
-              // A 24 px screen grid, fixed to the view like graph paper.
-              <pattern id={gridId} patternUnits="userSpaceOnUse" x={left} y={-top} width={24 * u} height={24 * u}>
-                <path className="view-grid-line" d={`M ${24 * u} 0 H 0 V ${24 * u}`} strokeWidth={u} />
-              </pattern>
-            )}
+            {/* A 24 px screen grid, fixed to the view like graph paper. */}
+            <pattern id={gridId} patternUnits="userSpaceOnUse" x={left} y={-top} width={24 * u} height={24 * u}>
+              <path className="view-grid-line" d={`M ${24 * u} 0 H 0 V ${24 * u}`} strokeWidth={u} />
+            </pattern>
             {transparent && (
               <pattern id={checkerId} patternUnits="userSpaceOnUse" x={layout.x} y={layout.y} width={16 * u} height={16 * u}>
                 <rect width={16 * u} height={16 * u} fill={paper} />
@@ -324,31 +307,23 @@ export default function SpecimenView({
               </pattern>
             )}
           </defs>
-          {/* The background: the whole view on the canvas, only the exported area in the preview. */}
-          {clip ? (
-            <rect x={layout.x} y={layout.y} width={layout.width} height={layout.height} fill={transparent ? `url(#${checkerId})` : paper} />
-          ) : (
-            <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
-          )}
-          {interactive && (
-            <>
-              {/* Outside the artboard (the pasteboard): a little darker (lighter on a dark background)
-                  and covered by the grid, so the artboard stands out as the page that is exported. */}
-              <path className="pasteboard" data-paper={darkPaper ? 'dark' : 'light'} d={pasteboard} fillRule="evenodd" />
-              <path d={pasteboard} fillRule="evenodd" fill={`url(#${gridId})`} />
-              {/* Inside, the artboard looks like the export; the grid only fades in while it helps
-                  placing things: while dragging the text, or zoomed in to 200 % or more. */}
-              <rect
-                className="artboard-grid"
-                data-visible={showGridInside || undefined}
-                x={layout.x}
-                y={layout.y}
-                width={layout.width}
-                height={layout.height}
-                fill={`url(#${gridId})`}
-              />
-            </>
-          )}
+          {/* The background covers the whole view. */}
+          <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
+          {/* Outside the artboard (the pasteboard): a little darker (lighter on a dark background)
+              and covered by the grid, so the artboard stands out as the page that is exported. */}
+          <path className="pasteboard" data-paper={darkPaper ? 'dark' : 'light'} d={pasteboard} fillRule="evenodd" />
+          <path d={pasteboard} fillRule="evenodd" fill={`url(#${gridId})`} />
+          {/* Inside, the artboard looks like the export; the grid only fades in while it helps
+              placing things: while dragging the text, or zoomed in to 200 % or more. */}
+          <rect
+            className="artboard-grid"
+            data-visible={showGridInside || undefined}
+            x={layout.x}
+            y={layout.y}
+            width={layout.width}
+            height={layout.height}
+            fill={`url(#${gridId})`}
+          />
           {grid && (
             <g className="snap-grid">
               {grid.xs.map((x) => (
@@ -392,13 +367,15 @@ export default function SpecimenView({
                 )
               })}
 
-            <g filter={blur > 0 ? `url(#${blurId})` : undefined} clipPath={clip ? `url(#${clipId})` : undefined}>
+            <g>
               {scene.lines.map((line, l) => {
-                if (line.baseline - ascender - margin > sceneBottom || line.baseline - descender + margin < sceneTop) return null
+                const band = line.baseline - ascender - margin <= sceneBottom && line.baseline - descender + margin >= sceneTop
+                if (!band && !inView(line.ink)) return null
                 return (
                   <g key={l}>
                     {line.glyphs.map((g, i) => {
-                      if (g.x + g.advance + margin < left || g.x - margin > right) return null
+                      const near = band && g.x + g.advance + margin >= left && g.x - margin <= right
+                      if (!near && !inView(g.ink)) return null
                       if (g.missing) {
                         return (
                           <rect
@@ -433,7 +410,7 @@ export default function SpecimenView({
                           markerRadius={3.5 * u}
                           showMarkers={showMarkers}
                           selected={selectedGlyph?.index === g.index}
-                          onSelect={interactive ? onGlyphSelect : undefined}
+                          onSelect={onGlyphSelect}
                         />
                       )
                     })}
@@ -444,7 +421,7 @@ export default function SpecimenView({
           </g>
         </svg>
       )}
-      {ready && interactive && (
+      {ready && (
         // The canvas edge, lifted off the background by a shadow: an HTML box over the SVG (screen
         // pixels, so the outline and shadow keep their size at any zoom). Its own area stays clear.
         <div
@@ -462,12 +439,12 @@ export default function SpecimenView({
           }
         />
       )}
-      {interactive && ready && gridSize && (
+      {ready && gridSize && (
         <p className="canvas-grid-note" aria-hidden="true">
           Snap grid {gridSize} u{grid ? '' : ' · too dense to draw at this zoom'}
         </p>
       )}
-      {interactive && markersHidden && (
+      {markersHidden && (
         <p className="canvas-note" aria-live="polite">
           Zoom in to see skeleton points and vertices (shown from {MARKER_MIN_PX_PER_EM} px per em).
         </p>

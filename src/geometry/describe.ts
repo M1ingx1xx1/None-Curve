@@ -1,10 +1,11 @@
-import { curlIsOn } from './curl'
-import { spikesIsOn } from './spikes'
+import { reachPercent, reachReadout } from '../state/sliderScales'
+import { CRUMPLE_LIMITS, crumpleIsOn } from './crumple'
 import { experimentalFolds } from './experimental'
-import { noiseIsOn } from './noise'
 import { rippleIsOn } from './ripple'
-import { windIsOn } from './wind'
+import { slipstreamIsOn } from './slipstream'
+import { THORN_FALLBACK, THORN_LIMITS, thornIsOn } from './thorn'
 import type { GeometryParams } from './types'
+import { whorlIsOn } from './whorl'
 
 /** Human-readable list of the active pipeline steps, in pipeline order. */
 export function describePipeline(params: GeometryParams): string[] {
@@ -32,8 +33,9 @@ export function describePipeline(params: GeometryParams): string[] {
       `distortion ${distortion.amount} u${distortion.sparse ? ', few anchors' : ''}, frequency ${distortion.frequency}, bias ${Math.round(distortion.normalBias * 100)}%, seed ${distortion.seed}`,
     )
   }
-  if (noiseIsOn(experimental.noise)) {
-    steps.push(`noise ${Math.round(experimental.noise.amount * 100)}%, facets ${Math.round(experimental.noise.facet * 100)}% em${experimental.noise.turn ? `, turn ${Math.round(experimental.noise.turn)}°` : ''}, seed ${experimental.seed}`)
+  if (crumpleIsOn(experimental.crumple)) {
+    const c = experimental.crumple
+    steps.push(`crumple ${Math.round(c.amount * 100)}%, detail ${Math.round((c.detail ?? CRUMPLE_LIMITS.defaultDetail) * 100)}%, facets ${Math.round(c.facet * 100)}% em${c.turn ? `, turn ${Math.round(c.turn)}°` : ''}, seed ${experimental.seed}`)
   }
   if (rippleIsOn(experimental.ripple)) {
     const r = experimental.ripple
@@ -42,18 +44,31 @@ export function describePipeline(params: GeometryParams): string[] {
       `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}`,
     )
   }
-  if (curlIsOn(experimental.curl)) {
-    const c = experimental.curl
-    steps.push(`curl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`)
+  if (whorlIsOn(experimental.whorl)) {
+    const c = experimental.whorl
+    steps.push(`whorl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`)
   }
-  if (windIsOn(experimental.wind)) {
-    const w = experimental.wind
+  if (slipstreamIsOn(experimental.slipstream)) {
+    const w = experimental.slipstream
     const pct = (v: number) => `${Math.round(v * 100)}%`
-    steps.push(`wind ${pct(w.strength)} toward ${Math.round(w.direction)}°, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}, seed ${experimental.seed}`)
+    // Older saved settings have no slip, cuts or trails.
+    const slip = Number.isFinite(w.slip) ? w.slip : 0
+    const count = (n: number, word: string) => (n >= 0.5 ? `${Math.round(n)} ${word}${Math.round(n) === 1 ? '' : 's'}` : '')
+    const marks = [count(w.cuts, 'cut'), count(w.trails, 'trail')].filter(Boolean).join(', ')
+    steps.push(
+      `slipstream ${pct(w.strength)} toward ${Math.round(w.direction)}°, slip ${pct(slip)} em, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}${marks ? `, ${marks}` : ''}, seed ${experimental.seed}`,
+    )
   }
-  if (spikesIsOn(experimental.spikes)) {
-    const s = experimental.spikes
-    steps.push(`spikes ×${s.count}, reach ${Math.round(s.reach * 100)}% em, spread ${Math.round(s.spread * 100)}%, width ${Math.round(s.width * 100)}%, seed ${experimental.seed}`)
+  if (thornIsOn(experimental.thorn)) {
+    const s = experimental.thorn
+    const pct = (v: number) => `${Math.round(v * 100)}%`
+    const root = s.root ?? THORN_FALLBACK.root
+    const refraction = s.refraction ?? 0
+    // As the Reach slider shows it, and its length in em the same way.
+    const reach = `${reachPercent(s.canvasReach)}% canvas${s.canvasEm !== undefined ? ` (about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm))} em)` : ''}`
+    steps.push(
+      `thorn ×${s.count}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
+    )
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')
   return steps

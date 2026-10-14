@@ -218,7 +218,7 @@ interface SplitHandleProps {
   handleProps: ReturnType<typeof useSplits>['handleProps'][number]
 }
 
-/** The draggable line between two panes of a split. Hidden on narrow screens, where panes stack. */
+/** The draggable line between two panes of a split. */
 export function SplitHandle({ axis, label, valueText, handleProps }: SplitHandleProps) {
   return (
     <div

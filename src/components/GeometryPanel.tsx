@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
 import { formatCodePoint } from '../font/model'
+import { canvasDiagonalEm, THORN_LIMITS } from '../geometry/thorn'
 import type { GlyphRef } from '../geometry/types'
 import { useLiveDriving } from '../sound/live'
 import type { Action } from '../state/editorState'
@@ -7,13 +8,15 @@ import type { DerivedGeometryState } from '../state/useDerivedGeometry'
 import type { AppState } from '../state/types'
 import AnchorControls from './AnchorControls'
 import DistortionControls from './DistortionControls'
-import ExperimentalControls from './ExperimentalControls'
 import FlattenControls from './FlattenControls'
 import GridControls from './GridControls'
 import { HintButton, HintText, useHint } from './Hint'
 import RandomAnchorControls from './RandomAnchorControls'
-import SoundControls from './SoundControls'
 import SquaringControls from './SquaringControls'
+
+// Loaded when their tab is first opened, so their code stays out of the startup chunk.
+const ExperimentalControls = lazy(() => import('./ExperimentalControls'))
+const SoundControls = lazy(() => import('./SoundControls'))
 
 interface GeometryPanelProps {
   state: AppState
@@ -49,7 +52,9 @@ function readTab(): Tab {
  * file or the microphone and drives the other two tabs' sliders live (it needs no font; it reads the
  * slider values to say which mappings act, and Freeze writes into them). Typography and colours are
  * set in the panel beside the text input. Explanations are folded behind ⓘ buttons; warnings,
- * statistics, and notes about disabled controls always stay visible. All tabs stay mounted.
+ * statistics, and notes about disabled controls always stay visible. Experimental and Sound mount when
+ * their tab is first opened, and every tab stays mounted after that. Their settings live outside them (the
+ * editor state, Sound's mapping store and engine), so mounting late loses nothing.
  */
 export default function GeometryPanel({ state, dispatch, derived, showAllHints, onShowAllHintsChange }: GeometryPanelProps) {
   const { font, selectedGlyph } = state.document
@@ -61,9 +66,19 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
   const common = { pending: derived.pending || driving, disabled: !font, dispatch }
   // The same element while the glyph stays, so the memoized Experimental controls skip live frames.
   const statistics = useMemo(() => font && <StatisticsTarget glyph={selectedGlyph} />, [font, selectedGlyph])
+  // Thorn's Reach at 100%, in em, for its explanation: a number, so the Experimental controls skip renders while it holds.
+  const { typography, artboard } = state.params
+  const reachEm = Math.min(canvasDiagonalEm(artboard.width, artboard.height, typography.size), THORN_LIMITS.maxReachEm)
   const ids = useId()
   const [tab, setTab] = useState<Tab>(readTab)
+  // The tabs opened so far: a lazy panel mounts on its first visit and stays mounted afterwards.
+  const [opened, setOpened] = useState<ReadonlySet<Tab>>(() => new Set([tab]))
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ geometry: null, experimental: null, sound: null })
+
+  const select = (id: Tab) => {
+    setTab(id)
+    setOpened((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
+  }
 
   useEffect(() => {
     try {
@@ -80,7 +95,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
     if (next === undefined) return
     e.preventDefault()
     const target = tabs[(next + tabs.length) % tabs.length].id
-    setTab(target)
+    select(target)
     tabRefs.current[target]?.focus()
   }
 
@@ -93,7 +108,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
   })
 
   return (
-    <aside id="geometry-panel" className="panel geometry-panel" aria-label="Shape parameters">
+    <aside className="panel geometry-panel" aria-label="Shape parameters">
       <div className="tool-tabs geometry-tabs" role="tablist" aria-label="Shape parameters" onKeyDown={onTabKeyDown}>
         {tabs.map((t) => (
           <button
@@ -107,7 +122,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
             aria-selected={tab === t.id}
             aria-controls={`${ids}-${t.id}-panel`}
             tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => setTab(t.id)}
+            onClick={() => select(t.id)}
           >
             {t.label}
           </button>
@@ -140,16 +155,25 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
       </div>
 
       <div {...panel('experimental')}>
-        <ExperimentalControls
-          params={state.params.experimental}
-          stats={geometry?.experimental ?? null}
-          statistics={statistics}
-          {...common}
-        />
+        {opened.has('experimental') && (
+          <Suspense fallback={null}>
+            <ExperimentalControls
+              params={state.params.experimental}
+              stats={geometry?.experimental ?? null}
+              statistics={statistics}
+              reachEm={reachEm}
+              {...common}
+            />
+          </Suspense>
+        )}
       </div>
 
       <div {...panel('sound')}>
-        <SoundControls params={state.params} dispatch={dispatch} />
+        {opened.has('sound') && (
+          <Suspense fallback={null}>
+            <SoundControls params={state.params} dispatch={dispatch} />
+          </Suspense>
+        )}
       </div>
     </aside>
   )
