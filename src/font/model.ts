@@ -3,10 +3,17 @@
 
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 
-export type FontFormat = 'ttf' | 'otf' | 'woff' | 'woff2'
+/** 'ttc' and 'otc' are font collections (TrueType or CFF faces); one face of them is open. */
+export type FontFormat = 'ttf' | 'otf' | 'woff' | 'woff2' | 'ttc' | 'otc'
 
 export type FontSource =
-  | { kind: 'local'; fileName: string; byteSize: number }
+  | {
+      kind: 'local'
+      fileName: string
+      byteSize: number
+      /** Index of the open face when the file is a font collection; the geometry worker opens the same one. */
+      face?: number
+    }
   | {
       kind: 'google'
       family: string
@@ -104,6 +111,58 @@ export interface FontInfo {
   names: Partial<Record<FontNameKey, string>>
 }
 
+/** A face of a font collection that can be opened. */
+export interface CollectionFace {
+  /** Position in the collection file. */
+  index: number
+  family: string
+  style: string
+}
+
+/**
+ * Position changes for one glyph of a kerning pair, in font units: x placement, y placement, x advance,
+ * y advance (an OpenType value record, with variation deltas already applied).
+ */
+export type KernValue = readonly [number, number, number, number]
+
+/** Changes for the first and for the second glyph of a pair. */
+export type KernPairValue = readonly [KernValue, KernValue]
+
+/** One pair-kerning subtable: explicit glyph pairs (format 1) or a matrix of glyph classes (format 2). */
+export type KernSubtable =
+  | {
+      format: 1
+      /** First glyph → second glyph → value. */
+      pairs: Map<number, Map<number, KernPairValue>>
+    }
+  | {
+      format: 2
+      /** First glyphs the subtable applies to. */
+      coverage: Set<number>
+      /** Glyph → class; glyphs not listed are in class 0. */
+      classDef1: Map<number, number>
+      classDef2: Map<number, number>
+      /** Value by first glyph's class, then second glyph's class. */
+      values: KernPairValue[][]
+    }
+
+export interface KernLookup {
+  /** OpenType lookup flags kept from the source: which kinds of glyph (marks, …) are skipped. */
+  flags: number
+  /** Tried in order; the first one that covers the pair decides it. */
+  subtables: KernSubtable[]
+}
+
+/**
+ * The pair kerning the canvas applies: per script, the lookups of the default language's kern feature,
+ * or the legacy kern table's pairs where that feature is missing (fontkit's rules).
+ */
+export interface SourceKerning {
+  /** Script tags, sorted, each with the lookups (indices into `lookups`) applied to it, in order. */
+  scripts: { tag: string; lookups: number[] }[]
+  lookups: KernLookup[]
+}
+
 export interface LoadedFont {
   /** Unique per load, so a re-import of the same file is a new font. */
   id: string
@@ -111,6 +170,10 @@ export interface LoadedFont {
   format: FontFormat
   /** The font file, so the geometry worker can open its own copy. */
   bytes: Uint8Array
+  /** The faces of a font collection that can be opened (hidden system faces left out), else null. */
+  faces: CollectionFace[] | null
+  /** Index of the open face in a font collection, else null. */
+  face: number | null
   familyName: string
   styleName: string
   metrics: FontMetrics
@@ -128,6 +191,8 @@ export interface LoadedFont {
   hasCharacter(codePoint: number): boolean
   /** True when the font has kerning (GPOS kern feature or a legacy kern table). */
   hasKerning: boolean
+  /** The pair kerning `shapeLine` applies, for font export; null if there is none. Read on first call. */
+  kerning(): SourceKerning | null
   /**
    * Shapes one line of text with kerning and mark positioning but without ligatures, so every
    * character keeps its own glyph.

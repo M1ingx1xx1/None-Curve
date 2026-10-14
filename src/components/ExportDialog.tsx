@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { downloadFile, safeFileName } from '../export/download'
+import { runFontExport } from '../export/fontExportClient'
 import {
-  buildFontFile,
   FONT_EXPORT_LIMITS,
+  MAX_EXPORT_POINTS,
   planFontExport,
   reservedFontNames,
   validateNaming,
+  type FontExportPlan,
   type FontExportResult,
+  type FontExportStage,
   type FontNaming,
   type GlyphSet,
+  type KnownGlyph,
 } from '../export/fontFile'
 import { svgToPng } from '../export/png'
 import { specimenToSvg, type SvgLook } from '../export/svg'
@@ -18,12 +22,14 @@ import type { GeometryParams, GlyphRef } from '../geometry/types'
 import { useLiveStatus } from '../sound/live'
 import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen } from '../specimen/scene'
-import { exportPolygonLookup } from '../state/geometryClient'
-import { previewColors, type PreviewLook } from './TextPreview'
+import { geometryClient } from '../state/geometryClient'
+import { previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import Icon from './Icon'
 
 type Format = 'svg' | 'png' | 'otf'
 
+/** Above this many outline points still to compute, the build may take minutes (heavy settings: about 5,000 points a second). */
+const SLOW_EXPORT_POINTS = 300_000
 
 interface ExportDialogProps {
   open: boolean
@@ -61,6 +67,45 @@ const formats: { value: Format; label: string; hint: string }[] = [
   { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download.' },
 ]
 
+/** The canvas's results for the plan's glyphs under these settings, which the build uses as they are. */
+function knownGlyphs(font: LoadedFont, plan: FontExportPlan, key: string): Map<number, KnownGlyph> {
+  const known = new Map<number, KnownGlyph>()
+  if (!geometryClient.holds(font.id)) return known
+  for (const { index } of plan.glyphs) {
+    const found = geometryClient.lookup(key, index)
+    if (!found || found.stale) continue
+    const { entry } = found
+    // A glyph the geometry worker never got to (it stopped) is computed by the build instead.
+    if ('geometry' in entry) known.set(index, { polygon: entry.geometry.polygon })
+    else if (!entry.transient) known.set(index, { error: entry.error })
+  }
+  return known
+}
+
+/**
+ * Outline points the file is likely to have: the glyphs computed for these settings so far, and their
+ * mean (or the mean of everything computed for them) for the glyphs still to compute. Null without results.
+ */
+function estimateExport(font: LoadedFont, plan: FontExportPlan, key: string) {
+  if (!geometryClient.holds(font.id)) return null
+  let known = 0
+  let points = 0
+  let toCompute = 0
+  for (const { index } of plan.glyphs) {
+    const found = geometryClient.lookup(key, index)
+    const entry = found && !found.stale ? found.entry : null
+    if (entry && 'geometry' in entry) {
+      known++
+      points += entry.geometry.vertexCount
+    } else if (!entry || entry.transient) {
+      toCompute++
+    }
+  }
+  const mean = known ? points / known : geometryClient.meanVertexCount(key)
+  if (mean === null) return null
+  return { points: Math.round(points + mean * toCompute), toCompute, pointsToCompute: mean * toCompute }
+}
+
 /** Loads the font through the browser's own font engine (OTS sanitizer in Chrome and Firefox). */
 async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
   if (typeof FontFace === 'undefined') return true
@@ -87,6 +132,8 @@ export default function ExportDialog(props: ExportDialogProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [built, setBuilt] = useState<BuiltFont | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Results that arrive while the dialog is open refine the estimate.
+  useSyncExternalStore(geometryClient.subscribe, geometryClient.getVersion)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -116,6 +163,7 @@ export default function ExportDialog(props: ExportDialogProps) {
   )
   const buildKey = `${font?.id}|${paramsKey}|${glyphSet}|${glyphSet === 'current' ? selectedGlyph?.index : glyphSet === 'specimen' ? specimenText : ''}|${naming.familyName}|${naming.styleName}`
   const currentBuild = built && built.key === buildKey ? built : null
+  const estimate = open && font && plan && format === 'otf' ? estimateExport(font, plan, paramsKey) : null
   const namingError = validateNaming(naming)
   // SIL OFL "Reserved Font Name": a modified version must not use it.
   const reservedClash = font
@@ -134,13 +182,11 @@ export default function ExportDialog(props: ExportDialogProps) {
     ? `${glyphLabel(selectedGlyph)}${selectedGlyph.unicode !== null ? ` (${formatCodePoint(selectedGlyph.unicode)})` : ''}`
     : 'none'
 
-  // The preview's blur is in its own screen pixels; dividing by its scale gives font units, and by the
-  // canvas's font units per pixel gives canvas pixels, so the blur keeps its size relative to the letters.
+  // The preview's blur keeps its size relative to the letters (previewBlur).
   const look = (unitsPerPx: number): SvgLook => {
     const background = !palette.transparent
     if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background, blur: 0 }
-    const blurUnits = previewScale > 0 ? previewLook.blur / previewScale : 0
-    return { ...previewColors(palette, previewLook), background, blur: blurUnits / unitsPerPx }
+    return { ...previewColors(palette, previewLook), background, blur: previewBlur(previewLook.blur, previewScale, unitsPerPx) }
   }
   const pngWidth = artboard.width * artboard.scale
   const pngHeight = artboard.height * artboard.scale
@@ -151,11 +197,18 @@ export default function ExportDialog(props: ExportDialogProps) {
   const exportImage = async () => {
     if (!font) return
     const forPng = format === 'png'
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
     try {
       const { tracking, lineHeight, align, slant } = typography
-      // The canvas's polygons from the worker where ready; any glyph still missing is computed now.
+      // The canvas's polygons; glyphs not computed yet for these settings are computed in the geometry worker first.
       const shaped = shapeSpecimen(font, specimenText, { tracking, lineHeight, align, slant })
-      const scene = placePolygons(shaped, exportPolygonLookup(font, params, paramsKey))
+      if (shaped.indices.some((index) => !geometryClient.lookup(paramsKey, index) || geometryClient.lookup(paramsKey, index)!.stale)) {
+        setStatus({ kind: 'working', message: 'Computing outlines…' })
+      }
+      const lookup = await geometryClient.ensure(font, params, paramsKey, shaped.indices, controller.signal)
+      const scene = placePolygons(shaped, lookup)
       const layout = layoutArtboard(scene, typography, artboard, font.metrics.unitsPerEm)
       const subject = `${usePreviewLook ? 'preview' : 'main view'} “${specimenText.slice(0, 80)}”`
       // PNG coordinates only need to be sharp at the chosen pixel size; two decimals is plenty.
@@ -171,12 +224,19 @@ export default function ExportDialog(props: ExportDialogProps) {
       }
       setStatus({ kind: 'working', message: 'Drawing the PNG…' })
       const png = await svgToPng(svg.svg, size.width, size.height, pngWidth)
+      controller.signal.throwIfAborted()
       const fileName = safeFileName(parts, 'png')
       downloadFile(png, fileName, 'image/png')
       setStatus({ kind: 'done', message: `Saved ${fileName}: ${pngWidth} × ${pngHeight} px, ${lookName}.` })
       onExported(fileName)
     } catch (error) {
+      if (controller.signal.aborted) {
+        setStatus({ kind: 'cancelled' })
+        return
+      }
       setStatus({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
     }
   }
 
@@ -188,10 +248,14 @@ export default function ExportDialog(props: ExportDialogProps) {
     setBuilt(null)
     setStatus({ kind: 'working', message: 'Preparing…' })
     try {
-      const result = await buildFontFile(font, plan, params, paramsKey, naming, controller.signal, (done, total, stage) => {
+      // In a worker of its own, which Cancel stops at once; the glyphs the canvas has are used as they are.
+      const onProgress = (done: number, total: number, stage: FontExportStage) => {
+        if (controller.signal.aborted) return
         const label = stage === 'outlines' ? `Processing outlines ${done} / ${total}` : stage === 'writing' ? 'Writing the font…' : 'Verifying with fontkit…'
         setStatus({ kind: 'working', message: label })
-      })
+      }
+      const known = knownGlyphs(font, plan, paramsKey)
+      const result = await runFontExport({ font, plan, params, key: paramsKey, naming, known, onProgress }, controller.signal)
       setStatus({ kind: 'working', message: 'Checking with the browser font engine…' })
       if (!(await browserAcceptsFont(result.bytes))) {
         throw new Error('The browser’s font engine rejected the generated file, so it is not offered for download.')
@@ -320,9 +384,16 @@ export default function ExportDialog(props: ExportDialogProps) {
                   {specimenText.length > 60 ? '…' : ''}” · {lookName}
                   {format === 'svg' ? ' · SVG paths use only M, L, and Z with nonzero fill.' : ''}
                 </p>
-                <button type="button" className="button-primary" disabled={pending || working || !specimenText.trim()} onClick={exportImage}>
-                  {format === 'svg' ? 'Download SVG' : 'Download PNG'}
-                </button>
+                <div className="export-actions">
+                  <button type="button" className="button-primary" disabled={pending || working || !specimenText.trim()} onClick={exportImage}>
+                    {format === 'svg' ? 'Download SVG' : 'Download PNG'}
+                  </button>
+                  {working && (
+                    <button type="button" onClick={() => abortRef.current?.abort()}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -361,7 +432,19 @@ export default function ExportDialog(props: ExportDialogProps) {
                   {plan.glyphs.length} glyph{plan.glyphs.length === 1 ? '' : 's'} plus .notdef, every one processed with the
                   current pipeline.
                   {font.axes.length > 0 && ` Variable font: the instance shown on the canvas (${font.instance ? Object.entries(font.instance).map(([tag, value]) => `${tag} ${value}`).join(', ') : 'default'}) is exported.`}
+                  {estimate && ` About ${estimate.points.toLocaleString('en-US')} outline points.`}
                 </p>
+                {estimate && estimate.points > MAX_EXPORT_POINTS && (
+                  <p className="font-warning">
+                    That is more than the {MAX_EXPORT_POINTS.toLocaleString('en-US')} a font file can hold. Use a larger Anchor spacing,
+                    weaker Experimental effects, or the specimen characters.
+                  </p>
+                )}
+                {estimate && estimate.points <= MAX_EXPORT_POINTS && estimate.pointsToCompute > SLOW_EXPORT_POINTS && (
+                  <p className="font-warning">
+                    {estimate.toCompute} glyphs still need computing at these settings: the build may take minutes.
+                  </p>
+                )}
                 {plan.missing.length > 0 && <p className="font-warning">Not in this font, left out: {plan.missing.join(' ')}</p>}
                 {plan.unsupported.length > 0 && (
                   <p className="font-warning">Above U+FFFF, left out: {plan.unsupported.slice(0, 12).join(' ')}{plan.unsupported.length > 12 ? ' …' : ''}</p>
@@ -396,8 +479,9 @@ export default function ExportDialog(props: ExportDialogProps) {
                   <div className="export-result" role="status">
                     <p>
                       Verified {currentBuild.fileName}: {currentBuild.result.glyphCount} glyphs, {currentBuild.result.characterCount} characters,{' '}
-                      {currentBuild.result.contourCount} contours. Reopened with fontkit (mappings, advances, every contour point and
-                      direction) and accepted by the browser’s font engine.
+                      {currentBuild.result.contourCount} contours. Reopened with fontkit (mappings, advances,
+                      {currentBuild.result.kerning ? ' kerning,' : ''} line spacing, every contour point and direction) and accepted by the
+                      browser’s font engine.
                     </p>
                     {currentBuild.result.excluded.length > 0 && (
                       <p className="font-warning">

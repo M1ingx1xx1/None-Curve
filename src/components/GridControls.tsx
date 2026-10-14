@@ -2,6 +2,7 @@ import { memo, type Dispatch } from 'react'
 import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geometry/constraints'
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
+import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
@@ -16,7 +17,6 @@ interface GridControlsProps {
   dispatch: Dispatch<Action>
 }
 
-const GRID_MAX = 200
 export const DEFAULT_GRID: GridParams = { snap: false, size: 10, angleLock: false, angleStep: 45 }
 
 const stepLabels: Record<number, string> = {
@@ -95,9 +95,7 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
             <input
               id="grid-size"
               type="range"
-              min={0}
-              max={GRID_MAX}
-              step={1}
+              {...SLIDER_RANGES['grid.size']}
               value={params.size}
               disabled={!params.snap}
               aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}

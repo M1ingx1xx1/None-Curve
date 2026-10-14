@@ -1,6 +1,6 @@
 // SVG serialization of the final polygons. Paths use only M, L, and Z. No React, no DOM.
 
-import type { Point } from '../geometry/types'
+import type { Point, PolygonGlyph } from '../geometry/types'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import { ExportError, quantizePolygon, roundTo } from './quantize'
@@ -68,10 +68,65 @@ function header(width: number, height: number, decimals: number, meta: SvgMeta):
   ]
 }
 
+/** One glyph outline as the export writes it: where it goes on the artboard and its path data (M, L and Z only). */
+export interface SvgGlyphPath {
+  transform: string
+  d: string
+}
+
+/** The artboard's glyph outlines, exactly as specimenToSvg writes them; the preview draws the same. */
+export interface SpecimenPaths {
+  /** The glyph group's transform, from font units (scene coordinates) to artboard pixels. */
+  transform: string
+  paths: SvgGlyphPath[]
+  vertices: number
+}
+
 /**
- * The artboard: width × height pixels with the text placed exactly as on the canvas. Each glyph is one
- * path in its own font units (y up, quantized and validated), positioned by a transform with its
- * place, slant, and the font-unit-to-pixel scale, so coordinates keep full precision in font units.
+ * Path data by polygon, so a caller that builds often (the preview, at every change) rounds only the
+ * glyphs whose shape changed. Entries for polygons no longer in use are dropped with them.
+ */
+export type SvgPathCache = WeakMap<PolygonGlyph, { decimals: number; d: string; vertices: number }>
+
+/**
+ * Every glyph of the scene as one path in its own font units (y up, quantized and validated), placed
+ * by a transform with its position and slant; the group transform scales font units to artboard pixels,
+ * so coordinates keep full precision in font units. Glyphs without outlines (spaces, missing characters,
+ * glyphs not computed yet) are left out. Throws ExportError when a glyph cannot be rounded.
+ */
+export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, decimals: number, cache?: SvgPathCache): SpecimenPaths {
+  const scale = Number((1 / layout.unitsPerPx).toPrecision(8))
+  const skew = scene.slant ? ` skewX(${num(-scene.slant, 4)})` : ''
+  const shapes = new Map<number, { d: string; vertices: number }>()
+  const paths: SvgGlyphPath[] = []
+  let vertices = 0
+  for (const line of scene.lines) {
+    for (const glyph of line.glyphs) {
+      const { polygon } = glyph
+      if (!polygon || polygon.contours.length === 0) continue
+      let shape = shapes.get(glyph.index)
+      if (!shape) {
+        const cached = cache?.get(polygon)
+        if (cached && cached.decimals === decimals) shape = cached
+        else {
+          const contours = quantizePolygon(polygon, decimals, `Glyph “${glyph.text}”`, 'Use a higher precision.')
+          const entry = { decimals, d: pathData(contours, decimals), vertices: contours.reduce((n, c) => n + c.length, 0) }
+          cache?.set(polygon, entry)
+          shape = entry
+        }
+        shapes.set(glyph.index, shape)
+      }
+      paths.push({ transform: `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`, d: shape.d })
+      vertices += shape.vertices
+    }
+  }
+  const transform = `scale(${scale}) translate(${num(-layout.x, decimals)} ${num(-layout.y, decimals)})`
+  return { transform, paths, vertices }
+}
+
+/**
+ * The artboard: width × height pixels with the text placed exactly as on the canvas, its outlines from
+ * specimenPaths.
  */
 export function specimenToSvg(
   scene: SpecimenScene,
@@ -86,9 +141,7 @@ export function specimenToSvg(
   const ink = escapeXml(look.ink)
   const paper = escapeXml(look.paper)
   const blur = Math.max(0, look.blur)
-  const scale = Number((1 / layout.unitsPerPx).toPrecision(8))
-  const skew = scene.slant ? ` skewX(${num(-scene.slant, 4)})` : ''
-  const quantized = new Map<number, Point[][]>()
+  const outlines = specimenPaths(scene, layout, decimals)
 
   const lines = header(width, height, decimals, meta)
   lines.push(comment(`Canvas ${width} × ${height} px; ${num(layout.unitsPerPx, 6)} font units per pixel.`))
@@ -105,23 +158,8 @@ export function specimenToSvg(
   }
   // The filter sits on an untransformed group, so its blur is measured in canvas pixels.
   lines.push(blur > 0 ? '  <g filter="url(#blur)">' : '  <g>')
-  lines.push(`  <g fill="${ink}" fill-rule="nonzero" transform="scale(${scale}) translate(${num(-layout.x, decimals)} ${num(-layout.y, decimals)})">`)
-  let paths = 0
-  let vertices = 0
-  for (const line of scene.lines) {
-    for (const glyph of line.glyphs) {
-      if (!glyph.polygon || glyph.polygon.contours.length === 0) continue
-      let contours = quantized.get(glyph.index)
-      if (!contours) {
-        contours = quantizePolygon(glyph.polygon, decimals, `Glyph “${glyph.text}”`, 'Use a higher precision.')
-        quantized.set(glyph.index, contours)
-      }
-      const place = `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`
-      lines.push(`    <path transform="${place}" d="${pathData(contours, decimals)}"/>`)
-      paths++
-      vertices += contours.reduce((n, c) => n + c.length, 0)
-    }
-  }
+  lines.push(`  <g fill="${ink}" fill-rule="nonzero" transform="${outlines.transform}">`)
+  for (const path of outlines.paths) lines.push(`    <path transform="${path.transform}" d="${path.d}"/>`)
   lines.push('  </g>', '  </g>', '</svg>', '')
-  return { svg: lines.join('\n'), paths, vertices }
+  return { svg: lines.join('\n'), paths: outlines.paths.length, vertices: outlines.vertices }
 }

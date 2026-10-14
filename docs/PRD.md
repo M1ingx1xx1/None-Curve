@@ -73,6 +73,7 @@ Load font → Choose glyph → Inspect source skeleton → Set curve-to-line beh
 ### P0: Font loading and glyph preview
 
 - Load local `.ttf` / `.otf` files by drag and drop or file picker.
+- Open font collections (`.ttc` / `.otc`) on a sensible default face (the upright face closest to Regular), and let the user switch faces from the font summary without losing the view or the selected character.
 - Process font files in the browser; do not upload them to a server.
 - Show the file name, parsing status, and an entry point for glyph selection.
 - Show understandable errors for unreadable or unsupported files.
@@ -128,6 +129,7 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Allow users to edit the preview text to inspect repeated glyphs, rhythm, counters, and spacing.
 - Preserve advances and kerning when supported by the parser and export pipeline; clearly label when they cannot be retained.
 - Provide toggles for available metric guides such as baseline and cap height.
+- The small preview beside the text input shows exactly what the SVG export will write: filled outlines at the export's coordinate precision, without the canvas's editing layers, guides, or grid, and a clear message when the export would fail.
 
 ### P2: Font-file export
 
@@ -136,6 +138,8 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Preserve advances, side bearings, and character mapping where possible.
 - Validate missing glyphs, invalid contours, and unsupported font features before export.
 - Inform users about supported scope and features that cannot be preserved.
+- Carry the source font's pair kerning between the exported glyphs, and give the file the canvas's line spacing on every platform.
+- Build the file in the background so the editor stays responsive, with progress, an up-front estimate of its size (and a warning when it will be too large or slow), and a Cancel that stops the build at once.
 
 ### P2: Experimental effects (stackable)
 
@@ -144,7 +148,8 @@ Creative effects in one **Experimental** tab beside Geometry: **Crumple** (crump
 - **No curves, also to the eye:** every effect is built from piecewise-linear warps of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible. Three parts are not warps, and each adds only a few straight edges: Slipstream's trails and cuts, and Thorn's tips.
 - **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Crumple → Ripple → Whorl → Slipstream → Thorn, each on the previous result.
 - **Always valid:** up to 100%, every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
-- **Folds for unreadable extremes:** above 100% (Crumple to 500%, Ripple to 400%, Whorl to ±400%, Slipstream Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports. The merge redraws each outline through the input's own vertices and exact crossings, so it adds no wobble. Thorns may cross the letter at any setting, so whenever Thorn adds one the outlines are merged the same way; Slipstream's cuts are cut out by the same merge.
+- **Folds for unreadable extremes:** above 100% (Crumple to 500%, Ripple to 400%, Whorl to ±400%, Slipstream Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports. The merge redraws each outline through the input's own vertices and exact crossings, so it adds no wobble. Thorns may cross the letter at any setting, so whenever Thorn adds one the outlines are merged the same way; Slipstream's cuts are cut out by the same merge. A merge that breaks down leaves the glyph unmerged (it still fills the same) instead of losing ink, and says so.
+- **Bounded cost:** each glyph has a vertex budget that depends only on the glyph and the settings, never on time (at most 6,000 vertices more than it brought into the tab after any effect, and 30,000 more points in a merge). When several dense effects together exceed it, the letter is simplified instead of slowing the page down (with every slider at its maximum it turns into a few broad slabs of ink), and the panel and the status bar say so. The defaults, every single effect, and the Sound presets never reach it.
 - **Crumple:** three crumpled meshes at once (large folds that tilt whole strokes, medium ones that bend a stroke end here and there, and small sharp creases in busy stretches between calm ones); Detail shares the crumpling between them. Up to 100% it is one-to-one. Each glyph crumples differently, every copy of a letter alike.
 - **Petals:** Ripple can bend its rings into a flower, one straight-edged petal per side (0–300%). Petals is one-to-one at any depth, so it never folds on its own; folding still comes only from Ripple Amount above 100%.
 - **Whorl:** rings of straight-sided polygons each turn as a whole about the letter's middle, either with the top and bottom pinned (the middle twists) or as a whole (the top and bottom swing round too). Up to 100% either way it is one-to-one; beyond, it folds like the other effects.
@@ -196,6 +201,8 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Give each core control a short explanation; explain specialized terms in tooltips.
 - Cover empty, loading, parsing-error, and export-complete states.
 - Support keyboard operation and make focus states easy to see.
+- Undo and redo every setting, the text, and the Sound mappings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo.
+- Restore the last session on the next visit: the settings, the text, the Sound mappings, and the font (a Google font is downloaded again; a local file must be imported again, and the canvas names it).
 
 ### Visual reference for outline transformation
 
@@ -211,11 +218,12 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Use an explicit seed for random distortion so previews are repeatable.
 - Validate SVG output to ensure path data contains no curve commands such as `C` or `Q`.
 - Experimental effects are piecewise-linear warps that add vertices only at creases (Slipstream's trails and cuts and Thorn's tips add a few straight edges); they must not add runs of small same-direction turns that read as curves.
-- Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing.
+- Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing. Glyph geometry for the canvas is computed only in a background worker, never on the page. A worker that stays silent on one glyph for 60 s is stopped, the glyph is reported as failed, and the worker is restarted; when the worker cannot run at all, the canvas says so and asks for a reload. The font file is built in a worker of its own.
+- The saved session (settings, text, mappings, and which font was open) stays in the browser's own storage and is never uploaded. A damaged or older saved session must never break the app: anything that does not fit falls back to its default.
 
 ## 8. Acceptance criteria
 
-- Users can load a valid `.ttf` / `.otf` and choose a glyph; invalid files produce a clear message.
+- Users can load a valid `.ttf` / `.otf` (or a face of a `.ttc` / `.otc` collection) and choose a glyph; invalid files produce a clear message.
 - Users can see a live glyph preview immediately after loading, without exporting.
 - Editing controls are on the left; changing lines per curve or other geometry parameters updates the visible canvas result.
 - Users can show the skeleton and identify original anchors, control points, and handles.
@@ -227,7 +235,11 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Font loading, preview, and export all run client-side.
 - Loading a font does not automatically create a download; export happens only after an explicit user action.
 - If font export cannot preserve certain features, the app explains this before export.
-- Experimental effects can all be on at once; any combination within 100% gives valid outlines (no crossings, counters inside) and adds no curve-like runs, apart from the few known cases listed in EXPERIMENTAL_PLAN section 4.9. Beyond 100%, with thorns, or with Slipstream's cuts, the letters are merged into non-crossing outlines that export.
+- An exported font keeps the source's pair kerning between the exported glyphs and the canvas's line spacing, and Cancel stops a build at once.
+- The preview shows the same outlines as the exported SVG.
+- Undo and redo bring back settings, text, and mappings; reloading the page restores the last session.
+- Experimental effects can all be on at once; any combination within 100% gives valid outlines (no crossings, counters inside) and adds no curve-like runs, apart from the few known cases listed in EXPERIMENTAL_PLAN section 4.9. Beyond 100%, with thorns, or with Slipstream's cuts, the letters are merged into non-crossing outlines that export. Heavy combinations stay responsive: the vertex budget simplifies the letter instead.
+- The fast automated test suite passes on every pull request into `develop` and before every deploy.
 
 ## 9. Suggested milestones
 
@@ -259,10 +271,10 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
   - **Loudness:** Level (short-time RMS) and Swell (Level followed slowly: it rises over about 300 ms and falls over about 2 s).
   - **Bands:** Bass / Mids / Treble band energy (20–250 Hz, 250–2000 Hz, 2000 Hz – Nyquist), each against its own recent loudest moment.
   - **Tone:** Brightness (spectral centroid); Pitch (the note being played or sung, 55 Hz to 1760 Hz on a log scale; it holds the last note between notes and reads 0 in silence).
-  - **Rhythm:** Beat (onsets from the whole spectrum and from a separate bass-drum detector), a pulse that jumps to 1 on each onset and falls back with the Smoothing time; Activity (how busy the sound is: the larger of how much the spectrum is changing, near 0 on steady sound, noise included, and high on attacks, and how many beats came in the last 2 s, 8 a second reading 1).
+  - **Rhythm:** Beat (onsets from the whole spectrum and from a separate bass-drum detector, counted only while the sound's energy actually rises, so a steady hum or buzzy bass gives no beats), a pulse that jumps to 1 on each onset and falls back with the Smoothing time; Activity (how busy the sound is: the larger of how much the spectrum is changing, near 0 on steady sound, noise included, and high on attacks, and how many beats came in the last 2 s, 8 a second reading 1).
   - **Stereo:** Pan (left −1 to right +1, the only two-sided feature). In practice for files only: a mono microphone reads centred.
   - Most features follow the sound with a fast attack and the adjustable release (Smoothing), behind a silence gate; Swell and Pitch have their own fixed times.
-- **Mappings:** up to 8 rows, each connecting one feature to one target.
+- **Mappings:** up to 8 rows, each connecting one feature to one target. They are saved between visits with the settings, and every change to them can be undone; Drive letters is not saved.
   - **Continuous:** slider position (0–1 along the slider as drawn) + Depth × feature, clamped to the slider's ends and rounded to its step; contributions to one target add up before clamping. On an ordinary slider this is slider value + Depth × feature × the slider's range; a log-scaled slider such as Tolerance moves evenly along its track.
   - **Events** (Beat), in three kinds:
     - **Jump:** a seed moves on, so anchors, folds, gusts, cuts, trails, or thorns jump to new places. The three seeds are targets, and a new seed puts every anchor somewhere new. On a seed, the row's slider reads **Rate** (0–100%): with Beat the seed moves on by one per onset (Rate 50% is every other onset, 25% every fourth); with any other feature it jumps at up to 4.8 times a second × Rate × the feature's value. Seeds stay whole numbers in their field's range (0–999 999), wrapping to 0.
@@ -279,21 +291,22 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
     - Experimental effect sliders turn their effect on; Thorn's Flute width also sets Refraction to 50% when it is 0%. The Experimental Seed turns on Crumple when none of Crumple, Slipstream, and Thorn is on (Ripple and Whorl have no randomness).
   - **Presets:** Flicker, Scatter, Pixel, Low poly, Block, Jitter, Facet, Bloom, Flare, Gale. Each sets a few start values as well as its mappings. Most keep to the Geometry tab, so the letters stay readable while it is quiet; at most one Experimental effect each (Bloom Ripple, Flare Thorn, Gale Slipstream). Flicker turns on Distortion's few anchors mode (P1). An ⓘ lists each preset with one line.
     - Choosing one in the **Preset** list only selects it.
-    - **Load** resets every Geometry and Experimental setting to its default, keeping the three seeds; sets the preset's start values; replaces the mappings with the preset's; and shows a notice under the Preset row, for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." So every preset starts from the same letters, whatever was set before.
+    - **Load** resets every Geometry and Experimental setting to its default, keeping the three seeds; sets the preset's start values; replaces the mappings with the preset's; and shows a notice under the Preset row, for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." So every preset starts from the same letters, whatever was set before. Load is one undo step that brings back the earlier settings and mappings.
     - Picking a target by hand still only switches on what it needs; it resets nothing.
 - **Slider and seed values preserved:**
   - Sliders keep their own values, and a marker shows the live value. Seed fields keep their own seeds, and a small number beside a driven seed shows the live one; the Distortion and Random anchors statistics show the live seed too.
   - Pausing, stopping listening, turning Drive letters off, switching a mapping off, or setting Depth to 0 restores the slider value exactly. Pausing, stopping, or turning Drive letters off also returns the seeds to their fields' values exactly, and playing again starts from them.
-  - **Freeze** writes the live values into the sliders, and the live seeds into the seed fields, and pauses the sound.
+  - **Freeze** writes the live values into the sliders, and the live seeds into the seed fields, and pauses the sound; it can be undone as one step. Live frames themselves never enter the undo history.
   - Exports always use the slider values, never live audio.
 - **Performance:**
-  - The pipeline is unchanged, with at most one request in flight; live requests carry a flag that keeps their results apart. The frame rate adapts to the cost, is capped at 30 fps, and is shown in the tab.
+  - The pipeline is unchanged, with at most one request in flight; live requests carry a flag that keeps their results apart. A live frame is shown only once all its glyphs have arrived, so it renders once and complete. The frame rate adapts to the cost, is capped at 30 fps, and is shown in the tab.
   - Live values are rounded to slider steps so they reuse cached results, and live frames have a separate cache.
   - Measuring the 10 features takes about 90 µs per frame at 48 kHz. A seed jump recomputes every glyph in about 2–3.5 ms (Arial, 24 distinct glyphs).
 - **Safety:**
-  - Against flashing, a driven slider swings back and forth by 10% or more of its travel at most 3 times a second; a further swing keeps the slider's last value until the 1.25 s window has passed. Seed jumps get the same limit, counted the same way: at most 6 jump frames in any 1.25 s, so 3 flashes a second (seeds jumping in the same frame count once); a further jump is skipped. Pausing and playing again does not reset this count.
+  - Against flashing, all Sound mappings together make at most 3 flashes a second: the driven sliders and the seed jumps share one limit of 6 large changes in any 1.25 s. A large change is a slider swinging back by 10% or more of its travel, several sliders swinging back that much together, or a seed jump (seeds jumping in the same frame count once). When the limit is reached, a slider swinging back keeps its last value until it frees up, and a further jump is skipped, so seeds jump less often while sliders are busy. Pausing and playing again does not reset this count.
+  - Sound drives the letters only while a font is loaded; without one it waits, and nothing moves.
   - **Drive letters** is an on/off switch. With reduced motion it starts off (and switches off if reduced motion is turned on during the visit), and the Sound tab says why.
-  - The microphone starts only on an explicit click and shows an indicator.
+  - The microphone starts only on an explicit click and shows an indicator. Each way it can fail (refused, missing, busy, not connected to the analyser, stopped while listening) has its own message.
   - Audio never leaves the browser.
 - **Delivery order:**
   1. Audio engine, features, and meters.
@@ -307,14 +320,16 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 
 | Requirement | Status |
 |---|---|
-| P0 Font loading and glyph preview (including WOFF / WOFF2 and Google Fonts) | Implemented |
+| P0 Font loading and glyph preview (including WOFF / WOFF2, `.ttc` / `.otc` collections with a face menu, and Google Fonts) | Implemented |
 | P0 Source-curve skeleton | Implemented |
 | P0 Curve linearization (adaptive / fixed segments) | Implemented |
 | P0 SVG export (current glyph; specimen SVG as well) | Implemented: `M` / `L` / `Z` only, 0–4 decimal places with contour validation |
 | P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
-| P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
-| P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
-| P2 Experimental effects | Implemented: Crumple (with Detail), Ripple (with petals), Whorl, Slipstream (with Slip, Cuts, and Trails), and Thorn (with Root and Refraction), stackable, with folds beyond 100% |
-| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, targets that switch themselves on (43, including the reworked Experimental effects' sliders), and ten presets (Preset and Load, which resets the Geometry and Experimental settings and sets the preset's start values; Flicker's few anchors mode); Pitch and Pan (phase 4) built early, among 10 features in five groups with compact meters; File as the default source with no Off, and Drive letters as a switch. Not implemented yet: Step mappings (Allowed directions, Sides, Rings) and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
+| P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked on the canvas; the preview draws the SVG export itself |
+| P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, the source's pair kerning (GPOS) and the canvas's line spacing (`USE_TYPO_METRICS`), built in a worker of its own with progress, a size estimate, and an immediate Cancel, verified with fontkit and the browser's font engine after writing |
+| P2 Experimental effects | Implemented: Crumple (with Detail), Ripple (with petals), Whorl, Slipstream (with Slip, Cuts, and Trails), and Thorn (with Root and Refraction), stackable, with folds beyond 100% and a per-glyph vertex budget |
+| Undo, redo, and saved sessions (sections 6 and 7) | Implemented: one history of up to 100 steps for the settings, the text, and the Sound mappings; the session saved in `localStorage` and restored on the next visit |
+| Background computation (section 7) | Implemented: geometry only in the worker, with a 60 s watchdog and restarts (a canvas alert when the worker cannot run); font export in its own worker; automated tests in CI |
+| Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, targets that switch themselves on (43, including the reworked Experimental effects' sliders), and ten presets (Preset and Load, which resets the Geometry and Experimental settings and sets the preset's start values; Flicker's few anchors mode); Pitch and Pan (phase 4) built early, among 10 features in five groups with compact meters; File as the default source with no Off, and Drive letters as a switch; one flash limit shared by sliders and seeds, a Beat that ignores steady bass, and mappings saved between visits. Not implemented yet: Step mappings (Allowed directions, Sides, Rings) and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
 
-Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.
+Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; pair kerning between the exported glyphs is exported (GPOS `kern` feature), but contextual and language-specific kerning, ligatures, mark positioning, and other GPOS / GSUB features, hinting, and variation axes are not (a variable font exports the instance shown on the canvas, with the kerning values its variations change rounded to whole units); line spacing is the canvas's (hhea ascender, descender, and line gap, also as the typographic metrics with `USE_TYPO_METRICS`); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.
