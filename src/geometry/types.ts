@@ -238,8 +238,11 @@ export interface GeometryJob {
   indices: readonly number[]
 }
 
-/** A live frame's parameter set (a GeometryJob): without `indices`, the glyphs the canvas shows. */
-export type FrameJob = Omit<GeometryJob, 'indices'> & { indices?: readonly number[] }
+/**
+ * A live frame's parameter set (a GeometryJob): without `indices`, the glyphs the canvas shows; with `within` too, only
+ * the first of those (the selected glyph, or the text's first) and the ones in `within` (see shownGlyphs).
+ */
+export type FrameJob = Omit<GeometryJob, 'indices'> & { indices?: readonly number[]; within?: ReadonlySet<number> }
 
 // ---- Canonical polygon geometry (single source of truth for canvas and export) ----
 
