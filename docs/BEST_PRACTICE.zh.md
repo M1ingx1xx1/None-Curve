@@ -27,7 +27,7 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 
 ## 测试
 
-- 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`）；慢的测试放在 `tests/slow`。
+- 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`，以及测试 `scripts/` 中 Jira 同步的 `tests/scripts`）；慢的测试放在 `tests/slow`。
 - `npm test` 运行快速测试（约 15 秒）。`npm run test:slow` 运行慢速测试（完整的 42 秒 Sound 测试音轨，以及两种测试字体的全部字形；约 3 分钟），只有点名要求时才运行。
 - `npm run build` 也会对测试和脚本做类型检查（`tsconfig.test.json`）。
 - 向 `develop` 提交 pull request 之前先运行 `npm test`。CI 在每个提交到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm test` 和 `npm run build`；Pages 部署也会先运行 `npm test` 再构建。
@@ -40,6 +40,16 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 来自 `Math` 函数（`log`、`exp`、`sin` 等）的数值要先取整再计算哈希，不要用精确值。V8 的 x64 版和 arm64 版在最后一位上可能不同（`Math.log2` 和 `Math.log10` 就是这样），而 CI 运行在 Linux x64 上，Apple 芯片的 Mac 是 arm64，所以在一边锁定的精确哈希到另一边会失败。`neutral.test.ts` 把这类数值取到 10 位有效数字：两边结果一致，而千万分之一的改动仍能被发现。锁定哈希前要在两边都核对过，例如在 Rosetta 下运行官方的 x64 版 Node。
 - 按屏幕显示的样子计算闪烁。`tests/sound/flash.test.ts` 中的 `lettersOnScreen` 把档位之间的移动从最近 250 ms 内显示过的任何一帧算起（`SPREAD_MS`，与 `LIVE_LIMITS.switchSpanMs` 是同一个时长），一帧里的变化只算一次；这样分几帧到达屏幕的一次变化只算一次，而摊薄在几帧里的变化也不会漏掉。
 - 在浏览器中检查 Sound 时让标签页保持可见。声音在 `requestAnimationFrame` 上读取，所以标签页被隐藏或被遮住时（包括隐藏起来的浏览器面板）没有帧，或只有一阵一阵的帧，字母也就不再跟随声音；"Live · N fps" 显示的是几何计算的速率，而不是读取声音的频率，所以看不出这一点。
+
+## 分支、Pull Request 与 Jira
+
+- 工作在从 `develop` 拉出的 `feature/NOCUR-<编号>-<简短名称>` 分支上进行，分支名带上所做的 Jira issue（NOCUR 是本项目的 key），通过 pull request 合并进 `develop`。`main` 是发布分支：从 `develop` 到 `main` 的 pull request 就是一次发布，每次推送 `main` 都会部署 Pages。
+- `.github/workflows/jira.yml`（`scripts/jira-pr-sync.ts`）会推进 pull request 提到的 issue：pull request 处于打开状态时（打开、重新打开、有新的推送或被编辑时）转为 In Progress，合并时转为 Done。pull request 通过分支名、标题，或正文中以 `Jira:` 开头的一行（`Jira: NOCUR-57, NOCUR-58`）开头的那些 key 提到 issue。这一行到第一个不是 key 的词为止，所以 `Jira: NOCUR-60 (split from NOCUR-41)` 只提到 NOCUR-60；正文其他地方出现的 key（例如顺带提到的父任务）不算。
+- issue 只往前走。打开时只推进还在 To Do 的 issue，已经在 In Progress、In Review 或 Done 的保持原样；合并时推进所有还没完成的 issue；关闭但未合并的 pull request 什么都不改。issue 在它的 pull request 合并进 `develop` 时就算完成，而不是发布时；发布用的 pull request 不提任何 issue，也不改动任何 issue。
+- 打开 pull request 时就把 key 写进分支名或标题；之后才加上的 key 会在下一次推送或编辑时推进对应的 issue。与目标分支有冲突的 pull request 不会触发任何 workflow，所以它的 issue 要等冲突解决并推送后才会推进。
+- issue 只通过 pull request 推进。手动只更新 issue 的描述；每次发布后，把发布日期和发布用的 pull request 记到发布记录 NOCUR-28 里。
+- workflow 读取三个仓库 secret：`JIRA_BASE_URL`（`https://<站点>.atlassian.net`）、`JIRA_EMAIL`，以及该账号的 Atlassian API token `JIRA_API_TOKEN`（状态变更记在这个账号名下）。没有配置时只给警告，检查不会因此失败；GitHub 不会把 secret 交给来自 fork 的 pull request，所以这类 pull request 的 issue 要手动推进。脚本先向 Jira 核对账号：token 过期或被吊销时，Jira 会当作没有人登录，每个 issue 看起来都不存在；核对之后检查会直接失败，解决办法是把新的 token 填进 `JIRA_API_TOKEN`，再重跑失败的 job。Jira 拒绝请求或无法连接、`JIRA_BASE_URL` 不是 `https` 地址时，检查同样失败；Jira 不认识的 key 只给警告。日志中会隐去站点地址。
+- 脚本从事件文件读取 pull request，从不把文字放进 shell 命令，所以标题或正文无法执行任何东西。
 
 ## 几何计算与 Worker
 
