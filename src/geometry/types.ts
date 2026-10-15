@@ -265,6 +265,13 @@ export interface PolygonGlyph {
    * text measures the letter exactly rather than the slanted corners of its box. Missing without Thorn.
    */
   layoutHull?: Point[]
+  /**
+   * With Thorn applied: the font's own outline of the letter as Curve flattening draws it, before Random anchors and
+   * every later step (font units, glyph space; straight segments only). The canvas catches the letter's clicks by it
+   * instead of the outline, so thorns, and petals or trails the effects drew out of the letter, take none. Missing
+   * without Thorn.
+   */
+  clickOutline?: PolygonContour[]
 }
 
 export interface DerivedGeometry {

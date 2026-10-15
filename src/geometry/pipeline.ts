@@ -24,7 +24,10 @@ export function deriveGeometry(source: SourceGlyph, params: GeometryParams): Der
   const distorted = applyDistortion(constrained.polygon, params.distortion)
   // Thorn picks its anchors on the letter before Distortion, so Distortion's moves never re-pick them.
   const experimental = applyExperimental(distorted.polygon, params.experimental, constrained.polygon)
-  const polygon = experimental.polygon
+  // With Thorn, the canvas catches a letter's clicks by the font's own outline, flattened, rather than by its thorns.
+  const polygon = experimental.polygon.layoutBox
+    ? { ...experimental.polygon, clickOutline: flattened.polygon.contours }
+    : experimental.polygon
   return {
     source,
     polygon,

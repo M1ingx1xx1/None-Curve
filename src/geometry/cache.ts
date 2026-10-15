@@ -122,7 +122,10 @@ function insert(cache: FontCache, cacheKey: string, entry: Entry, limits: Limits
 function derive(font: LoadedFont, index: number, params: GeometryParams): Entry {
   try {
     const geometry = deriveGeometry(font.getGlyph(index), params)
-    return { geometry, points: geometry.vertexCount }
+    // With Thorn, the result also keeps the letter's click outline.
+    const click = geometry.polygon.clickOutline
+    const clickPoints = click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
+    return { geometry, points: geometry.vertexCount + clickPoints }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error), points: 0 }
   }
