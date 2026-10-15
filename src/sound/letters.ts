@@ -8,13 +8,21 @@
 // levels, fixed per setting: quiet, shared (1) and strong, with hysteresis so a letter near a boundary does not
 // flicker between two. The shared level is the live values the markers show and Freeze writes; a level's values are
 // the shared ones with every driven slider's offset from its slider value scaled by the level's gain, clamped and
-// snapped to the slider's step. So every letter on screen is still a result the sliders could produce, and one frame
-// asks for at most three parameter sets.
+// snapped to the slider's step (Thorn's sliders excepted). So every letter on screen is still a result the sliders
+// could produce, and without Thorn one frame asks for at most three parameter sets.
+//
+// Thorn turns (THORN_TURNS): while Thorn is on, the settings that decide where the thorns sit and which way they point
+// (isTurnTarget: Thorn's own, the Experimental seed, and the shapes Thorn picks its anchors on or follows them through)
+// reach the letters a few at a time. The drawn letters are split into turn groups of whole glyph ids (turnGroups), each
+// showing the turn state it took at its last turn (live.ts hands the live state to one group per turn); levels never
+// scale them. A letter shows its level's values with its group's turn state (turnSets), so a frame asks for at most a
+// parameter set per level and group, each for the glyph ids that show it.
 
 import type { GeometryJob, GeometryParams } from '../geometry/types'
 import type { ShapedSpecimen } from '../specimen/scene'
-import { targetById, type Modulated, type TargetSpec } from './mapping'
-import type { FeatureFrame, ResponseSettings } from './types'
+import { FLASH_LIMITS } from './flash'
+import { TARGETS, targetById, type Modulated, type TargetSpec } from './mapping'
+import { THORN_TURNS, type FeatureFrame, type ResponseSettings } from './types'
 
 /** The letters of the shaped text, one slot per occurrence in placePolygons' order (lines, then glyphs; spaces and missing glyphs counted). */
 export interface LetterSlots {
@@ -200,6 +208,27 @@ export function assignLevels(
   return assign
 }
 
+/** Thorn's sliders: never scaled by a level, with Thorn on (they come from the letters' turn groups) or off. */
+export const isThornTarget = (id: string): boolean => id.startsWith('experimental.thorn.')
+
+/** The Amounts the thorns keep through (thorn.ts), as they keep through Distortion: they stay with the shared values. */
+const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount'])
+
+/**
+ * Whether a target reaches the letters by Thorn turns while Thorn is on (THORN_TURNS): it decides where the thorns sit
+ * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders and the Experimental seed; every
+ * Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every slider of Crumple, Ripple,
+ * Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor those two Amounts: the thorns keep their
+ * anchors and directions through their moves (thorn.ts), so they stay with the shared values and levels.
+ */
+export const isTurnTarget = (id: string): boolean => !id.startsWith('distortion.') && !KEPT_THROUGH.has(id)
+
+/** Whether Thorn is on, so the turn targets come from the letters' turn groups (with Thorn off, levels scale them). */
+const turnsOn = (params: GeometryParams): boolean => params.experimental.thorn?.enabled === true
+
+/** Whether levels leave this target at its shared position: Thorn's sliders always, the other turn targets while Thorn is on. */
+const unscaled = (id: string, params: GeometryParams): boolean => isThornTarget(id) || (turnsOn(params) && isTurnTarget(id))
+
 /** A level's value and slider position for a target whose shared live position is `position` (see levelPosition). */
 function scaled(spec: TargetSpec, base: GeometryParams, position: number, gain: number): { value: number; position: number } {
   const value = spec.get(base)
@@ -214,10 +243,12 @@ function scaled(spec: TargetSpec, base: GeometryParams, position: number, gain: 
 /**
  * The slider position letters at `gain` show for a target whose shared live position is `position`: the offset from
  * the slider's own position scaled by `gain`, clamped and snapped to the step. Monotone in `position`, so a level
- * turns back only when the shared value does. The identity at gain 1.
+ * turns back only when the shared value does. The identity at gain 1, for Thorn's sliders (isThornTarget), and for
+ * the other turn targets while Thorn is on in `base` (isTurnTarget; no slider switches Thorn, so it is on in the
+ * shared values too).
  */
 export function levelPosition(spec: TargetSpec, base: GeometryParams, position: number, gain: number): number {
-  return gain === 1 ? position : scaled(spec, base, position, gain).position
+  return gain === 1 || unscaled(spec.id, base) ? position : scaled(spec, base, position, gain).position
 }
 
 /** One level's live parameters: their key and the driven sliders' positions. */
@@ -233,7 +264,8 @@ function levelSet(base: GeometryParams, shared: Modulated, gain: number, middle:
   let positions: Map<string, number> | null = null
   for (const [id, position] of shared.positions) {
     const spec = targetById(id)
-    if (!spec) continue
+    // Thorn's sliders, and the other turn targets while Thorn is on, come from the letters' turn groups, unscaled.
+    if (!spec || unscaled(id, shared.params)) continue
     const at = scaled(spec, base, position, gain)
     if (at.position !== position) (positions ??= new Map(shared.positions)).set(id, at.position)
     // Seeds, held values and Thorn's canvasEm come with the shared parameters.
@@ -296,17 +328,344 @@ export function switchSwing(
   return swing
 }
 
-/** The letters of a live frame: which level each shows, and the extra parameter sets they need. */
+// ---- Thorn turns ----
+
+/** The drawn letters split into Thorn turn groups (THORN_TURNS). */
+export interface TurnGroups {
+  /**
+   * How many: THORN_TURNS.groups, 0 when no letter is drawn. With fewer letters than that (or a text of few glyphs),
+   * some groups hold none: their turns only pass the time, so a letter still turns at most once in `groups` turns.
+   */
+  count: number
+  /** The most drawn letters a group holds: ceil(drawn letters / count). */
+  capacity: number
+  /** The group of each occurrence (0 for a letter that is not drawn, which always shows the shared parameters). */
+  of: Uint8Array
+  /** How many drawn letters each group holds. */
+  letters: Int32Array
+  /** Each group's share of the text: the sum of its letters' shares. */
+  share: Float64Array
+}
+
+const groupsOf = new WeakMap<LetterSlots, TurnGroups>()
+
+/**
+ * The turn groups of these letters (the same object for the same `slots`). Groups are made of whole glyph ids, so
+ * every occurrence of a glyph turns with the others and a group costs no glyph twice; they hold at most `capacity`
+ * letters each. Glyphs go largest first (ties in the order of a hash of the glyph id, so a group's letters lie all
+ * over the text rather than in reading order) to the group with the most room. Only a glyph that fits whole in no
+ * group (one with more than `capacity` occurrences, say) is split, over as few groups as hold it, its occurrences
+ * picked by a hash. The same letters set differently get the same groups.
+ */
+export function turnGroups(slots: LetterSlots): TurnGroups {
+  const known = groupsOf.get(slots)
+  if (known) return known
+  const drawn = slots.activeCount
+  const count = drawn > 0 ? THORN_TURNS.groups : 0
+  const capacity = count ? Math.ceil(drawn / count) : 0
+  const of = new Uint8Array(slots.count)
+  const letters = new Int32Array(count)
+  const share = new Float64Array(count)
+  const byGlyph = new Map<number, number[]>()
+  for (let j = 0; j < slots.count; j++) {
+    if (!slots.active[j]) continue
+    const glyph = slots.index[j]
+    const occurrences = byGlyph.get(glyph)
+    if (occurrences) occurrences.push(j)
+    else byGlyph.set(glyph, [j])
+  }
+  const glyphs = [...byGlyph].sort(([a, x], [b, y]) => y.length - x.length || hash01(a) - hash01(b) || a - b)
+  const room = new Array<number>(count).fill(capacity)
+  const roomiest = () => {
+    let best = 0
+    for (let g = 1; g < count; g++) if (room[g] > room[best]) best = g
+    return best
+  }
+  for (const [, occurrences] of glyphs) {
+    const g = roomiest()
+    if (occurrences.length <= room[g]) {
+      for (const j of occurrences) of[j] = g
+      room[g] -= occurrences.length
+      continue
+    }
+    // The groups have room for every letter (count × capacity ≥ drawn letters), so this ends.
+    const order = occurrences.slice().sort((a, b) => hash01(a) - hash01(b) || a - b)
+    for (let k = 0; k < order.length; ) {
+      const h = roomiest()
+      const take = Math.min(room[h], order.length - k)
+      for (const end = k + take; k < end; k++) of[order[k]] = h
+      room[h] -= take
+    }
+  }
+  for (let j = 0; j < slots.count; j++) {
+    if (!slots.active[j]) continue
+    letters[of[j]]++
+    share[of[j]] += slots.share[j]
+  }
+  const groups: TurnGroups = { count, capacity, of, letters, share }
+  groupsOf.set(slots, groups)
+  return groups
+}
+
+/** What a turn hands on: every turn target (isTurnTarget), sliders and seeds, in TARGETS order. */
+const STATE_TARGETS: readonly TargetSpec[] = TARGETS.filter((t) => isTurnTarget(t.id))
+const THORN_COUNT = targetById('experimental.thorn.count')!
+
+/**
+ * The turn state a turn group shows: whether Thorn is on, and the values of the turn targets (isTurnTarget): Thorn's
+ * sliders, the Experimental seed (which Crumple and Slipstream share, so they re-seed by turns too), and the shapes
+ * Thorn picks its anchors on or follows them through. Thorn's canvasEm is not in it: it follows the canvas at once.
+ */
+export interface ThornState {
+  enabled: boolean
+  /** Each value, in STATE_TARGETS order (the sliders as TargetSpec.get reads them, missing ones at their fallback). */
+  values: readonly number[]
+}
+
+export function thornState(params: GeometryParams): ThornState {
+  return { enabled: params.experimental.thorn?.enabled === true, values: STATE_TARGETS.map((spec) => spec.get(params)) }
+}
+
+export function sameThornState(a: ThornState, b: ThornState): boolean {
+  if (a === b) return true
+  if (a.enabled !== b.enabled) return false
+  for (let i = 0; i < a.values.length; i++) if (a.values[i] !== b.values[i]) return false
+  return true
+}
+
+/** The parameters with this Thorn state; the same object when they already have it. */
+export function withThornState(params: GeometryParams, state: ThornState): GeometryParams {
+  let next = params
+  STATE_TARGETS.forEach((spec, i) => {
+    if (spec.get(next) !== state.values[i]) next = spec.set(next, state.values[i])
+  })
+  const { thorn } = next.experimental
+  if (thorn && thorn.enabled !== state.enabled) {
+    next = { ...next, experimental: { ...next.experimental, thorn: { ...thorn, enabled: state.enabled } } }
+  }
+  return next
+}
+
+/**
+ * Whether a turn group showing `shown` takes the live state at its turn: Thorn switched, another seed or number of
+ * thorns, a slider at least half a flash swing (FLASH_LIMITS.swing / 2 of its travel) away, or one the sound has put
+ * back on its own value (in `own`, the sliders' turn state) where the group's is not, so quiet ends exactly there.
+ */
+export function thornDiffers(shown: ThornState, live: ThornState, own: ThornState): boolean {
+  if (shown.enabled !== live.enabled) return true
+  for (let i = 0; i < STATE_TARGETS.length; i++) {
+    const was = shown.values[i]
+    const is = live.values[i]
+    if (was === is) continue
+    const spec = STATE_TARGETS[i]
+    if (spec === THORN_COUNT || spec.kind === 'jump' || is === own.values[i]) return true
+    if (Math.abs(spec.toSlider(is) - spec.toSlider(was)) >= FLASH_LIMITS.swing / 2 - 1e-9) return true
+  }
+  return false
+}
+
+/**
+ * How large a change a turn makes, as switchSwing measures letters moving between levels: the group's share of the
+ * text times how far its turn targets' sliders move (each in slider travel), a new seed counting as a whole travel
+ * (every thorn is picked afresh).
+ */
+export function turnSwing(share: number, from: ThornState, to: ThornState): number {
+  let apart = 0
+  for (let i = 0; i < STATE_TARGETS.length; i++) {
+    if (from.values[i] === to.values[i]) continue
+    const spec = STATE_TARGETS[i]
+    apart += spec.kind === 'jump' ? 1 : Math.abs(spec.toSlider(to.values[i]) - spec.toSlider(from.values[i]))
+  }
+  return share * apart
+}
+
+/**
+ * Whose turn state each turn group of the letters shows (THORN_TURNS); live.ts feeds it every update while Thorn is
+ * on and letters are drawn, and tells it when the frames showing its turns reach the screen.
+ *
+ * Every group takes the live state at once, as no turn and with nothing charged, when the turns start afresh: the
+ * first update after `clear` (Sound starts driving, Thorn is switched on) or when the letters of the text change
+ * (sameLetters). A slider moved by hand that the sound does not drive now reaches every group at once too, as without
+ * Sound. Otherwise, once the last turn has reached the screen and THORN_TURNS.gapMs has passed since, the group whose
+ * turn is next takes the live state if it differs from its own (thornDiffers): one group per turn, round robin, so a
+ * group turns at most once in `groups` turns. A large change (turnSwing at least FLASH_LIMITS.swing) asks the flash
+ * budget first; refused, the turn waits and is asked again on the next update. A group whose state does not differ,
+ * or that holds no letter, gives its turn up (the turn passes gapMs on with nothing changed), so the groups after it
+ * do not wait on it, and a letter of a short text still turns at most once every groups × gapMs. A mapping added or
+ * removed starts nothing afresh: its changes reach the groups by turns.
+ */
+export class ThornTurns {
+  /**
+   * The letters the groups are for, the groups, the state each shows, and the sliders' own state at the last update;
+   * null after a clear.
+   */
+  private current: { slots: LetterSlots; groups: TurnGroups; states: ThornState[]; own: ThornState } | null = null
+  private next = 0
+  /** Turns made, and the newest on screen: the next turn waits for the last to reach the screen. */
+  private made = 0
+  private shown = 0
+  /** When the last turn reached the screen, or the last group gave its turn up (or the turns started). */
+  private slotAt = -Infinity
+
+  /** The groups, null until the first update after a clear. */
+  get groups(): TurnGroups | null {
+    return this.current?.groups ?? null
+  }
+
+  /** The turn state each group shows. */
+  get states(): readonly ThornState[] {
+    return this.current?.states ?? []
+  }
+
+  /** How many turns have been made: a frame records it, and shownUpTo hears it back. */
+  get turns(): number {
+    return this.made
+  }
+
+  /**
+   * One update.
+   * @param live the live turn state (the shared, flash-limited values)
+   * @param own the sliders' own turn state: a slider the sound puts back on its own value always counts as a difference
+   * @param now the time (ms) the screen's frames are timed in
+   * @param take asks the flash budget for a large change; false: the turn waits
+   */
+  update(slots: LetterSlots, live: ThornState, own: ThornState, now: number, take: () => boolean): void {
+    const current = this.current
+    if (!current || !sameLetters(current.slots, slots)) {
+      const groups = turnGroups(slots)
+      this.current = { slots, groups, states: new Array<ThornState>(groups.count).fill(live), own }
+      this.next = 0
+      this.shown = this.made
+      this.slotAt = now
+      return
+    }
+    // The same letters set differently: the same groups, with their new shares of the text.
+    if (current.slots !== slots) {
+      current.slots = slots
+      current.groups = turnGroups(slots)
+    }
+    if (!sameThornState(current.own, own)) moveByHand(current.states, current.own, own, live)
+    current.own = own
+    const { groups, states } = current
+    if (this.shown < this.made || now - this.slotAt < THORN_TURNS.gapMs || groups.count === 0) return
+    const g = this.next
+    const differs = (h: number) => groups.letters[h] > 0 && thornDiffers(states[h], live, own)
+    if (!differs(g)) {
+      if (states.some((_, h) => differs(h))) {
+        // A group without letters keeps up with the live state, unseen.
+        if (groups.letters[g] === 0) states[g] = live
+        this.next = (g + 1) % groups.count
+        this.slotAt = now
+      }
+      return
+    }
+    if (turnSwing(groups.share[g], states[g], live) >= FLASH_LIMITS.swing - 1e-9 && !take()) return
+    states[g] = live
+    this.next = (g + 1) % groups.count
+    this.made++
+  }
+
+  /** A frame showing the turns up to `turn` (a value of `turns`) reached the screen at `now`. */
+  shownUpTo(turn: number, now: number): void {
+    if (turn <= this.shown) return
+    this.shown = turn
+    this.slotAt = now
+  }
+
+  /** No groups (Thorn is off, no letter is drawn, or Sound stopped driving): the next update starts afresh. */
+  clear(): void {
+    this.current = null
+    this.shown = this.made
+    this.slotAt = -Infinity
+  }
+}
+
+/**
+ * The sliders' own turn state went from `was` to `own`: a value that moved and that the sound leaves at the slider's
+ * value (the live value is the new one) reaches every group at once, as the slider shows it. Groups that showed the
+ * same state still do.
+ */
+function moveByHand(states: ThornState[], was: ThornState, own: ThornState, live: ThornState): void {
+  const moved: number[] = []
+  for (let i = 0; i < own.values.length; i++) if (own.values[i] !== was.values[i] && live.values[i] === own.values[i]) moved.push(i)
+  if (!moved.length) return
+  const made = new Map<ThornState, ThornState>()
+  for (let g = 0; g < states.length; g++) {
+    const state = states[g]
+    let next = made.get(state)
+    if (!next) {
+      next = moved.some((i) => state.values[i] !== own.values[i]) ? { enabled: state.enabled, values: state.values.slice() } : state
+      if (next !== state) for (const i of moved) (next.values as number[])[i] = own.values[i]
+      made.set(state, next)
+    }
+    states[g] = next
+  }
+}
+
+/**
+ * Each turn group's quiet, shared and strong sets: the levels' `sets` (with the live Thorn state, which levels never
+ * scale) with the group's Thorn state; a group showing the live state has `sets` themselves, and groups showing the
+ * same state object the same sets. Their positions are the sliders' with the group's Thorn values.
+ */
+export function turnSets(
+  sets: readonly [LevelSet, LevelSet, LevelSet],
+  states: readonly ThornState[],
+  keyOf: (p: GeometryParams) => string,
+): (readonly [LevelSet, LevelSet, LevelSet])[] {
+  const live = thornState(sets[SHARED].params)
+  const byState = new Map<ThornState, readonly [LevelSet, LevelSet, LevelSet]>()
+  return states.map((state) => {
+    if (sameThornState(state, live)) return sets
+    const known = byState.get(state)
+    if (known) return known
+    const made = new Map<LevelSet, LevelSet>()
+    const withState = (set: LevelSet): LevelSet => {
+      let out = made.get(set)
+      if (out) return out
+      const params = withThornState(set.params, state)
+      let positions: Map<string, number> | null = null
+      for (const [id, position] of set.positions) {
+        const spec = isTurnTarget(id) ? targetById(id) : undefined
+        const at = spec ? spec.toSlider(spec.get(params)) : position
+        if (at !== position) (positions ??= new Map(set.positions)).set(id, at)
+      }
+      out = { params, key: keyOf(params), positions: positions ?? set.positions }
+      made.set(set, out)
+      return out
+    }
+    const group = [withState(sets[QUIET]), withState(sets[SHARED]), withState(sets[STRONG])] as const
+    byState.set(state, group)
+    return group
+  })
+}
+
+/** The letters of a live frame: which parameter set each shows, and the extra parameter sets they need. */
 export interface LetterFrame {
   /** The text this belongs to (identity). */
   slots: LetterSlots
-  /** Each level's key; '' for a level no letter shows. */
-  keys: readonly [quiet: string, shared: string, strong: string]
-  /** The level per occurrence; a level whose key is the shared key counts as SHARED. */
+  /**
+   * The keys of the parameter sets letters show: the quiet, shared and strong levels ('' for a level no letter shows;
+   * the shared one is the frame's own, which every other letter shows), then, with Thorn turns, those of letters whose
+   * turn group shows other Thorn settings (THORN_TURNS).
+   */
+  keys: readonly string[]
+  /** Per occurrence, which of `keys` it shows; a set whose key is the shared key counts as SHARED. */
   assign: Uint8Array
-  /** Strong, then quiet: each used level's parameters, key and the glyph ids of its active letters (each once, in reading order). */
+  /**
+   * Strong, then quiet, then the others in order: each used set's parameters, key and the glyph ids of its active
+   * letters (each once, in reading order).
+   */
   jobs: readonly GeometryJob[]
-  /** Stands for the whole frame: the keys, the text and the assignment. */
+  /**
+   * With Thorn turns, the glyph ids of the occurrences that show the shared key (spaces included): the shared set is
+   * computed only for them (and the selected glyph, for its statistics; see FrameJob.within). Null without Thorn turns:
+   * for every glyph shown.
+   */
+  sharedGlyphs: ReadonlySet<number> | null
+  /**
+   * Stands for the whole frame: the keys, the text and the assignment. With Thorn turns and no drawn letter on the
+   * shared key, it leaves that key out: the shared values can then move (a turn waits) without a new frame to show.
+   */
   key: string
 }
 
@@ -340,45 +699,79 @@ function serialOf(slots: LetterSlots): number {
   return serial
 }
 
+/** A frame's Thorn turn groups (THORN_TURNS): each occurrence's group, and each group's level sets (turnSets). */
+export interface TurnSets {
+  /** The group of each occurrence (TurnGroups.of). */
+  of: Uint8Array
+  /** Per group: the quiet, shared and strong sets with the group's Thorn state. */
+  sets: readonly (readonly [LevelSet, LevelSet, LevelSet])[]
+}
+
 /**
- * The letter frame for an assignment, or null when every letter shows the shared level (after a level whose key is
- * the shared key is folded into it).
+ * The letter frame for an assignment, or null when every letter shows the shared key (after a set whose key is the
+ * shared key is folded into it). `sets` are the levels of the shared key's own Thorn state; with `turns`, each letter
+ * shows its level of its turn group's sets instead.
  */
 export function buildLetterFrame(
   sets: readonly [LevelSet, LevelSet, LevelSet],
   assign: Uint8Array,
   slots: LetterSlots,
   sharedKey: string,
+  turns: TurnSets | null = null,
 ): LetterFrame | null {
   const n = slots.count
   if (assign.length !== n) return null
   const folded = new Uint8Array(n)
-  const ids: [Set<number>, Set<number>] = [new Set(), new Set()]
+  const keys: string[] = ['', sharedKey, '']
+  const params: GeometryParams[] = [sets[QUIET].params, sets[SHARED].params, sets[STRONG].params]
+  const ids: Set<number>[] = [new Set(), new Set(), new Set()]
+  const others = new Map<string, number>()
+  const sharedGlyphs = turns ? new Set<number>() : null
+  let drawnShared = false
   for (let j = 0; j < n; j++) {
-    const level = assign[j]
-    if (!slots.active[j] || (level !== QUIET && level !== STRONG) || sets[level].key === sharedKey) {
+    const level = assign[j] === QUIET || assign[j] === STRONG ? assign[j] : SHARED
+    const set = turns ? turns.sets[turns.of[j]][level] : level === SHARED ? null : sets[level]
+    if (!slots.active[j] || !set || set.key === sharedKey) {
       folded[j] = SHARED
+      sharedGlyphs?.add(slots.index[j])
+      if (slots.active[j]) drawnShared = true
       continue
     }
-    folded[j] = level
-    ids[level === QUIET ? 0 : 1].add(slots.index[j])
+    let k = set.key === sets[QUIET].key ? QUIET : set.key === sets[STRONG].key ? STRONG : others.get(set.key)
+    if (k === undefined) {
+      k = keys.length
+      others.set(set.key, k)
+      keys.push(set.key)
+      params.push(set.params)
+      ids.push(new Set())
+    }
+    folded[j] = k
+    ids[k].add(slots.index[j])
   }
-  if (ids[0].size === 0 && ids[1].size === 0) return null
-  const keys = [ids[0].size ? sets[QUIET].key : '', sharedKey, ids[1].size ? sets[STRONG].key : ''] as const
+  if (ids.every((used) => used.size === 0)) return null
+  keys[QUIET] = ids[QUIET].size ? sets[QUIET].key : ''
+  keys[STRONG] = ids[STRONG].size ? sets[STRONG].key : ''
   const jobs: GeometryJob[] = []
-  if (ids[1].size) jobs.push({ params: sets[STRONG].params, key: keys[2], indices: [...ids[1]] })
-  if (ids[0].size) jobs.push({ params: sets[QUIET].params, key: keys[0], indices: [...ids[0]] })
+  let extra = ''
+  for (const k of [STRONG, QUIET]) if (ids[k].size) jobs.push({ params: params[k], key: keys[k], indices: [...ids[k]] })
+  for (let k = 3; k < keys.length; k++) {
+    jobs.push({ params: params[k], key: keys[k], indices: [...ids[k]] })
+    extra += `${keys[k]}\u001f`
+  }
+  // One character per occurrence: '0'–'2' for the levels, as before Thorn turns, then on for the other sets.
   let digits = ''
-  for (let j = 0; j < n; j++) digits += folded[j]
-  return { slots, keys, assign: folded, jobs, key: `${sharedKey}\u001f${keys[0]}\u001f${keys[2]}\u001f${serialOf(slots)}:${digits}` }
+  for (let j = 0; j < n; j++) digits += String.fromCharCode(48 + folded[j])
+  const shown = turns && !drawnShared ? '' : sharedKey
+  const key = `${shown}\u001f${keys[QUIET]}\u001f${keys[STRONG]}\u001f${extra}${serialOf(slots)}:${digits}`
+  return { slots, keys, assign: folded, jobs, sharedGlyphs, key }
 }
 
 /**
- * The key of the parameters this occurrence shows: its level's, or `sharedKey` when it is on the shared level (or
- * there is no frame). The frame must be for the letters shown (lettersOn).
+ * The key of the parameters this occurrence shows: its set's, or `sharedKey` when it shows the shared key (or there
+ * is no frame). The frame must be for the letters shown (lettersOn).
  */
 export function levelKeyAt(frame: LetterFrame | null, occurrence: number, sharedKey: string): string {
   if (!frame) return sharedKey
-  const level = frame.assign[occurrence]
-  return level === QUIET || level === STRONG ? frame.keys[level] : sharedKey
+  const k = frame.assign[occurrence]
+  return k !== SHARED && frame.keys[k] ? frame.keys[k] : sharedKey
 }

@@ -3,11 +3,12 @@
 // however long and thin its thorns, and refraction that covers only the letter, so its points do not grow with Reach.
 
 import { describe, expect, it } from 'vitest'
+import { flattenGlyph } from '../../src/geometry/flatten'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import { applyThorn, canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
 import type { GeometryParams, Point, PolygonGlyph, ThornParams } from '../../src/geometry/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { boundsOf, contoursOf, winding } from '../helpers/outline'
+import { boundsOf, contoursOf, sameContours, winding } from '../helpers/outline'
 import { BASE, GEOMETRY, on, paramsWith, SLIDER_MAX, THORN_FARTHEST } from '../helpers/params'
 
 const THORN = on('thorn').thorn!
@@ -181,6 +182,33 @@ describe.each(FIXTURE_FONTS)('Thorn on the canvas: %s', (fontName) => {
       far += plain.length
     }
     expect(far).toBeGreaterThan(0)
+  })
+})
+
+describe.each(FIXTURE_FONTS)('Thorn click outline: %s', (fontName) => {
+  it('gives the letter the font\'s own outline, flattened, whatever the later steps do, and none without Thorn', async () => {
+    const font = await loadFixture(fontName)
+    for (const [geometryName, geometry] of [
+      ['plain', GEOMETRY.plain],
+      ['dense', GEOMETRY.dense],
+      ['heavy', GEOMETRY.heavy],
+      ['random anchors', { random: { ...BASE.random, enabled: true } }],
+    ] as const) {
+      for (const [name, effects] of [
+        ['Thorn default', on('thorn')],
+        ['Ripple petals, Slipstream and Thorn', { ...on('ripple', { petals: 1.5 }), ...on('slipstream'), ...on('thorn', { canvasReach: 0.5 }) }],
+      ] as const) {
+        const params = paramsWith(geometry, effects)
+        for (const glyph of sampleGlyphs(font, 'AgQ@&W8o')) {
+          const label = `${geometryName}, ${name}, "${glyph.char}"`
+          const source = font.getGlyph(glyph.index)
+          const derived = deriveGeometry(source, params)
+          const flattened = flattenGlyph(source, params.flatten).polygon
+          expect(sameContours(derived.polygon.clickOutline!.map((c) => c.points), contoursOf(flattened)), label).toBe(true)
+          expect(deriveGeometry(source, withoutThorn(params)).polygon.clickOutline, label).toBeUndefined()
+        }
+      }
+    }
   })
 })
 

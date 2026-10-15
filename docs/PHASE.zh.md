@@ -444,7 +444,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 - 测试音轨 `test-audio/sound-test.wav`（42 s，16 位立体声，44.1 kHz；由 `scripts/test-track.ts` 在内存中生成，`npm run test-track` 写成文件，不提交到仓库）每一段都读出应有的特征：0–26 s 与之前相同（只有底鼓、底鼓加踩镲、上升的和弦、静音、渐弱的完整混音、每秒 16 次的踩镲），之后是从 A2 到 A5 再回来的单音旋律（26–32 s，Pitch），每半秒在最左和最右之间切换的踩镲，下面是居中的轻低音（32–38 s，Pan），以及渐弱的宽阔不相关噪声（38–42 s，Pan 保持居中）。
 - 暂停、停止收音、关闭 Drive letters、关闭映射或 Depth 为 0 时，完全恢复滑块值；暂停时完全恢复种子。
 - 在测试音轨上，Beat → Distortion · Seed 在只有底鼓的部分每拍都跳（每秒 1.89 次），在每秒 8 拍时被限制在每秒约 4.3–4.5 次。
-- 画面上的每个字母都显示一组普通参数（阶段 H 起每帧最多三组），因此保持有效且没有曲线。
+- 画面上的每个字母都显示一组普通参数（阶段 H 起每帧最多三组；阶段 I 起，有 Thorn 轮次时最多 15 组），因此保持有效且没有曲线。
 - 逐个预设测量帧率。
 - 先 Freeze 再 Export，能复现冻结时的样子。
 
@@ -521,7 +521,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - **Motion contrast：** 字母的权重来自它所在位置的一个稳定哈希和一个缓慢的波（6 s，每个字母错开一些），所以领头的字母每隔几秒就会换。100% 时权重从共享幅度的 1/3.6 到 3.6 倍，以 1 为中心均衡分布：画出的字母中大约 17% 平静、67% 共享、17% 强烈（Roboto 默认文字画出的 196 个字母中分别是 33、132 和 34 个）。Strength 决定整体幅度；Motion contrast 只负责把它拉开。
    - **Pitch reactive：** 近来旋律中的低音让左边的字母权重更大，高音让右边的字母权重更大，所以无论曲调在哪个音区，都会扫过整段文字。音高放在旋律音域里（`pitchPlace`），这个音域由 `features.ts` 记在每一帧中（`pitchLow`、`pitchHigh`；`SOUND_LIMITS.melodyRangeAttackMs` 150、`melodyRangeReleaseMs` 8000、`melodyRangeMinSt` 12）：一开始是围绕第一个稳定下来的音的一个八度，遇到更高或更低的新音时约 0.15 秒内扩展过去，约 8 秒内向最后一个音收拢，超过 8 秒没有音就重新开始，始终至少一个八度宽，并忽略距 Pitch 的 55–1760 Hz 刻度两端一个半音以内的音（和弦和鼓会读在那里）。旋律第一次上行时，每个新的最高音都落在最右端；音域听过一遍之后，每个音都有自己的位置。需要清楚的单个音。
    - **三个档位：** 权重被归到三个档位（平静、共享、强烈），档位在一个设置下固定，所以声音平稳时，字母只会换到已经算好的参数组上。两个控件合起来也保持在固定的界限之内。字母只有在权重明显越过边界后才离开它的档位（滞后），所以不会在两个档位之间来回闪。
-   - **每个字母都是滑块值：** 档位把每个被驱动滑块相对于滑块自身位置的实时偏移按比例缩放，再截断、取整到档位；结果落在滑块自身那一档时，就正好是滑块的值。Pan 保持它的正负号。种子由所有字母共用，Strength 缩放它们的 Rate。
+   - **每个字母都是滑块值：** 档位把每个被驱动滑块相对于滑块自身位置的实时偏移按比例缩放，再截断、取整到档位；结果落在滑块自身那一档时，就正好是滑块的值。Pan 保持它的正负号。种子由所有字母共用，Strength 缩放它们的 Rate。（阶段 I 起，打开 Thorn 时，Experimental 和 Random anchors 的种子以及其他 Thorn 轮次目标改为来自每个字母所在的轮次组，不缩放。）
    - **已知限制：** 在档位很少的滑块上，只有共享值离开了滑块自身那一档之后，平静和强烈的字母才会拉开。
 2. **画面上每个字母的闪烁限制**（`src/sound/live.ts`、`src/sound/flash.ts`）：
    - 一个滑块的折返量，取它的共享折返量和每个有字母正在显示或即将显示的档位的折返量中最大的那个。档位是共享值的单调映射，所以只在共享值折返时折返；让共享值停住，每个字母也就停住。
@@ -530,7 +530,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 3. **每帧一个请求**（`src/geometry/protocol.ts`、`workerCore.ts`、`src/state/geometryClient.ts`）：
    - 一个计算请求带若干任务，每个任务是一个参数键和它的字形。实时帧先发共享值，覆盖画面上的每个字形，再发强烈和平静档位的字形，全部通过 `prefetchJobs()` 放在同一个请求里；全部到齐后才提交这一帧。
    - Worker 按顺序执行任务，每个任务的结果用它自己的键发送，心跳中写明键，最后只发一个 `done`。正在处理的请求如果已经覆盖每一个缺少的（键，字形）对，客户端就沿用它。
-   - 实时结果按最近最少使用的顺序保留，最多 6 组参数（`LIVE_KEPT_KEYS`），所以下一帧计算时，画面上那一帧的档位仍然保留。只有请求的第一个任务会成为字形的替身形状，在其他设置计算时显示。
+   - 实时结果按最近最少使用的顺序保留，最多 6 组参数（`LIVE_KEPT_KEYS`；阶段 I 起最多 32 组），所以下一帧计算时，画面上那一帧的档位仍然保留。只有请求的第一个任务会成为字形的替身形状，在其他设置计算时显示。
    - 画布按字母在文字中的位置查找它（`PolygonLookup(index, occurrence)`），样张 SVG 按多边形为路径建索引，所以预览显示每个字母自己的形状。所有字母都用共享值时，输出与之前逐字节相同。
 4. **Response 控件**（`src/sound/types.ts`、`features.ts`、`mapping.ts`、`jumps.ts`、`mappingStore.ts`、`src/components/SoundControls.tsx`）：
    - Analysis 组改为 **Response**：Sensitivity（−24 到 +24 dB，档位 1）、Strength（0–400%，档位 5）、Motion contrast（0–100%，档位 1）、Release（20–1000 ms，档位 10；原名 Smoothing，起音时间仍然固定）、Pitch reactive（0–200%，档位 5）和 Melody tracking（0–200%，档位 5）。范围写在 `SOUND_LIMITS` 和 `RESPONSE_LIMITS` 里；默认值都是中性的（`NEUTRAL_RESPONSE`）。
@@ -546,7 +546,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 引擎的音频分支：测量用的来源（听到的文件，或麦克风）经过一个延迟进入一个供录制使用的流；扬声器听到的不变。
    - 界面：Sound 标签页底部的 **Record** 组（Record 或 Stop、已录时长、Format、Length、Include audio、Use the preview look、尺寸一行、"Live · N fps"，以及上一次录制是怎样结束的）；Export 对话框中的 **Video**，它的 Record 会关闭对话框并开始录制；顶部栏依次显示 "Starting to record…"、带一个只有图标的 Stop 的 "Recording 0:12"，然后是 "Saving the video…"，结束后显示录制是怎样结束的，并带一个关闭按钮。录制期间 Freeze 不可用。录制用的画布放在屏幕之外，只在录制期间存在。录制期间离开页面会先询问。
 7. **测试：** 快速测试新增八个文件，现在共 31 个：
-   - `tests/sound/neutral.test.ts`，在提交 4a54e5d 时、任何其他改动之前写好：在中性的 Response 设置下，`modulate`、实时调度的请求、提交和 Freeze、分析器的读数，以及 Roboto 默认文字一直到 SVG 的结果，哈希都与之前相同（读数按 10 位有效数字，其余为精确值）。CI（Linux x64）显示 V8 的 `Math.log2` 和 `Math.log10` 在 x64 和 arm64 之间最后一位不同之后，读数的锁定值从 4a54e5d 在两边重新取过一次。
+   - `tests/sound/neutral.test.ts`，在提交 4a54e5d 时、任何其他改动之前写好：在中性的 Response 设置下，`modulate`、实时调度的请求、提交和 Freeze、分析器的读数，以及 Roboto 默认文字一直到 SVG 的结果，哈希都与之前相同（读数按 10 位有效数字，其余为精确值）。CI（Linux x64）显示 V8 的 `Math.log2` 和 `Math.log10` 在 x64 和 arm64 之间最后一位不同之后，读数的锁定值从 4a54e5d 在两边重新取过一次。阶段 I 起，调度器的哈希不再包含起始设置会打开 Thorn 的 Flare，它的锁定值从 4a54e5d 重新取过。
    - `tests/sound/letters.test.ts`、`tests/sound/jumps.test.ts`、`tests/specimen/occurrence.test.ts`、`tests/export/specimenPaths.test.ts`、`tests/export/videoFormat.test.ts`、`tests/export/drawArtboard.test.ts` 和 `tests/export/recorder.test.ts`（时钟和计时器、引擎、画布、MediaRecorder 以及标签页可见性都用假实现；完全不碰 DOM，也不下载任何东西）。
    - 闪烁、实时调度、特征、映射、会话保存、历史、Worker 和客户端的测试中都新增了用例。其中包括：特征测试里的旋律音域（5 个用例）；字母测试里的 `pitchPlace`；闪烁测试里按画面计数（从最近 250 ms 内显示过的任何一帧算起，档位之间的移动只算一次变化）、横跨整个音域每秒 6 次的八度，以及经过 `FeatureExtractor` 和调度器的真实音：C4 和 C5 交替时，每个 C4 都停在左边（强烈档位字母的平均位置低于 0.35），每个 C5 都停在右边（高于 0.65），Pitch reactive 100% 时每个音都到位，200% 时至少 80% 到位；测试音轨的旋律在 100% 时，第二遍从左到右再回来；两者每秒都最多 6 次大变化。慢速测试的测试音轨检查旋律段落中 11 次换音大约每次都有一个 Melody 脉冲（11 次，允许差一次），而之前的踩镲上一个也没有。
 8. **测量结果**（Node，单线程，每帧都重新计算，Roboto 默认文字：226 个字母，画出 196 个，24 个不同字形；每帧毫秒数的中位数）：
@@ -565,9 +565,56 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 
 阶段验收：
 - `npm run build`、`npm test`（31 个文件）和 `npm run test:slow` 通过；CJK 检查不输出任何内容；每个输出仍然只有 `M`、`L` 和 `Z`。
-- `tests/sound/neutral.test.ts` 在 x64 和 arm64 上都通过，所以 Response 设置都在默认值时，Sound 给出的请求、帧、Freeze、读数和 SVG 都与之前相同。
+- `tests/sound/neutral.test.ts` 在 x64 和 arm64 上都通过，所以 Response 设置都在默认值时，Sound 给出的请求、帧、Freeze、读数和 SVG 都与之前相同（阶段 I 起，调度器的部分只看 Flare 之外的预设）。
 - 画面上的每个字母都保持在每秒 3 次闪烁以内：在 Strength 400%、Motion contrast 100%、Pitch reactive 200% 下用方波驱动，音高每秒跳一个八度 6 次，画面上任意一秒内最多 6 次大变化，而字母仍在动。一次在 250 ms 内分几帧到达画面的档位移动只算一次变化，真实的 C4 和 C5 音仍能在限制之内分别落到左边和右边。
 - Jitter 播放时把 Motion contrast 设为 60%，画布上有 16–19 个字形显示不止一种形状，预览画出的不同路径比字形还多。回到 0%，或按 Freeze 之后，每个字形又只有一种形状，滑块停在冻结的值上，也从不显示 "Updating"。
 - WebM 和 MP4 各录 5 s、1200 × 800 的视频，保存后尺寸、时长和画面都正确。拒绝 MP4 时，录制保存为 WebM，并显示 "MP4 isn't supported in this browser: saved as WebM."。
 - Export → Video → Record 会关闭对话框，顶部栏显示 "Recording 0:02" 和 Stop，按 Stop 保存这次录制。隐藏标签页会停止并保存，并显示 "Recording stopped because the tab was hidden."。录制不增加长任务，静止的画布也照样录成帧。
 - 撤销能恢复 Response 的值；Sensitivity、Release 和四个响应值在重新载入页面后仍然保留。
+
+---
+
+# 阶段 I：平静的刺与不动的文字块
+
+> **实现状态：** 已完成，尚未合并（分支 `feature/calm-thorns`，从 `develop` 的 f4483b5 分出，2026-10-14）。声音播放时文字块保持不动；Thorn 之前的步骤做小幅变化时，刺留在原处；打开 Thorn 时，刺每次只在少数几个字母上变化。关闭 Thorn 时，实时调度的请求、提交和 Freeze 与之前完全相同；只有文字块的位置改为由滑块值下的字母决定。详见 PRD 第 11 节。
+
+起因：在一段 Sound 驱动 Thorn 的录屏中，整个文字块在抖动，所有字母的刺同时乱跳。排版量的是实时字母的轮廓，所以种子跳变、处在不同档位的字母和大多数预设都会让文字块逐帧移动。Thorn 按锚点在每次变形之后的轮廓上的位置给它们排序，所以 Distortion、Crumple 或 Ripple 走一档，或 Distortion 换一个种子，几乎每个字母的刺都会在每个实时帧（每秒最多 30 帧）重新挑选，而闪烁限制看不到这些变化；Experimental 种子跳一次，所有字母一起重新挑选；档位还会缩放 Reach，所以强烈字母的刺可能长出好几倍。
+
+1. **不动的文字块**（`src/specimen/artboard.ts` 中的 `placementScene`、`src/state/useDerivedGeometry.ts`、`src/components/CanvasViewport.tsx`）：
+   - Sound 驱动字母时，`layoutArtboard` 按滑块场景摆放文字块，也就是滑块值下的字母（没有 Sound 时显示的那些），实时字母画在这个位置上。行和笔位来自前进宽度，所以两个场景的行相同；只有按轮廓量出的框不同。无论效果、种子、预设或 Response 设置如何，Sound 都不会移动文字块。
+   - 滑块值下的字母通常来自平常的编辑。实时播放中滑块、文字、字体或排版改变时，等这些改变停下 200 ms（`SLIDER_SCENE_DELAY_MS`）后，用 `geometryClient.ensure()` 请求还缺的字形：每次改变一个请求，而不是每帧一个。它们到齐之前，由同一段排好的文字上一次完整算好的滑块字母让文字块留在原处；没有的话，由实时场景摆放。
+   - 超出画布的警告也按滑块值下的字母计算（`placement`），`loadSliderScene`（导出）在它们算好后直接复用。
+   - 被扭得比滑块形状更远的实时字母可能伸出画板边缘：画布上仍然显示它，预览和视频会在边缘把它截掉。Freeze 会改变滑块值，所以那时文字块可能移动一次。视频在同一位置画同一个场景，所以视频里的文字块也不动。关闭 Sound 时一切照旧。
+2. **稳定的刺锚点**（`src/geometry/thorn.ts` 中的 `ThornAnchors`、`src/geometry/experimental.ts`、`pipeline.ts`）：
+   - `deriveGeometry` 把 Distortion 之前的字母（经过 Flatten 或 Random anchors、Squaring、Anchor spacing 与 reduction、Grid snapping 和 Angle lock 之后）交给 `applyExperimental`，作为 Thorn 的参考轮廓。Thorn 在参考轮廓上按种子、轮廓和锚点位置的哈希给候选锚点排序，每根刺的方向（锚点两侧各 0.06 em 范围内轮廓的走向，`THORN_WINDOW`）、偏转、长度和倾斜也都从参考轮廓取。
+   - 每个选中的锚点都跟着 Distortion、Crumple、Ripple、Whorl 和 Slipstream（以及预算的简化和 Slipstream 的重画）走到它变成的那个顶点，所以刺仍然从实际画出的轮廓上的一个顶点长出。它的方向经过同样的变形，而这些变形按没有 Distortion 时的墨迹框摆放，所以改变 Distortion 永远不会重新挑选，只会让刺稍稍转向（在测试中，Crumple 和 Ripple 之下最多 2.5°）；会指进实际画出的字母里的刺，会被镜像到墨迹之外。
+   - 轮廓重叠的地方，锚点逐个挑选：取在其他轮廓之外的锚点，够多时还要离它们 0.1 em 以上（`THORN_CLEARANCE`），而不是整条轮廓跳过：Roboto 有些字母画成横在竖笔上的拱或碗，以前它们没有一个锚点算在外侧。
+   - Whorl 缓存了它最大的环间转角（`largestStep`，只取决于参数），因为现在一个变形可能要建两次。
+   - 同一个种子挑出的锚点与之前的版本不同，所以旧的保存会话会显示别的刺。Thorn 的滑块、范围和默认值都没有变；Anchors 仍然在一个固定列表的末尾增减刺，Reach 仍然只缩放刺的长度；每个输出仍然只有 `M`、`L` 和 `Z`。
+3. **Thorn 轮次**（`src/sound/letters.ts` 中的 `turnGroups`、`ThornTurns`、`turnSets`；`src/sound/live.ts`；`src/sound/types.ts` 中的 `THORN_TURNS = { groups: 5, gapMs: 250 }`）：
+   - **轮次目标**（`isTurnTarget`）：除 Distortion 的目标（包括它的种子）以及 Crumple 和 Ripple 的 Amount 之外的所有目标，也就是 Thorn 的各个滑块、Experimental 种子（所以 Crumple 和 Slipstream 也按轮次换种子）、Distortion 之前的每个 Geometry 滑块和种子（包括 Random anchors 的种子），以及 Crumple、Ripple、Whorl 和 Slipstream 的其他滑块。实时值中 Thorn 打开时，它们按轮次传到字母，档位（Motion contrast、Pitch reactive）不缩放它们；无论 Thorn 开关，Thorn 的滑块都从不缩放。刺能稳稳经过 Distortion 和那两个 Amount 的变化，所以它们仍然共用、连续变化。
+   - **分组：** 画出的字母（按 `letterSlots` 的计数）分成 5 个由完整字形 id 组成的轮次组，每组最多 ceil(N / 5) 个字母：字形按出现次数从多到少（次数相同时按字形 id 的哈希）放进剩余空间最多的组，所以每组都分散在整段文字中。只有任何一组都整个放不下的字形，才按出现位置拆开。字母较少时，有些组是空的，轮到时直接跳过。同样的字母只改样式时保留分组。
+   - **一轮：** 上一轮已经显示到画面上、并且过了 250 ms 之后，下一组（依次轮流）如果自己的状态与实时的轮次状态不同，就取得实时状态：换了种子或刺的数量、Thorn 开关变了、某个滑块相差半次闪烁摆幅（滑道的 5%）以上，或者声音把某个滑块放回了它自己的值。只要另有组的状态不同，状态没有不同、或没有字母的组就放弃这一轮。所以每 250 ms 最多约五分之一的字母的刺发生变化，每个字母的刺最多每 1.25 s 变化一次。
+   - **闪烁限制：** 一轮的大小（`turnSwing`：这一组占文字的份额乘以它的滑块移动的距离，换一个种子算整条滑道）达到滑道的 10% 时，要从共用的额度中扣除；被拒绝时这一轮等待，这一组保持原来的状态。
+   - **重新开始**（所有组都立即取得实时状态，不算一轮，不扣额度）：Sound 开始驱动时、Thorn 被打开时，以及文字中的字母改变时（`sameLetters`：编辑文字，或换了会改变字形的字体或大小写；只改同一段文字的样式时保留分组）。新增或删除映射的变化按轮次传到各组。手动拖动一个声音保持在它自己值上的滑块，会立即传到每一组。
+   - **帧：** 帧自己的参数仍然是共享的实时值，滑块标记、状态和 Freeze 都用它。字母显示它所在档位的值加上它所在组的轮次状态，所以一帧的字母最多显示 15 组参数（3 个档位 × 5 个组），而它的请求总是还带着共享参数：最多 16 组。共享参数只为显示它的字母的字形请求（加上选中的字形，用于它的统计：`FrameJob.within`、`shownGlyphs`），其他每组参数只为自己的字形请求。每个字母仍然是滑块和种子输入框能给出的结果。
+   - **缓存：** `LIVE_KEPT_KEYS` 从 6 提高到 32。客户端保留最近四个实时请求（`LIVE_ASKS`）中最多组数的两倍，至少 6 组（`LIVE_MIN_KEYS`），最多 32 组，所以画面上的帧和正在计算的帧都放得下。
+   - 关闭 Thorn 时没有轮次，调度器的输出与之前逐字节相同。
+4. **中性测试：** `tests/sound/neutral.test.ts` 中调度器的哈希现在覆盖起始设置会打开 Thorn 的预设之外的所有预设（只有 Flare，测试会检查这一点），因为 Thorn 轮次有意改变了 Flare 的实时帧。它的锁定值（`32a8121b`）从 4a54e5d 的导出取得，从不取自新代码，并在 arm64 和 x64（在 Rosetta 下运行的官方 x64 版 Node 22.23.3）上分别用导出和新代码检查过。其他锁定值不变。
+5. **测试：** 快速测试新增三个文件，现在共 34 个：
+   - `tests/geometry/thorn-anchors.test.ts`，在两种测试字体上用录屏中的设置：Distortion 的强度和种子（包括少数锚点模式）不改变任何挑选和方向；Distortion、Crumple 或 Ripple 走一档，至少 90% 的刺保留（根部沿轮廓 0.05 em 以内，方向 10° 以内），没有一个字母的刺全部换掉，而换一个 Experimental 种子保留的不到 25%；在 Crumple 和 Ripple 之下把 Distortion 从 46 改为 47、60 或 92，刺的转角中位数最多 0.05°，最大 2.5°；Anchors 在一个固定列表的末尾增减；用重叠轮廓画成的字母仍然长刺。
+   - `tests/sound/turns.test.ts`：分组（五组，每组最多 ceil(N / 5) 个，分散在整段文字中，放得下时字形保持完整）、轮次状态和它包含哪些目标、档位不缩放轮次目标、每次一组且相隔 250 ms、被拒绝的一轮会等待、空组跳过时间、重新开始、新映射按轮次传递、Freeze 写入共享值、关闭 Thorn 时不变，以及在默认文字上用 Flare 加 Level 驱动 Distortion 的端到端测试：每 250 ms 最多五分之一的字母变化，每个字母最多每 1.25 s 变化一次。
+   - `tests/specimen/placement.test.ts`：实时播放时按滑块字母摆放文字块，同一段排好的文字上一次的滑块字母暂时顶替，以及退回实时场景。
+   - 修改：`tests/sound/neutral.test.ts`（见上）和 `tests/worker/geometryClient.test.ts`（每帧 15 组时保留两帧，帧变小后又回到 6 组）。
+6. **点击区只用直线：** 从阶段 G 起，带刺的字形靠一份看不见的、由字体曲线（`Q` 和 `C` 命令）组成的副本接收点击，这是画布上剩下的唯一一处曲线。现在它改用和 Curve flattening 画出的一样的轮廓（`PolygonGlyph.clickOutline`，Thorn 运行过时在 `src/geometry/pipeline.ts` 里设置），所以画布上完全没有曲线。点选的效果和以前一样：前进宽度乘整行的矩形和字母的原始形状会选中它；刺，以及效果从字母里拉出去的花瓣或拖尾，都不会。几何 worker 的缓存也把这些点计算在内。`tests/specimen/glyphTarget.test.ts` 检查每种视图下都只有直线段，并检查花瓣处的点击交给后面的字母；`tests/geometry/thorn.test.ts` 检查无论 Random anchors、Squaring、Anchors、Grid & angles、Distortion 或各个效果怎么改，点击区都是展平后的原始轮廓。在无头 Chrome 中用下面的设置检查：15 个字母的点击区都只有直线段，在字母轮廓内侧取的每个点都选中这个字母，真实点击画布上的刺尖不会选中任何字母。
+7. **测量结果：**
+   - Node 端到端（EB Garamond 187 像素，"Hello / This is / Ming"，Response 为中性值，与 Flare 类似的设置），改动前后：字母的刺每秒变化从 283.9 次降到 7.2 次（算上 Distortion 和两个 Amount 在内的所有形状变化，从 299.7 次降到 7.4 次）；任意 250 ms 内刺变化的字母最多从 15 个降到 3 个；同一字母两次刺变化之间最短从 33 ms 变为 1331 ms；文字块移动 0 px；几何计算每秒占用 135 ms，原来是 340 ms；没有曲线。
+   - 无头 Chrome（Roboto，"Hello / This is / Ming"，15 个字母；三根刺的 Thorn、Crumple、Ripple 和 Distortion；Beat 驱动 Experimental 种子和刺的数量，Level 驱动 Reach 和 Distortion 的强度；42 s 测试音轨）：8 s 内文字块只有一个位置，任意 250 ms 内最多 3 个字母变化，同一字母两次变化之间至少 1533 ms，每秒 7.9 次变化，没有曲线，Live 30 fps。
+
+阶段验收：
+- `npm run build` 和 `npm test`（34 个文件）通过；CJK 检查不输出任何内容；每个输出仍然只有 `M`、`L` 和 `Z`。
+- `tests/sound/neutral.test.ts` 在 x64 和 arm64 上都通过：每个不带 Thorn 的预设给出的请求、帧和 Freeze 都与 4a54e5d 时相同。
+- Sound 驱动字母时，无论效果、种子、预设或 Response 设置如何，文字块都保持不动。
+- Distortion、Crumple 或 Ripple 走一档，或 Distortion 换一个种子，至少 90% 的刺留在原处、指向不变；换一个 Experimental 种子仍会重新挑选。
+- 打开 Thorn 时，任意 250 ms 内最多约五分之一的字母换刺，每个字母最多每 1.25 s 换一次，并且都在闪烁限制之内。
+- 画布的绘制和点击都只用直线段：打开 Thorn 时，字母靠展平后的原始轮廓接收点击，从不靠它的刺。

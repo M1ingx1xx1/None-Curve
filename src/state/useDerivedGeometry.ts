@@ -1,13 +1,19 @@
-import { useCallback, useDeferredValue, useMemo } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import { paramsKey } from '../geometry/cache'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
 import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
 import type { LiveView } from '../sound/live'
-import { layoutArtboard, type ArtboardLayout } from '../specimen/artboard'
-import { placePolygons, shapeSpecimen, type SpecimenScene } from '../specimen/scene'
+import { layoutArtboard, placementScene, type ArtboardLayout, type SliderPlacement } from '../specimen/artboard'
+import { placePolygons, shapeSpecimen, type PolygonLookup, type SpecimenScene } from '../specimen/scene'
 import { geometryClient, useGlyphGeometry } from './geometryClient'
 import type { AppState } from './types'
+
+/**
+ * While Sound drives the letters, how long (ms) the sliders, text, font and typography must rest before the sliders'
+ * own letters that place the text block are asked for: each request competes with the live frames for the worker.
+ */
+const SLIDER_SCENE_DELAY_MS = 200
 
 export type GlyphGeometry =
   | { kind: 'none' }
@@ -21,6 +27,13 @@ function readSource(font: LoadedFont | null, glyph: GlyphRef | null) {
   } catch (error) {
     return { source: null, error: error instanceof Error ? error.message : String(error) }
   }
+}
+
+/** The glyph's result computed in this font for these settings (not an earlier one standing in), or null. */
+function settled(font: LoadedFont, key: string, index: number): ReturnType<PolygonLookup> {
+  const found = geometryClient.holds(font.id) ? geometryClient.lookup(key, index) : null
+  if (!found || found.stale) return null
+  return 'error' in found.entry ? { error: found.entry.error } : { polygon: found.entry.geometry.polygon }
 }
 
 export interface DerivedGeometryState {
@@ -47,7 +60,18 @@ export interface GeometryState {
   derived: DerivedGeometryState
   /** The text set with the current polygons (earlier ones for glyphs still being computed). */
   scene: SpecimenScene | null
+  /**
+   * Where `scene` sits on the artboard. While Sound drives the letters, the block is placed by the sliders'
+   * own letters (placementScene), so the live frames never move it.
+   */
   layout: ArtboardLayout | null
+  /**
+   * The scene `layout` places the block by: `scene`, except while Sound drives the letters, when it is the
+   * sliders' own letters (the live scene only until those are first computed). For measures that should
+   * not follow the live frames, such as whether the text runs past the canvas edge (the exports use the
+   * sliders' letters too).
+   */
+  placement: SpecimenScene | null
   /** True while text or typography changes are being laid out, or glyphs are being computed. */
   scenePending: boolean
   /**
@@ -70,15 +94,17 @@ export interface GeometryState {
  * canvasEm), so the canvas, Sound's live frames and the exports share one key. `live` is the frame
  * Sound is driving (useLiveFrame): when its parameters differ from the sliders, the glyphs are computed
  * and shown with them, as live requests, and letters that react by other amounts show their own level.
+ * The text block stays placed by the sliders' own letters meanwhile (placementScene).
  */
 export function useGeometry(state: AppState, text: string, params: GeometryParams, live?: LiveView): GeometryState {
   const { font, selectedGlyph } = state.document
   const { typography, artboard } = state.params
   const key = useMemo(() => paramsKey(params), [params])
   // Live parameters equal to the sliders' change nothing: the sliders' own params and key are used, as without Sound.
+  // With Thorn turns, letters can still show other settings while the shared live values are the sliders' own.
   const liveParams = live?.params
   const liveKey = useMemo(() => (liveParams && liveParams !== params ? paramsKey(liveParams) : key), [liveParams, params, key])
-  const isLive = liveKey !== key
+  const isLive = liveKey !== key || !!live?.letters
   const shownParams = isLive && liveParams ? liveParams : params
   const shownKey = isLive ? liveKey : key
 
@@ -103,7 +129,8 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   // them; after a text edit they wait for the next frame.
   const slots = useMemo(() => (shaped ? letterSlots(shaped) : NO_SLOTS), [shaped])
   const letters = isLive ? lettersOn(live?.letters, slots) : null
-  const geometry = useGlyphGeometry(font, shownParams, shownKey, indices, isLive, letters?.jobs)
+  // With Thorn turns, the shown parameters only for the glyphs of the letters that show them (and the selected glyph).
+  const geometry = useGlyphGeometry(font, shownParams, shownKey, indices, isLive, letters?.jobs, letters?.sharedGlyphs)
 
   const scene = useMemo(
     () =>
@@ -119,13 +146,50 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
         : null,
     [shaped, geometry, isLive, letters, shownKey],
   )
+
+  // The sliders' own letters while Sound drives the letters, which place the text block (placementScene).
+  // Usually kept from normal editing; when the sliders, text, font or typography change while live, the
+  // glyphs still missing are asked for once they have rested SLIDER_SCENE_DELAY_MS (so a dragged slider asks
+  // once, not every frame of the drag), and the block keeps its place meanwhile.
+  // (The same settings have the same key in every font: what was asked for belongs to its font.)
+  const [asked, setAsked] = useState<{ font: LoadedFont; key: string; lookup: PolygonLookup } | null>(null)
+  const sliderScene = useMemo(() => {
+    if (!isLive || !font || !shaped) return null
+    const known = asked && asked.font === font && asked.key === key ? asked.lookup : null
+    return placePolygons(shaped, (index, occurrence) => known?.(index, occurrence) ?? settled(font, key, index))
+  }, [isLive, shaped, font, key, asked])
+  const sliderPending = (sliderScene?.pendingGlyphs ?? 0) > 0
+  useEffect(() => {
+    if (!sliderPending || !font || !shaped) return
+    const abort = new AbortController()
+    const timer = setTimeout(() => {
+      geometryClient.ensure(font, params, key, shaped.indices, abort.signal).then(
+        (lookup) => setAsked({ font, key, lookup }),
+        () => {},
+      )
+    }, SLIDER_SCENE_DELAY_MS)
+    return () => {
+      clearTimeout(timer)
+      abort.abort()
+    }
+  }, [sliderPending, font, shaped, params, key])
+  // The sliders' letters last set in full for this text (without Sound, the scene shown) stand in meanwhile:
+  // kept by an effect, read by a render where the sliders' letters are pending.
+  const sliderLetters = isLive ? sliderScene : scene
+  const lastSlider = useRef<SliderPlacement | null>(null)
+  useEffect(() => {
+    if (shaped && sliderLetters && sliderLetters.pendingGlyphs === 0) lastSlider.current = { shaped, scene: sliderLetters }
+  }, [shaped, sliderLetters])
+  const placement = scene && shaped ? placementScene(scene, isLive, shaped, sliderScene, lastSlider.current) : null
+
   const loadSliderScene = useCallback(async () => {
     if (!isLive || !font || !shaped) return scene
+    if (sliderScene && !sliderPending) return sliderScene
     return placePolygons(shaped, await geometryClient.ensure(font, params, key, shaped.indices))
-  }, [isLive, font, shaped, params, key, scene])
+  }, [isLive, font, shaped, params, key, scene, sliderScene, sliderPending])
   const layout = useMemo(
-    () => (font && scene ? layoutArtboard(scene, deferredTypography, artboard, font.metrics.unitsPerEm) : null),
-    [font, scene, deferredTypography, artboard],
+    () => (font && placement ? layoutArtboard(placement, deferredTypography, artboard, font.metrics.unitsPerEm) : null),
+    [font, placement, deferredTypography, artboard],
   )
 
   const source = useMemo(() => readSource(font, selectedGlyph), [font, selectedGlyph])
@@ -150,6 +214,7 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     },
     scene,
     layout,
+    placement,
     scenePending: deferredText !== text || deferredTypography !== typography || (scene?.pendingGlyphs ?? 0) > 0,
     loadSliderScene,
     letterSlots: slots,

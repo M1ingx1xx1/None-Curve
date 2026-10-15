@@ -17,6 +17,11 @@ interface CanvasViewportProps {
   scene: SpecimenScene | null
   /** The artboard the text is set on, its colours, and its size settings. */
   layout: ArtboardLayout | null
+  /**
+   * The scene `layout` places the text by (useGeometry): the sliders' own letters while Sound drives them, so
+   * the edge warning does not follow the live frames. Defaults to `scene`.
+   */
+  placement?: SpecimenScene | null
   palette: PaletteParams
   artboard: ArtboardParams
   onArtboardChange: (patch: Partial<ArtboardParams>) => void
@@ -98,6 +103,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     view,
     scene,
     layout,
+    placement,
     palette,
     artboard,
     onArtboardChange,
@@ -135,8 +141,9 @@ export default function CanvasViewport(props: CanvasViewportProps) {
   const interactive = font !== null && scene !== null && layout !== null && scene.glyphCount > 0
   // Text outside the artboard is shown on the canvas but cut off in the preview and in exports.
   // Measured on the letters' outlines, so text set flush against an edge is fine; thorns past the edge
-  // are intended and do not count.
-  const overflows = interactive && textOverflows(scene, layout)
+  // are intended and do not count. While Sound drives the letters, measured on the sliders' own letters, which
+  // place the block and are what the exports show.
+  const overflows = interactive && textOverflows(placement ?? scene, layout)
   const zoomBy = (factor: number) => onViewChange({ zoom: clampZoom(view.zoom * factor) })
   const outlineDescription = outlineViews.find((o) => o.value === view.outline)?.description ?? ''
 

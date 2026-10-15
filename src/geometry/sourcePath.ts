@@ -1,6 +1,6 @@
 // Pure helpers that describe source curves for rendering. No React, no DOM.
 
-import type { Point, PolygonGlyph, SourceGlyph } from './types'
+import type { Point, PolygonContour, PolygonGlyph, SourceGlyph } from './types'
 
 const fmt = (n: number) => (Math.round(n * 100) / 100).toString()
 const pt = (p: Point) => `${fmt(p.x)} ${fmt(p.y)}`
@@ -9,7 +9,7 @@ const pt = (p: Point) => `${fmt(p.x)} ${fmt(p.y)}`
 // Path strings are cached per outline object: a text repeats the same glyphs many times, and every
 // copy on the canvas and the preview would otherwise build the same (long) string again.
 const sourcePaths = new WeakMap<SourceGlyph, string>()
-const polygonPaths = new WeakMap<PolygonGlyph, string>()
+const polygonPaths = new WeakMap<PolygonContour[], string>()
 
 export function sourceGlyphToPath(glyph: SourceGlyph): string {
   let path = sourcePaths.get(glyph)
@@ -98,10 +98,15 @@ export function sourceGlyphBounds(glyph: SourceGlyph): Bounds | null {
 
 /** SVG path data (font units, y-up) for a polygon: only M, L, and Z commands. */
 export function polygonGlyphToPath(polygon: PolygonGlyph): string {
-  let path = polygonPaths.get(polygon)
+  return contoursToPath(polygon.contours)
+}
+
+/** SVG path data (font units, y-up) for polygon contours: only M, L, and Z commands. */
+export function contoursToPath(contours: PolygonContour[]): string {
+  let path = polygonPaths.get(contours)
   if (path === undefined) {
-    path = polygon.contours.map((c) => `M${c.points.map(pt).join('L')}Z`).join('')
-    polygonPaths.set(polygon, path)
+    path = contours.map((c) => `M${c.points.map(pt).join('L')}Z`).join('')
+    polygonPaths.set(contours, path)
   }
   return path
 }
