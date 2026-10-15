@@ -576,7 +576,7 @@ Acceptance:
 
 # Phase I: Calm thorns and a still text block
 
-> **Implementation status:** built, not merged yet (branch `feature/calm-thorns`, off `develop` at f4483b5, 2026-10-14). While Sound plays, the text block holds still, Thorn keeps its thorns in place through small changes made before it, and with Thorn on the thorns change a few letters at a time. With Thorn off, the live scheduler's requests, commits, and Freeze are exactly as before; only the block's placement now comes from the letters at the slider values. See PRD section 11.
+> **Implementation status:** built (branch `feature/calm-thorns`, 2026-10-15; released in #59). While Sound plays, the text block holds still, Thorn keeps its thorns in place through small changes made before it, and with Thorn on the thorns change a few letters at a time. With Thorn off, the live scheduler's requests, commits, and Freeze are exactly as before; only the block's placement now comes from the letters at the slider values. See PRD section 11.
 
 Why: in a screen recording made with Thorn under Sound, the whole block shook and the thorns jumped on every letter at once. Layout measured the live letters' outlines, so seed jumps, letters on levels, and most presets moved the block from frame to frame. Thorn ranked its anchors by their position on the outline after every warp, so one step of Distortion, Crumple, or Ripple, or a new Distortion seed, picked nearly every letter's thorns afresh on every live frame (up to 30 a second), unseen by the flash limit; one Experimental seed jump re-picked every letter together; and levels scaled Reach, so a strong letter's thorns could grow many times longer.
 
