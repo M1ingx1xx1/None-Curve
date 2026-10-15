@@ -300,6 +300,17 @@ export const RESPONSE_LIMITS = {
 
 export const NEUTRAL_RESPONSE: ResponseSettings = { strength: 1, contrast: 0, pitchReactive: 0, melody: 0 }
 
+/**
+ * Thorn turns (letters.ts, live.ts): while Sound drives the letters with Thorn on, their thorns change a few letters
+ * at a time. The drawn letters are split into `groups` turn groups of whole glyph ids (with fewer letters, some groups
+ * hold none and their turns only pass the time). Each letter shows the settings that move its thorns (Thorn's, the
+ * Experimental seed, and the shapes Thorn picks its anchors on: isTurnTarget) as its group took them at its last
+ * turn; a turn hands the live ones to the next group, round robin, at most every `gapMs` on screen. So a letter's
+ * thorns change at most once every groups × gapMs (1.25 s), whatever the text's length, and at most about a fifth of
+ * the letters every gapMs.
+ */
+export const THORN_TURNS = { groups: 5, gapMs: 250 } as const
+
 /** Everything the Response group sets: the engine's Sensitivity and Release, and the four response values. Saved and undone. */
 export type SoundSettings = FeatureSettings & ResponseSettings
 

@@ -77,7 +77,7 @@ export default function App({ restored }: AppProps) {
   )
   // Without a font there are no letters to move: Sound does not drive.
   const live = useLiveFrame(baseParams, font !== null)
-  const { derived, scene, layout, scenePending, loadSliderScene, letterSlots } = useGeometry(state, displayText, baseParams, live)
+  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots } = useGeometry(state, displayText, baseParams, live)
   // After useGeometry, so a new text's first live frame asks for the glyphs the canvas now shows.
   useLiveLetters(letterSlots)
 
@@ -367,6 +367,7 @@ export default function App({ restored }: AppProps) {
               view={state.params.view}
               scene={scene}
               layout={layout}
+              placement={placement}
               palette={palette}
               artboard={artboard}
               onArtboardChange={setArtboard}

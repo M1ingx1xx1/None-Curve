@@ -4,9 +4,14 @@
 // was. A failure means a change reached the neutral path; fix the change, not the hash.
 //
 // Four outputs, each hashed (FNV-1a): modulate for every preset over seeded frames and jumps, and the live
-// scheduler's geometry requests, commits and Freeze over 3 s of seeded frames per preset (with fake time, as
-// live.test.ts), over exact values; the FeatureFrame fields the analyser gives today, to 10 significant digits; and
-// the default text in Roboto under Flicker at one frame, from the pipeline to the SVG.
+// scheduler's geometry requests, commits and Freeze over 3 s of seeded frames per preset without Thorn (with fake
+// time, as live.test.ts), over exact values; the FeatureFrame fields the analyser gives today, to 10 significant
+// digits; and the default text in Roboto under Flicker at one frame, from the pipeline to the SVG.
+//
+// The scheduler leaves out Flare, the only preset whose start turns Thorn on: while Thorn is on, its settings and
+// the Experimental seed reach the letters by turns, a few letters at a time (THORN_TURNS, src/sound/letters.ts and
+// live.ts), which changes Flare's live frames on purpose; tests/sound/turns.test.ts tests it. The scheduler's pin was
+// taken again from 4a54e5d with Flare left out, and checked there and on the new code on arm64 and x64.
 //
 // The features are rounded because V8's Math.log2 and Math.log10 can differ in the last bit between its x64 and arm64
 // builds (Pitch and Level dB here, by about 2e-16): exact, they hash differently on CI (Linux x64) than on an Apple
@@ -27,10 +32,10 @@ import { analyse, drumHits, hiHat, hitTimes, mix, noise, reseed, sine, type Prob
 import { loadFixture } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
 
-// Pinned at 4a54e5d (features to 10 significant digits, on arm64 and x64). Never edit.
+// Pinned at 4a54e5d (features to 10 significant digits, on arm64 and x64; the scheduler without Flare). Never edit.
 const PINNED = {
   modulate: 'ef59f235',
-  scheduler: '4d1c107e',
+  scheduler: '32a8121b',
   features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',
@@ -124,6 +129,8 @@ const quietFrame = (time: number): FeatureFrame => ({ ...SILENT_FRAME, time })
 const mappingsOf = (preset: Preset): Mapping[] => preset.mappings.map((m, i) => ({ ...m, id: `${preset.id} ${i}` }))
 const startOf = (preset: Preset): GeometryParams => presetSettings(BASE, preset).params
 const entries = (values: ReadonlyMap<string, number>) => JSON.stringify([...values])
+/** The presets whose start leaves Thorn off: Thorn turns change the live frames of the others (Flare). */
+const UNTHORNED = PRESETS.filter((preset) => startOf(preset).experimental.thorn?.enabled !== true)
 
 describe('neutral Sound reproduces 4a54e5d', () => {
   it('modulate: every preset over 64 seeded frames, with 0 and 3 jumps', () => {
@@ -148,10 +155,11 @@ describe('neutral Sound reproduces 4a54e5d', () => {
     expect(hash.hex).toBe(PINNED.modulate)
   })
 
-  it('live scheduler: every preset for 3 s at 60 fps, its requests, commits and Freeze', () => {
+  it('live scheduler: every preset without Thorn for 3 s at 60 fps, its requests, commits and Freeze', () => {
+    expect(PRESETS.filter((preset) => !UNTHORNED.includes(preset)).map((preset) => preset.id)).toEqual(['flare'])
     const hash = fnv1a()
     let live = 0
-    for (const preset of PRESETS) {
+    for (const preset of UNTHORNED) {
       const r = rig()
       r.live.setBase(startOf(preset))
       r.live.setMappings(mappingsOf(preset), true)
@@ -163,7 +171,7 @@ describe('neutral Sound reproduces 4a54e5d', () => {
       live += r.commits.filter((c) => c.startsWith('[')).length
       hash.add(`${preset.id}|${r.requests.join(';')}|${r.commits.join(';')}|${freeze ? JSON.stringify(freeze) : 'null'}`)
     }
-    expect(live).toBeGreaterThan(PRESETS.length * 20)
+    expect(live).toBeGreaterThan(UNTHORNED.length * 20)
     expect(hash.hex).toBe(PINNED.scheduler)
   })
 

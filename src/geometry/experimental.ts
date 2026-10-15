@@ -11,11 +11,11 @@
 import { GlyphBudget, type BudgetStats } from './budget'
 import { crumpleFolds, crumpleIsOn, crumpleWarp } from './crumple'
 import { emptyOverlapStats, type OverlapStats } from './overlaps'
-import { inkBox, rippleFolds, rippleIsOn, rippleWarp } from './ripple'
+import { inkBox, rippleFolds, rippleIsOn, rippleWarp, type Box } from './ripple'
 import { emptySlipstreamStats, slipstreamFolds, slipstreamIsOn, slipstreamMerges, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
-import { applyThorn, emptyThornStats, thornIsOn, type ThornStats } from './thorn'
+import { applyThorn, emptyThornStats, ThornAnchors, thornIsOn, type ThornStats } from './thorn'
 import type { ExperimentalParams, Point, PolygonGlyph } from './types'
-import { applyWarp, emptyWarpStats, type CreaseMarks, type WarpStats } from './warp'
+import { applyWarp, emptyWarpStats, type CreaseMarks, type Warp, type WarpStats } from './warp'
 import { whorlFolds, whorlIsOn, whorlWarp } from './whorl'
 
 export const EXPERIMENTAL_LIMITS = {
@@ -51,7 +51,15 @@ export function experimentalFolds(params: ExperimentalParams): boolean {
   return crumpleFolds(params.crumple) || rippleFolds(params.ripple) || whorlFolds(params.whorl) || slipstreamFolds(params.slipstream)
 }
 
-export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalParams): { polygon: PolygonGlyph; stats: ExperimentalStats } {
+/**
+ * `reference`: the letter before Distortion (the pipeline gives it), with the same contours as `polygon`. Thorn picks its
+ * anchors there, so the moves that Distortion and the effects before Thorn make neither re-pick nor turn its thorns.
+ */
+export function applyExperimental(
+  polygon: PolygonGlyph,
+  params: ExperimentalParams,
+  reference: PolygonGlyph = polygon,
+): { polygon: PolygonGlyph; stats: ExperimentalStats } {
   const seed = Math.trunc(Number.isFinite(params.seed) ? params.seed : 1) | 0
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const vertices = polygon.contours.reduce((n, c) => n + c.points.length, 0)
@@ -72,48 +80,57 @@ export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalPar
   let result = polygon
   // Which vertices earlier effects added at creases, so a later effect's tidying may remove them too.
   let marks: CreaseMarks | undefined
+  // Thorn's anchors, picked on the reference and followed through every step below to the vertices they became.
+  const anchors = thornIsOn(params.thorn) ? new ThornAnchors(reference, polygon, params.thorn, seed, unitsPerEm) : undefined
   // Keeps the glyph within its vertex budget. A simplified glyph may cross itself, so from then on it is merged at the end.
   const withinBudget = () => {
     const fitted = budget.fit(result)
     if (fitted === result) return
+    anchors?.redrawn(result, fitted)
     result = fitted
     marks = undefined
     tangled = true
   }
+  // Distortion's move of each side of the ink box, while Thorn is on: the warps below place themselves by the ink box,
+  // so Thorn's window ends go through each warp placed by the box with this move taken back (undistorted). Otherwise a
+  // Distortion change would shift where the warps fall for them and turn the thorns.
+  const moved = anchors ? boxMove(inkBox(reference), inkBox(polygon)) : null
+  const undistorted = (box: Box): Box =>
+    moved ? { minX: box.minX - moved.minX, minY: box.minY - moved.minY, maxX: box.maxX - moved.maxX, maxY: box.maxY - moved.maxY } : box
+  // Warps the glyph (makeWarp gives the warp at a share of its strength, placed by `box`) and keeps it within its budget.
+  const warp = (box: Box | null, makeWarp: (scale: number, box: Box | null) => Warp): WarpStats => {
+    let full: Warp | undefined
+    const warpAt = (scale: number) => (scale === 1 ? (full ??= makeWarp(1, box)) : makeWarp(scale, box))
+    const warped = applyWarp(result, warpAt, unitsPerEm, marks, tangled, budget.maxWarpPoints)
+    if (anchors) anchors.warped(result, marks, warped.polygon, warped.marks, warpAt(1), moved && box ? makeWarp(1, undistorted(box)) : warpAt(1))
+    ;({ polygon: result, marks } = warped)
+    withinBudget()
+    return warped.stats
+  }
   if (crumpleIsOn(params.crumple)) {
     // Crumple holds the middle of each glyph's ink box in place, so letters bend without drifting.
-    const box = inkBox(result)
-    const anchor = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : undefined
-    const crumpled = applyWarp(result, (scale) => crumpleWarp(params.crumple, seed, unitsPerEm, scale, polygon.ref.index, anchor), unitsPerEm, marks, tangled, budget.maxWarpPoints)
-    ;({ polygon: result, stats: stats.crumple, marks } = crumpled)
-    withinBudget()
+    stats.crumple = warp(inkBox(result), (scale, box) => {
+      const anchor = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : undefined
+      return crumpleWarp(params.crumple, seed, unitsPerEm, scale, polygon.ref.index, anchor)
+    })
   }
   // Ripple, Whorl, and Slipstream place themselves by the ink box of what they receive, so the same letter
   // always looks alike.
   const rippleBox = rippleIsOn(params.ripple) ? inkBox(result) : null
-  if (rippleBox) {
-    const rippled = applyWarp(result, (scale) => rippleWarp(params.ripple, rippleBox, unitsPerEm, scale), unitsPerEm, marks, tangled, budget.maxWarpPoints)
-    ;({ polygon: result, stats: stats.ripple, marks } = rippled)
-    withinBudget()
-  }
+  if (rippleBox) stats.ripple = warp(rippleBox, (scale, box) => rippleWarp(params.ripple, box ?? rippleBox, unitsPerEm, scale))
   const whorlBox = whorlIsOn(params.whorl) ? inkBox(result) : null
-  if (whorlBox) {
-    const whorled = applyWarp(result, (scale) => whorlWarp(params.whorl, whorlBox, unitsPerEm, scale), unitsPerEm, marks, tangled, budget.maxWarpPoints)
-    ;({ polygon: result, stats: stats.whorl, marks } = whorled)
-    withinBudget()
-  }
+  if (whorlBox) stats.whorl = warp(whorlBox, (scale, box) => whorlWarp(params.whorl, box ?? whorlBox, unitsPerEm, scale))
   const slipstreamBox = slipstreamIsOn(params.slipstream) ? inkBox(result) : null
   // True once Slipstream's cuts have redrawn the outline, which merges any folds so far.
   let streamMerged = false
   // The outline Slipstream could not merge (it broke down or was too complex), so the final merge need not try it again.
   let unmergeable: PolygonGlyph | null = null
   if (slipstreamBox) {
-    const streamed = applyWarp(result, (scale) => slipstreamWarp(params.slipstream, seed, slipstreamBox, unitsPerEm, scale), unitsPerEm, marks, tangled, budget.maxWarpPoints)
-    ;({ polygon: result, marks } = streamed)
-    withinBudget()
+    const streamed = warp(slipstreamBox, (scale, box) => slipstreamWarp(params.slipstream, seed, box ?? slipstreamBox, unitsPerEm, scale))
     const marked = slipstreamTrailsAndCuts(result, params.slipstream, seed, unitsPerEm, budget)
-    stats.slipstream = { ...streamed.stats, trails: marked.trails, cuts: marked.cuts }
+    stats.slipstream = { ...streamed, trails: marked.trails, cuts: marked.cuts }
     if (marked.trails > 0 || marked.merge?.applied || marked.merge?.tooComplex) {
+      anchors?.redrawn(result, marked.polygon)
       result = marked.polygon
       // Trails, the redrawn outline, and the budget's simplification change the vertices: the crease marks no longer line up.
       marks = undefined
@@ -126,7 +143,7 @@ export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalPar
       else unmergeable = result
     }
   }
-  // Slipstream's merge adds a vertex at every crossing, and Thorn picks its anchors from what is left.
+  // Slipstream's merge adds a vertex at every crossing; Thorn finds its anchors (picked on the reference) among what is left.
   withinBudget()
   // The letter before its thorns grow, which layout measures instead of the outline (see PolygonGlyph.layoutBox).
   let layout: Required<Pick<PolygonGlyph, 'layoutBox' | 'layoutHull'>> | null = null
@@ -135,7 +152,7 @@ export function applyExperimental(polygon: PolygonGlyph, params: ExperimentalPar
     if (layoutBox) layout = { layoutBox, layoutHull: convexHull(result) }
     const reductions = budget.reductions
     // Once Slipstream has merged the folds, the outlines no longer cross, so Thorn's warps are checked again.
-    ;({ polygon: result, stats: stats.thorn } = applyThorn(result, params.thorn, seed, unitsPerEm, marks, tangled, budget))
+    ;({ polygon: result, stats: stats.thorn } = applyThorn(result, params.thorn, seed, unitsPerEm, marks, tangled, budget, anchors))
     if (budget.reductions > reductions) tangled = true
   }
   if ((tangled || stats.thorn.applied) && result !== unmergeable) {
@@ -175,4 +192,11 @@ function convexHull(polygon: PolygonGlyph): Point[] {
     return kept
   }
   return [...half(points), ...half([...points].reverse())]
+}
+
+/** How far Distortion moved each side of the ink box (from `before` to `after`), or null when it moved none. */
+function boxMove(before: Box | null, after: Box | null): Box | null {
+  if (!before || !after) return null
+  const move = { minX: after.minX - before.minX, minY: after.minY - before.minY, maxX: after.maxX - before.maxX, maxY: after.maxY - before.maxY }
+  return move.minX || move.minY || move.maxX || move.maxY ? move : null
 }
