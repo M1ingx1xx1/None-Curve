@@ -27,6 +27,8 @@ const paths = {
   // Record and Stop, as on a recorder: a circle and a square.
   record: 'M8 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9z',
   stop: 'M4.5 4.5h7v7h-7z',
+  // A mapping's expand button: points down while closed (the button turns it up while open).
+  chevron: 'M4 6l4 4 4-4',
 } as const
 
 export type IconName = keyof typeof paths

@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { getRecorder, useRecording, type RecordOptions } from '../export/recorder'
 import { RECORD_LENGTHS, VIDEO_LIMITS, formatClock, videoSize, type RecordLength, type VideoFormat } from '../export/videoFormat'
 import { LIVE_LIMITS, useLiveDriving, useLiveStatus } from '../sound/live'
@@ -173,9 +173,10 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
 /**
  * The Sound tab's Record group: Record and Stop with the time recorded, the take's options, the live frame
  * rate, and how the last take went. Start and stop are announced by the header's recording indicator, which
- * is always on the page (a take can start from the Export dialog with this tab closed).
+ * is always on the page (a take can start from the Export dialog with this tab closed). `collapsible` puts its
+ * heading on a button that shows or hides the rest.
  */
-export function RecordGroup({ artboard, transparent }: RecordSetup) {
+export function RecordGroup({ artboard, transparent, collapsible = false }: RecordSetup & { collapsible?: boolean }) {
   const { phase, elapsedMs, options, take, message } = useRecording()
   const sound = useSoundState()
   const status = useLiveStatus()
@@ -187,12 +188,26 @@ export function RecordGroup({ artboard, transparent }: RecordSetup) {
   // Read at every render: the recorder re-renders this when it changes (a font, a file, the sound opening).
   const blocked = idle ? recorder.blocker() : null
   const limitMs = take ? take.limitMs : plannedLimitMs(options, sound)
+  // Collapsed, only the heading shows; a take goes on. Nothing is lost: the header's indicator shows and
+  // announces the start and how the take ended, and the blocker only matters to Record, which is in the body.
+  // Open at first, for the visit.
+  const [open, setOpen] = useState(true)
+  const bodyId = useId()
 
   return (
-    <fieldset className="group sound">
-      <legend>Record</legend>
+    <fieldset className={collapsible ? 'group sound sound-box record-group' : 'group sound'}>
+      <legend>
+        {collapsible ? (
+          <button type="button" className="group-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)}>
+            <Icon name="chevron" />
+            Record
+          </button>
+        ) : (
+          'Record'
+        )}
+      </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
-      <div className="group-body">
+      <div className="group-body" id={bodyId} hidden={collapsible && !open}>
         <div className="field">
           <div className="sound-row">
             {/* aria-disabled, not disabled: the button keeps keyboard focus while the sound opens, and turns into Stop. */}

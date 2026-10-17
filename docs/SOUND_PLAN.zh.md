@@ -74,7 +74,7 @@
   - Depth 从 −100% 到 100%。Depth 为负时，声音越响，值越小。Pan 的范围是 −1 到 1，所以它让滑块双向移动：声音偏左时往一边，偏右时往另一边。
   - Beat 是脉冲，所以用在滑块上时，值在每次起音时按 Depth 跃起，再在 Release 时间内回落到滑块值。Melody 在每个新音符上也一样。
   - Response 分组的 Strength 和 Melody tracking 作用在这个总和上（第 5.1 节）；Motion contrast 和 Pitch reactive 随后按字母起作用（第 5.2 节）。
-- **种子目标**（跳变）：Distortion · Seed、Random anchors · Seed 和 Experimental 的 Seed。换一个新种子，每个锚点就落到新的地方，所以种子每跳变一次就前进一个。该行的滑块显示 **Rate**（频率，0–100%），而不是 Depth：
+- **种子目标**（跳变）：Distortion · Seed、Random anchors · Seed 和 Experimental 的 Seed。换一个新种子，每个锚点就落到新的地方，所以种子每跳变一次就前进一个。该行的 Depth 旋钮改为 **Rate**（频率，0–100%）：
   - 用 Beat 时，种子随起音前进：Rate 100% 每次起音都前进，50% 每隔一次，25% 每四次一次。
   - 用其他特征时，跳变频率最多为每秒 4.8 次 × Rate × 特征值（Pan 取其大小，偏左偏右都一样）。两次测量之间的间隔最多按 100 ms 计算，所以卡顿之后不会一下子放出一串跳变。
   - 同一帧里要跳变的种子一起跳；超出闪烁限制（第 10 节，种子和被驱动的滑块共用）的跳变会被跳过。
@@ -96,11 +96,11 @@
   - 没有载入字体时没有字母可动，所以 Sound 不驱动：什么都不变，标记和实时种子保持隐藏，状态栏不显示 Live，种子也不跳变。载入字体后才开始驱动；Sound 驱动时字体没了，滑块和种子会完全恢复。
 - **和设置一起保存与撤销：**
   - 映射和 Response 的六个值（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking；第 5.1 节）和设置一起保存在浏览器里，下次打开时恢复。Drive letters 不保存：它开始时是打开的，开启减少动态效果时则是关闭的（第 10 节）。来源和录制选项（第 9 节）也不保存。
-  - 添加或删除一行，改变它的 Feature、Target 或开关，拖动一次 Depth 或 Rate（每次拖动一步），拖动一次任一 Response 滑块（每次拖动一步），Reset sound，选择目标连同它打开的设置，Load，以及 Freeze，各是一个撤销步骤，和设置共用同一段历史。撤销和重做也会清掉上一次 Load 或所选目标的提示，因为它们已不再描述当前状态。实时帧从不进入历史。
+  - 添加或删除一行，改变它的 Feature、Target 或开关，拖动一次 Depth 或 Rate（每次拖动一步），拖动一次六个声音旋钮中的任一个（每次拖动一步），Reset sound，选择目标连同它打开的设置，Load，以及 Freeze，各是一个撤销步骤，和设置共用同一段历史。撤销和重做也会清掉上一次 Load 或所选目标的提示，因为它们已不再描述当前状态。实时帧从不进入历史。
 
 ### 5.1 响应控件
 
-Response 分组设置字母如何回应声音，作用于所有映射。它的六个滑块：
+Response 设置决定字母如何回应声音，作用于所有映射。它的六个旋钮（Sensitivity 和 Release 在 Input 框里，其余四个在 Response 框里）：
 
 | 控件 | 范围、步长 | 默认值 | 作用 |
 |---|---|---|---|
@@ -339,17 +339,18 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 
 - 第三个标签页 **Sound**，在 Geometry 和 Experimental 旁边。和现在一样，浏览器会记住选中的标签页。这个标签页的控件在第一次打开时才加载，之后一直保留。它的分组依次是：Source、Levels、Mappings、Response、Record。
 - **Source（来源）：** File / Microphone，默认为 File（没有 Off）。File 有 Choose file、播放/暂停、Loop、进度和文件名。Microphone 有 Start listening / Stop listening 和使用中的指示标记；选中它会暂停文件，选回 File 会释放麦克风。
-- **电平表**（Levels 分组）：
-  - 每个特征紧凑地占一行（名称、条形、数字），按五个组各有一个小标题，每个标题带一个 ⓘ，用通俗的话解释该组的电平表。Melody 的电平表在 Tone 组里，排在 Pitch 之后；音高置信度没有电平表。
-  - 数字：Level 以 dB 显示，Pitch 以 Hz 显示（静音时为 "—"），Pan 显示偏向哪一边（"L 40"、"R 40"，离中心 5% 以内为 "C"），其余以百分比显示；没有播放时为 "—"。Pan 的条形从中间向左或向右填充。
-  - Beat 是脉冲条：每次起音时跳到满格，然后回落。它取代了原来的指示灯，并且和所有条形一样没有过渡动画，所以开启减少动态效果时照样工作。
-  - 条形每帧更新，数字每秒最多更新 10 次，提供给屏幕阅读器的值每秒最多 4 次。
+- **布局**（NOCUR-71）：像合成器插件一样分成五个框：Transport（来源、Drive letters、Preset 和 Load、Freeze 以及帧率）、Input（Sensitivity 和 Release 旋钮，旁边是电平表）、Response（四个旋钮）、Modulation（映射）和 Record（可收起）。每个数值设置都是旋钮（`Knob.tsx`：拖动、按键、双击恢复默认值、在数字框里输入数值），范围和档位与它取代的滑块相同。
+- **电平表**（在 Input 框里）：
+  - 一排 11 个竖直的小 LED 电平表，每个特征一个，带简称（LVL … PAN；全名在提示文字和无障碍名称里）。电平表下方的一行显示 Level 的数字，或者鼠标指着的、或有键盘焦点的电平表的数字（只占一个 Tab 停靠点，用左右方向键移动），并带一个 ⓘ，用通俗的话解释所有分组。音高置信度没有电平表。
+  - 数字：Level 以 dB 显示，Pitch 以 Hz 显示（静音时为 "—"），Pan 显示偏向哪一边（"L 40"、"R 40"，离中心 5% 以内为 "C"），其余以百分比显示；没有播放时为 "—"。电平表按整格点亮；Pan 从中间向上（右）或向下（左）点亮。
+  - Beat 是脉冲：每次起音时跳到满格，然后回落。和所有电平表一样，它没有过渡动画，所以开启减少动态效果时照样工作。
+  - 电平表每帧更新，数字每秒最多更新 10 次，提供给屏幕阅读器的值每秒最多 4 次。
 - **Drive letters：** 一个开关（`role="switch"` 的复选框，画成按主题配色的小滑轨和圆钮）；只有打开时声音才会移动字母。开启减少动态效果时它一开始是关的，并说明原因（第 10 节）。Strength 为 0% 时，它下方有一行说明 "Strength is 0%: the letters hold still."。
 - **映射：**
   - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，说明 Load 会恢复哪些默认值、撤销可以恢复之前的设置和映射，并给每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。这一行下方有一个状态行，说明上一次 Load 做了什么（“Loaded X. Turned off …. Other Geometry and Experimental settings back to defaults (seeds kept).”），一直保留到下一次 Load、在列表里选了另一个预设，或者撤销或重做为止。
-  - 每行有 Feature（与电平表相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、Depth 和开关。在种子上，Depth 显示为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
+  - 每行占一行：开关 LED、Feature（与电平表说明相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、一个小的双极 Depth 旋钮，以及打开该行详情的展开按钮（同一时间只展开一行：Remove，以及 Rate 的 ⓘ；以后每行的更多设置放在这里）。在种子上，Depth 改为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
-  - **Add mapping** 和每行一个删除按钮。删除一行后，键盘焦点移到下一行的删除按钮（没有时移到上一行的，都没有时移到 Add mapping）。
+  - **Add mapping**，以及每行详情里的 Remove。删除一行后，键盘焦点移到下一行的展开按钮（没有时移到上一行的，都没有时移到 Add mapping）。
   - **Freeze**，在这个分组的末尾，旁边显示 "Live · N fps"。录制视频期间它不可用（`aria-disabled`，保留键盘焦点），并显示 "Freeze is off while recording."。它的 ⓘ 还说明，按不同幅度响应的字母会取共享值。
   - 变慢的提示，低于约 8 fps 时显示："Too slow to follow the sound: try fewer effects or a shorter text."；Motion contrast 或 Pitch reactive 大于 0 时改为 "Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive."。
 - **Response**（取代原来的 Analysis 分组）：依次是 Sensitivity、Strength、Motion contrast、Release、Pitch reactive 和 Melody tracking（第 5.1 节），每个都是带数值（dB、% 或 ms）和通俗 ⓘ 说明的滑块；然后是 **Reset sound**，它用一个撤销步骤把六个值都恢复，已经是默认值时不可用。
