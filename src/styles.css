@@ -1518,13 +1518,35 @@ input[type='range']:disabled {
   color: var(--faint);
 }
 
-/* Light / dark interface, the last item of the status bar (bottom right). Small enough not to change
-   the bar's height. */
+/* Reset all settings, then light / dark interface: the last items of the status bar (bottom right), close
+   together. Small enough not to change the bar's height. */
+.statusbar-reset,
 .theme-toggle {
   flex: none;
   align-self: center;
-  margin: -2px 0 -2px auto;
   border-color: var(--border);
+}
+
+.statusbar-reset {
+  margin: -2px -12px -2px auto;
+  padding: 2px 5px;
+  line-height: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.statusbar-reset:hover:not([aria-disabled='true']) {
+  color: var(--text);
+}
+
+.statusbar-reset .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.4;
+}
+
+.theme-toggle {
+  margin: -2px 0;
 }
 
 .theme-toggle button {
