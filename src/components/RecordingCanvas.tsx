@@ -15,6 +15,8 @@ interface RecordingCanvasProps {
   /** The bottom-right preview's look and scale, for a take with "Use the preview look". */
   previewLook: PreviewLook
   previewScale: number
+  /** The canvas's Fill: off, the video draws outlines only, as the SVG export. */
+  fill: boolean
 }
 
 /**
@@ -27,7 +29,7 @@ export default function RecordingCanvas(props: RecordingCanvasProps) {
   return take ? <TakeCanvas {...props} take={take} /> : null
 }
 
-function TakeCanvas({ scene, layout, artboard, palette, previewLook, previewScale, take }: RecordingCanvasProps & { take: TakeSpec }) {
+function TakeCanvas({ scene, layout, artboard, palette, previewLook, previewScale, fill, take }: RecordingCanvasProps & { take: TakeSpec }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const targetRef = useRef<DrawTarget<Path2D> | null>(null)
   // Each polygon's outline as a Path2D, built once: repeated letters and unchanged shapes reuse it.
@@ -36,7 +38,7 @@ function TakeCanvas({ scene, layout, artboard, palette, previewLook, previewScal
   const colors = take.previewLook ? previewColors(palette, previewLook) : palette
   const blur = take.previewLook && layout ? previewBlur(previewLook.blur, previewScale, layout.unitsPerPx) : 0
   const { ink, paper } = colors
-  const look = useMemo<VideoLook>(() => ({ ink, paper, blur }), [ink, paper, blur])
+  const look = useMemo<VideoLook>(() => ({ ink, paper, blur, outlineOnly: !fill }), [ink, paper, blur, fill])
 
   // First: hand the canvas to the recorder, which captures it once the sound runs and a frame is drawn.
   useLayoutEffect(() => {

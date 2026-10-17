@@ -49,8 +49,8 @@ export const outlineViews: { value: OutlineView; label: string; description: str
   { value: 'compare', label: 'Compare', description: 'Final polygon with the original curves overlaid' },
 ]
 
-const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'; label: string }[] = [
-  { key: 'showFill', label: 'Fill' },
+const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'; label: string; title?: string }[] = [
+  { key: 'showFill', label: 'Fill', title: 'Off: outlines only, here, in the preview, and in SVG, PNG and video exports' },
   { key: 'showSkeleton', label: 'Skeleton' },
   { key: 'showVertices', label: 'Vertices' },
   { key: 'showMetrics', label: 'Metrics' },
@@ -94,8 +94,8 @@ export function Legend({ view }: { view: ViewParams }) {
 
 /**
  * Top right: the result canvas. It shows only the text from the input, set with the current font
- * and every geometry parameter. The outline and layer controls are for this canvas only: the preview
- * shows the export.
+ * and every geometry parameter. The outline and layer controls are for this canvas only, except Fill:
+ * off, the preview and the SVG, PNG and video exports draw outlines only too. The preview shows the export.
  */
 export default function CanvasViewport(props: CanvasViewportProps) {
   const {
@@ -186,12 +186,13 @@ export default function CanvasViewport(props: CanvasViewportProps) {
           ))}
         </div>
         <div className="segmented" role="group" aria-label="Layers">
-          {toggles.map(({ key, label }) => (
+          {toggles.map(({ key, label, title }) => (
             <button
               key={key}
               type="button"
               disabled={!font}
               aria-pressed={view[key]}
+              title={title}
               onClick={() => onViewChange({ [key]: !view[key] })}
             >
               {label}

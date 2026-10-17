@@ -1,11 +1,12 @@
 // The artboard drawn into a 2D canvas, for video: the same placement as the SVG export (specimenPaths:
 // the group's scale and offset, each glyph's position, slant and flip, fill rule nonzero) and the same
-// look (paper, ink, and the blur over the glyphs alone). Straight segments only (moveTo, lineTo,
-// closePath). No DOM: the canvas comes in as a Painter.
+// look (paper, ink, the blur over the glyphs alone, and outlines only when the canvas's Fill is off).
+// Straight segments only (moveTo, lineTo, closePath). No DOM: the canvas comes in as a Painter.
 
 import type { PolygonGlyph } from '../geometry/types'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
+import { OUTLINE_MITER_LIMIT, outlineStrokeWidth } from './svg'
 
 /** Where a polygon's outline is written: a Path2D in the browser. */
 export interface PathSink {
@@ -25,16 +26,25 @@ export interface Painter<P> {
   fillRect(x: number, y: number, w: number, h: number): void
   clearRect(x: number, y: number, w: number, h: number): void
   fill(path: P, rule: 'nonzero'): void
+  stroke(path: P): void
   drawImage(image: unknown, x: number, y: number): void
   fillStyle: unknown
+  strokeStyle: unknown
+  lineWidth: number
+  lineJoin: string
+  miterLimit: number
   filter: string
 }
 
-/** The video's colours, and the blur in artboard pixels (previewBlur; 0 is none). */
+/**
+ * The video's colours, the blur in artboard pixels (previewBlur; 0 is none), and outlines only (the canvas's
+ * Fill off: stroked as the SVG export strokes them, with no fill; left out, filled).
+ */
 export interface VideoLook {
   ink: string
   paper: string
   blur: number
+  outlineOnly?: boolean
 }
 
 /**
@@ -51,7 +61,7 @@ export interface DrawTarget<P> {
 
 /**
  * Paints the paper, then every drawn glyph (each occurrence, missing and pending glyphs left out) in the
- * ink, the artboard stretched over the whole canvas. A blur is drawn as the SVG draws it, over the glyphs
+ * ink, filled or (outlineOnly) stroked, the artboard stretched over the whole canvas. A blur is drawn as the SVG draws it, over the glyphs
  * as one layer, so overlapping letters blur together. Returns the glyphs drawn, and whether the blur
  * asked for was drawn (false when this canvas cannot blur).
  */
@@ -84,7 +94,13 @@ export function drawArtboard<P>(
   const ky = height / artboard.height
   const s = 1 / layout.unitsPerPx
   glyphs.setTransform(kx * s, 0, 0, ky * s, -layout.x * kx * s, -layout.y * ky * s)
-  glyphs.fillStyle = look.ink
+  if (look.outlineOnly) {
+    // Set under the group transform, as the SVG's stroke-width on the glyph group: in font units.
+    glyphs.strokeStyle = look.ink
+    glyphs.lineWidth = outlineStrokeWidth(layout.unitsPerPx)
+    glyphs.lineJoin = 'miter'
+    glyphs.miterLimit = OUTLINE_MITER_LIMIT
+  } else glyphs.fillStyle = look.ink
   const skew = scene.slant ? Math.tan((-scene.slant * Math.PI) / 180) : 0
   let drawn = 0
   for (const line of scene.lines) {
@@ -96,7 +112,8 @@ export function drawArtboard<P>(
       glyphs.translate(glyph.x, glyph.y)
       if (skew) glyphs.transform(1, 0, skew, 1, 0, 0)
       glyphs.scale(1, -1)
-      glyphs.fill(pathOf(polygon), 'nonzero')
+      if (look.outlineOnly) glyphs.stroke(pathOf(polygon))
+      else glyphs.fill(pathOf(polygon), 'nonzero')
       glyphs.restore()
       drawn++
     }

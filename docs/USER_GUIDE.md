@@ -53,7 +53,7 @@ The screen is split into two rows and five areas:
 2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
-5. **Preview** — a small picture of exactly what an SVG export would save: all your text, filled, on the canvas, with its own **Blur** slider and **Invert** button.
+5. **Preview** — a small picture of exactly what an SVG export would save: all your text on the canvas (filled, or as outlines when **Fill** is off), with its own **Blur** slider and **Invert** button.
 
 At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo and redo](#undo-and-redo) below), and an **Export…** button. While a video is being recorded, a red light, the time recorded (for example "Recording 0:12"), and a square stop button appear beside them (see [Record a video](#record-a-video)). Along the bottom a status line tells you what is shown and which settings are active.
 
@@ -177,7 +177,7 @@ If a new font fails to load, the previous font stays on screen.
 
 **Layers** — extra information you can switch on and off (only **Fill** is on at the start):
 
-- **Fill** — solid letters. Turn it off to see only the outlines.
+- **Fill** — solid letters. Turn it off to see only the outlines. This also changes what you export: with Fill off, the preview, the SVG, the PNG, and the video show the letters as thin outlines with nothing inside. A font file always has solid letters.
 - **Skeleton** — the points that define the original curves: blue squares sit on the curve, hollow orange circles are the "control points" that pull the curve, and thin lines connect them.
 - **Vertices** — green dots at every corner of the new straight-line shape.
 - **Metrics** — horizontal guide lines: ascender (top of tall letters like "h"), cap height (top of capitals), x-height (top of "x"), baseline (where letters sit), and descender (bottom of "p" and "g").
@@ -199,7 +199,7 @@ If a new font fails to load, the previous font stays on screen.
 
 The **Preview** (bottom right) shows the whole canvas exactly as an SVG export would save it — anything outside the canvas is cut off.
 
-- It always shows the finished, filled letters and nothing else. It does not follow the big canvas's Original / Flattened / Compare and layer buttons, its zoom, the snap grid, or the dashed boxes for missing characters: those only help you on the big canvas and are never exported.
+- It always shows the finished letters and nothing else: solid, or as outlines when **Fill** is off, just as they will be exported. Apart from Fill, it does not follow the big canvas's Original / Flattened / Compare and layer buttons, its zoom, the snap grid, or the dashed boxes for missing characters: those only help you on the big canvas and are never exported.
 - Its outlines are rounded the same way as the SVG file (see **Coordinate precision** in [Saving your work](#10-saving-your-work-export)), so what you see here is what you get.
 - With **Transparent background** (Color tab) on, the empty background shows as a checkerboard.
 - If saving the text as an SVG would fail, the preview says "Export would fail: …" with the reason instead.
@@ -695,8 +695,9 @@ Both save the canvas: its size, your text placed as on the canvas, and your colo
 1. Choose **SVG — main view** (shapes you can keep editing) or **PNG — main view** (a picture).
 2. For a transparent background (only the letters are drawn), tick **Transparent background** in the Color tab first.
 3. Optional: tick **Export the preview look** to save what the small preview shows instead — its blur, and its swapped colours if **Invert** is on. Set Blur and Invert in the preview first.
-4. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. The preview shows the letters at this precision too, and the app keeps your choice for next time. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
-5. Click **Download SVG** or **Download PNG**. If some letters are not ready yet at the current settings, the dialog says **Computing outlines…** and the download starts as soon as they are; **Cancel** stops it.
+4. **Solid or outlines only:** the image follows the canvas's **Fill** button. With Fill on (the usual), the letters are solid. With Fill off, they are drawn as outlines only — lines 2 px wide on the canvas (so 4 px in a 2× PNG), in the text colour, with nothing inside. The dialog tells you which one you will get; to change it, close the dialog and click **Fill** above the canvas.
+5. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. The preview shows the letters at this precision too, and the app keeps your choice for next time. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
+6. Click **Download SVG** or **Download PNG**. If some letters are not ready yet at the current settings, the dialog says **Computing outlines…** and the download starts as soon as they are; **Cancel** stops it.
 
 SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes contain only straight lines. A blurred SVG uses a blur effect that browsers and most design apps show; if an app ignores it, use PNG.
 
@@ -711,6 +712,7 @@ SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes con
 Good to know:
 
 - If you change any setting after building, build again before downloading.
+- A font file always has solid letters, even when **Fill** is off on the canvas; the dialog reminds you.
 - The new font keeps the original's **kerning** — the fine spacing between pairs such as "AV" — for the letters it contains, so text sets as it does on the canvas. Ligatures, the placing of accents on letters, kerning that depends on the neighbouring letters or on the language, and the original's other advanced features are not included. **What the font file does not include** in the dialog lists them all.
 - Letters are saved with the same weight, style (for example italic), slant, line spacing, and copyright and license details as the original font, so a Regular and a Bold you make install side by side like the originals.
 - Lines are spaced as on the canvas, on Mac and Windows alike. If letters reach far above or below their usual height (for example with Slipstream), a few older apps may space the lines further apart.
@@ -726,6 +728,8 @@ Good to know:
 2. Set **Format**, **Length**, **Include audio**, and **Use the preview look**. These are the same options as in the Sound tab's **Record** group: changing them here changes them there. The line under them shows the video's size, for example "1200 × 800 px · up to 30 fps · MP4".
 3. Click **Record**. The dialog closes and the take starts at once: a paused file starts playing, or the microphone starts listening. The top of the screen shows, for example, "Recording 0:02" and a square stop button.
 4. Click the stop button, or wait for the chosen **Length**. The video is saved when the take ends, and the header says what was saved.
+
+The video follows the canvas's **Fill** button like an image: with Fill off it shows outlines only, and the dialog says so.
 
 What each option does, what ends a take, and how the file is named are explained in [Record a video](#record-a-video).
 

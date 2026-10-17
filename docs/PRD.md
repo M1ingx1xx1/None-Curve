@@ -106,6 +106,7 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Preserve the contour direction and fill behavior needed to display counters correctly.
 - Provide sensible `viewBox` and precision settings.
 - Show the glyph and format details before download.
+- Follow the canvas's Fill: with Fill off, the SVG, PNG, and video draw outlines only, stroked in the text colour (2 canvas px, miter joins) with no fill, and the dialog says so; with Fill on they are filled, unchanged.
 
 ### P1: Anchor and geometry controls
 
@@ -125,11 +126,11 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 
 ### P1: Fill and specimen preview
 
-- Switch between outline and solid-fill modes.
+- Switch between outline and solid-fill modes. The mode carries into the preview and the SVG, PNG, and video exports; a font file is always filled.
 - Allow users to edit the preview text to inspect repeated glyphs, rhythm, counters, and spacing.
 - Preserve advances and kerning when supported by the parser and export pipeline; clearly label when they cannot be retained.
 - Provide toggles for available metric guides such as baseline and cap height.
-- The small preview beside the text input shows exactly what the SVG export will write: filled outlines at the export's coordinate precision, without the canvas's editing layers, guides, or grid, and a clear message when the export would fail.
+- The small preview beside the text input shows exactly what the SVG export will write: outlines at the export's coordinate precision, filled or (with Fill off) stroked, without the canvas's editing layers, guides, or grid, and a clear message when the export would fail.
 
 ### P2: Font-file export
 
@@ -137,7 +138,7 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Generate glyphs with straight-line polygon outlines.
 - Preserve advances, side bearings, and character mapping where possible.
 - Validate missing glyphs, invalid contours, and unsupported font features before export.
-- Inform users about supported scope and features that cannot be preserved.
+- Inform users about supported scope and features that cannot be preserved, and that a font file is always filled whatever the canvas's Fill shows.
 - Carry the source font's pair kerning between the exported glyphs, and give the file the canvas's line spacing on every platform.
 - Store every glyph a font file can hold: one that reaches beyond a font's limits, such as long Thorn tips, is trimmed to fit instead of left out, and the dialog names the glyphs trimmed or left out.
 - Build the file in the background so the editor stays responsive, with progress, an up-front estimate of its size (and a warning when it will be too large or slow), and a Cancel that stops the build at once.

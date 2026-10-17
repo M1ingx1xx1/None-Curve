@@ -539,6 +539,7 @@ export default function App({ restored }: AppProps) {
                   artboard={artboard}
                   precision={precision}
                   look={previewLook}
+                  fill={state.params.view.showFill}
                   onLookChange={setPreviewLook}
                   onScaleChange={setPreviewScale}
                 />
@@ -570,6 +571,7 @@ export default function App({ restored }: AppProps) {
         artboard={artboard}
         previewLook={previewLook}
         previewScale={previewScale}
+        fill={state.params.view.showFill}
         params={derived.params}
         paramsKey={derived.paramsKey}
         // Live shapes keep changing; exports use the sliders and compute whatever they still need.
@@ -587,6 +589,7 @@ export default function App({ restored }: AppProps) {
         palette={palette}
         previewLook={previewLook}
         previewScale={previewScale}
+        fill={state.params.view.showFill}
       />
     </div>
   )
