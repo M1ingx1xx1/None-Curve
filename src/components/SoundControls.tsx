@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { getRecorder } from '../export/recorder'
 import type { GeometryParams } from '../geometry/types'
 import type { SoundEngine } from '../sound/engine'
@@ -769,13 +769,33 @@ class MeterBoard {
 
 /**
  * A strip of small vertical LED meters, one per feature, fed straight from the engine's frames, and under it
- * the number of one of them: Level, or the meter under the pointer. Beat is a pulse: it jumps to full on each
- * onset and falls back. Memoised, so a parent's re-render leaves the elements the board writes into alone.
+ * the number of one of them: Level, or the meter under the pointer or with focus. The meters are one tab stop:
+ * Left and Right (Home, End) move along them, so the keyboard can show every number. Beat is a pulse: it jumps
+ * to full on each onset and falls back. Memoised, so a parent's re-render leaves the elements the board writes
+ * into alone.
  */
 const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton: ReactNode; hintId: string }) {
   const [board] = useState(() => new MeterBoard())
   const [shown, setShown] = useState<FeatureId>('level')
   const shownFeature = featureById(shown)
+  // The meter that holds the strip's tab stop: the last one focused.
+  const [stop, setStop] = useState<FeatureId>('level')
+
+  /** Left, Right, Home and End: focus moves along the meters, which shows each one's number. */
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const meters = board.meters
+    const at = meters.findIndex((m) => m.feature.id === stop)
+    const moves: Partial<Record<string, number>> = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: meters.length - 1 }
+    const next = moves[e.key]
+    if (next === undefined) return
+    e.preventDefault()
+    meters[Math.min(meters.length - 1, Math.max(0, next))].bar?.focus()
+  }
+
+  /** Back to Level when the pointer leaves, unless a meter has focus: then its number stays. */
+  const onPointerLeave = (e: PointerEvent<HTMLDivElement>) => {
+    setShown(e.currentTarget.contains(document.activeElement) ? stop : 'level')
+  }
 
   useSoundFrames(board.show)
   // Start from "nothing measured" before the first paint (the elements render empty).
@@ -786,7 +806,16 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
 
   return (
     <div className="led-strip-wrap">
-      <div className="led-strip" role="group" aria-label="Meters" onPointerLeave={() => setShown('level')}>
+      <div
+        className="led-strip"
+        role="group"
+        aria-label="Meters"
+        onPointerLeave={onPointerLeave}
+        onKeyDown={onKeyDown}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setShown('level')
+        }}
+      >
         {board.meters.map((meter) => (
           <div key={meter.feature.id} className="led-column" title={meter.feature.label} onPointerEnter={() => setShown(meter.feature.id)}>
             <div
@@ -794,6 +823,11 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
                 meter.bar = el
               }}
               className={meter.feature.bipolar ? 'led-meter led-meter-bipolar' : 'led-meter'}
+              tabIndex={meter.feature.id === stop ? 0 : -1}
+              onFocus={() => {
+                setStop(meter.feature.id)
+                setShown(meter.feature.id)
+              }}
               role="meter"
               aria-label={meter.feature.label}
               aria-valuemin={meter.feature.bipolar ? -100 : 0}

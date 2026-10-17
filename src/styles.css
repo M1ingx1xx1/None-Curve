@@ -2478,9 +2478,16 @@ input.number-field {
   line-height: 1.2;
 }
 
+/* Typing on the small knob: the box fits the 34px column ("-100" included), with no unit beside it (the box's
+   name still carries the unit), so it never runs into the row's expand button. */
 .knob-small .knob-value .number-field {
+  width: calc((var(--chars, 4) + 0.5) * 1ch + 4px);
   font-size: 0.68rem;
   padding: 0 1px;
+}
+
+.knob-small .knob-value .unit {
+  display: none;
 }
 
 /* Response: four knobs in a row, two by two on a narrow panel. */
@@ -2720,7 +2727,6 @@ input.number-field {
 .mapping-led input:checked + .mapping-led-light {
   border-color: var(--primary-edge);
   background: var(--primary);
-  box-shadow: 0 0 4px var(--primary-glow);
 }
 
 .mapping-led input:focus-visible + .mapping-led-light {

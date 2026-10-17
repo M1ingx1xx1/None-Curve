@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { undoHistory } from '../state/history'
 import { HintButton, type HintState } from './Hint'
 import NumberField, { decimals } from './NumberField'
 
@@ -211,7 +212,12 @@ export default function Knob({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onLostPointerCapture={endDrag}
-        onDoubleClick={() => set(defaultValue)}
+        // The double-click comes after the last pointer up, so the reset closes its own step: a drag or arrow
+        // key that follows is a step of its own.
+        onDoubleClick={() => {
+          set(defaultValue)
+          undoHistory.endGesture()
+        }}
         onKeyDown={onKeyDown}
       >
         <svg viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">

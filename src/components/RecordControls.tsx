@@ -188,7 +188,9 @@ export function RecordGroup({ artboard, transparent, collapsible = false }: Reco
   // Read at every render: the recorder re-renders this when it changes (a font, a file, the sound opening).
   const blocked = idle ? recorder.blocker() : null
   const limitMs = take ? take.limitMs : plannedLimitMs(options, sound)
-  // Collapsed, only the heading shows; a take goes on (the header's indicator still shows it). Open at first, for the visit.
+  // Collapsed, only the heading shows; a take goes on. Nothing is lost: the header's indicator shows and
+  // announces the start and how the take ended, and the blocker only matters to Record, which is in the body.
+  // Open at first, for the visit.
   const [open, setOpen] = useState(true)
   const bodyId = useId()
 
