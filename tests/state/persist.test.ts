@@ -127,14 +127,18 @@ describe('saved session', () => {
       strength: 0,
       contrast: 1,
     })
-    expect(read({ sensitivity: -3.4, releaseMs: 237, strength: 1.234, contrast: 0.456, pitchReactive: 0.33, melody: 1.97, extra: 1 })).toEqual({
+    // Steps of 1 dB, 1 ms and 0.01 (Release and the Response sliders went from 10 ms and 0.05 to these in NOCUR-63).
+    expect(read({ sensitivity: -3.4, releaseMs: 237.4, strength: 1.234, contrast: 0.456, pitchReactive: 0.333, melody: 1.967, extra: 1 })).toEqual({
       sensitivity: -3,
-      releaseMs: 240,
-      strength: 1.25,
+      releaseMs: 237,
+      strength: 1.23,
       contrast: 0.46,
-      pitchReactive: 0.35,
-      melody: 1.95,
+      pitchReactive: 0.33,
+      melody: 1.97,
     })
+    // Values saved on the coarser steps are still on the finer ones, so they come back as they were.
+    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95 }
+    expect(read(coarse)).toEqual(coarse)
     // Saved as JSON, the values come back exactly.
     const storage = new MemoryStorage()
     saveSession({ ...changedSession(), sound: { ...DEFAULT_SOUND_SETTINGS, strength: 0.15, contrast: 0.07 } }, storage)
@@ -270,6 +274,8 @@ describe('saved session', () => {
     expect(p.palette.paper).toBe(DEFAULT_SETTINGS.palette.paper)
     expect(session.previewLook).toEqual({ blur: 12, inverted: false })
     expect(session.precision).toBe(DEFAULT_PRECISION)
+    // The Blur slider's 0.1 px step; a blur saved on the old 0.5 px step stays as it was.
+    for (const [blur, expected] of [[2.34, 2.3], [2.5, 2.5]]) expect(readSession({ version: SESSION_VERSION, previewLook: { blur } })!.previewLook.blur).toBe(expected)
   })
 
   it('checks the mappings: at most 8, known features and targets, depth clamped, Rates never negative', () => {

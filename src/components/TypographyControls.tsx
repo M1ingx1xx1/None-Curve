@@ -104,7 +104,7 @@ export default function TypographyControls({ params, artboard, font, scene, load
           value={params.tracking}
           min={TYPOGRAPHY_LIMITS.minTracking}
           max={TYPOGRAPHY_LIMITS.maxTracking}
-          step={5}
+          step={1}
           unit="/1000 em"
           valueText={`${params.tracking} thousandths of an em`}
           onChange={(tracking) => update({ tracking })}

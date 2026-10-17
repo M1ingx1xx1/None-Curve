@@ -4,6 +4,7 @@ import type { Action } from '../state/editorState'
 import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import LiveMarker from './LiveMarker'
+import SliderNumber from './SliderNumber'
 import { sameControlProps } from './sameControlProps'
 
 interface SquaringControlsProps {
@@ -58,7 +59,14 @@ function SquaringControls({ params, stats, pending, disabled, dispatch }: Squari
               <label htmlFor="squaring-amount">Amount</label>
 
             </span>
-            <output htmlFor="squaring-amount">{percent > 0 ? `${percent}%` : 'Off'}</output>
+            <SliderNumber
+              {...SLIDER_RANGES['squaring.amount']}
+              value={params.amount}
+              scale={100}
+              unit="%"
+              label="Amount"
+              onCommit={(amount) => update({ amount })}
+            />
           </div>
           <span className="live-slider">
             <input

@@ -6,6 +6,7 @@ import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import SliderNumber from './SliderNumber'
 import { sameControlProps } from './sameControlProps'
 
 interface AnchorControlsProps {
@@ -56,10 +57,13 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
               <label htmlFor="anchor-spacing">Anchor spacing</label>
               <HintButton hint={spacingHint} topic="Anchor spacing" />
             </span>
-            <output htmlFor="anchor-spacing">
-              {spacingOn ? params.spacing : 'Off'}
-              {spacingOn && <span className="unit">u</span>}
-            </output>
+            <SliderNumber
+              {...SLIDER_RANGES['anchors.spacing']}
+              value={params.spacing}
+              unit="u"
+              label="Anchor spacing"
+              onCommit={(spacing) => update({ spacing })}
+            />
           </div>
           <span className="live-slider">
             <input
@@ -85,10 +89,13 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
               <label htmlFor="anchor-simplify">Anchor reduction</label>
               <HintButton hint={simplifyHint} topic="Anchor reduction" />
             </span>
-            <output htmlFor="anchor-simplify">
-              {reductionOn ? params.simplify : 'Off'}
-              {reductionOn && <span className="unit">u</span>}
-            </output>
+            <SliderNumber
+              {...SLIDER_RANGES['anchors.simplify']}
+              value={params.simplify}
+              unit="u"
+              label="Anchor reduction"
+              onCommit={(simplify) => update({ simplify })}
+            />
           </div>
           <span className="live-slider">
             <input

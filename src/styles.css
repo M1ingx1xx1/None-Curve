@@ -895,12 +895,6 @@ input[type='range']:disabled {
   width: clamp(80px, 12vw, 180px);
 }
 
-.text-preview-controls output {
-  min-width: 3.5em;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 .text-preview-canvas {
   position: relative;
   flex: 1;
@@ -1291,6 +1285,20 @@ input[type='range']:disabled {
   padding: 3px 6px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* A slider's number box in its head, where the readout was (SliderNumber): readout-sized, its unit after it. */
+.slider-number {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.slider-number .number-field {
+  width: 5.5em;
+  padding: 1px 4px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
 }
 
 /* Align: icon-only options (each keeps an aria-label and a tooltip). */
