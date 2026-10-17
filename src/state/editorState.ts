@@ -72,6 +72,8 @@ export type Action =
   /** Undo and redo: every settings group at once; the canvas view is kept. */
   | { type: 'restoreParams'; params: SettingsParams }
   | { type: 'resetView' }
+  /** Reset all: the state the editor first opens with, the font closed (an import in flight is dropped). */
+  | { type: 'resetAll' }
   | { type: 'updateExport'; patch: Partial<ExportMeta> }
   /** keepView leaves zoom and pan alone (selecting inside the text specimen). */
   | { type: 'selectGlyph'; glyph: GlyphRef | null; keepView?: boolean }
@@ -96,6 +98,8 @@ export function editorReducer(state: AppState, action: Action): AppState {
       }
     case 'restoreParams':
       return { ...state, params: { ...action.params, view: state.params.view } }
+    case 'resetAll':
+      return initialState
     case 'resetView':
       return { ...state, params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } } }
     case 'updateExport':

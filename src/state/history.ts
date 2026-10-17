@@ -1,6 +1,5 @@
 // Undo and redo: the settings (every parameter group but the canvas view), the text, the Sound mappings
-// and the Sound tab's Response group, as one history; Reset all settings (state/reset.ts) is one step of
-// it. A small store outside React state, read with a hook. Changes are recorded where they are made
+// and the Sound tab's Response group, as one history; Reset all (state/reset.ts) clears it. A small store outside React state, read with a hook. Changes are recorded where they are made
 // (App's dispatch and text setters, the mapping store, the Response sliders), never in the reducer, so it
 // stays pure; live Sound frames never dispatch, so they never enter the history.
 
@@ -34,7 +33,7 @@ export const HISTORY_LIMITS = {
 export interface HistoryState {
   canUndo: boolean
   canRedo: boolean
-  /** Counts undo, redo and Reset steps, so a panel can drop notices about the state it replaced. */
+  /** Counts undo, redo and resets, so a panel can drop notices about the state it replaced. */
   restores: number
 }
 
@@ -116,16 +115,14 @@ export class UndoHistory {
   }
 
   /**
-   * Replaces the whole state in one step (Reset all settings): `next` gets the current state and returns the
-   * state to put in its place, or null to change nothing. Undo brings back the state from before, redo this one.
+   * Puts `snapshot` in place and forgets every step (Reset all): afterwards there is nothing to undo or
+   * redo, so the reset itself cannot be undone. False, changing nothing, while a restore or a transaction runs.
    */
-  apply(next: (current: Snapshot) => Snapshot | null): boolean {
+  startOver(snapshot: Snapshot): boolean {
     const source = this.source
     if (this.restoring || this.transactions > 0 || !source) return false
-    const current = source.read()
-    const snapshot = next(current)
-    if (!snapshot) return false
-    this.push(current)
+    this.past = []
+    this.future = []
     this.put(source, snapshot)
     return true
   }
@@ -212,7 +209,7 @@ export function changedSettings(before: SettingsParams, after: SettingsParams): 
 
 export const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
-/** The undo shortcuts, for button titles. */
+/** The undo shortcuts, for hints. */
 export const UNDO_KEYS = IS_MAC ? { undo: '⌘Z', redo: '⇧⌘Z' } : { undo: 'Ctrl+Z', redo: 'Ctrl+Y' }
 
 type ShortcutEvent = Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>

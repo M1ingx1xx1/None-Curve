@@ -37,7 +37,7 @@ import {
   type SavedGlyph,
   type Session,
 } from './state/persist'
-import { DEFAULT_RESET_EXTRAS } from './state/reset'
+import { DEFAULT_RESET_EXTRAS, resetHistory } from './state/reset'
 import type { AppState, EditorParams, SettingsParams, ViewParams } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
@@ -86,6 +86,8 @@ interface AppProps {
 
 export default function App({ restored }: AppProps) {
   const saved = restored.session
+  // The last visit's session, for its font and glyph; Reset all forgets it.
+  const [lastVisit, setLastVisit] = useState(saved)
   const [state, dispatch] = useReducer(editorReducer, saved, startState)
   const importer = useFontImport(dispatch)
   const [text, setText] = useState(() => saved?.text ?? DEFAULT_TEXT)
@@ -166,8 +168,6 @@ export default function App({ restored }: AppProps) {
   )
   useEffect(() => listenForUndo(), [])
   const historyState = useHistoryState()
-  const undo = useCallback(() => undoHistory.undo(), [])
-  const redo = useCallback(() => undoHistory.redo(), [])
 
   const setTextCase = useCallback(
     (textCase: TextCase) => edit({ type: 'updateParams', group: 'typography', patch: { textCase } }),
@@ -247,13 +247,13 @@ export default function App({ restored }: AppProps) {
   // ---- The session saved for the next visit (state/persist.ts) ----
 
   // The font and glyph to reopen: the last visit's until a font loads in this one.
-  const fontToSave = useMemo(() => (font ? savedFont(font) : (saved?.font ?? null)), [font, saved])
+  const fontToSave = useMemo(() => (font ? savedFont(font) : (lastVisit?.font ?? null)), [font, lastVisit])
   const glyphToSave = useMemo<SavedGlyph | null>(
     () =>
       font
         ? selectedGlyph && { family: font.familyName, style: font.styleName, index: selectedGlyph.index, unicode: selectedGlyph.unicode }
-        : (saved?.glyph ?? null),
-    [font, selectedGlyph, saved],
+        : (lastVisit?.glyph ?? null),
+    [font, selectedGlyph, lastVisit],
   )
   const precision = state.document.export.precision
   const { outline, showFill, showSkeleton, showVertices, showMetrics } = state.params.view
@@ -330,7 +330,7 @@ export default function App({ restored }: AppProps) {
   // A Google Fonts face from the last visit is downloaded again, once. Started after StrictMode's second
   // mount: the first one's cleanup aborts any import in flight.
   const { importGoogle } = importer
-  const resumeFont = saved?.font ?? null
+  const resumeFont = lastVisit?.font ?? null
   const resumed = useRef(false)
   useEffect(() => {
     if (resumeFont?.kind !== 'google') return
@@ -438,10 +438,36 @@ export default function App({ restored }: AppProps) {
   const sessionNote =
     [
       crashNote ? 'The last visit closed while drawing, so its settings were not restored.' : '',
-      !font && saved?.font?.kind === 'local' ? `Last font: ${saved.font.fileName}. Import it again to continue.` : '',
+      !font && lastVisit?.font?.kind === 'local' ? `Last font: ${lastVisit.font.fileName}. Import it again to continue.` : '',
     ]
       .filter(Boolean)
       .join(' ') || null
+
+  // ---- Reset all (state/reset.ts): back to how the editor first opens; the history is cleared ----
+
+  const { cancel: cancelImport } = importer
+  const resetAll = useCallback(() => {
+    // The settings, text, mappings and Response, through the history, which forgets every step.
+    if (!resetHistory()) return
+    cancelImport()
+    current.current.state = initialState
+    dispatch({ type: 'resetAll' })
+    setPreviewLook(DEFAULT_RESET_EXTRAS.previewLook)
+    // The last visit's font is neither reopened nor saved again.
+    setLastVisit(null)
+    resumed.current = true
+    glyphToRestore.current = null
+    if (restoring.current !== 'done') {
+      clearRestoring()
+      restoring.current = 'done'
+    }
+    setConfigNotice(null)
+    setCrashNote(false)
+    mappingStore.setDrive(!mappingStore.getState().reducedMotion)
+    const engine = getSoundEngine()
+    if (engine.getState().playing) engine.pause()
+    if (engine.getState().listening) engine.stopMicrophone()
+  }, [cancelImport])
 
   // A video records the canvas as shown (recorder.ts): the font names the file, the artboard sets its size.
   const onExported = useCallback(
@@ -458,7 +484,7 @@ export default function App({ restored }: AppProps) {
 
   return (
     <div className="app">
-      <Header document={state.document} history={historyState} onUndo={undo} onRedo={redo} onOpenExport={openExport} />
+      <Header document={state.document} onOpenExport={openExport} />
       <HintsContext.Provider value={showAllHints}>
         <Workspace
           tools={
@@ -553,11 +579,9 @@ export default function App({ restored }: AppProps) {
         glyphGeometry={derived.result}
         shownParams={derived.shownParams}
         scene={scene}
+        text={text}
         extras={{ previewLook, precision }}
-        onResetExtras={() => {
-          setPreviewLook(DEFAULT_RESET_EXTRAS.previewLook)
-          dispatch({ type: 'updateExport', patch: { precision: DEFAULT_RESET_EXTRAS.precision } })
-        }}
+        onReset={resetAll}
       />
       <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importGoogleFont} />
       <ExportDialog
