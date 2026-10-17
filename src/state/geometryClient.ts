@@ -28,15 +28,9 @@ export interface GeometryLookup {
 const KEPT_KEYS = 4
 /**
  * Live parameter sets whose results are kept, least recently asked for dropped first: the frame on
- * screen and the one being computed, so twice the most sets a live request asked for lately (LIVE_ASKS),
- * between LIVE_MIN_KEYS (frames of up to three sets: letters reacting by different amounts) and
- * LIVE_KEPT_KEYS (up to sixteen: three levels times five Thorn turn groups, THORN_TURNS in
- * src/sound/types.ts, and the shared values). With Thorn turns, each set holds only the glyphs its letters show.
+ * screen and the one being computed, each up to three sets (letters reacting by different amounts).
  */
-export const LIVE_KEPT_KEYS = 32
-const LIVE_MIN_KEYS = 6
-/** How many recent live requests the number of sets kept follows. */
-const LIVE_ASKS = 4
+const LIVE_KEPT_KEYS = 6
 /** Worker results arriving within this many milliseconds are shown in one update. */
 const NOTIFY_MS = 50
 /**
@@ -118,8 +112,6 @@ export class GeometryClient {
   private version = 0
   /** The font and glyphs the canvas shows, for live frames asked for before they render (prefetch). */
   private shown: { font: LoadedFont; indices: readonly number[] } | null = null
-  /** How many parameter sets the latest live requests asked for (LIVE_ASKS of them), newest last. */
-  private liveSets: number[] = []
 
   /** When the worker last sent anything (or started). */
   private lastHeard = 0
@@ -225,7 +217,7 @@ export class GeometryClient {
   prefetchJobs(jobs: readonly FrameJob[]): boolean {
     const shown = this.shown
     if (shown === null) return false
-    const asked = jobs.map(({ params, key, indices, within }) => ({ params, key, indices: indices ?? shownGlyphs(shown.indices, within) }))
+    const asked = jobs.map(({ params, key, indices }) => ({ params, key, indices: indices ?? shown.indices }))
     return this.ask(shown.font, asked, true, 'prefetch')
   }
 
@@ -284,10 +276,6 @@ export class GeometryClient {
     this.useFont(font)
     // The asker's first parameter set, even when its glyphs are all known and it is not sent.
     const primary = jobs[0]?.key
-    if (live) {
-      this.liveSets.push(jobs.length)
-      if (this.liveSets.length > LIVE_ASKS) this.liveSets.shift()
-    }
     const missing = new Map<string, { params: GeometryParams; indices: Set<number> }>()
     jobs.forEach(({ params, key, indices }, n) => {
       // Settings that were a live frame (Freeze keeps one) become ordinary kept results; live settings
@@ -530,7 +518,7 @@ export class GeometryClient {
     if (!results) {
       results = new Map()
       kept.set(key, results)
-      const max = live ? Math.min(LIVE_KEPT_KEYS, Math.max(LIVE_MIN_KEYS, 2 * Math.max(0, ...this.liveSets))) : KEPT_KEYS
+      const max = live ? LIVE_KEPT_KEYS : KEPT_KEYS
       while (kept.size > max) kept.delete(kept.keys().next().value!)
     }
     results.set(index, entry)
@@ -586,15 +574,6 @@ export class GeometryClient {
   }
 }
 
-/**
- * The glyphs a live frame's set asks for out of those the canvas shows (`indices`, the selected glyph first): all of
- * them, or with `within` only the first and those in `within` (FrameJob.within). The canvas and the live scheduler's
- * request use it alike, so the canvas asks for nothing more once the frame is committed.
- */
-export function shownGlyphs(indices: readonly number[], within?: ReadonlySet<number>): readonly number[] {
-  return within ? indices.filter((index, n) => n === 0 || within.has(index)) : indices
-}
-
 /** True when every glyph in `missing` is among `pairs` (glyphs by parameter set). */
 function covers(pairs: Map<string, Set<number>>, missing: Map<string, { indices: Set<number> }>): boolean {
   for (const [key, { indices }] of missing) {
@@ -612,8 +591,7 @@ export const geometryClient = new GeometryClient()
  * arrive; until then `lookup` returns the glyph's previous shape (stale) or null. `live` marks
  * parameters Sound is driving (kept apart from the results of normal editing). `extra` asks for more
  * parameter sets in the same request (letters of a live frame that react by different amounts); their
- * results are read with `geometryClient.lookup`. `within`: of `indices`, these settings are asked for
- * only the first and those in `within` (shownGlyphs; a live frame with Thorn turns).
+ * results are read with `geometryClient.lookup`.
  */
 export function useGlyphGeometry(
   font: LoadedFont | null,
@@ -622,12 +600,9 @@ export function useGlyphGeometry(
   indices: readonly number[],
   live = false,
   extra?: readonly GeometryJob[],
-  within?: ReadonlySet<number> | null,
 ) {
   const version = useSyncExternalStore(geometryClient.subscribe, geometryClient.getVersion)
   const indicesKey = indices.join(',')
-  const asked = shownGlyphs(indices, within ?? undefined)
-  const askedKey = asked === indices ? '' : asked.join(',')
   const extraKey = extra?.map((job) => `${job.key}\u001f${job.indices.join(',')}`).join('\u001e') ?? ''
   // Before any effect: the live scheduler may ask for the next frame's glyphs in one.
   useLayoutEffect(
@@ -637,10 +612,10 @@ export function useGlyphGeometry(
   )
   useEffect(() => {
     if (!font) return
-    geometryClient.computeJobs(font, [{ params, key, indices: asked }, ...(extra ?? [])], live)
-    // `key` stands for `params`, `indicesKey` and `askedKey` for `asked`, `extraKey` for `extra`; `version` asks again after the worker restarts.
+    geometryClient.computeJobs(font, [{ params, key, indices }, ...(extra ?? [])], live)
+    // `key` stands for `params`, `indicesKey` for `indices` and `extraKey` for `extra`; `version` asks again after the worker restarts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [font, key, indicesKey, askedKey, extraKey, version, live])
+  }, [font, key, indicesKey, extraKey, version, live])
   return useMemo(() => ({ lookup: (index: number) => geometryClient.lookup(key, index), version }), [key, version])
 }
 

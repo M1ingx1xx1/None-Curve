@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
 import type { WorkerGeometry, WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
-import { GeometryClient, LIVE_KEPT_KEYS } from '../../src/state/geometryClient'
+import { GeometryClient } from '../../src/state/geometryClient'
 import { BASE } from '../helpers/params'
 
 class FakeWorker {
@@ -325,30 +325,6 @@ describe('geometry client', () => {
       expect(client.lookup('q1', 1)?.stale).toBe(true)
       expect(client.lookup('r1', 2)?.stale).toBe(true)
       expect(client.lookup('q2', 1)?.stale).toBe(true)
-    })
-
-    it('keeps two frames of live sets for frames of many (Thorn turn groups), and six again once frames are small', () => {
-      client.show(font('f'), [1, 2])
-      const made: string[] = []
-      // A frame of `sets` sets: the shared one and new ones.
-      const frame = (n: number, sets: number) => {
-        const jobs = [{ params: BASE, key: 'S' }, ...Array.from({ length: sets - 1 }, (_, k) => job(`${n}.${k}`, [1]))]
-        client.prefetchJobs(jobs)
-        for (const { key, indices } of worker().lastRequest.jobs) worker().reply(results(key, indices, true))
-        done()
-        made.push(...jobs.slice(1).map(({ key }) => key))
-      }
-      const kept = () => made.filter((key) => client.lookup(key, 1)?.stale === false)
-      // Fifteen sets a frame (three levels of five turn groups): the frame on screen and the one being computed fit.
-      for (let n = 1; n <= 4; n++) frame(n, 15)
-      expect(client.lookup('S', 1)?.stale).toBe(false)
-      expect(kept()).toEqual(made.slice(-kept().length))
-      expect(kept().length + 1).toBeGreaterThanOrEqual(2 * 15)
-      expect(kept().length + 1).toBeLessThanOrEqual(LIVE_KEPT_KEYS)
-      // Frames of three sets again: once the larger ones are LIVE_ASKS requests behind, six sets are kept, as before.
-      for (let n = 5; n <= 12; n++) frame(n, 3)
-      expect(client.lookup('S', 1)?.stale).toBe(false)
-      expect(kept()).toEqual(made.slice(-5))
     })
 
     it('blames a stuck glyph under the set the heartbeat names', async () => {

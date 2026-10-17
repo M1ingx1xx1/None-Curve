@@ -238,11 +238,8 @@ export interface GeometryJob {
   indices: readonly number[]
 }
 
-/**
- * A live frame's parameter set (a GeometryJob): without `indices`, the glyphs the canvas shows; with `within` too, only
- * the first of those (the selected glyph, or the text's first) and the ones in `within` (see shownGlyphs).
- */
-export type FrameJob = Omit<GeometryJob, 'indices'> & { indices?: readonly number[]; within?: ReadonlySet<number> }
+/** A live frame's parameter set (a GeometryJob): without `indices`, the glyphs the canvas shows. */
+export type FrameJob = Omit<GeometryJob, 'indices'> & { indices?: readonly number[] }
 
 // ---- Canonical polygon geometry (single source of truth for canvas and export) ----
 
@@ -265,13 +262,6 @@ export interface PolygonGlyph {
    * text measures the letter exactly rather than the slanted corners of its box. Missing without Thorn.
    */
   layoutHull?: Point[]
-  /**
-   * With Thorn applied: the font's own outline of the letter as Curve flattening draws it, before Random anchors and
-   * every later step (font units, glyph space; straight segments only). The canvas catches the letter's clicks by it
-   * instead of the outline, so thorns, and petals or trails the effects drew out of the letter, take none. Missing
-   * without Thorn.
-   */
-  clickOutline?: PolygonContour[]
 }
 
 export interface DerivedGeometry {

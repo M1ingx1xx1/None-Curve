@@ -1,6 +1,6 @@
 import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
-import { contoursToPath } from '../geometry/sourcePath'
+import { sourceGlyphToPath } from '../geometry/sourcePath'
 import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
 import {
@@ -67,10 +67,8 @@ export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphPro
   // The click target: the advance by the line (so small text and the inside of letters like "o" are
   // easy to hit) and the drawn outlines. With Thorn, the drawn outlines ignore the pointer (see
   // .specimen-glyph-thorned in styles.css), so thorns reaching across the canvas never catch clicks or
-  // drags; an invisible copy of the font's own outline, flattened (PolygonGlyph.clickOutline, straight
-  // segments only), takes the letter's clicks instead.
-  const clickOutline = polygon?.clickOutline
-  const thorned = clickOutline !== undefined
+  // drags; an invisible copy of the original outline takes the letter's clicks instead.
+  const thorned = polygon?.layoutBox !== undefined
   return (
     <g
       className={`specimen-glyph${selected ? ' specimen-glyph-selected' : ''}${thorned ? ' specimen-glyph-thorned' : ''}`}
@@ -79,7 +77,7 @@ export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphPro
     >
       <title>{text}</title>
       <rect className="glyph-box" x={0} y={descender} width={advance} height={ascender - descender} />
-      {clickOutline && <path className="glyph-box" d={contoursToPath(clickOutline)} />}
+      {thorned && <path className="glyph-box" d={sourceGlyphToPath(source)} />}
       <GlyphLayers source={source} polygon={polygon} view={view} markerRadius={markerRadius} showMarkers={showMarkers} />
     </g>
   )

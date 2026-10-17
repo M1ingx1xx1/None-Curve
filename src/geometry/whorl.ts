@@ -209,22 +209,12 @@ export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, sca
 /** A mesh corner in wedge coordinates: ring index s and across position x. */
 type Corner = [number, number]
 
-/** largestStep's answers: it depends only on its arguments (whole Rings and Sides), and searches step by step. */
-const largestSteps = new Map<string, number>()
-
 /**
  * The largest turn (radians) of each ring relative to the one inside it, in direction `relative`, that
  * keeps every triangle between the rings the same way round, with rising or falling cell diagonals.
  * Only how far neighbouring rings turn apart matters, and the outer cells allow the least.
  */
 function largestStep(rings: number, half: number, rising: boolean, relative: number): number {
-  const key = `${rings} ${half} ${rising} ${relative}`
-  let step = largestSteps.get(key)
-  if (step === undefined) largestSteps.set(key, (step = searchStep(rings, half, rising, relative)))
-  return step
-}
-
-function searchStep(rings: number, half: number, rising: boolean, relative: number): number {
   const tanHalf = Math.tan(half)
   // Wedge 0's frame with the wedge's middle along +x; ring spacing 1.
   const at = (s: number, x: number, angle: number) => {

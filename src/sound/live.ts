@@ -15,13 +15,6 @@
 // (letters.ts): the shared live values, or a quieter or stronger set derived from them. One request per frame
 // asks for all of them (the shared set first, for every glyph shown). The flash limit counts every level that
 // letters show, and letters moving between levels count as a change of their own, from the same budget.
-//
-// While Thorn is on, the settings that decide where the thorns sit and which way they point (Thorn's own, the
-// Experimental seed and the shapes before Thorn: isTurnTarget, letters.ts) reach the letters by turns (THORN_TURNS):
-// each turn group of letters shows the turn state it took at its last turn, and a turn hands the live state to the
-// next group, at most every THORN_TURNS.gapMs on screen, as a change of its own from the same budget. Levels do not
-// scale them. The frame's own parameters stay the shared live values: the markers, the status and Freeze keep to them,
-// and only the glyphs of letters that show them are computed with them.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type Dispatch } from 'react'
 import { paramsKey } from '../geometry/cache'
@@ -39,13 +32,8 @@ import {
   levelSets,
   NO_SLOTS,
   QUIET,
-  sameThornState,
-  SHARED,
   STRONG,
   switchSwing,
-  thornState,
-  ThornTurns,
-  turnSets,
   type LetterFrame,
   type LetterLevels,
   type LetterSlots,
@@ -112,13 +100,10 @@ type Jumps = ReadonlyMap<string, number>
 
 const NO_JUMPS: Jumps = new Map()
 
-/**
- * A frame as shown: its key, the frame, jumps and held values it came from, whether it is the sliders' own, and
- * whether its shared live values differ from the sliders (Freeze would change something).
- */
-type Shown = { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean; differs: boolean }
-/** A frame waiting to be committed to React: its glyphs are being computed. `turn`: the Thorn turns it shows. */
-type Next = { shown: Shown; params: GeometryParams | null; letters: LetterFrame | null; turn: number }
+/** A frame as shown: its key, the frame, jumps and held values it came from, and whether it is the sliders' own. */
+type Shown = { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean }
+/** A frame waiting to be committed to React: its glyphs are being computed. */
+type Next = { shown: Shown; params: GeometryParams | null; letters: LetterFrame | null }
 
 /** The levels letters show besides the shared one, for the flash limit: every level's offset is measured from `base`. */
 export interface LevelSpread {
@@ -410,19 +395,14 @@ export class LiveScheduler {
   private switchCharged = false
   /** The driven seeds' jumps so far (from jumpTracker). */
   private jumps: Jumps = NO_JUMPS
-  /** Which Thorn state each group of letters shows, while Thorn is on in the shared values and letters are drawn. */
-  private readonly turns = new ThornTurns()
 
   private driving = false
   /**
    * The newest modulated parameters (after the flash limit), the frame, jumps and held values they came from, the
-   * key of the whole frame (letters included) and of the shared parameters, the letters showing other parameters,
-   * whether the shared values differ from the sliders, and the Thorn turns made.
+   * key of the whole frame (letters included) and of the shared parameters, and the letters on other levels.
    */
   private latest: {
     modulated: Modulated
-    differs: boolean
-    turn: number
     frame: FeatureFrame
     jumps: Jumps
     holds: Holds | null
@@ -494,7 +474,7 @@ export class LiveScheduler {
       this.screenTrail = []
     }
     this.slots = slots
-    if ((this.levels || this.turns.groups) && this.driving) this.update()
+    if (this.levels && this.driving) this.update()
   }
 
   setFrame(frame: FeatureFrame) {
@@ -529,13 +509,12 @@ export class LiveScheduler {
   /**
    * The groups Freeze writes into the sliders and seed fields, each as a whole group object: the frame
    * and jumps on screen applied to the current slider values, mappings and response (what is shown,
-   * unless a slider moved since). Letters on other levels take these shared values, and so do Thorn turn groups
-   * (the newest frame's while the screen keeps its frame, as the markers show them). Null when nothing
+   * unless a slider moved since). Letters on other levels take these shared values. Null when nothing
    * differs. Without Thorn's derived canvasEm, which never goes into the state.
    */
   freezeChanges(): Partial<GeometryParams> | null {
     const { base, committed } = this
-    if (!this.driving || !base || !committed || !committed.differs) return null
+    if (!this.driving || !base || !committed || committed.isBase) return null
     const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps, this.response).params, committed.holds)
     if (params === base) return null
     const changes: Partial<GeometryParams> = {}
@@ -575,7 +554,7 @@ export class LiveScheduler {
       this.period = MIN_COMMIT_MS
       this.slowSince = null
       // The canvas shows the sliders' own parameters until the first live commit.
-      this.committed = { key: this.baseKey, frame: SILENT_FRAME, jumps: NO_JUMPS, holds: null, isBase: true, differs: false }
+      this.committed = { key: this.baseKey, frame: SILENT_FRAME, jumps: NO_JUMPS, holds: null, isBase: true }
     }
     // Where each letter would go this frame, and the levels letters show or are about to (for the flash limit).
     const { levels, slots } = this
@@ -588,22 +567,10 @@ export class LiveScheduler {
     const key = modulated.params === base ? this.baseKey : paramsKey(modulated.params)
     // A held value can put every target back on its slider value: then it is the sliders' own (exact restore).
     if (key === this.baseKey && modulated.params !== base) modulated = { ...modulated, params: base }
-    const turns = this.turnStep(base, modulated)
-    const letters = wanted || turns ? this.letterFrame(base, levels, modulated, key, wanted, turns) : null
+    const letters = levels && wanted ? this.letterFrame(base, levels, modulated, key, wanted) : null
     // letterFrame keeps the levels letters take this frame as shownAssign.
     const assign = levels && wanted ? this.shownAssign : null
-    this.latest = {
-      modulated,
-      differs: key !== this.baseKey,
-      turn: this.turns.turns,
-      frame: this.frame,
-      jumps: this.jumps,
-      holds,
-      key: letters?.key ?? key,
-      sharedKey: key,
-      letters,
-      assign,
-    }
+    this.latest = { modulated, frame: this.frame, jumps: this.jumps, holds, key: letters?.key ?? key, sharedKey: key, letters, assign }
     this.positions.set(modulated.positions)
     this.seeds.set(modulated.seeds)
     this.pump()
@@ -644,67 +611,31 @@ export class LiveScheduler {
   }
 
   /**
-   * Thorn turns (THORN_TURNS, ThornTurns): while Thorn is on in the shared values and letters are drawn, a turn may hand
-   * the live turn state to the next group of letters; a large one takes from the flash budget on the frame's time, as
-   * the sliders' turns and the jumps. True while the groups are kept.
+   * The letters of this frame on other levels than the shared values `shared` (key `sharedKey`), or null when
+   * none is. Letters moving between levels are a change of their own (switchSwing), measured from the levels of
+   * the frame the screen shows or is about to: several updates can pass before the next frame starts, and only
+   * the move between two frames on screen shows. A move spread over several frames shows as one change, so it is
+   * also measured from each frame shown within LIVE_LIMITS.switchSpanMs (screenTrail). When the move is large it
+   * takes from the flash budget once per frame; when the budget is spent, every letter keeps the level on screen.
    */
-  private turnStep(base: GeometryParams, shared: Modulated): boolean {
+  private letterFrame(base: GeometryParams, levels: LetterLevels, shared: Modulated, sharedKey: string, wanted: Uint8Array): LetterFrame | null {
     const slots = this.slots
-    if (shared.params.experimental.thorn?.enabled !== true || slots.activeCount === 0) {
-      this.turns.clear()
-      return false
+    // The sliders' own values: every level is the same, so letters can change levels unseen (no edge).
+    if (shared.params === base) {
+      this.shownAssign = wanted
+      return null
     }
-    const take = () => this.budget.take(this.frame.time)
-    this.turns.update(slots, thornState(shared.params), thornState(base), this.deps.now(), take)
-    return true
-  }
-
-  /**
-   * The letters of this frame that show other parameters than its own, the shared values `shared` (key `sharedKey`):
-   * those on other levels, and, while Thorn turn groups show other turn states than the live one, those of such groups
-   * (each letter its level of its group's state). Null when every letter shows the shared values.
-   *
-   * With levels (`levels`, `wanted`), letters moving between levels are a change of their own (switchSwing),
-   * measured from the levels of the frame the screen shows or is about to: several updates can pass before the next
-   * frame starts, and only the move between two frames on screen shows. A move spread over several frames shows as one
-   * change, so it is also measured from each frame shown within LIVE_LIMITS.switchSpanMs (screenTrail). When the move
-   * is large it takes from the flash budget once per frame; when the budget is spent, every letter keeps the level on
-   * screen.
-   */
-  private letterFrame(
-    base: GeometryParams,
-    levels: LetterLevels | null,
-    shared: Modulated,
-    sharedKey: string,
-    wanted: Uint8Array | null,
-    turns: boolean,
-  ): LetterFrame | null {
-    const slots = this.slots
+    const ref = this.validScreen() ?? this.validShown()
     const keyOf = (p: GeometryParams) => (p === base ? this.baseKey : p === shared.params ? sharedKey : paramsKey(p))
-    let sets: readonly [LevelSet, LevelSet, LevelSet] | null = null
+    const sets = levelSets(base, shared, levels, keyOf)
     let assign = wanted
-    // On the sliders' own values every level is the same, so letters can change levels unseen (no edge).
-    if (levels && wanted && shared.params !== base) {
-      const ref = this.validScreen() ?? this.validShown()
-      sets = levelSets(base, shared, levels, keyOf)
-      // A hair under the swing, as the sliders' edges; an edge in the same frame as theirs counts once.
-      if (ref && !this.switchCharged && this.switchFrom(ref, wanted, sets) >= FLASH_LIMITS.swing - 1e-9) {
-        if (this.budget.take(this.frame.time)) this.switchCharged = true
-        else assign = ref
-      }
+    // A hair under the swing, as the sliders' edges; an edge in the same frame as theirs counts once.
+    if (ref && !this.switchCharged && this.switchFrom(ref, wanted, sets) >= FLASH_LIMITS.swing - 1e-9) {
+      if (this.budget.take(this.frame.time)) this.switchCharged = true
+      else assign = ref
     }
-    if (levels && wanted) this.shownAssign = assign
-    const live = turns ? thornState(shared.params) : null
-    const groupsOf = this.turns.groups
-    const states = this.turns.states
-    // Groups without letters show nothing.
-    if (!live || !groupsOf || states.every((state, g) => groupsOf.letters[g] === 0 || sameThornState(state, live))) {
-      return sets && assign ? buildLetterFrame(sets, assign, slots, sharedKey) : null
-    }
-    const middle: LevelSet = { params: shared.params, key: sharedKey, positions: shared.positions }
-    const own = sets ?? [middle, middle, middle]
-    const levelsOf = assign ?? new Uint8Array(slots.count).fill(SHARED)
-    return buildLetterFrame(own, levelsOf, slots, sharedKey, { of: groupsOf.of, sets: turnSets(own, states, keyOf) })
+    this.shownAssign = assign
+    return buildLetterFrame(sets, assign, slots, sharedKey)
   }
 
   /**
@@ -736,22 +667,13 @@ export class LiveScheduler {
     const { latest, committed } = this
     if (!this.driving || !latest || !committed) return
     if (this.awaiting && !this.finish()) return
-    if (latest.key === committed.key) {
-      // The same frame on screen. With Thorn turns the shared values can move while it does not (a turn waits): Freeze
-      // and the status follow them, as the markers do.
-      if (latest.frame !== committed.frame) {
-        this.committed = { ...committed, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, differs: latest.differs }
-      }
-      return this.showTurns(latest.turn)
-    }
-    // The sliders' own values with every letter on them (with Thorn turns, letters can still show other states).
-    const isBase = latest.modulated.params === this.base && !latest.letters
-    const shown: Shown = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase, differs: latest.differs }
+    if (latest.key === committed.key) return
+    const isBase = latest.modulated.params === this.base
+    const shown: Shown = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase }
     // Back to the sliders' own parameters while React already shows them: nothing to render.
     if (isBase && !this.holdsCommit) {
       this.committed = shown
       this.showLevels(latest.assign)
-      this.showTurns(latest.turn)
       return
     }
     if (this.deps.isComputing()) return // idle() pumps again
@@ -763,15 +685,13 @@ export class LiveScheduler {
     }
     const params = isBase ? null : latest.modulated.params
     const letters = isBase ? null : latest.letters
-    this.awaiting = { seq: ++this.seq, at: now, next: { shown, params, letters, turn: latest.turn }, committedAt: now, rendered: false }
+    this.awaiting = { seq: ++this.seq, at: now, next: { shown, params, letters }, committedAt: now, rendered: false }
     this.lastStartAt = now
     this.showLevels(latest.assign)
     // The sliders' own results are kept from normal editing; a live frame's glyphs are computed first, so
     // React renders the frame once, with every glyph (idle() commits it). One request: the shared set for
-    // every glyph shown (with Thorn turns, those of letters that show it), then the glyphs of the other sets.
-    const shared: FrameJob | null = params && { params, key: latest.sharedKey }
-    if (shared && letters?.sharedGlyphs) shared.within = letters.sharedGlyphs
-    const jobs: FrameJob[] | null = shared ? [shared, ...(letters?.jobs ?? [])] : null
+    // every glyph shown, then the glyphs of the letters on other levels.
+    const jobs: FrameJob[] | null = params ? [{ params, key: latest.sharedKey }, ...(letters?.jobs ?? [])] : null
     if (!jobs || !this.deps.request(jobs)) this.finish()
   }
 
@@ -787,11 +707,6 @@ export class LiveScheduler {
     }
     this.screenAssign = assign
     this.switchCharged = false
-  }
-
-  /** The Thorn turns up to `turn` are on screen: the next may come THORN_TURNS.gapMs from now. */
-  private showTurns(turn: number) {
-    this.turns.shownUpTo(turn, this.deps.now())
   }
 
   /** Calls pump (through settle) after `ms`, unless a call is already due. */
@@ -812,7 +727,6 @@ export class LiveScheduler {
     this.lastCommitAt = now
     this.committed = next.shown
     this.holdsCommit = !next.shown.isBase
-    this.showTurns(next.turn)
     if (next.params && next.shown.frame !== SILENT_FRAME) {
       const delay = now - next.shown.frame.time
       this.latency = this.latency === null ? delay : this.latency + SMOOTHING * (delay - this.latency)
@@ -854,7 +768,6 @@ export class LiveScheduler {
     this.jumps = NO_JUMPS
     this.shownAssign = null
     this.showLevels(null)
-    this.turns.clear()
     if (!this.driving && !this.holdsCommit && !this.awaiting) {
       if (this.status.get().driving) this.publishStatus()
       return
@@ -889,7 +802,7 @@ export class LiveScheduler {
     if (fps < LIVE_LIMITS.slowFps) this.slowSince ??= now
     else this.slowSince = null
     const slow = this.slowSince !== null && now - this.slowSince >= LIVE_LIMITS.slowSeconds * 1000
-    const differs = this.committed !== null && this.committed.differs
+    const differs = this.committed !== null && this.committed.key !== this.baseKey
     this.status.set({ driving: true, fps, slow, differs }, now)
   }
 }

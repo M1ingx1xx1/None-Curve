@@ -2,7 +2,7 @@
 // alignment, and colours. Shared by the canvas, the preview, and SVG/PNG export, so all three
 // place the text identically. No React, no DOM.
 
-import type { ShapedSpecimen, SpecimenScene } from './scene'
+import type { SpecimenScene } from './scene'
 
 export type TextAlign = 'left' | 'center' | 'right'
 export type TextCase = 'none' | 'upper' | 'lower' | 'title'
@@ -216,33 +216,6 @@ export function layoutArtboard(scene: SpecimenScene, typography: TypographyParam
         ? box.minY + box.height + pad - height
         : box.minY + box.height / 2 - height / 2
   return { unitsPerPx, x, y, width, height }
-}
-
-/** The sliders' own letters, every glyph computed, as set for one shaped text (see placementScene). */
-export interface SliderPlacement {
-  shaped: ShapedSpecimen
-  scene: SpecimenScene
-}
-
-/**
- * The scene the text block is placed by (layoutArtboard). Without Sound driving the letters: the scene
- * shown. While Sound drives them (`live`): the letters at the sliders' values (`slider`), so the block
- * stays exactly where it is without Sound, whatever the live frames do to the outlines (effects, seeds,
- * presets, letters reacting by different amounts); the lines and pens are the same in both (they come
- * from the advances), only the box measured on the outlines differs. While some of the sliders' letters
- * are still being computed (or show earlier settings), the sliders' letters last set in full for this
- * shaped text stand in (`last`); with neither, the scene shown.
- */
-export function placementScene(
-  shown: SpecimenScene,
-  live: boolean,
-  shaped: ShapedSpecimen,
-  slider: SpecimenScene | null,
-  last: SliderPlacement | null,
-): SpecimenScene {
-  if (!live) return shown
-  if (slider && slider.pendingGlyphs === 0) return slider
-  return last && last.shaped === shaped ? last.scene : shown
 }
 
 /** freeX / freeY that keep the block where it is now, for switching from an anchor to Free. */

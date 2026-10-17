@@ -1,14 +1,9 @@
 // Experimental Thorn: a few anchors of each letter grow into long, straight thorns that pull the letter along.
 // Pure functions in font units; no React, no DOM, no Math.random.
 //
-// Only anchors on the letter's outside (inside no other contour, or an even number) grow thorns, away from the ink.
+// Only anchors on the letter's outside (contours not inside another contour) grow thorns, away from the ink.
 // Which anchors, in which direction and how far all come from an integer hash of the shared Experimental seed
-// and the anchor's place on the letter before Distortion and the other Experimental effects (its reference
-// outline), so the same seed and letter always give the same thorns, and a new seed moves them. Each anchor is
-// followed through those effects to the vertex it became, and its thorn grows from there, along the outline's
-// normal as the warps turned it (mirrored out of the ink where it would point into the letter as drawn; see
-// ThornAnchors): the small moves of earlier effects, or a new Distortion seed, neither move a thorn to another anchor
-// nor swing it round.
+// and the anchor's position, so the same seed and outline always give the same thorns, and a new seed moves them.
 //
 // Each thorn grows in three steps:
 // 1. Root: a piecewise-linear warp (see warp.ts) on a small star mesh around the anchor: the anchor in the
@@ -140,303 +135,6 @@ export function canvasDiagonalEm(width: number, height: number, size: number): n
   return Number.isFinite(em) && em > 0 ? em : THORN_LIMITS.defaultCanvasEm
 }
 
-/** One of Thorn's picks: an anchor of the reference outline, which way its thorn grows, and its seeded turn, length and lean. */
-interface Pick {
-  /**
-   * The points a window's length (THORN_WINDOW) back and on along the reference outline from the anchor, carried through
-   * the warps since (see ThornAnchors.warped): the thorn grows square to the line between them.
-   */
-  ends: [Point, Point]
-  /** Which side of the outline the ink lies on: 1 when its contour runs counter-clockwise. */
-  side: number
-  /** The outward normal on the reference outline, for when the warps squeeze the window to a point. */
-  normal: Point
-  /** -0.5 to 0.5: the turn from the outward normal, as a share of Spread × 180°. */
-  turn: number
-  /** The share of Reach the thorn takes. */
-  share: number
-  /** -1 to 1: which side of the root follows more, and how much. */
-  lean: number
-}
-
-/** Where a pick is on the outline now: contour and vertex index. */
-interface Site {
-  contour: number
-  index: number
-}
-
-/** A pick where it is on the outline now, with the outward normal it grows along (before its turn). */
-export interface ThornSite extends Site {
-  normal: Point
-  turn: number
-  share: number
-  lean: number
-}
-
-/**
- * How much of the outline (× the em, either way along it from the anchor) sets which way a thorn grows: the outline's
- * direction over about a thorn's base, rather than at the anchor alone. Warps that crinkle the outline finely (Ripple's
- * zigzags, Whorl's kinks between rings) then turn a thorn only a little when they shift along the letter, as they do
- * when Distortion changes the letter's ink box, which places them.
- */
-const THORN_WINDOW = 0.06
-
-/**
- * How far (× the em) a picked anchor stays from any contour its own crosses (where contours overlap, as an arch drawn
- * over a stem): Distortion moves the two apart, and an anchor it carried into the other's ink would start its thorn
- * hidden there, the thorn's visible root sliding along the other's edge as Distortion changes.
- */
-const THORN_CLEARANCE = 0.1
-
-/**
- * Which anchors grow thorns, and which way: picked on the glyph's reference outline (the letter before Distortion and
- * the other Experimental effects) and followed through every later step to the vertex each became: which anchors grow
- * thorns depends only on the seed, the reference outline and Anchors; their directions on these and Spread, turned with
- * the letter by the warps (never by Distortion's noise). So a step of Distortion or of Crumple's or Ripple's Amount, or a
- * new Distortion seed, neither moves a thorn to another anchor nor swings it round (tests/geometry/thorn-anchors.test.ts).
- * The warps' other sliders change the warps themselves and may still move thorns, so Sound hands them to the letters by
- * turns (isTurnTarget in src/sound/letters.ts). The anchors are ranked by a hash
- * of the seed and their place on the reference outline, and the first `count` grow thorns, so Anchors adds or removes
- * thorns at the end of a fixed list.
- *
- * Each step reports how it changed the outline:
- * - a warp (warped) keeps every input vertex, in order, and marks the creases it adds (CreaseMarks): a pick moves to the
- *   vertex at its place among the unmarked ones. The ends of its window go where the warp takes them, from where they
- *   were before Distortion moved the outline, and through the warp as it is placed without Distortion's move of the ink
- *   box (`ends`), so Distortion changes neither which way they point nor where the warp's creases fall for them;
- * - a step that redraws the outline (redrawn: the vertex budget's simplification, Slipstream's trails and cuts) keeps
- *   the vertices it does not cut away where they were: a pick moves to the nearest vertex on the letter's outside.
- */
-export class ThornAnchors {
-  private readonly picks: Pick[] = []
-  /** Where each pick is on the outline now, or null once it is lost. */
-  private sites: (Site | null)[] = []
-
-  /** How far the drawn outline's direction is measured either way along it (THORN_WINDOW), in font units. */
-  private readonly window: number
-
-  /** `reference`: the outline the anchors are picked on. `polygon`: the outline now (after Distortion), with the same contours. */
-  constructor(reference: PolygonGlyph, polygon: PolygonGlyph, params: ThornParams, seed: number, unitsPerEm: number) {
-    this.window = THORN_WINDOW * unitsPerEm
-    const count = Math.round(clamp(finite(params.count, 3), THORN_LIMITS.minCount, THORN_LIMITS.maxCount))
-    const contours = reference.contours.map((c) => c.points)
-    // Candidates: every anchor, ranked by a hash of the seed and its place; the first `count` on the letter's outside
-    // are picked (inside no other contour, or an even number: where contours overlap, the anchors outside the others,
-    // clear of them by THORN_CLEARANCE where enough are).
-    const candidates: { contour: number; index: number; rank: number }[] = []
-    contours.forEach((points, contour) => {
-      if (points.length < 3) return
-      points.forEach((p, index) => {
-        candidates.push({ contour, index, rank: hashInts(seed, CHANNEL.pick, contour, Math.round(p.x), Math.round(p.y)) })
-      })
-    })
-    candidates.sort((a, b) => a.rank - b.rank || a.contour - b.contour || a.index - b.index)
-    // The anchors clear of crossing contours first; only when too few are, the others outside them, each in rank order.
-    const chosen: { contour: number; index: number }[] = []
-    for (const outside of [outsideTest(contours, THORN_CLEARANCE * unitsPerEm), outsideTest(contours)]) {
-      for (const candidate of candidates) {
-        if (chosen.length >= count) break
-        if (!chosen.includes(candidate) && outside(candidate.contour, contours[candidate.contour][candidate.index])) chosen.push(candidate)
-      }
-    }
-    for (const { contour, index } of chosen) {
-      const points = contours[contour]
-      const side = signedArea(points) > 0 ? 1 : -1
-      const normal = outwardNormal(points, index, side)
-      if (!normal) continue
-      const key = [contour, Math.round(points[index].x), Math.round(points[index].y)] as const
-      this.picks.push({
-        ends: windowEnds(points, index, this.window),
-        side,
-        normal,
-        turn: hashInts(seed, CHANNEL.direction, ...key) / UINT - 0.5,
-        share: THORN_LIMITS.minShare + (1 - THORN_LIMITS.minShare) * (hashInts(seed, CHANNEL.distance, ...key) / UINT),
-        lean: (hashInts(seed, CHANNEL.lean, ...key) / UINT) * 2 - 1,
-      })
-      this.sites.push(polygon === reference ? { contour, index } : follow(reference, polygon, { contour, index }))
-    }
-  }
-
-  /**
-   * After a warp from `before` (crease marks `beforeMarks`) to `after` (`afterMarks`); `warp` is the warp at full
-   * strength, and `ends` the same warp placed as it would be without Distortion (the window's ends go through it). A
-   * pick moves to the vertex at its place among the unmarked vertices, which a warp keeps in order (failing that, to the
-   * vertex nearest to where the warp took it).
-   */
-  warped(before: PolygonGlyph, beforeMarks: CreaseMarks | undefined, after: PolygonGlyph, afterMarks: CreaseMarks, warp: Warp, ends: Warp = warp): void {
-    const unmarked = (marks: readonly boolean[] | undefined, n: number) => {
-      const out: number[] = []
-      for (let i = 0; i < n; i++) if (!marks?.[i]) out.push(i)
-      return out
-    }
-    this.sites = this.sites.map((site, t) => {
-      const from = site && before.contours[site.contour]?.points
-      const to = site && after.contours[site.contour]?.points
-      // Left as it was: the warp gave up on the glyph.
-      if (!site || !from || !to || from === to) return site
-      const pick = this.picks[t]
-      pick.ends = [ends.map(pick.ends[0]), ends.map(pick.ends[1])]
-      const inputs = unmarked(beforeMarks?.[site.contour], from.length)
-      const outputs = unmarked(afterMarks[site.contour], to.length)
-      const place = inputs.indexOf(site.index)
-      if (place >= 0 && inputs.length === outputs.length) return { contour: site.contour, index: outputs[place] }
-      // The warp left out a spike's tip: the vertex nearest to where the warp took the pick.
-      const index = nearest(to, warp.map(from[site.index]), Infinity, place >= 0 ? (i) => !afterMarks[site.contour]?.[i] : undefined)
-      return index < 0 ? null : { contour: site.contour, index }
-    })
-  }
-
-  /**
-   * After a step that redrew the outline from `before` to `after`: each pick moves to the vertex nearest to it on the
-   * letter's outside (as the picks are: a redraw can leave a counter's vertex nearest), or to the nearest vertex when no
-   * vertex is outside.
-   */
-  redrawn(before: PolygonGlyph, after: PolygonGlyph): void {
-    const contours = after.contours.map((c) => c.points)
-    const outside = outsideTest(contours)
-    this.sites = this.sites.map((site) => {
-      const p = site && before.contours[site.contour]?.points[site.index]
-      return p ? nearestOutside(contours, p, outside) : null
-    })
-  }
-
-  /**
-   * The picks on `polygon` (the outline the steps reported last), at most one per vertex. Each grows along the normal its
-   * window's ends give, unless that points into the letter as drawn: a warp can turn the outline at the anchor further
-   * than the window's ends show. Then it is mirrored in the drawn outline's direction over the same window, so it points
-   * out as far as it pointed in (see outOfInk).
-   */
-  located(polygon: PolygonGlyph): ThornSite[] {
-    const taken = new Set<string>()
-    const out: ThornSite[] = []
-    const sides = new Map<number, number>()
-    this.sites.forEach((site, t) => {
-      const points = site && polygon.contours[site.contour]?.points
-      if (!site || !points?.[site.index]) return
-      const key = `${site.contour}:${site.index}`
-      if (taken.has(key)) return
-      taken.add(key)
-      const { ends, side, normal, turn, share, lean } = this.picks[t]
-      const along = unit(ends[1].x - ends[0].x, ends[1].y - ends[0].y)
-      let drawnSide = sides.get(site.contour)
-      if (drawnSide === undefined) sides.set(site.contour, (drawnSide = signedArea(points) > 0 ? 1 : -1))
-      const grown = along ? { x: side * along.y, y: -side * along.x } : normal
-      out.push({ ...site, normal: outOfInk(grown, windowEnds(points, site.index, this.window), drawnSide), turn, share, lean })
-    })
-    return out
-  }
-}
-
-/** The points `window` back and on along the contour from vertex `index` (at most a quarter of its length either way). */
-function windowEnds(points: readonly Point[], index: number, window: number): [Point, Point] {
-  const n = points.length
-  const length = (i: number, j: number) => Math.hypot(points[j].x - points[i].x, points[j].y - points[i].y)
-  let perimeter = 0
-  for (let i = 0; i < n; i++) perimeter += length(i, (i + 1) % n)
-  const reach = Math.min(window, perimeter / 4)
-  const walk = (step: 1 | -1): Point => {
-    let left = reach
-    for (let k = 0, at = index; k < n; k++) {
-      const next = (at + step + n) % n
-      const edge = length(at, next)
-      if (edge >= left && edge > 0) return lerp(points[at], points[next], left / edge)
-      left -= edge
-      at = next
-    }
-    return points[index]
-  }
-  return [walk(-1), walk(1)]
-}
-
-/**
- * `normal` (a unit vector) where it points into the ink of the drawn outline, judged by the outline's direction between
- * `ends` (the window's ends on it; `side` as for outwardNormal): mirrored in that direction, so it points out as far as
- * it pointed in. The mirror is continuous, so a normal near that direction turns hardly at all. Otherwise `normal`.
- */
-function outOfInk(normal: Point, [a, b]: readonly [Point, Point], side: number): Point {
-  const along = unit(b.x - a.x, b.y - a.y)
-  if (!along) return normal
-  const outward = { x: side * along.y, y: -side * along.x }
-  const dot = normal.x * outward.x + normal.y * outward.y
-  return dot < 0 ? { x: normal.x - 2 * dot * outward.x, y: normal.y - 2 * dot * outward.y } : normal
-}
-
-/**
- * Where a vertex of `from` is on `to`: the same vertices, each moved a little or not at all, with a few more put in
- * between (Distortion: with few anchors, it adds the midpoints of some edges). Same count: the same vertex.
- * Otherwise vertex i went to i + o, where the offset o (0 to the number put in) never falls along the contour: the
- * nearest vertices that did not move pin it from either side, and the vertex nearest to where it was in that range
- * is the one.
- */
-function follow(from: PolygonGlyph, to: PolygonGlyph, site: Site): Site | null {
-  const a = from.contours[site.contour]?.points
-  const b = to.contours[site.contour]?.points
-  const p = a?.[site.index]
-  if (!a || !p) return null
-  if (!b || from.contours.length !== to.contours.length || b.length < a.length) return nearestSite(to, p)
-  if (a.length === b.length) return site
-  const added = b.length - a.length
-  const offset = (i: number) => {
-    for (let o = 0; o <= added; o++) if (b[i + o].x === a[i].x && b[i + o].y === a[i].y) return o
-    return -1
-  }
-  let lo = 0
-  let hi = added
-  for (let i = site.index; i >= 0; i--) {
-    const o = offset(i)
-    if (o >= 0) {
-      lo = o
-      break
-    }
-  }
-  for (let i = site.index + 1; i < a.length; i++) {
-    const o = offset(i)
-    if (o >= 0) {
-      hi = Math.max(o, lo)
-      break
-    }
-  }
-  const index = nearest(b.slice(site.index + lo, site.index + hi + 1), p, Infinity)
-  return index < 0 ? null : { contour: site.contour, index: site.index + lo + index }
-}
-
-/** The vertex of any contour nearest to `p`. */
-function nearestSite(polygon: PolygonGlyph, p: Point): Site | null {
-  let best: Site | null = null
-  let bestDistance = Infinity
-  polygon.contours.forEach((c, contour) => {
-    if (c.points.length < 3) return
-    const index = nearest(c.points, p, bestDistance)
-    if (index < 0) return
-    const distance = Math.hypot(c.points[index].x - p.x, c.points[index].y - p.y)
-    if (distance <= bestDistance) {
-      best = { contour, index }
-      bestDistance = distance
-    }
-  })
-  return best
-}
-
-/** The vertex nearest to `p` that `outside` passes (see outsideTest), or the nearest of all when none does. */
-function nearestOutside(contours: readonly (readonly Point[])[], p: Point, outside: (contour: number, p: Point) => boolean): Site | null {
-  const all: { contour: number; index: number; distance: number }[] = []
-  let best = -1
-  for (let contour = 0; contour < contours.length; contour++) {
-    const points = contours[contour]
-    if (points.length < 3) continue
-    for (let index = 0; index < points.length; index++) {
-      const distance = Math.hypot(points[index].x - p.x, points[index].y - p.y)
-      if (best < 0 || distance < all[best].distance) best = all.length
-      all.push({ contour, index, distance })
-    }
-  }
-  if (best < 0) return null
-  const pass = ({ contour, index }: Site) => outside(contour, contours[contour][index])
-  // Usually the pick's own vertex, kept where it was.
-  const found = pass(all[best]) ? all[best] : (all.slice().sort((a, b) => a.distance - b.distance).find(pass) ?? all[best])
-  return { contour: found.contour, index: found.index }
-}
-
 /** A chosen anchor: where it is, which way and how far its thorn goes. */
 interface Thorn {
   contour: number
@@ -454,8 +152,6 @@ interface Thorn {
  * creases (tidying may remove them); with `folds`, an earlier effect folds the letter, so the root and
  * refraction warps are not checked either (see applyWarp). `budget` keeps the refracted glyph within its vertex
  * budget (see budget.ts); when it simplifies the glyph, the outlines may cross, and the caller merges them.
- * `anchors`: the anchors picked on the reference outline and followed to `polygon` (see ThornAnchors); without
- * them, `polygon` is its own reference.
  */
 export function applyThorn(
   polygon: PolygonGlyph,
@@ -465,9 +161,9 @@ export function applyThorn(
   marks?: CreaseMarks,
   folds = false,
   budget?: GlyphBudget,
-  anchors?: ThornAnchors,
 ): { polygon: PolygonGlyph; stats: ThornStats } {
   const stats = emptyThornStats()
+  const count = Math.round(clamp(finite(params.count, 3), THORN_LIMITS.minCount, THORN_LIMITS.maxCount))
   // The longest a thorn may be: a share of the canvas diagonal, in em up to the safety cap.
   const canvasEm = Math.min(positive(params.canvasEm, THORN_LIMITS.defaultCanvasEm), THORN_LIMITS.maxReachEm)
   const maxLength = clamp(finite(params.canvasReach, 0), 0, 1) * canvasEm * unitsPerEm
@@ -478,19 +174,34 @@ export function applyThorn(
   const flute = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute) * unitsPerEm
   const contours = polygon.contours.map((c) => c.points)
 
+  // Candidates: every anchor of an outside contour, ranked by a hash of the seed and its position.
+  const candidates: { contour: number; index: number; rank: number }[] = []
+  contours.forEach((points, contour) => {
+    if (points.length < 3 || !isOutside(contours, contour)) return
+    points.forEach((p, index) => {
+      candidates.push({ contour, index, rank: hashInts(seed, CHANNEL.pick, Math.round(p.x), Math.round(p.y), index) })
+    })
+  })
+  candidates.sort((a, b) => a.rank - b.rank || a.contour - b.contour || a.index - b.index)
+
   const thorns: Thorn[] = []
-  const picks = maxLength > 0 ? (anchors ?? new ThornAnchors(polygon, polygon, params, seed, unitsPerEm)).located(polygon) : []
-  for (const { contour, index, normal, turn: bend, share, lean } of picks) {
-    const turn = bend * spread * Math.PI
+  for (const { contour, index } of maxLength > 0 ? candidates.slice(0, count) : []) {
+    const points = contours[contour]
+    const p = points[index]
+    const normal = outwardNormal(points, index)
+    if (!normal) continue
+    const key = [Math.round(p.x), Math.round(p.y), index] as const
+    const turn = (hashInts(seed, CHANNEL.direction, ...key) / UINT - 0.5) * spread * Math.PI
+    const share = THORN_LIMITS.minShare + (1 - THORN_LIMITS.minShare) * (hashInts(seed, CHANNEL.distance, ...key) / UINT)
     const cos = Math.cos(turn)
     const sin = Math.sin(turn)
     thorns.push({
       contour,
       index,
-      anchor: contours[contour][index],
+      anchor: p,
       direction: { x: normal.x * cos - normal.y * sin, y: normal.x * sin + normal.y * cos },
       length: maxLength * share,
-      lean,
+      lean: (hashInts(seed, CHANNEL.lean, ...key) / UINT) * 2 - 1,
     })
   }
 
@@ -901,13 +612,13 @@ function lerp(a: Point, b: Point, t: number): Point {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
 }
 
-/** The index of the vertex nearest to `p` (of those `allowed`), if one lies within `within`; otherwise -1. */
-function nearest(points: readonly Point[], p: Point, within: number, allowed?: (index: number) => boolean): number {
+/** The index of the vertex nearest to `p`, if one lies within `within`; otherwise -1. */
+function nearest(points: readonly Point[], p: Point, within: number): number {
   let best = -1
   let bestDistance = within
   points.forEach((q, i) => {
     const distance = Math.hypot(q.x - p.x, q.y - p.y)
-    if (distance <= bestDistance && (!allowed || allowed(i))) {
+    if (distance <= bestDistance) {
       best = i
       bestDistance = distance
     }
@@ -915,79 +626,14 @@ function nearest(points: readonly Point[], p: Point, within: number, allowed?: (
   return best
 }
 
-/**
- * Whether an anchor of a contour is on the letter's outside: it lies inside an even number of the other contours (it
- * bounds ink from outside, not a counter). Per anchor, so where contours overlap (as in many variable fonts' instances)
- * the anchors outside the others count and those inside them do not. With `clearance`, an anchor must also lie at
- * least that far from every contour its own crosses (part inside it, part outside: overlapping ink, not a counter
- * within the letter or a dot beside it). Each contour's box is measured once, and which contours cross when first asked.
- */
-function outsideTest(contours: readonly (readonly Point[])[], clearance = 0): (contour: number, p: Point) => boolean {
-  const boxes = contours.map((points): Box | null => {
-    if (points.length < 3) return null
-    const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-    for (const q of points) {
-      box.minX = Math.min(box.minX, q.x)
-      box.minY = Math.min(box.minY, q.y)
-      box.maxX = Math.max(box.maxX, q.x)
-      box.maxY = Math.max(box.maxY, q.y)
-    }
-    return box
+/** True when the contour's first anchor lies inside an even number of the other contours (it bounds ink from outside). */
+function isOutside(contours: readonly (readonly Point[])[], contour: number): boolean {
+  const p = contours[contour][0]
+  let depth = 0
+  contours.forEach((other, i) => {
+    if (i !== contour && other.length >= 3 && contains(other, p)) depth++
   })
-  const near = (box: Box, p: Point, by: number) => p.x >= box.minX - by && p.x <= box.maxX + by && p.y >= box.minY - by && p.y <= box.maxY + by
-  const crossing = new Map<number, boolean>()
-  const crosses = (a: number, b: number) => {
-    const pair = Math.min(a, b) * contours.length + Math.max(a, b)
-    let known = crossing.get(pair)
-    if (known === undefined) {
-      known = partlyInside(contours[a], contours[b], boxes[b]) || partlyInside(contours[b], contours[a], boxes[a])
-      crossing.set(pair, known)
-    }
-    return known
-  }
-  return (contour, p) => {
-    let depth = 0
-    for (let i = 0; i < contours.length; i++) {
-      const box = boxes[i]
-      if (i === contour || !box || !near(box, p, clearance)) continue
-      if (contains(contours[i], p)) depth++
-      else if (clearance > 0 && crosses(contour, i) && distanceToOutline(contours[i], p) < clearance) return false
-    }
-    return depth % 2 === 0
-  }
-}
-
-/** How many of a contour's points partlyInside tests at most, evenly spaced: dense outlines have thousands. */
-const CROSS_SAMPLES = 64
-
-/** Whether some points of `points` (up to CROSS_SAMPLES of them) lie inside `other` (whose box is `box`) and some outside it. */
-function partlyInside(points: readonly Point[], other: readonly Point[], box: Box | null): boolean {
-  if (!box) return false
-  const step = Math.max(1, Math.floor(points.length / CROSS_SAMPLES))
-  let inside = false
-  let outside = false
-  for (let i = 0; i < points.length; i += step) {
-    const p = points[i]
-    if (p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY && contains(other, p)) inside = true
-    else outside = true
-    if (inside && outside) return true
-  }
-  return false
-}
-
-/** The distance from `p` to the nearest edge of a closed outline. */
-function distanceToOutline(points: readonly Point[], p: Point): number {
-  let best = Infinity
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[j]
-    const b = points[i]
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    const lengthSq = dx * dx + dy * dy
-    const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-    best = Math.min(best, Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t)))
-  }
-  return best
+  return depth % 2 === 0
 }
 
 /** Even-odd point-in-polygon test. */
@@ -1001,18 +647,19 @@ function contains(points: readonly Point[], p: Point): boolean {
   return inside
 }
 
-/**
- * Unit vector at an anchor pointing away from the ink: the mean of its two edges' outward normals. `side`: 1 when the
- * contour runs counter-clockwise (positive area): the ink lies to the left of each edge, so outward is to its right.
- */
-function outwardNormal(points: readonly Point[], index: number, side: number): Point | null {
+/** Unit vector at an anchor pointing away from the ink: the mean of its two edges' outward normals. */
+function outwardNormal(points: readonly Point[], index: number): Point | null {
   const n = points.length
   const prev = points[(index - 1 + n) % n]
   const p = points[index]
   const next = points[(index + 1) % n]
+  // Counter-clockwise (positive area): the ink lies to the left of each edge, so outward is to its right.
+  const side = signedArea(points) > 0 ? 1 : -1
   const edgeNormal = (a: Point, b: Point): Point | null => {
-    const d = unit(b.x - a.x, b.y - a.y)
-    return d && { x: side * d.y, y: -side * d.x }
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const length = Math.hypot(dx, dy)
+    return length > 0 ? { x: (side * dy) / length, y: (-side * dx) / length } : null
   }
   const a = edgeNormal(prev, p)
   const b = edgeNormal(p, next)
@@ -1022,11 +669,6 @@ function outwardNormal(points: readonly Point[], index: number, side: number): P
   const length = Math.hypot(x, y)
   // A hairpin (the edges fold back on each other): follow the incoming edge's normal.
   return length > 1e-9 ? { x: x / length, y: y / length } : a
-}
-
-function unit(x: number, y: number): Point | null {
-  const length = Math.hypot(x, y)
-  return length > 0 && Number.isFinite(length) ? { x: x / length, y: y / length } : null
 }
 
 function finite(value: number | undefined, fallback: number): number {
