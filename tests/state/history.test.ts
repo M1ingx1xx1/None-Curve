@@ -1,6 +1,7 @@
 // Undo and redo (src/state/history.ts), driven the way App drives it: settings changes recorded with the leaves they
 // change as the key (one step per slider drag), typing joined until a pause, the Sound mappings and the Response
-// group in the same history, a preset Load and Reset sound as one step each, and live Sound frames never recorded.
+// group in the same history, a preset Load, Reset sound and a config import as one step each, and live Sound frames
+// never recorded.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GeometryParams } from '../../src/geometry/types'
@@ -9,7 +10,8 @@ import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { LiveScheduler, type LiveCommit } from '../../src/sound/live'
 import { DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureSettings } from '../../src/sound/types'
 import { editorReducer, initialState, type Action } from '../../src/state/editorState'
-import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory } from '../../src/state/history'
+import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory, type Snapshot } from '../../src/state/history'
+import { parseConfig, readSession, serializeConfig } from '../../src/state/persist'
 import type { AppState, SettingsParams } from '../../src/state/types'
 
 const settingsOf = ({ view: _view, ...settings }: AppState['params']): SettingsParams => settings
@@ -37,6 +39,16 @@ function app(history: UndoHistory) {
     }
     state = after
   }
+  // App's applySnapshot: what undo, redo and a config file put back.
+  const apply = (snapshot: Snapshot) => {
+    state = editorReducer(state, { type: 'restoreParams', params: snapshot.params })
+    text = snapshot.text
+    mappingStore.restore(snapshot.mappings)
+    if (snapshot.sound) {
+      engine.setSettings({ sensitivity: snapshot.sound.sensitivity, releaseMs: snapshot.sound.releaseMs })
+      mappingStore.restoreResponse(snapshot.sound)
+    }
+  }
   const disconnect = history.connect({
     read: () => ({
       params: settingsOf(state.params),
@@ -44,18 +56,11 @@ function app(history: UndoHistory) {
       mappings: mappingStore.getState().mappings,
       sound: { ...engine.settings, ...mappingStore.getState().response },
     }),
-    restore: (snapshot) => {
-      state = editorReducer(state, { type: 'restoreParams', params: snapshot.params })
-      text = snapshot.text
-      mappingStore.restore(snapshot.mappings)
-      if (snapshot.sound) {
-        engine.setSettings({ sensitivity: snapshot.sound.sensitivity, releaseMs: snapshot.sound.releaseMs })
-        mappingStore.restoreResponse(snapshot.sound)
-      }
-    },
+    restore: apply,
   })
   return {
     edit,
+    apply,
     setSpacing: (spacing: number) => edit({ type: 'updateParams', group: 'anchors', patch: { spacing } }),
     type: (next: string) => {
       history.record('text', true)
@@ -254,6 +259,38 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     expect(mappingStore.getState().mappings).toEqual(before.mappings)
     expect(undoHistory.redo()).toBe(true)
     expect(mappingStore.getState().mappings.map((m) => m.target)).toEqual(preset.mappings.map((m) => m.target))
+  })
+
+  it('undoes a config import in one step: the settings, the text, the mappings and the Response group', () => {
+    a.setSpacing(17)
+    a.type('Before')
+    mappingStore.add('treble', 'anchors.spacing', -0.3)
+    a.setSetting('sensitivity', 4)
+    undoHistory.endStep()
+    const before = { params: settingsOf(a.params), text: a.text, mappings: mappingStore.getState().mappings, settings: a.engine.settings }
+    const saved = readSession({})!
+    const file = serializeConfig({
+      ...saved,
+      params: { ...saved.params, anchors: { ...saved.params.anchors, spacing: 30 } },
+      text: 'From the file',
+      mappings: [{ id: 'm1', enabled: true, feature: 'bass', target: 'distortion.amount', depth: 0.5 }],
+      sound: { ...saved.sound!, sensitivity: -6, strength: 2 },
+    })
+    const parsed = parseConfig(file)
+    if (!parsed.ok) throw new Error(parsed.error)
+    // As App's importConfig does it.
+    undoHistory.transaction(() => {
+      undoHistory.record(null)
+      a.apply(parsed.session)
+    })
+    expect([a.params.anchors.spacing, a.text, a.engine.settings.sensitivity, mappingStore.getState().response.strength]).toEqual([30, 'From the file', -6, 2])
+    expect(mappingStore.getState().mappings.map((m) => m.feature)).toEqual(['bass'])
+    expect(undoHistory.undo()).toBe(true)
+    expect(settingsOf(a.params)).toEqual(before.params)
+    expect(a.text).toBe(before.text)
+    expect(mappingStore.getState().mappings).toEqual(before.mappings)
+    expect(a.engine.settings).toEqual(before.settings)
+    expect(mappingStore.getState().response).toEqual(NEUTRAL_RESPONSE)
   })
 
   it('never records live Sound frames', () => {

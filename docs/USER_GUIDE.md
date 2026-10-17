@@ -73,7 +73,7 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 **Undo** takes back your last change and **Redo** puts it back again. Use the two arrow buttons at the top right, or the keyboard: on a Mac, ⌘Z undoes and ⇧⌘Z redoes; on Windows and Linux, Ctrl+Z undoes and Ctrl+Shift+Z or Ctrl+Y redoes. Pointing at a button shows its shortcut. The app keeps up to 100 steps.
 
 - **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and in the Sound tab the mappings and the six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking). The reset buttons count too, so Undo brings back what a reset (including **Reset sound**) cleared.
-- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, and picking a mapping target together with the settings it switched on.
+- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, loading a config file, and picking a mapping target together with the settings it switched on.
 - **What is not undone:** the canvas view (Original / Flattened / Compare, the layer buttons, zoom, and moving around), which letter is selected, the preview's Blur and Invert, the export settings, loading a font, the Sound tab's **Drive letters** and source, and the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**). Sound moving the letters is never recorded either: only your own changes are.
 - **Inside a typing box** — the text box, or a box you type a number, colour code, or name into — the shortcuts undo your typing in that box only, as in any text field. The buttons at the top still undo whole steps. While a dialog (such as **Export…**) is open, the shortcuts do nothing.
 - The steps are forgotten when you close the page: the next visit starts with nothing to undo.
@@ -88,7 +88,7 @@ The app keeps your work in this browser by itself, a moment after each change, a
 - **Work saved by an older version of the app:** Thorn's **Reach** used to be a share of the em (the letters' design square) and is now a share of the canvas (see Thorn in the Experimental tab). Older saved work is converted to the share that gives the thorns the same length with the text size and canvas size it was saved with, so they come back as they were. Thorns that were on stay on: however short they were, they come back at least as long as the slider's first step. Sound rows on Reach keep their **Depth**. Thorns may also grow from other points than they did before with the same **Seed**, because the app now picks them in a steadier way (see Thorn in the Experimental tab); press **Next variant** until you like them again. Crumple no longer has a **Detail** slider: a saved Detail value is ignored, Sound rows on **Crumple · Detail** are dropped, and Crumple folds the letters as Noise did before it was renamed, so the same **Seed** gives different folds than in the version that had Detail.
 - **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, mappings, and **Response** sliders still come back.
 - **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
-- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it.
+- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it; to keep the settings themselves, or take them to another browser, save a [config file](#as-a-config-file-settings-only).
 
 ---
 
@@ -106,7 +106,7 @@ That's the whole workflow. The rest of this guide explains each step in more det
 
 ## 5. Loading a font
 
-Click **Import font** at the top of the tools area. You get two choices.
+Click **Import font** at the top of the tools area. You get three choices: a font from your computer, a font from Google Fonts, or a **Config file** with saved settings (see [As a config file](#as-a-config-file-settings-only)).
 
 ### From your computer
 
@@ -724,6 +724,22 @@ Good to know:
 4. Click the stop button, or wait for the chosen **Length**. The video is saved when the take ends, and the header says what was saved.
 
 What each option does, what ends a take, and how the file is named are explained in [Record a video](#record-a-video).
+
+### As a config file (settings only)
+
+A config file keeps your settings, not your letters: load it later, in another browser, or on another computer, and the app is set up as it was. It is a small `.json` file.
+
+1. Choose **Config — settings (.json)**. This also works before you load a font.
+2. The dialog says which font the file asks for. Click **Download config**. The file is named after the font, for example `none-curve-Roboto-config.json`.
+
+It holds the same things the app keeps between visits (see [Coming back later](#coming-back-later)): every setting, the canvas size, the text, the canvas view buttons, the preview's Blur and Invert, the **Coordinate precision**, the Sound tab's mappings and **Response** sliders, the selected letter, and the font's name. It never holds the font itself, the sound, or the video options.
+
+**To load it:** click **Import font** → **Config file** and pick the file, or drag it onto the canvas.
+
+- Your settings, text, Sound mappings, and Response sliders change in one go, and one **Undo** brings back what you had before. The canvas view buttons, the preview's Blur and Invert, and the Coordinate precision change too, but Undo leaves them as they are (they are never undone).
+- A **Google font** in the file is downloaded again (unless it is already open). A **font from your computer** cannot be opened for you: the note under the menu names the file — import it and the letters appear with the loaded settings.
+- A file that is not a config file (any other `.json`, or a damaged one) is refused: the note says "Config not imported" and nothing changes. A file saved by an older version of the app is converted, as saved work is; one from a newer version loads what this version knows, and the note says so.
+- Close the note with its × button; it also goes away when you load another font.
 
 ---
 
