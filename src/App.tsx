@@ -37,6 +37,7 @@ import {
   type SavedGlyph,
   type Session,
 } from './state/persist'
+import { DEFAULT_RESET_EXTRAS } from './state/reset'
 import type { AppState, EditorParams, SettingsParams, ViewParams } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
@@ -547,7 +548,17 @@ export default function App({ restored }: AppProps) {
           }
         />
       </HintsContext.Provider>
-      <StatusBar state={state} glyphGeometry={derived.result} shownParams={derived.shownParams} scene={scene} />
+      <StatusBar
+        state={state}
+        glyphGeometry={derived.result}
+        shownParams={derived.shownParams}
+        scene={scene}
+        extras={{ previewLook, precision }}
+        onResetExtras={() => {
+          setPreviewLook(DEFAULT_RESET_EXTRAS.previewLook)
+          dispatch({ type: 'updateExport', patch: { precision: DEFAULT_RESET_EXTRAS.precision } })
+        }}
+      />
       <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importGoogleFont} />
       <ExportDialog
         open={exportOpen}

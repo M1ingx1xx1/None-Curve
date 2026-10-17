@@ -12,7 +12,7 @@ import { DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureS
 import { editorReducer, initialState, type Action } from '../../src/state/editorState'
 import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory, type Snapshot } from '../../src/state/history'
 import { parseConfig, readSession, serializeConfig } from '../../src/state/persist'
-import { DEFAULT_SETTINGS, isDefaultSnapshot, resetSettings } from '../../src/state/reset'
+import { DEFAULT_RESET_EXTRAS, DEFAULT_SETTINGS, isDefaultExtras, isDefaultSnapshot, resetSettings } from '../../src/state/reset'
 import type { AppState, SettingsParams } from '../../src/state/types'
 
 const settingsOf = ({ view: _view, ...settings }: AppState['params']): SettingsParams => settings
@@ -434,5 +434,13 @@ describe('Reset all settings', () => {
     expect(isDefaultSnapshot({ ...defaults, mappings: [{ id: 'm1', enabled: true, feature: 'level', target: 'distortion.amount', depth: 0.5 }] })).toBe(false)
     expect(isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, releaseMs: defaults.sound.releaseMs + 50 } })).toBe(false)
     expect(isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, contrast: 0.5 } })).toBe(false)
+  })
+  it('also restores the preview look and the export precision: Blur, Invert and precision count', () => {
+    const extras = DEFAULT_RESET_EXTRAS
+    expect(extras).toEqual({ previewLook: { blur: 0, inverted: false }, precision: initialState.document.export.precision })
+    expect(isDefaultExtras(extras)).toBe(true)
+    expect(isDefaultExtras({ ...extras, previewLook: { ...extras.previewLook, blur: 0.1 } })).toBe(false)
+    expect(isDefaultExtras({ ...extras, previewLook: { ...extras.previewLook, inverted: true } })).toBe(false)
+    expect(isDefaultExtras({ ...extras, precision: extras.precision + 1 })).toBe(false)
   })
 })
