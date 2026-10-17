@@ -27,7 +27,7 @@ Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_G
 
 ## Tests
 
-- Tests live in `tests/`, by area (`tests/geometry`, `tests/export`, `tests/font`, `tests/sound`, `tests/specimen`, `tests/state`, `tests/worker`); slow ones go in `tests/slow`.
+- Tests live in `tests/`, by area (`tests/geometry`, `tests/export`, `tests/font`, `tests/sound`, `tests/specimen`, `tests/state`, `tests/worker`, and `tests/scripts` for the Jira sync in `scripts/`); slow ones go in `tests/slow`.
 - `npm test` runs the fast suite (about 15 s). `npm run test:slow` runs the slow one (the whole 42 s Sound test track, and every glyph of both fixture fonts; about 3 minutes); it runs only when asked for by name.
 - `npm run build` type-checks the tests and scripts as well (`tsconfig.test.json`).
 - Run `npm test` before opening a pull request into `develop`. CI runs `npm test` and `npm run build` on every pull request into `develop` and every push to it, and the Pages deploy runs `npm test` before it builds.
@@ -40,6 +40,16 @@ Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_G
 - Hash numbers that come from `Math` functions (`log`, `exp`, `sin`, and the like) rounded, not exact. V8's x64 and arm64 builds can differ in their last bit (`Math.log2` and `Math.log10` do), and CI runs on Linux x64 while a Mac with Apple silicon is arm64, so an exact hash pinned on one fails on the other. `neutral.test.ts` rounds such numbers to 10 significant digits, which both agree on and which still catches a change of one part in ten million. Pin a hash only after checking it on both, for example with the official x64 build of Node under Rosetta.
 - Count flashes the way the screen shows them. `lettersOnScreen` in `tests/sound/flash.test.ts` counts a move between levels from any frame shown within the last 250 ms (`SPREAD_MS`, the same span as `LIVE_LIMITS.switchSpanMs`), and a frame's changes once, so a change that reaches the screen over several frames counts once and one spread thinly over frames is not missed.
 - Check Sound in the browser with the tab visible. The sound is read on `requestAnimationFrame`, so a hidden or covered tab (a hidden browser pane included) gets no frames or only bursts of them, and the letters stop following the sound; "Live · N fps" shows the geometry rate, not how often the sound is read, so it does not reveal this.
+
+## Branches, pull requests, and Jira
+
+- Work happens on a branch `feature/NOCUR-<number>-<short-name>` off `develop`, named after the Jira issue it does (NOCUR is the project's key), and is merged into `develop` by a pull request. `main` is the release branch: a pull request from `develop` into `main` releases, and every push to `main` deploys Pages.
+- `.github/workflows/jira.yml` (`scripts/jira-pr-sync.ts`) moves the issues a pull request names: to In Progress while it is open (when it opens, reopens, gets a push, or is edited), to Done when it merges. A pull request names an issue by its key in the branch name, the title, or the keys that start a line of the body beginning with `Jira:` (`Jira: NOCUR-57, NOCUR-58`). That line ends at its first word that is not a key, so `Jira: NOCUR-60 (split from NOCUR-41)` names NOCUR-60 only, and a key anywhere else in the body, such as a parent mentioned in passing, does not count.
+- Issues only move forward. Opening moves only an issue still in To Do, so one already in In Progress, In Review, or Done stays where it is; merging moves any issue not yet done; a pull request closed without merging moves nothing. An issue is done when its pull request merges into `develop`, not when it is released; a release pull request names no issue and moves none.
+- Put the key in the branch name or the title when the pull request opens; one added later moves its issue at the next push or edit. GitHub runs no workflow for a pull request that conflicts with its base, so its issue moves once the conflict is resolved and pushed.
+- Issues move only through pull requests. By hand, update an issue's description, and after each release add its date and pull request to the release record, NOCUR-28.
+- The workflow reads three repository secrets: `JIRA_BASE_URL` (`https://<site>.atlassian.net`), `JIRA_EMAIL`, and `JIRA_API_TOKEN`, an Atlassian API token of that account (the moves are recorded under its name). Without them it only warns, so the check never fails for want of them; GitHub gives no secrets to a pull request from a fork, so the issues of one are moved by hand. It first checks the account with Jira, because Jira answers a token that has expired or been revoked as if no one were signed in, and every issue would look unknown: the check fails instead, and the fix is a new token in `JIRA_API_TOKEN` and a re-run of the failed job. It also fails when Jira refuses a call or cannot be reached, or when `JIRA_BASE_URL` is not an `https` address, and warns for a key Jira does not know. The site's address is masked in the log.
+- The script reads the pull request from the event file, never from text placed in a shell command, so a title or body cannot run anything.
 
 ## Geometry and the workers
 
