@@ -2157,8 +2157,8 @@ input[type='range']:disabled {
 }
 
 .legend-vertex {
-  width: 7px;
-  height: 7px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--vertex);
   display: inline-block;
