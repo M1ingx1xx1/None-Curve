@@ -215,7 +215,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Give each core control a short explanation; explain specialized terms in tooltips.
 - Cover empty, loading, parsing-error, and export-complete states.
 - Support keyboard operation and make focus states easy to see.
-- Undo and redo every setting, the text, the Sound mappings, and the Sound tab's Response settings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo. A **Reset all settings** button in the status bar puts all of these but the text back to their defaults as one undo step, keeping the font and selected glyph.
+- Undo and redo every setting, the text, the Sound mappings, and the Sound tab's Response settings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo. A **Reset all settings** button in the status bar puts all of these but the text back to their defaults as one undo step, keeping the font and selected glyph; it also resets the preview's Blur and Invert and the export precision, which are not undone.
 - Restore the last session on the next visit: the settings, the text, the Sound mappings and Response settings, and the font (a Google font is downloaded again; a local file must be imported again, and the canvas names it).
 
 ### Visual reference for outline transformation

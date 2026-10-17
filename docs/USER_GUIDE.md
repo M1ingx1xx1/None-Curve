@@ -39,7 +39,7 @@ The screen is split into two rows and five areas:
 ```text
 ┌────────────────────────╥─────────────────────────────────────────────────────┐
 │ ① Tools                ║ ② Result canvas                                     │
-│   Import font          ║   your text, rebuilt live                           │
+│   Import               ║   your text, rebuilt live                           │
 │   Font information     ║                                                     │
 │   Shaping controls     ║                                                     │
 ╞════════════════════════╩═╦══════════════════════════╦════════════════════════╡
@@ -49,7 +49,7 @@ The screen is split into two rows and five areas:
 └──────────────────────────╨──────────────────────────╨────────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import font** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control.
+1. **Tools (top left)** — the **Import** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control.
 2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
@@ -59,7 +59,7 @@ At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo an
 
 **Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
 
-**Starting over in one click.** Just left of the sun and moon, a button with a turning arrow (pointing at it says **Reset all settings**) puts every setting back to how the app first opens: the Geometry, Experimental, Typography, and Color tabs, the canvas size, and in the Sound tab the mappings (all removed) and the six **Response** sliders. Your font, the selected letter, and your text stay as they are, and so do the canvas view, the preview's Blur and Invert, and the export settings. It does not ask first, because one **Undo** brings everything back. The button is greyed out while every setting is already at its starting value.
+**Starting over in one click.** Just left of the sun and moon, a button with a turning arrow (pointing at it says **Reset all settings**) puts every setting back to how the app first opens: the Geometry, Experimental, Typography, and Color tabs, the canvas size, and in the Sound tab the mappings (all removed) and the six **Response** sliders. It also turns off the preview's **Blur** and **Invert** and puts **Coordinate precision** back to 2. Your font, the selected letter, and your text stay as they are, and so do the canvas view and the other export settings. It does not ask first, because one **Undo** brings every setting back (Blur, Invert, and the precision stay reset). The button is greyed out while every setting is already at its starting value.
 
 **Changing the size of the areas.** The double lines in the picture are the thin grey lines between the areas; you can drag them:
 
@@ -96,7 +96,7 @@ The app keeps your work in this browser by itself, a moment after each change, a
 
 ## 4. Quick start (five minutes)
 
-1. Click **Import font** (top left) → **Google Fonts** → choose **Inter** → **Load font**.
+1. Click **Import** (top left) → **Google Fonts** → choose **Inter** → **Load font**.
 2. In the text input, type a word, for example `Hello`.
 3. In the tools area, find **Curve flattening**, choose **Fixed segments**, and set **Segments per curve** to `2`.
 4. Turn on **Merge joined curves**. The letters become clearly faceted.
@@ -108,7 +108,7 @@ That's the whole workflow. The rest of this guide explains each step in more det
 
 ## 5. Loading a font
 
-Click **Import font** at the top of the tools area. You get three choices: a font from your computer, a font from Google Fonts, or a **Config file** with saved settings (see [As a config file](#as-a-config-file-settings-only)).
+Click **Import** at the top of the tools area. You get three choices: a font from your computer, a font from Google Fonts, or a **Config file** with saved settings (see [As a config file](#as-a-config-file-settings-only)).
 
 ### From your computer
 
@@ -738,7 +738,7 @@ A config file keeps your settings, not your letters: load it later, in another b
 
 It holds the same things the app keeps between visits (see [Coming back later](#coming-back-later)): every setting, the canvas size, the text, the canvas view buttons, the preview's Blur and Invert, the **Coordinate precision**, the Sound tab's mappings and **Response** sliders, the selected letter, and the font's name. It never holds the font itself, the sound, or the video options.
 
-**To load it:** click **Import font** → **Config file** and pick the file, or drag it onto the canvas.
+**To load it:** click **Import** → **Config file** and pick the file, or drag it onto the canvas.
 
 - Your settings, text, Sound mappings, and Response sliders change in one go, and one **Undo** brings back what you had before. The canvas view buttons, the preview's Blur and Invert, and the Coordinate precision change too, but Undo leaves them as they are (they are never undone).
 - A **Google font** in the file is downloaded again (unless it is already open). A **font from your computer** cannot be opened for you: the note under the menu names the file — import it and the letters appear with the loaded settings.

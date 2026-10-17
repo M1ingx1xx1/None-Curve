@@ -72,7 +72,7 @@ const formats: { value: Format; label: string; hint: string }[] = [
   { value: 'png', label: 'PNG — main view', hint: 'The canvas as an image, at the size and multiplier set under Canvas size.' },
   { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download.' },
   { value: 'video', label: 'Video — live sound', hint: 'Records the canvas as it moves with the sound, in real time, with its audio.' },
-  { value: 'config', label: 'Config — settings (.json)', hint: 'Every setting, the text, Sound and the font’s name, to load again with Import font → Config file.' },
+  { value: 'config', label: 'Config — settings (.json)', hint: 'Every setting, the text, Sound and the font’s name, to load again with Import → Config file.' },
 ]
 
 /** The font a config names, as the dialog describes it. */

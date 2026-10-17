@@ -55,7 +55,7 @@ export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts, onCon
         onClick={() => setOpen((o) => !o)}
       >
         <Icon name="upload" />
-        Import font
+        Import
         <span className="chevron" aria-hidden="true">
           {open ? '▴' : '▾'}
         </span>
