@@ -70,6 +70,7 @@ export class SoundEngine {
   private state: SoundState = INITIAL_SOUND_STATE
   private readonly stateListeners = new Set<() => void>()
   private readonly frameListeners = new Set<(frame: FeatureFrame) => void>()
+  private readonly seekListeners = new Set<() => void>()
   /** Frame listeners that threw already: logged once each, not 60 times a second. */
   private readonly failedListeners = new WeakSet<object>()
 
@@ -140,6 +141,13 @@ export class SoundEngine {
     this.frameListeners.add(listener)
     return () => {
       this.frameListeners.delete(listener)
+    }
+  }
+  /** Calls `listener` whenever the file has been sought (a seek, or a loop back to its start); returns the unsubscribe function. */
+  subscribeSeeks(listener: () => void): () => void {
+    this.seekListeners.add(listener)
+    return () => {
+      this.seekListeners.delete(listener)
     }
   }
   /**
@@ -590,7 +598,10 @@ export class SoundEngine {
     })
     on('pause', () => this.setState({ playing: false, position: audio.currentTime }))
     on('ended', () => this.setState({ playing: false, position: this.state.duration }))
-    on('seeked', () => this.updatePosition(true))
+    on('seeked', () => {
+      this.updatePosition(true)
+      for (const listener of this.seekListeners) listener()
+    })
     on('timeupdate', () => this.updatePosition(false))
     on('durationchange', () => {
       // Some formats (VBR MP3) refine their length while they play.

@@ -5,7 +5,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { undoHistory } from '../state/history'
-import type { FeatureId, Mapping } from './mapping'
+import { clampShaping, shapingOf, type FeatureId, type Mapping, type Shaping } from './mapping'
 import { clampResponse, NEUTRAL_RESPONSE, type ResponseSettings } from './types'
 
 export const MAPPING_LIMITS = {
@@ -68,10 +68,16 @@ class MappingStore {
     return id
   }
 
+  /** Changes a mapping; Depth and the shaping fields are clamped to their limits (clampDepth, clampShaping). */
   update(id: string, patch: Partial<Omit<Mapping, 'id'>>) {
     const current = this.state.mappings.find((m) => m.id === id)
     if (!current) return
     const next = { ...current, ...patch, ...(patch.depth !== undefined ? { depth: clampDepth(patch.depth) } : {}) }
+    if (SHAPING_KEYS.some((key) => patch[key] !== undefined)) {
+      const shaping = clampShaping(patch, shapingOf(current))
+      // Only the fields the patch names; the others stay as they are (or missing).
+      for (const key of SHAPING_KEYS) if (patch[key] !== undefined) Object.assign(next, { [key]: shaping[key] })
+    }
     const changed = (Object.keys(patch) as (keyof typeof patch)[]).filter((key) => next[key] !== current[key])
     if (changed.length === 0) return
     // One undo step per Depth drag: changes to the same fields of the same row join.
@@ -89,7 +95,9 @@ class MappingStore {
   replace(mappings: readonly Omit<Mapping, 'id'>[]) {
     undoHistory.record(null)
     this.set({
-      mappings: mappings.slice(0, MAPPING_LIMITS.maxMappings).map((m) => ({ ...m, id: `m${this.nextId++}`, depth: clampDepth(m.depth) })),
+      mappings: mappings
+        .slice(0, MAPPING_LIMITS.maxMappings)
+        .map((m) => ({ ...m, id: `m${this.nextId++}`, depth: clampDepth(m.depth), ...clampedShaping(m) })),
     })
   }
 
@@ -134,6 +142,17 @@ class MappingStore {
     this.state = { ...this.state, ...patch }
     for (const listener of this.listeners) listener()
   }
+}
+
+/** The shaping fields of a Mapping. */
+export const SHAPING_KEYS: readonly (keyof Shaping)[] = ['rangeMin', 'rangeMax', 'curve', 'smoothMs', 'gate', 'mode']
+
+/** The shaping fields a mapping sets, clamped (clampShaping); the ones it leaves out stay out. */
+function clampedShaping(mapping: Partial<Shaping>): Partial<Shaping> {
+  const set = SHAPING_KEYS.filter((key) => mapping[key] !== undefined)
+  if (set.length === 0) return {}
+  const shaping = clampShaping(mapping)
+  return Object.fromEntries(set.map((key) => [key, shaping[key]]))
 }
 
 export function clampDepth(depth: number): number {

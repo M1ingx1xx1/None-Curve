@@ -2,8 +2,8 @@
 // parameters (at most one geometry request in flight), the live slider positions shown as markers,
 // the live seeds, the live frame rate, the flash limit, and Freeze (see docs/SOUND_PLAN.md §5, §8, §9, §10).
 //
-// Every animation frame the engine measures, the driven seeds' jumps are counted (JumpTracker), the
-// mappings are applied to the slider values and seeds (modulate), and the flash limit holds back driven
+// Every animation frame the engine measures, each mapping's feature is shaped (ShapingTracker: Smooth, Trigger,
+// Toggle), the driven seeds' jumps are counted (JumpTracker), the mappings are applied to the slider values and seeds (modulate), and the flash limit holds back driven
 // sliders that would turn back too often (FlashLimiter); the jumps and the sliders' turns share one flash
 // budget (flash.ts). A new parameter set is sent to the geometry worker only when it differs from the last
 // one, the previous one's results have all arrived, and at least 1/30 s has passed: the frame rate follows
@@ -53,6 +53,7 @@ import {
 } from './letters'
 import { modulate, targetById, type Mapping, type Modulated } from './mapping'
 import { mappingStore } from './mappingStore'
+import { NO_SHAPING, ShapingTracker, type ShapedFrame } from './shaping'
 import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame, type ResponseSettings, type SoundState } from './types'
 
 export interface LiveStatus {
@@ -113,10 +114,10 @@ type Jumps = ReadonlyMap<string, number>
 const NO_JUMPS: Jumps = new Map()
 
 /**
- * A frame as shown: its key, the frame, jumps and held values it came from, whether it is the sliders' own, and
- * whether its shared live values differ from the sliders (Freeze would change something).
+ * A frame as shown: its key, the frame, shaping, jumps and held values it came from, whether it is the sliders' own,
+ * and whether its shared live values differ from the sliders (Freeze would change something).
  */
-type Shown = { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean; differs: boolean }
+type Shown = { key: string; frame: FeatureFrame; shaped: ShapedFrame; jumps: Jumps; holds: Holds | null; isBase: boolean; differs: boolean }
 /** A frame waiting to be committed to React: its glyphs are being computed. `turn`: the Thorn turns it shows. */
 type Next = { shown: Shown; params: GeometryParams | null; letters: LetterFrame | null; turn: number }
 
@@ -175,7 +176,12 @@ export class FlashLimiter {
       const spec = levels && targetById(id)
       if (levels && spec) {
         for (const gain of levels.gains) {
-          const level = backMove(dir, levelPosition(spec, levels.base, extreme, gain), levelPosition(spec, levels.base, position, gain))
+          const bounds = modulated.bounds?.get(id)
+          const level = backMove(
+            dir,
+            levelPosition(spec, levels.base, extreme, gain, bounds),
+            levelPosition(spec, levels.base, position, gain, bounds),
+          )
           if (level > amount) amount = level
         }
       }
@@ -216,7 +222,7 @@ export class FlashLimiter {
       state.value = value
       state.position = position
     }
-    return { modulated: positions ? { params, positions, seeds: modulated.seeds } : modulated, holds }
+    return { modulated: positions ? { ...modulated, params, positions } : modulated, holds }
   }
 
   /** Forgets every slider (Sound stopped driving); the budget keeps its edges. */
@@ -378,6 +384,7 @@ export class LiveScheduler {
   private readonly budget = new FlashBudget()
   private readonly flash = new FlashLimiter(this.budget)
   private readonly jumpTracker = new JumpTracker(this.budget)
+  private readonly shapingTracker = new ShapingTracker()
 
   private base: GeometryParams | null = null
   private baseKey = ''
@@ -410,12 +417,14 @@ export class LiveScheduler {
   private switchCharged = false
   /** The driven seeds' jumps so far (from jumpTracker). */
   private jumps: Jumps = NO_JUMPS
+  /** The mappings' shaped feature values and rises in the newest frame (from shapingTracker). */
+  private shaped: ShapedFrame = NO_SHAPING
   /** Which Thorn state each group of letters shows, while Thorn is on in the shared values and letters are drawn. */
   private readonly turns = new ThornTurns()
 
   private driving = false
   /**
-   * The newest modulated parameters (after the flash limit), the frame, jumps and held values they came from, the
+   * The newest modulated parameters (after the flash limit), the frame, shaping, jumps and held values they came from, the
    * key of the whole frame (letters included) and of the shared parameters, the letters showing other parameters,
    * whether the shared values differ from the sliders, and the Thorn turns made.
    */
@@ -424,6 +433,7 @@ export class LiveScheduler {
     differs: boolean
     turn: number
     frame: FeatureFrame
+    shaped: ShapedFrame
     jumps: Jumps
     holds: Holds | null
     key: string
@@ -499,8 +509,11 @@ export class LiveScheduler {
 
   setFrame(frame: FeatureFrame) {
     this.frame = frame
-    // Jumps are counted only while Sound can drive; stop() forgets them.
-    if (this.base && this.canDrive()) this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base, this.response.strength)
+    // Shaping and jumps are counted only while Sound can drive; stop() forgets them.
+    if (this.base && this.canDrive()) {
+      this.shaped = this.shapingTracker.advance(frame, this.mappings)
+      this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base, this.response.strength, this.shaped)
+    }
     this.update()
   }
 
@@ -512,6 +525,15 @@ export class LiveScheduler {
   /** The source started or stopped (playing, paused, listening, stopped listening, switched). */
   sourceChanged() {
     this.update()
+  }
+
+  /**
+   * The file was sought (or looped back to its start): every mapping's smoothing, pulse and toggle starts afresh from
+   * the next frame, as after a pause. The seeds keep their jumps.
+   */
+  seeked() {
+    this.shapingTracker.reset()
+    this.shaped = NO_SHAPING
   }
 
   /** React rendered this commit, and its effects (which ask for the geometry) have run. */
@@ -536,7 +558,7 @@ export class LiveScheduler {
   freezeChanges(): Partial<GeometryParams> | null {
     const { base, committed } = this
     if (!this.driving || !base || !committed || !committed.differs) return null
-    const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps, this.response).params, committed.holds)
+    const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps, this.response, committed.shaped.values).params, committed.holds)
     if (params === base) return null
     const changes: Partial<GeometryParams> = {}
     let any = false
@@ -567,7 +589,7 @@ export class LiveScheduler {
   private update() {
     const base = this.base
     if (!base || !this.canDrive()) return this.stop()
-    const unlimited = modulate(base, this.frame, this.mappings, this.jumps, this.response)
+    const unlimited = modulate(base, this.frame, this.mappings, this.jumps, this.response, this.shaped.values)
     // No enabled mapping with a Depth acts on an active target: Sound changes nothing.
     if (unlimited.positions.size === 0 && unlimited.seeds.size === 0) return this.stop()
     if (!this.driving) {
@@ -575,7 +597,7 @@ export class LiveScheduler {
       this.period = MIN_COMMIT_MS
       this.slowSince = null
       // The canvas shows the sliders' own parameters until the first live commit.
-      this.committed = { key: this.baseKey, frame: SILENT_FRAME, jumps: NO_JUMPS, holds: null, isBase: true, differs: false }
+      this.committed = { key: this.baseKey, frame: SILENT_FRAME, shaped: NO_SHAPING, jumps: NO_JUMPS, holds: null, isBase: true, differs: false }
     }
     // Where each letter would go this frame, and the levels letters show or are about to (for the flash limit).
     const { levels, slots } = this
@@ -597,6 +619,7 @@ export class LiveScheduler {
       differs: key !== this.baseKey,
       turn: this.turns.turns,
       frame: this.frame,
+      shaped: this.shaped,
       jumps: this.jumps,
       holds,
       key: letters?.key ?? key,
@@ -740,13 +763,21 @@ export class LiveScheduler {
       // The same frame on screen. With Thorn turns the shared values can move while it does not (a turn waits): Freeze
       // and the status follow them, as the markers do.
       if (latest.frame !== committed.frame) {
-        this.committed = { ...committed, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, differs: latest.differs }
+        this.committed = { ...committed, frame: latest.frame, shaped: latest.shaped, jumps: latest.jumps, holds: latest.holds, differs: latest.differs }
       }
       return this.showTurns(latest.turn)
     }
     // The sliders' own values with every letter on them (with Thorn turns, letters can still show other states).
     const isBase = latest.modulated.params === this.base && !latest.letters
-    const shown: Shown = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase, differs: latest.differs }
+    const shown: Shown = {
+      key: latest.key,
+      frame: latest.frame,
+      shaped: latest.shaped,
+      jumps: latest.jumps,
+      holds: latest.holds,
+      isBase,
+      differs: latest.differs,
+    }
     // Back to the sliders' own parameters while React already shows them: nothing to render.
     if (isBase && !this.holdsCommit) {
       this.committed = shown
@@ -852,6 +883,8 @@ export class LiveScheduler {
     // Exact restore: the seeds go back to their fields' values, and playing again starts from them.
     this.jumpTracker.reset()
     this.jumps = NO_JUMPS
+    this.shapingTracker.reset()
+    this.shaped = NO_SHAPING
     this.shownAssign = null
     this.showLevels(null)
     this.turns.clear()
@@ -935,6 +968,7 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
     mappingStore.subscribe(syncMappings),
     engine.subscribeState(() => live.sourceChanged()),
     engine.subscribeFrames((frame) => live.setFrame(frame)),
+    engine.subscribeSeeks(() => live.seeked()),
     geometryClient.subscribeIdle(() => live.idle()),
   ]
   return () => {

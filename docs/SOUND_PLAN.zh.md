@@ -348,7 +348,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 - **Drive letters：** 一个开关（`role="switch"` 的复选框，画成按主题配色的小滑轨和圆钮）；只有打开时声音才会移动字母。开启减少动态效果时它一开始是关的，并说明原因（第 10 节）。Strength 为 0% 时，它下方有一行说明 "Strength is 0%: the letters hold still."。
 - **映射：**
   - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，说明 Load 会恢复哪些默认值、撤销可以恢复之前的设置和映射，并给每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。这一行下方有一个状态行，说明上一次 Load 做了什么（“Loaded X. Turned off …. Other Geometry and Experimental settings back to defaults (seeds kept).”），一直保留到下一次 Load、在列表里选了另一个预设，或者撤销或重做为止。
-  - 每行占一行：开关 LED、Feature（与电平表说明相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、一个小的双极 Depth 旋钮，以及打开该行详情的展开按钮（同一时间只展开一行：Remove，以及 Rate 的 ⓘ；以后每行的更多设置放在这里）。在种子上，Depth 改为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
+  - 每行占一行：开关 LED、Feature（与电平表说明相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、一个小的双极 Depth 旋钮，以及打开该行详情的展开按钮（同一时间只展开一行：先是该行的塑形设置——Mode 为 Follow / Trigger / Toggle 分段控件，Gate、Curve 和 Smooth 为小旋钮，目标是滑块时还有双滑块的 Range（NOCUR-72；含义见 README → 塑形）——然后是 Remove，以及 Rate 的 ⓘ）。在种子上，Depth 改为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
   - **Add mapping**，以及每行详情里的 Remove。删除一行后，键盘焦点移到下一行的展开按钮（没有时移到上一行的，都没有时移到 Add mapping）。
   - **Freeze**，在这个分组的末尾，旁边显示 "Live · N fps"。录制视频期间它不可用（`aria-disabled`，保留键盘焦点），并显示 "Freeze is off while recording."。它的 ⓘ 还说明，按不同幅度响应的字母会取共享值。

@@ -21,7 +21,7 @@
 import type { GeometryJob, GeometryParams } from '../geometry/types'
 import type { ShapedSpecimen } from '../specimen/scene'
 import { FLASH_LIMITS } from './flash'
-import { TARGETS, targetById, type Modulated, type TargetSpec } from './mapping'
+import { TARGETS, targetById, withinBounds, type Modulated, type TargetSpec } from './mapping'
 import { THORN_TURNS, type FeatureFrame, type ResponseSettings } from './types'
 
 /** The letters of the shaped text, one slot per occurrence in placePolygons' order (lines, then glyphs; spaces and missing glyphs counted). */
@@ -234,12 +234,18 @@ const turnsOn = (params: GeometryParams): boolean => params.experimental.thorn?.
 const unscaled = (id: string, params: GeometryParams): boolean => isThornTarget(id) || (turnsOn(params) && isTurnTarget(id))
 
 /** A level's value and slider position for a target whose shared live position is `position` (see levelPosition). */
-function scaled(spec: TargetSpec, base: GeometryParams, position: number, gain: number): { value: number; position: number } {
+function scaled(
+  spec: TargetSpec,
+  base: GeometryParams,
+  position: number,
+  gain: number,
+  bounds?: readonly [number, number],
+): { value: number; position: number } {
   const value = spec.get(base)
   const bp = spec.toSlider(value)
   if (position === bp) return { value, position: bp }
-  // Clamped and snapped to the slider's step (fromSlider).
-  const live = spec.fromSlider(bp + gain * (position - bp))
+  // Kept to the mappings' Range (withinBounds), clamped and snapped to the slider's step (fromSlider).
+  const live = spec.fromSlider(withinBounds(bp + gain * (position - bp), bp, bounds))
   // Still within the base value's own step: the slider's exact value, as modulate keeps it.
   return live === value || live === spec.fromSlider(bp) ? { value, position: bp } : { value: live, position: spec.toSlider(live) }
 }
@@ -249,10 +255,16 @@ function scaled(spec: TargetSpec, base: GeometryParams, position: number, gain: 
  * the slider's own position scaled by `gain`, clamped and snapped to the step. Monotone in `position`, so a level
  * turns back only when the shared value does. The identity at gain 1, for Thorn's sliders (isThornTarget), and for
  * the other turn targets while Thorn is on in `base` (isTurnTarget; no slider switches Thorn, so it is on in the
- * shared values too).
+ * shared values too). `bounds`: the span the mappings' Range keeps the target to (Modulated.bounds); missing, the slider.
  */
-export function levelPosition(spec: TargetSpec, base: GeometryParams, position: number, gain: number): number {
-  return gain === 1 || unscaled(spec.id, base) ? position : scaled(spec, base, position, gain).position
+export function levelPosition(
+  spec: TargetSpec,
+  base: GeometryParams,
+  position: number,
+  gain: number,
+  bounds?: readonly [number, number],
+): number {
+  return gain === 1 || unscaled(spec.id, base) ? position : scaled(spec, base, position, gain, bounds).position
 }
 
 /** One level's live parameters: their key and the driven sliders' positions. */
@@ -270,7 +282,7 @@ function levelSet(base: GeometryParams, shared: Modulated, gain: number, middle:
     const spec = targetById(id)
     // Thorn's sliders, and the other turn targets while Thorn is on, come from the letters' turn groups, unscaled.
     if (!spec || unscaled(id, shared.params)) continue
-    const at = scaled(spec, base, position, gain)
+    const at = scaled(spec, base, position, gain, shared.bounds?.get(id))
     if (at.position !== position) (positions ??= new Map(shared.positions)).set(id, at.position)
     // Seeds, held values and Thorn's canvasEm come with the shared parameters.
     if (spec.get(params) !== at.value) params = spec.set(params, at.value)
