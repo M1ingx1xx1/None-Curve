@@ -18,7 +18,7 @@
 // vertices only where outlines crossed (and, where contours come within a grid cell, rounded ones).
 
 import { relate } from './contourLayout'
-import { findRingCrossings, findSelfCrossings, insideRing, RingIndex, ringBox, SegmentSweep } from './crossings'
+import { findRingCrossings, findSelfCrossings, insideRing, ringBox } from './crossings'
 import { signedArea } from './flatten'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { curveLikeRuns, WARP_LIMITS } from './warp'
@@ -36,8 +36,6 @@ export const OVERLAP_LIMITS = {
   exactRounds: 8,
   /** Vertices this close (font units) to the straight line between their neighbours are left out, unless the input has them. */
   straight: 1e-6,
-  /** Contours with at least this many points are indexed (see RingIndex) when step 7 compares them with others. */
-  indexed: 128,
 } as const
 
 export interface OverlapStats {
@@ -48,18 +46,9 @@ export interface OverlapStats {
   contoursOut: number
   /** Contours left out as too small to show. */
   removed: number
-  /** The merge broke down, on a finer grid too (see mergeOverlaps): the glyph is left as it is. */
-  failed: boolean
-  /** More vertices and crossings than the merge was allowed (`maxHot`): the glyph is left as it is. */
-  tooComplex: boolean
 }
 
-export const emptyOverlapStats = (): OverlapStats => ({ applied: false, crossings: 0, contoursIn: 0, contoursOut: 0, removed: 0, failed: false, tooComplex: false })
-
-export interface MergeOptions {
-  /** At most this many grid points (vertices and crossings) are merged; beyond that the glyph is left as it is. */
-  maxHot?: number
-}
+export const emptyOverlapStats = (): OverlapStats => ({ applied: false, crossings: 0, contoursIn: 0, contoursOut: 0, removed: 0 })
 
 /**
  * Which regions are ink, by how many times the outlines wind around them: 'nonzero' (how fonts fill), or
@@ -68,32 +57,10 @@ export interface MergeOptions {
  */
 export type FillRule = 'nonzero' | 'positive'
 
-/**
- * The glyph redrawn as non-crossing contours around what the fill rule (by default nonzero) fills.
- *
- * Should rounding to the grid still join outlines wrongly (a crossing that lies exactly on a cell's corner, say),
- * the regions' winding numbers disagree (step 5). Which crossings fall on corners depends on the grid, so the merge
- * is tried once more on a grid twice as fine; if that breaks down too, the glyph is left as it is (stats.failed): its
- * outlines still cross, but it fills the same everywhere.
- */
-export function mergeOverlaps(
-  polygon: PolygonGlyph,
-  rule: FillRule = 'nonzero',
-  options: MergeOptions = {},
-): { polygon: PolygonGlyph; stats: OverlapStats } {
+/** The glyph redrawn as non-crossing contours around what the fill rule (by default nonzero) fills. */
+export function mergeOverlaps(polygon: PolygonGlyph, rule: FillRule = 'nonzero'): { polygon: PolygonGlyph; stats: OverlapStats } {
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const scale = Math.max(1, Math.ceil(OVERLAP_LIMITS.minGridPerEm / unitsPerEm))
-  const maxHot = options.maxHot ?? Infinity
-  const merged = mergeOnGrid(polygon, rule, scale, maxHot)
-  if (merged) return merged
-  const finer = mergeOnGrid(polygon, rule, 2 * scale, maxHot)
-  if (finer && (finer.stats.applied || finer.stats.tooComplex)) return finer
-  return { polygon, stats: { ...emptyOverlapStats(), contoursIn: polygon.contours.length, failed: true } }
-}
-
-/** The merge on a grid of `scale` cells per font unit; null when it breaks down. */
-function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHot: number): { polygon: PolygonGlyph; stats: OverlapStats } | null {
-  const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const stats: OverlapStats = { ...emptyOverlapStats(), applied: true, contoursIn: polygon.contours.length }
 
   // ---- 1. Segments on the grid ----
@@ -159,43 +126,27 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     startPixel[s] = addHot(ax[s], ay[s])
     endPixel[s] = addHot(bx[s], by[s])
   }
-  const tooComplex = () => ({ polygon, stats: { ...emptyOverlapStats(), contoursIn: polygon.contours.length, tooComplex: true } })
-  if (hx.length > maxHot) return tooComplex()
   // Crossings: only proper ones add points (a touch happens at a vertex, which is already hot).
-  const sweep = new SegmentSweep({ ax, ay, bx, by })
-  const { order, u0, u1, v0, v1 } = sweep
-  /** The two segments of each crossing. */
-  const pairs: number[] = []
+  const order = Array.from({ length: count }, (_, s) => s).sort((s, t) => Math.min(ax[s], bx[s]) - Math.min(ax[t], bx[t]))
   for (let i = 0; i < count; i++) {
     const s = order[i]
+    const sx1 = Math.max(ax[s], bx[s])
+    const sy0 = Math.min(ay[s], by[s])
+    const sy1 = Math.max(ay[s], by[s])
     for (let j = i + 1; j < count; j++) {
       const t = order[j]
-      if (u0[t] > u1[s]) break
-      if (v0[t] > v1[s] || v1[t] < v0[s] || !sweep.boxesMeet(s, t)) continue
+      if (Math.min(ax[t], bx[t]) > sx1) break
+      if (Math.min(ay[t], by[t]) > sy1 || Math.max(ay[t], by[t]) < sy0) continue
       const d1 = cross(ax[s], ay[s], bx[s], by[s], ax[t], ay[t])
       const d2 = cross(ax[s], ay[s], bx[s], by[s], bx[t], by[t])
       if (d1 === 0 || d2 === 0 || d1 > 0 === d2 > 0) continue
       const d3 = cross(ax[t], ay[t], bx[t], by[t], ax[s], ay[s])
       const d4 = cross(ax[t], ay[t], bx[t], by[t], bx[s], by[s])
       if (d3 === 0 || d4 === 0 || d3 > 0 === d4 > 0) continue
-      pairs.push(s, t)
-      if (hx.length + pairs.length / 2 > maxHot) return tooComplex()
+      const f = d1 / (d1 - d2)
+      addHot(Math.round(ax[t] + (bx[t] - ax[t]) * f), Math.round(ay[t] + (by[t] - ay[t]) * f))
+      stats.crossings++
     }
-  }
-  // In the order a sweep along x finds them, which numbers the grid points (and so orders the result) as ever.
-  for (const k of sweep.inXOrder(Array.from({ length: pairs.length / 2 }, (_, k) => k), pairs)) {
-    const s = pairs[2 * k]
-    const t = pairs[2 * k + 1]
-    const d1 = cross(ax[s], ay[s], bx[s], by[s], ax[t], ay[t])
-    const d2 = cross(ax[s], ay[s], bx[s], by[s], bx[t], by[t])
-    const f = d1 / (d1 - d2)
-    const x = ax[t] + (bx[t] - ax[t]) * f
-    const y = ay[t] + (by[t] - ay[t]) * f
-    // Within rounding error of a cell's side, the crossing could round into a cell that one of the two segments does
-    // not pass (see `passes`), and they would not be joined there; so it is rounded exactly.
-    if (nearHalf(x) || nearHalf(y)) addHot(...roundExactly(ax[t], ay[t], bx[t], by[t], d1, d1 - d2))
-    else addHot(Math.round(x), Math.round(y))
-    stats.crossings++
   }
 
   // ---- 3. Route every segment through the hot pixels whose cells it passes ----
@@ -276,56 +227,15 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
   }
   // Connected pieces of the graph, each started from the face around it, whose winding number a ray
   // to the left of the piece's leftmost vertex gives.
-  const parent = Int32Array.from(hx, (_, k) => k)
-  const size = new Int32Array(hx.length).fill(1)
-  // Iterative, with path halving and union by size: a piece can have tens of thousands of vertices.
-  const root = (k: number): number => {
-    while (parent[k] !== k) k = parent[k] = parent[parent[k]]
-    return k
-  }
-  for (let h = 0; h < halves; h += 2) {
-    let a = root(from[h])
-    let b = root(to[h])
-    if (a === b) continue
-    if (size[a] < size[b]) [a, b] = [b, a]
-    parent[b] = a
-    size[a] += size[b]
-  }
+  const parent = hx.map((_, k) => k)
+  const root = (k: number): number => (parent[k] === k ? k : (parent[k] = root(parent[k])))
+  for (let h = 0; h < halves; h += 2) parent[root(from[h])] = root(to[h])
   const leftmost = new Map<number, number>()
   for (let h = 0; h < halves; h++) {
     const v = from[h]
     const r = root(v)
     const best = leftmost.get(r)
     if (best === undefined || hx[v] < hx[best] || (hx[v] === hx[best] && hy[v] < hy[best])) leftmost.set(r, v)
-  }
-  // The edges by horizontal strips of the grid (each in every strip its height reaches), so that the ray from each
-  // piece's leftmost vertex (windingLeftOf) meets only the edges of its own strip: a merge can have thousands of
-  // pieces and edges.
-  let low = Infinity
-  let high = -Infinity
-  for (const v of leftmost.values()) {
-    low = Math.min(low, hy[v])
-    high = Math.max(high, hy[v])
-  }
-  const strips = Math.max(1, Math.min(leftmost.size, Math.ceil(Math.sqrt(halves / 2))))
-  const stripHeight = Math.max(1, Math.ceil((high - low + 1) / strips))
-  /** The first and last strip edge h (even) reaches: of the rows y it counts for (half-open, as in windingLeftOf). */
-  const stripsOf = (h: number): [number, number] => {
-    const y0 = Math.max(Math.min(hy[from[h]], hy[to[h]]), low)
-    const y1 = Math.min(Math.max(hy[from[h]], hy[to[h]]) - 1, high)
-    return y0 > y1 ? [1, 0] : [Math.floor((y0 - low) / stripHeight), Math.floor((y1 - low) / stripHeight)]
-  }
-  const stripStart = new Int32Array(strips + 1)
-  for (let h = 0; h < halves; h += 2) {
-    const [first, last] = stripsOf(h)
-    for (let k = first; k <= last; k++) stripStart[k + 1]++
-  }
-  for (let k = 0; k < strips; k++) stripStart[k + 1] += stripStart[k]
-  const stripEdges = new Int32Array(stripStart[strips])
-  const filled = stripStart.slice(0, strips)
-  for (let h = 0; h < halves; h += 2) {
-    const [first, last] = stripsOf(h)
-    for (let k = first; k <= last; k++) stripEdges[filled[k]++] = h
   }
   const faceWinding = new Array<number | undefined>(faceEdges.length)
   for (const v of leftmost.values()) {
@@ -344,10 +254,6 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
         if (faceWinding[g] === undefined) {
           faceWinding[g] = faceWinding[f]! - wind[h]
           queue.push(g)
-        } else if (faceWinding[g] !== faceWinding[f]! - wind[h]) {
-          // Two ways round give a region different winding numbers: the edges cross somewhere, so the graph is no
-          // planar map of the outlines, and the contours drawn from it would cross or lose ink.
-          return null
         }
       }
     }
@@ -357,9 +263,7 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     const x = hx[v]
     const y = hy[v]
     let w = 0
-    const strip = Math.floor((y - low) / stripHeight)
-    for (let e = stripStart[strip]; e < stripStart[strip + 1]; e++) {
-      const h = stripEdges[e]
+    for (let h = 0; h < halves; h += 2) {
       const p = from[h]
       const q = to[h]
       if (hy[p] > y === hy[q] > y) continue
@@ -485,10 +389,6 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
   const whole = new Uint8Array(loops.length)
   /** How pairs of contours sit on the grid, by k × loops.length + m. */
   const onGrid: ReturnType<typeof relate>[] = []
-  const gridBoxes = loops.map((loop) => ringBox(loop.grid))
-  /** Indexes of long contours on the grid, made on first use. */
-  const gridIndexes: (RingIndex | undefined)[] = []
-  const gridIndex = (k: number) => (loops[k].grid.length < OVERLAP_LIMITS.indexed ? undefined : (gridIndexes[k] ??= new RingIndex(loops[k].grid)))
   let valid: Point[][] | null = null
   for (let round = 0; round < OVERLAP_LIMITS.exactRounds; round++) {
     // Each contour as it stands, and for each of its points the corner it comes from.
@@ -561,28 +461,9 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
           changed ||= a || b
         }
       }
-    }
-    // Pairs of contours, by a sweep over boxes around each as it stands and on the grid: two whose boxes are apart
-    // neither cross nor sit inside one another, now or on the grid. (All a round does is pin corners and mark
-    // contours whole, so the order of pairs does not matter.)
-    const ringIndexes: (RingIndex | undefined)[] = []
-    const ringIndex = (k: number) =>
-      rings[k] === loops[k].grid ? gridIndex(k) : rings[k].length < OVERLAP_LIMITS.indexed ? undefined : (ringIndexes[k] ??= new RingIndex(rings[k]))
-    const boxes = rings.map((ring, k) => {
-      const [box, grid] = [ringBox(ring), gridBoxes[k]]
-      return { minX: Math.min(box.minX, grid.minX), minY: Math.min(box.minY, grid.minY), maxX: Math.max(box.maxX, grid.maxX), maxY: Math.max(box.maxY, grid.maxY) }
-    })
-    const byLeft = boxes.map((_, k) => k).sort((k, m) => boxes[k].minX - boxes[m].minX)
-    for (let u = 0; u < byLeft.length; u++) {
-      for (let v = u + 1; v < byLeft.length; v++) {
-        const p = boxes[byLeft[u]]
-        const q = boxes[byLeft[v]]
-        if (q.minX > p.maxX) break
-        if (q.minY > p.maxY || q.maxY < p.minY) continue
-        const k = Math.min(byLeft[u], byLeft[v])
-        const m = Math.max(byLeft[u], byLeft[v])
+      for (let m = k + 1; m < rings.length; m++) {
         if (!sources[k] && !sources[m]) continue
-        const crossings = findRingCrossings(rings[k], rings[m], Infinity, ringIndex(k), ringIndex(m))
+        const crossings = findRingCrossings(rings[k], rings[m])
         for (const c of crossings) {
           const a = pinEdge(k, c.i)
           const b = pinEdge(m, c.j)
@@ -590,8 +471,8 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
         }
         if (crossings.length > 0) continue
         // Apart, or one inside the other, as on the grid (where they may touch at a point instead).
-        const before = (onGrid[k * loops.length + m] ??= relate(loops[k].grid, loops[m].grid, gridIndex(k), gridIndex(m)))
-        if (!before.meet && (inside(rings[k], rings[m], ringIndex(m)) !== before.aInB || inside(rings[m], rings[k], ringIndex(k)) !== before.bInA)) {
+        const before = (onGrid[k * loops.length + m] ??= relate(loops[k].grid, loops[m].grid))
+        if (!before.meet && (inside(rings[k], rings[m]) !== before.aInB || inside(rings[m], rings[k]) !== before.bInA)) {
           whole[k] = whole[m] = 1
           changed = true
         }
@@ -631,12 +512,11 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
   }
 }
 
-/** True when ring a, which does not meet ring b, lies inside it (`index`: of b, if it has one). */
-function inside(a: readonly Point[], b: readonly Point[], index?: RingIndex): boolean {
+/** True when ring a, which does not meet ring b, lies inside it. */
+function inside(a: readonly Point[], b: readonly Point[]): boolean {
   const boxA = ringBox(a)
   const boxB = ringBox(b)
-  const enclosed = boxB.minX <= boxA.minX && boxB.maxX >= boxA.maxX && boxB.minY <= boxA.minY && boxB.maxY >= boxA.maxY
-  return enclosed && (index ? index.contains(a[0]) : insideRing(a[0], b))
+  return boxB.minX <= boxA.minX && boxB.maxX >= boxA.maxX && boxB.minY <= boxA.minY && boxB.maxY >= boxA.maxY && insideRing(a[0], b)
 }
 
 /**
@@ -762,28 +642,6 @@ function compareAngle(ux: number, uy: number, vx: number, vy: number): number {
 /** Twice the signed area of triangle a, b, c: positive when c lies left of a → b. */
 function cross(ax: number, ay: number, bx: number, by: number, cx: number, cy: number): number {
   return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
-}
-
-/** True when v lies within rounding error of a cell's side (half a grid unit), so Math.round may take the wrong side. */
-function nearHalf(v: number): boolean {
-  return Math.abs(v - Math.floor(v) - 0.5) < 1e-6
-}
-
-/**
- * The point d1 / den of the way along segment (x0, y0)–(x1, y1), rounded half up exactly (as Math.round, and `passes`,
- * would on exact numbers). d1 and den are exact (whole numbers below 2^53), but their products are not, so BigInt.
- */
-function roundExactly(x0: number, y0: number, x1: number, y1: number, d1: number, den: number): [number, number] {
-  const sign = den < 0 ? -1n : 1n
-  const n = BigInt(den) * sign
-  const t = BigInt(d1) * sign
-  // a + (b - a) t / n, half up: floor((2 (a n + (b - a) t) + n) / 2n).
-  const round = (a: number, b: number) => {
-    const numerator = 2n * (BigInt(a) * n + BigInt(b - a) * t) + n
-    const q = numerator / (2n * n)
-    return Number(numerator < 0n && q * 2n * n !== numerator ? q - 1n : q)
-  }
-  return [round(x0, x1), round(y0, y1)]
 }
 
 /** One number per grid point (coordinates within ±2^20). */

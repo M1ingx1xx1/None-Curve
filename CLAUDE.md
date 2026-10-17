@@ -61,9 +61,7 @@ When compacting, keep: the current task card, files changed and why, decisions t
 
 ## Commands
 
-- Type-check and build: `npm run build` (also type-checks `tests/` and `scripts/`)
-- Tests: `npm test` (fast suite, well under a minute; CI runs it with the build on PRs into `develop`); `npm run test:slow` (the test track and every glyph of both fixture fonts, about 3 minutes)
-- Test track: `npm run test-track` writes `test-audio/sound-test.wav` (rendered, not committed)
+- Type-check and build: `npm run build` (there is no test suite)
 - Dev server: preview_start `dev` (port 5173), never through Bash
 - Run `npx` from the project dir; `cd ~` first triggers a gvm error
 

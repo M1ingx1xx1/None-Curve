@@ -74,7 +74,8 @@ export const SOUND_LIMITS = {
   /**
    * Absolute flux added to the full-band Beat threshold (flux is summed over every bin above minFeatureHz). At
    * Sensitivity 0, steady pure tones give under 0.06 and a -40 dBFS bass-drum hit about 2.3, so 1 ignores numeric noise
-   * and keeps quiet hits. A steady low buzzy note still passes it (see onsetRiseDb).
+   * and keeps quiet hits. Known limit: a steady low buzzy note (a sawtooth at 55–110 Hz) beats against the frame rate
+   * and can fire Beat several times a second.
    * Activity's change never judges the flux's rise above its median against less than this either.
    */
   fluxFloor: 1,
@@ -103,30 +104,6 @@ export const SOUND_LIMITS = {
   onsetHoldMs: 120,
   /** No onsets until the flux history spans this long (ms): right after a start there is nothing to compare with. */
   onsetWarmupMs: 250,
-  /**
-   * Beat's energy gate. A steady low note rich in harmonics (a sawtooth, square or buzzy bass below about 140 Hz)
-   * fools the flux: the window's main lobe (about ±70 Hz) spans neighbouring harmonics, so each bin's magnitude
-   * swings at the note's frequency, which the frame rate aliases to a few to 19 swings a second, while the flux
-   * median stays near 0. Without the gate such a note fired Beat 5–11 times a second, and kicks over it were half
-   * missed among the false beats. So either detector fires only when some octave band of onsetRiseBandsHz (the last
-   * runs to Nyquist; for the kick detector, the bands starting below kickBand's top) has risen at least onsetRiseDb
-   * above its loudest in the onsetRiseWindowMs before. Band energy is in dB after Sensitivity, never below the
-   * silence threshold. Measured on the emulated analyser: steady sawtooth basses rise at most 2.0 dB (99% of frames
-   * under 1.4 dB); hits at least 2.3 dB (hats at -30 dBFS under a -12 dBFS sawtooth), most 5 dB and more. Under
-   * 1.5 dB the buzz comes back; at 3 dB quiet hats over a bass are lost. Known limit: a hit masked by a louder sound
-   * in its own octave (a kick 12 dB under a bass note) is missed.
-   */
-  onsetRiseDb: 2,
-  onsetRiseWindowMs: 100,
-  onsetRiseBandsHz: [20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240],
-  /**
-   * In the gate's window, a band's energy stops counting once the band has fallen this many dB below it since: the
-   * sound died away between two hits, so a second hit as loud as the first is new. Without it, equal hits closer than
-   * onsetRiseWindowMs mostly vetoed each other (hats at 12 a second: 6.9 beats a second fell to 1.2). Measured on the
-   * emulated analyser: a steady buzz dips at most 9.4 dB (a 41.2 Hz sawtooth; 8 lets its beats back in), while hits
-   * at 10 a second fall 14 dB (plucks) to 27 dB (hats, kicks) between hits.
-   */
-  onsetRiseResetDb: 12,
   /** Most flux entries kept per detector (enough for fluxWindowMs at 500 frames per second). */
   fluxHistoryCapacity: 512,
   /** A gap between frames longer than this (ms; the tab was hidden) restarts onset detection. */
@@ -155,8 +132,7 @@ export interface FeatureFrame {
   pitch: number
   /**
    * A pulse: 1 on a frame where either detector finds an onset (full-band flux or the kick band), then falling with
-   * the release time. The larger of the two detectors' pulses. A steady sound, a buzzy bass included, gives none
-   * (SOUND_LIMITS.onsetRiseDb).
+   * the release time. The larger of the two detectors' pulses.
    */
   beat: number
   /**
@@ -171,8 +147,7 @@ export interface FeatureFrame {
   pan: number
   /**
    * An onset in this frame, from either detector: full-band flux above its threshold, or flux in the kick band
-   * (20–150 Hz: a bass drum, or a sudden low bass note), while some octave band's energy rises (onsetRiseDb). Two
-   * closer than minBeatGapMs count as one.
+   * (20–150 Hz: a bass drum, or a sudden low bass note). Two closer than minBeatGapMs count as one.
    */
   onset: boolean
   /** Below the silence threshold. */
@@ -231,10 +206,6 @@ export type SoundErrorKind =
   | 'no-device'
   /** The microphone exists but could not be opened (in use by another app, hardware error). */
   | 'device-busy'
-  /** The microphone opened, but the browser could not connect it to the analyser (an audio-graph error). */
-  | 'mic-connect'
-  /** The microphone stopped while listening (unplugged, or access withdrawn). */
-  | 'mic-ended'
   /** Microphone access needs a secure context (https or localhost). */
   | 'insecure'
 

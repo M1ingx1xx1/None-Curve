@@ -24,11 +24,8 @@ interface TypographyControlsProps {
   font: LoadedFont | null
   /** The laid-out text, for whether Fit text can run. */
   scene: SpecimenScene | null
-  /**
-   * The text with the sliders' own outlines (never a live Sound frame), measured by Fit text and Free;
-   * while Sound drives the letters, once the geometry worker has computed them.
-   */
-  loadSliderScene: () => Promise<SpecimenScene | null>
+  /** The text with the sliders' own outlines (never a live Sound frame), measured by Fit text and Free. */
+  sliderScene: () => SpecimenScene | null
   disabled: boolean
   dispatch: Dispatch<Action>
 }
@@ -55,7 +52,7 @@ const anchorLabels: Record<TextAnchor, string> = {
  * How the text is set on the canvas: size, spacing, slant, and alignment. These change the layout and
  * the SVG/PNG export, not the glyph outlines or the exported font.
  */
-export default function TypographyControls({ params, artboard, font, scene, loadSliderScene, disabled, dispatch }: TypographyControlsProps) {
+export default function TypographyControls({ params, artboard, font, scene, sliderScene, disabled, dispatch }: TypographyControlsProps) {
   const update = (patch: Partial<TypographyParams>) => dispatch({ type: 'updateParams', group: 'typography', patch })
   const isDefault = (Object.keys(DEFAULT_TYPOGRAPHY) as (keyof TypographyParams)[]).every(
     (k) => k === 'textCase' || params[k] === DEFAULT_TYPOGRAPHY[k],
@@ -89,9 +86,8 @@ export default function TypographyControls({ params, artboard, font, scene, load
             title="Largest size at which the whole text fits inside the canvas margin"
             onClick={() => {
               // Measured on the sliders' own letters (as exports are), never on a live Sound frame.
-              void loadSliderScene().then((fitScene) => {
-                if (font && fitScene) update({ size: fitTextSize(fitScene, params, artboard, font.metrics.unitsPerEm) })
-              })
+              const fitScene = font ? sliderScene() : null
+              if (font && fitScene) update({ size: fitTextSize(fitScene, params, artboard, font.metrics.unitsPerEm) })
             }}
           >
             <Icon name="fitText" />
@@ -192,11 +188,10 @@ export default function TypographyControls({ params, artboard, font, scene, load
               onClick={() => {
                 // Free starts from the default position (and alignment); pressing it again resets there.
                 const home = { position: DEFAULT_TYPOGRAPHY.position, align: DEFAULT_TYPOGRAPHY.align }
-                void loadSliderScene().then((base) => {
-                  const start =
-                    font && base ? freeFromLayout(base, layoutArtboard(base, { ...params, ...home }, artboard, font.metrics.unitsPerEm)) : {}
-                  update({ position: 'free', align: home.align, ...start })
-                })
+                const base = font ? sliderScene() : null
+                const start =
+                  font && base ? freeFromLayout(base, layoutArtboard(base, { ...params, ...home }, artboard, font.metrics.unitsPerEm)) : {}
+                update({ position: 'free', align: home.align, ...start })
               }}
             >
               <Icon name="move" />

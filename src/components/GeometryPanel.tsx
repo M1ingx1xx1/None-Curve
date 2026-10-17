@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
 import { formatCodePoint } from '../font/model'
 import type { GlyphRef } from '../geometry/types'
 import { useLiveDriving } from '../sound/live'
@@ -7,15 +7,13 @@ import type { DerivedGeometryState } from '../state/useDerivedGeometry'
 import type { AppState } from '../state/types'
 import AnchorControls from './AnchorControls'
 import DistortionControls from './DistortionControls'
+import ExperimentalControls from './ExperimentalControls'
 import FlattenControls from './FlattenControls'
 import GridControls from './GridControls'
 import { HintButton, HintText, useHint } from './Hint'
 import RandomAnchorControls from './RandomAnchorControls'
+import SoundControls from './SoundControls'
 import SquaringControls from './SquaringControls'
-
-// Loaded when their tab is first opened, so their code stays out of the startup chunk.
-const ExperimentalControls = lazy(() => import('./ExperimentalControls'))
-const SoundControls = lazy(() => import('./SoundControls'))
 
 interface GeometryPanelProps {
   state: AppState
@@ -51,9 +49,7 @@ function readTab(): Tab {
  * file or the microphone and drives the other two tabs' sliders live (it needs no font; it reads the
  * slider values to say which mappings act, and Freeze writes into them). Typography and colours are
  * set in the panel beside the text input. Explanations are folded behind ⓘ buttons; warnings,
- * statistics, and notes about disabled controls always stay visible. Experimental and Sound mount when
- * their tab is first opened, and every tab stays mounted after that. Their settings live outside them (the
- * editor state, Sound's mapping store and engine), so mounting late loses nothing.
+ * statistics, and notes about disabled controls always stay visible. All tabs stay mounted.
  */
 export default function GeometryPanel({ state, dispatch, derived, showAllHints, onShowAllHintsChange }: GeometryPanelProps) {
   const { font, selectedGlyph } = state.document
@@ -67,14 +63,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
   const statistics = useMemo(() => font && <StatisticsTarget glyph={selectedGlyph} />, [font, selectedGlyph])
   const ids = useId()
   const [tab, setTab] = useState<Tab>(readTab)
-  // The tabs opened so far: a lazy panel mounts on its first visit and stays mounted afterwards.
-  const [opened, setOpened] = useState<ReadonlySet<Tab>>(() => new Set([tab]))
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ geometry: null, experimental: null, sound: null })
-
-  const select = (id: Tab) => {
-    setTab(id)
-    setOpened((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
-  }
 
   useEffect(() => {
     try {
@@ -91,7 +80,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
     if (next === undefined) return
     e.preventDefault()
     const target = tabs[(next + tabs.length) % tabs.length].id
-    select(target)
+    setTab(target)
     tabRefs.current[target]?.focus()
   }
 
@@ -118,7 +107,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
             aria-selected={tab === t.id}
             aria-controls={`${ids}-${t.id}-panel`}
             tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => select(t.id)}
+            onClick={() => setTab(t.id)}
           >
             {t.label}
           </button>
@@ -151,24 +140,16 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
       </div>
 
       <div {...panel('experimental')}>
-        {opened.has('experimental') && (
-          <Suspense fallback={null}>
-            <ExperimentalControls
-              params={state.params.experimental}
-              stats={geometry?.experimental ?? null}
-              statistics={statistics}
-              {...common}
-            />
-          </Suspense>
-        )}
+        <ExperimentalControls
+          params={state.params.experimental}
+          stats={geometry?.experimental ?? null}
+          statistics={statistics}
+          {...common}
+        />
       </div>
 
       <div {...panel('sound')}>
-        {opened.has('sound') && (
-          <Suspense fallback={null}>
-            <SoundControls params={state.params} dispatch={dispatch} />
-          </Suspense>
-        )}
+        <SoundControls params={state.params} dispatch={dispatch} />
       </div>
     </aside>
   )

@@ -13,10 +13,14 @@ export function sniffFontFormat(bytes: Uint8Array): FontFormat {
   if (tag === 'OTTO') return 'otf'
   if (tag === 'wOFF') return 'woff'
   if (tag === 'wOF2') return 'woff2'
-  // A font collection; parsing tells TrueType (.ttc) and CFF (.otc) faces apart.
-  if (tag === 'ttcf') return 'ttc'
+  if (tag === 'ttcf') {
+    throw new FontLoadError(
+      'unsupported-format',
+      'Font collections (.ttc / .otc) are not supported yet. Import a single .ttf, .otf, .woff, or .woff2 file.',
+    )
+  }
   throw new FontLoadError(
     'unsupported-format',
-    'This is not a recognized font file. Supported formats: .ttf, .otf, .woff, .woff2, .ttc, .otc.',
+    'This is not a recognized font file. Supported formats: .ttf, .otf, .woff, .woff2.',
   )
 }

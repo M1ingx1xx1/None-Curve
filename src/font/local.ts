@@ -2,7 +2,7 @@ import { FontLoadError } from './errors'
 import type { LoadedFont } from './model'
 import { parseFont } from './parse'
 
-export const LOCAL_FONT_ACCEPT = '.ttf,.otf,.woff,.woff2,.ttc,.otc,font/ttf,font/otf,font/woff,font/woff2,font/collection'
+export const LOCAL_FONT_ACCEPT = '.ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2'
 
 const MAX_BYTES = 50 * 1024 * 1024
 

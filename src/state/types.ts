@@ -57,15 +57,6 @@ export interface EditorParams extends GeometryParams {
   artboard: ArtboardParams
 }
 
-/**
- * The settings: every parameter group except the canvas view (outline, layers, zoom and pan). Undo
- * restores them; they are also saved between visits.
- */
-export type SettingsParams = Omit<EditorParams, 'view'>
-
-/** The canvas view's outline and layer buttons: saved between visits, but not undone. */
-export type ViewToggles = Pick<ViewParams, 'outline' | 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'>
-
 export interface AppState {
   document: DocumentState
   params: EditorParams

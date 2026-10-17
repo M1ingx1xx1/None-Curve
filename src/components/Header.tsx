@@ -1,13 +1,8 @@
-import { UNDO_KEYS, type HistoryState } from '../state/history'
 import type { DocumentState } from '../state/types'
 import Icon from './Icon'
 
 interface HeaderProps {
   document: DocumentState
-  /** Whether the settings, text and Sound mappings can be undone or redone. */
-  history: HistoryState
-  onUndo: () => void
-  onRedo: () => void
   onOpenExport: () => void
 }
 
@@ -25,7 +20,7 @@ function fileStatusLabel(document: DocumentState): string {
   }
 }
 
-export default function Header({ document, history, onUndo, onRedo, onOpenExport }: HeaderProps) {
+export default function Header({ document, onOpenExport }: HeaderProps) {
   return (
     <header className="header">
       <div className="brand">
@@ -37,12 +32,6 @@ export default function Header({ document, history, onUndo, onRedo, onOpenExport
         {fileStatusLabel(document)}
       </p>
       <div className="header-actions">
-        <button type="button" className="icon-button" aria-label="Undo" title={`Undo (${UNDO_KEYS.undo})`} disabled={!history.canUndo} onClick={onUndo}>
-          <Icon name="undo" />
-        </button>
-        <button type="button" className="icon-button" aria-label="Redo" title={`Redo (${UNDO_KEYS.redo})`} disabled={!history.canRedo} onClick={onRedo}>
-          <Icon name="redo" />
-        </button>
         <button type="button" disabled={!document.font} onClick={onOpenExport} title={document.font ? 'Export SVG or a font file' : 'Load a font to export'}>
           <Icon name="download" />
           Export…

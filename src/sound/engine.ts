@@ -317,10 +317,8 @@ export class SoundEngine {
       micSource = graph.ctx.createMediaStreamSource(stream)
       micSource.connect(graph.input) // Never to the destination.
     } catch (error) {
-      // The device is open (getUserMedia succeeded): this is the audio graph refusing the stream, e.g. a sample rate
-      // the context cannot take, or a closed context; not another app holding the microphone.
       stopTracks(stream)
-      fail('mic-connect', describe(error))
+      fail('device-busy', describe(error))
       return
     }
     const trackEvents = new AbortController()
@@ -638,7 +636,7 @@ export class SoundEngine {
   private onTrackEnded(stream: MediaStream): void {
     if (stream !== this.stream) return
     this.cancelMicrophone()
-    this.setState({ listening: false, busy: this.loading, error: soundError('mic-ended', 'The audio track ended.') })
+    this.setState({ listening: false, busy: this.loading, error: soundError('no-device', 'The microphone stopped.') })
   }
 
   // --- Frame loop ------------------------------------------------------------------------------
@@ -766,13 +764,9 @@ function microphoneErrorKind(error: unknown): SoundErrorKind {
     case 'NotFoundError':
     case 'OverconstrainedError':
       return 'no-device'
-    case 'NotReadableError':
-    case 'AbortError':
-      // The device is there but did not open.
-      return 'device-busy'
     default:
-      // Anything unexpected (a TypeError, a name this browser invented): not a busy device.
-      return 'unsupported'
+      // NotReadableError, AbortError, and anything unexpected: the device is there but did not open.
+      return 'device-busy'
   }
 }
 

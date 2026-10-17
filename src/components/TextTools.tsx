@@ -16,7 +16,7 @@ interface TextToolsProps {
   /** The laid-out text, for whether Fit text can run. */
   scene: SpecimenScene | null
   /** The text with the sliders' own outlines (never a live Sound frame), measured by Fit text and Free. */
-  loadSliderScene: () => Promise<SpecimenScene | null>
+  sliderScene: () => SpecimenScene | null
   dispatch: Dispatch<Action>
   /** Glyphs tab: inserts a character into the text at the cursor. */
   onInsertGlyph: (glyph: GlyphRef, text: string) => void
@@ -46,7 +46,7 @@ function readTab(): Tab {
  * canvas (Typography), characters to insert (Glyphs), and its colours (Color). Every tab stays
  * mounted, so switching keeps local state such as the glyph search or a hex value being typed.
  */
-export default function TextTools({ typography, palette, artboard, font, scene, loadSliderScene, dispatch, onInsertGlyph }: TextToolsProps) {
+export default function TextTools({ typography, palette, artboard, font, scene, sliderScene, dispatch, onInsertGlyph }: TextToolsProps) {
   const [tab, setTab] = useState<Tab>(readTab)
   const ids = useId()
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ typography: null, glyphs: null, color: null })
@@ -105,7 +105,7 @@ export default function TextTools({ typography, palette, artboard, font, scene, 
           artboard={artboard}
           font={font}
           scene={scene}
-          loadSliderScene={loadSliderScene}
+          sliderScene={sliderScene}
           disabled={!font}
           dispatch={dispatch}
         />

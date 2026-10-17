@@ -25,7 +25,7 @@ Everything happens inside your web browser. Your font and audio files are never 
 ## 2. What you need
 
 - A computer with a recent web browser (Chrome, Edge, Firefox, or Safari). Phones and tablets are not supported: the tool is built for a large screen.
-- Either a font file on your computer (`.ttf`, `.otf`, `.woff`, `.woff2`, or a `.ttc` / `.otc` font collection) **or** an internet connection to load a font from Google Fonts.
+- Either a font file on your computer (`.ttf`, `.otf`, `.woff`, or `.woff2`) **or** an internet connection to load a font from Google Fonts.
 - Optional, for the **Sound** tab: an audio file (such as an MP3) or a microphone.
 - The app's web address — for example `https://m1ingx1xx1.github.io/None-Curve/` — or ask whoever set up the project for it.
 
@@ -52,9 +52,9 @@ The screen is split into two rows and five areas:
 2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
-5. **Preview** — a small picture of exactly what an SVG export would save: all your text, filled, on the canvas, with its own **Blur** slider and **Invert** button.
+5. **Preview** — a small copy of the result canvas showing all your text, with its own **Blur** slider and **Invert** button.
 
-At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo and redo](#undo-and-redo) below), and an **Export…** button. Along the bottom a status line tells you what is shown and which settings are active.
+At the very top there is an **Export…** button, and along the bottom a status line tells you what is shown and which settings are active.
 
 **Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
 
@@ -66,27 +66,6 @@ At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo an
 - between the **text input and the preview** — drag left or right.
 
 Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
-
-### Undo and redo
-
-**Undo** takes back your last change and **Redo** puts it back again. Use the two arrow buttons at the top right, or the keyboard: on a Mac, ⌘Z undoes and ⇧⌘Z redoes; on Windows and Linux, Ctrl+Z undoes and Ctrl+Shift+Z or Ctrl+Y redoes. Pointing at a button shows its shortcut. The app keeps up to 100 steps.
-
-- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and the Sound tab's mappings. The reset buttons count too, so Undo brings back what a reset cleared.
-- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, and picking a mapping target together with the settings it switched on.
-- **What is not undone:** the canvas view (Original / Flattened / Compare, the layer buttons, zoom, and moving around), which letter is selected, the preview's Blur and Invert, the export settings, loading a font, and the Sound tab's **Drive letters**, source, **Sensitivity**, and **Smoothing**. Sound moving the letters is never recorded either: only your own changes are.
-- **Inside a typing box** — the text box, or a box you type a number, colour code, or name into — the shortcuts undo your typing in that box only, as in any text field. The buttons at the top still undo whole steps. While a dialog (such as **Export…**) is open, the shortcuts do nothing.
-- The steps are forgotten when you close the page: the next visit starts with nothing to undo.
-
-### Coming back later
-
-The app keeps your work in this browser by itself, a moment after each change, and brings it back the next time you open it on the same computer in the same browser.
-
-- **Kept:** the text; every setting in the Geometry, Experimental, Typography, and Color tabs; the canvas size; the canvas view buttons (Original / Flattened / Compare and the layers, but not the zoom or where you moved to); the preview's Blur and Invert; the export's **Coordinate precision**; the Sound tab's mappings; the selected letter (when the same font opens again); and the font itself.
-- **The font:** a Google font is downloaded again by itself when the page opens (this needs an internet connection). A font from your computer cannot be reopened for you: the canvas says "Last font: *name*. Import it again to continue." Import the same file and carry on — your settings are already in place.
-- **Not kept:** the Sound tab's **Drive letters**, source (file or microphone), **Sensitivity**, and **Smoothing**; open dialogs; the light or dark look; and the undo steps. (As before, the app also remembers the size of the areas, the tabs you had open, whether the **Canvas size** settings are open, and **Show all explanations**.)
-- **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, and mappings still come back.
-- **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
-- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it.
 
 ---
 
@@ -109,10 +88,8 @@ Click **Import font** at the top of the tools area. You get two choices.
 ### From your computer
 
 - Choose **Local file** and pick a font file, **or** simply drag a font file onto the big canvas.
-- Supported: `.ttf`, `.otf`, `.woff`, `.woff2`, and font "collections" (`.ttc`, `.otc`), up to 50 MB.
-- **Font collections** hold several styles in one file — on a Mac, for example, Helvetica Neue, Avenir Next, and Futura. The app opens the style closest to Regular, and the style name in the font information becomes a menu of all the styles in the file: pick another one there. Switching styles this way keeps your text, the selected letter (if the new style has it), and the zoom. A few hidden styles that macOS keeps for itself (their names start with a dot) are not listed. Collections packed as `.woff` or `.woff2` cannot be opened.
-- Loading any other font starts the canvas view afresh: it zooms to fit and selects a default letter.
-- The file stays on your computer; it is only read by your browser. The next time you open the app, it names the file and asks you to import it again (see [Coming back later](#coming-back-later)).
+- Supported: `.ttf`, `.otf`, `.woff`, `.woff2`. Font "collections" (`.ttc`) are not supported.
+- The file stays on your computer; it is only read by your browser.
 
 ### From Google Fonts
 
@@ -128,7 +105,7 @@ After choosing a font, set:
 - **Italic** — if the font has an italic version.
 - **Character subset** — Google splits fonts by language (for example `latin`, `latin-ext`, `cyrillic`). Only one subset is loaded at a time, so letters from other languages may be missing.
 
-Click **Load font**. Once it has downloaded, the font name appears in the tools area. The next time you open the app, the same font is downloaded again by itself.
+Click **Load font**. Once it has downloaded, the font name appears in the tools area.
 
 ### If something goes wrong
 
@@ -136,7 +113,7 @@ The tools area shows what happened and offers **Retry**:
 
 | Message | What it means | What to do |
 |---|---|---|
-| Empty file / Unsupported format | The file is not a font, or is empty. | Use a `.ttf`, `.otf`, `.woff`, `.woff2`, `.ttc`, or `.otc` file. |
+| Empty file / Unsupported format | The file is not a font, or is empty. | Use a `.ttf`, `.otf`, `.woff`, or `.woff2` file. |
 | Font parsing failed | The file is damaged. | Try another copy of the font. |
 | Google Fonts API error | Google does not know that name. | Check the spelling and capital letters. |
 | Network / CORS error | No internet, or a browser extension blocked the request. | Check your connection or ad blocker, then **Retry**. |
@@ -149,8 +126,8 @@ If a new font fails to load, the previous font stays on screen.
 ## 6. Typing text
 
 - Type in the **Text** box (bottom right). Press Enter for a new line.
-- The sample menu next to **Clear** offers ready-made texts: **Lorem ipsum** (placeholder text), **Pangrams** (sentences that use every letter), **Spacing** (classic test words such as "Hamburgefontsiv"), and **Alphabet** (all capitals, lowercase letters, digits, and common punctuation, one group per line). The first time you open the app it shows Lorem ipsum; after that, it opens with the text you had last time. Once you change the text, the menu shows the last sample with "(edited)"; pick it again to get the original back.
-- **Clear** empties the box. Changed your mind? **Undo** brings the text back.
+- The sample menu next to **Clear** offers ready-made texts: **Lorem ipsum** (placeholder text), **Pangrams** (sentences that use every letter), **Spacing** (classic test words such as "Hamburgefontsiv"), and **Alphabet** (all capitals, lowercase letters, digits, and common punctuation, one group per line). The app starts with Lorem ipsum. Once you change the text, the menu shows the last sample with "(edited)"; pick it again to get the original back.
+- **Clear** empties the box.
 - Right of the **Text** title, **AA** (all capitals), **Aa** (a capital at the start of every word), and **aa** (all lowercase) change how the letters appear on the canvas and in exports. Your typed text stays as it is. Click the highlighted button again to go back to the text as typed. (Hover over a button to see its name.)
 - Below the box you see how many characters you typed and whether the font's own **kerning** (fine spacing between pairs like "AV") is applied.
 - If a character is not in the font, it appears on the canvas as a **dashed red box** and is listed under the text box. The rest of the line still shows.
@@ -192,13 +169,7 @@ If a new font fails to load, the previous font stays on screen.
 
 ### The preview: Blur, Invert, and width
 
-The **Preview** (bottom right) shows the whole canvas exactly as an SVG export would save it — anything outside the canvas is cut off.
-
-- It always shows the finished, filled letters and nothing else. It does not follow the big canvas's Original / Flattened / Compare and layer buttons, its zoom, the snap grid, or the dashed boxes for missing characters: those only help you on the big canvas and are never exported.
-- Its outlines are rounded the same way as the SVG file (see **Coordinate precision** in [Saving your work](#10-saving-your-work-export)), so what you see here is what you get.
-- With **Transparent background** (Color tab) on, the empty background shows as a checkerboard.
-- If saving the text as an SVG would fail, the preview says "Export would fail: …" with the reason instead.
-- While the Sound tab moves the letters, the preview moves with them. Exports still use your sliders (see **Freeze**).
+The **Preview** (bottom right) shows the whole canvas exactly as it will be exported — anything outside the canvas is cut off. It follows the canvas's Original / Flattened / Compare and layer buttons, but not its zoom.
 
 - **Blur** softens the preview, as if you looked at the text from far away or squinted. This shows the overall shape and rhythm of the letters without the details — a quick way to check whether a rough or faceted style still reads well.
 - **Invert** swaps the text and background colours in the preview — dark letters on light become light on dark, and back. Useful to check how the text works both ways, for example for a sign or a dark poster.
@@ -302,7 +273,7 @@ While random anchors are on, the **Curve flattening** controls are greyed out wi
 - **Seed** — the number behind one particular random result.
   - **Shuffle** picks a new seed and shows it in the box.
   - **Copy** copies the seed so you can paste it into your notes.
-  - **Previous** lists the seeds you tried before during this visit (the list is not kept when you close the page); click one to go back to it.
+  - **Previous** lists the seeds you tried before in this session; click one to go back to it.
   - To get a result again later, load the same font, use the same settings, and type the seed into the box.
   - At **Randomness** 0 % the points are evenly spaced, so the seed does nothing and is greyed out.
 - **Reset random anchors** turns it off and restores the other settings, but keeps your seed.
@@ -314,15 +285,6 @@ The seed is also shown in the status line at the bottom and in the export dialog
 Next to the **Geometry** tab at the top of the tools panel. The effects here work on the finished result of the Geometry tab, and you can turn on as many as you like at once. **Crumple**, **Ripple**, **Whorl**, and **Slipstream** bend the letters along **straight creases**: they add corners but never curves. Up to 100 %, no combination of them can make a letter cross itself or push the hole of an **A**, **B**, or **e** out of the letter. A few parts are drawn onto the letters instead, also with straight lines only: **Slipstream**'s cuts and trails, and **Thorn**'s thorns, which may cross the letter (see below). The effects always run in the same order: **Crumple**, then **Ripple**, then **Whorl**, then **Slipstream**, then **Thorn**. (Earlier versions called them Noise, Ripple, Curl, Wind, and Spikes.)
 
 **Beyond 100 % — folds.** Crumple, Ripple, Whorl, and Slipstream's Gustiness go past 100 % (Whorl in both directions). There the letters fold over themselves like paper crushed flat: strokes land on other strokes, holes fill in or open up, and the letters stop being readable. Wherever parts overlap they are merged into one clean shape, still made only of straight lines, so the font still exports. While an effect is past 100 %, **Thorn** is on, or **Slipstream** cuts the letters, the top of the tab shows how many places were merged (**Crossings merged**) and how many specks too small to show were dropped (**Slivers dropped**).
-
-**When the settings get very heavy.** Every fold, crease, cut, and thorn adds corners to a letter, and several dense effects together could add hundreds of thousands — far too many to draw quickly or to save. So each letter has a limit: the effects may add about 6,000 corners to it. One effect on its own and the Sound presets stay within it. When a combination goes over, the letter is simplified: its smallest details are left out, step by step, until it fits. You get the same simplified letter on the canvas, in the preview, and in every export, and you may see these yellow notes (the first three at the top of the tab, the last one in the effect's own group):
-
-- "Simplified: these settings make too many vertices or crossings, so the outline was reduced (tolerance N u)." — details smaller than about N font units were left out. When this is the selected letter, the status line also adds **(simplified)** after its vertex count.
-- "Too complex to merge; lower the settings." — even simplified, the overlapping parts were too many to merge, so the letter is shown simplified but unmerged. It still looks filled, but lighter settings give a cleaner result.
-- "Overlaps could not be merged; the outline is left as it is." — rare: merging went wrong for this letter, so its overlapping parts were left unmerged rather than broken.
-- "This glyph is left without *effect*: too complex." (for Thorn: "…without roots or refraction…") — that one effect would have made far too many corners in this letter, so the letter is shown without it.
-
-At the far ends of several sliders together, the letters turn into a few coarse, broad slabs. That is expected: there is no room left for detail. Lower one or two of the effects to bring the detail back.
 
 **Crumple — crumpled paper**
 
@@ -406,7 +368,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - Choosing **Microphone** pauses the file and shows the **Start listening** button; the microphone turns on only when you click it. The first time, your browser asks whether this page may use the microphone: click **Allow**.
   - **Stop listening** turns the microphone off; **Start listening** turns it on again.
   - While it listens, **Listening** shows next to the button, and **Microphone on** shows in the status line at the bottom, so you can see it from every tab.
-  - If the microphone stops by itself (it was unplugged, or the browser's permission was taken away), listening ends, the tab says **The microphone stopped.** and the status line says **No microphone**. The status line says the same if no microphone is found when you start listening.
+  - If the microphone stops by itself (it was unplugged, or the browser's permission was taken away), the status line says **No microphone**.
   - The microphone's sound is only measured, never played back, so it cannot howl through your speakers.
   - **Stop listening**, switching back to **File**, and closing the page all turn the microphone off.
 - There is no "off" choice: to stop, press **Pause** (for a file) or **Stop listening** (for the microphone). Switching back to **File** keeps the file you chose, paused.
@@ -422,7 +384,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - **Brightness** — where the energy sits: dull, bass-heavy sound reads low; hiss and cymbals read high.
   - **Pitch** — the note being played or sung. It is made for one note at a time, such as a voice or a melody. The number is in hertz (Hz): the higher the number, the higher the note (440 Hz is the A that orchestras tune to). The bar is empty at 55 Hz (the lowest A of a bass guitar) and full at 1760 Hz, five octaves higher; each octave takes a fifth of the bar. Between notes (for example during a drum hit) it keeps the last note; in silence it drops back and shows "—".
 - **Rhythm**
-  - **Beat** — a bar that jumps to full at once and falls back, as fast as **Smoothing** (below) sets. It jumps on every new sound that starts suddenly: a drum hit, a clap, a plucked note. It listens for the bass drum separately too, so the deep "boom" of most dance and pop music makes it jump even when other sound drowns the drum out. A steady sound does not count, even a buzzy, droning bass note: Beat only jumps when the sound in some range of notes suddenly gets louder. Because of that, a bass drum much quieter than a loud bass note playing at the same time may be missed. It works the same with reduced motion turned on in your computer's settings.
+  - **Beat** — a bar that jumps to full at once and falls back, as fast as **Smoothing** (below) sets. It jumps on every new sound that starts suddenly: a drum hit, a clap, a plucked note. It listens for the bass drum separately too, so the deep "boom" of most dance and pop music makes it jump even when other sound drowns the drum out. It works the same with reduced motion turned on in your computer's settings.
   - **Activity** — how busy the sound is right now. It jumps on every sudden change — drum hits, new notes — and stays up while beats come quickly: 8 beats a second fill the bar, 4 a second fill half. On a steady sound, such as a held note, a hum, or steady hiss, it stays near 0 %.
 - **Stereo** — where the sound sits between the left and right speakers. This needs a stereo source, so it is mainly for files: a microphone that records a single channel (mono) always reads "C".
   - **Pan** — the side the sound leans to: "C" when it is centred, "L 40" when it leans 40 % to the left, "R 40" when it leans 40 % to the right ("L 100": only the left speaker plays). Its bar grows from the middle towards that side. It is the only reading that goes both ways.
@@ -430,7 +392,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 
 **Mappings** — which sliders and seeds the sound moves, and how. Each mapping connects one reading to one slider or seed.
 
-- **Drive letters** — the main on/off switch. The sound moves the letters only while it is on **and** a file plays or the microphone listens (and a font is loaded: without one, the meters still work, but nothing moves). Switch it off to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts off and the tab says "Off because your system asks for reduced motion."; switch it on if you want the letters to move anyway. If you turn on reduce motion while the page is open, it switches itself off.
+- **Drive letters** — the main on/off switch. The sound moves the letters only while it is on **and** a file plays or the microphone listens. Switch it off to keep watching the meters while the letters stay still. If your computer is set to reduce motion, it starts off and the tab says "Off because your system asks for reduced motion."; switch it on if you want the letters to move anyway. If you turn on reduce motion while the page is open, it switches itself off.
 - **Preset** and **Load** — set the letters up and fill in ready-made rows in one go; see **Presets** below.
 - **Add mapping** — adds a row. The first one connects **Level** to **Distortion · Noise amplitude** at **+50%**, a good first try; later ones pick a target that no row uses yet — one that already has an effect, if there is one. You can have up to 8 rows; then the button is greyed out and the tab says "Up to 8 mappings."
 - Each row has:
@@ -451,7 +413,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 - Changing a row to another target, or removing it, never switches anything off again. The note stays until you change the row's target or remove the row. If you go through the **Target** list with the arrow keys, only the target you settle on switches anything on, when you press Enter or move on to another control; a pick with the mouse counts at once.
 - If the setting is off again later — you switched it off yourself, or another row needed a different Mode (Tolerance needs Adaptive, Segments per curve needs Fixed segments) — a grey note under the row says why, for example "Turn on Ripple to hear this.", and an **Enable** button next to it switches the setting on again.
 - **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Crumple, Ripple, Whorl, Slipstream, and Thorn — and the three seeds: 43 in all. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
-- Mappings are kept with your other settings and come back the next time you open the app (see [Coming back later](#coming-back-later)); **Drive letters** is not kept. Adding, changing, or removing a row can be undone like any other change.
+- Mappings are not saved: like your other settings, they last until you close the page.
 
 **Seeds** — points that jump to new places. A seed picks one random pattern (see Distortion, Random anchors, and the Experimental tab). When the sound drives a seed, each jump moves it on by one — 1234 becomes 1235 — and because every seed is a completely different pattern, every point of the outline lands somewhere new at once (after loading **Flicker**, only a few points of each letter move, a different few each time). After 999 999 it starts again at 0.
 
@@ -459,7 +421,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - with **Beat**, it counts hits: at 100 % the seed moves on at every hit, at 50 % at every other hit, at 25 % at every fourth;
   - with any other reading, it jumps more often the higher the reading is: up to about 5 times a second at 100 % when the bar is full, half as often when the bar is half full. For Pan, either side counts.
   - The **ⓘ** next to **Rate** explains this too.
-- **Never too fast:** seed jumps share one limit with the sliders the sound moves, so the letters cannot flash (see **No flashing** below). Seeds that jump at the same moment count as one jump. On its own, a seed can jump up to about 5 times a second; while driven sliders are swinging back and forth too, the seeds jump less often. With fast drums some hits are then skipped; they are not saved up for later.
+- **Never too fast:** all seeds together jump at most about 5 times a second, and seeds that jump at the same moment count as one jump, so the letters cannot flash. With fast drums some hits are then skipped; they are not saved up for later.
 - **Your seed stays in its box.** Next to a driven seed's box, a small number in the colour of the live lines shows the seed the letters use right now (the live seed). The **Seed** in the Distortion and Random anchors statistics, and the status line at the bottom, show the live seed too. When the sound stops moving the letters — you pause, the file ends, or you switch off **Drive letters** or untick the row — the letters go back to the seed in the box, and the next **Play** starts from it again. To keep a seed you like, press **Freeze**: it writes the live seed into the box.
 - **Try it — anchors that jump on the beat:**
   1. Choose **File** → **Choose file**, pick a song with clear drums, and press **Play**.
@@ -474,9 +436,9 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 3. Press **Load**.
 4. Press **Play** (or **Start listening**).
 
-- **Load starts the letters afresh.** It first puts every setting in the **Geometry** and **Experimental** tabs back to its starting value — your three seeds are kept — then sets the few sliders the preset starts from, and replaces your rows with the preset's. So a preset always looks the same, whatever you had set before. Your text, typography, colours, canvas, and the Sound settings themselves (source, Sensitivity, Smoothing) are not touched.
+- **Load starts the letters afresh.** It first puts every setting in the **Geometry** and **Experimental** tabs back to how it was when you opened the app — your three seeds are kept — then sets the few sliders the preset starts from, and replaces your rows with the preset's. So a preset always looks the same, whatever you had set before. Your text, typography, colours, canvas, and the Sound settings themselves (source, Sensitivity, Smoothing) are not touched.
 - **A note under Preset says what Load did,** for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." It names the effects it switched off, so you know what went. The note goes away when you load again or pick another preset.
-- Load does not ask first, but it is a single undo step: press **Undo** (⌘Z on a Mac, Ctrl+Z elsewhere) right after it to get your earlier settings and rows back. The note under **Preset** then goes away. Picking a target yourself, as described above, never puts anything back to its default: it only switches on what that target needs.
+- Load does not ask first and cannot be undone, so if you like your current settings, note them down before you press it. Picking a target yourself, as described above, never puts anything back to its default: it only switches on what that target needs.
 - After loading, change, add, or remove rows, or move any slider, as usual. The **ⓘ** next to **Preset** lists the presets too.
 - The presets:
   - **Flicker** — on every beat a few points of each letter jump while the rest hold the letter in shape; louder sound and each beat throw them further. This uses a special Distortion mode (see Distortion).
@@ -494,9 +456,9 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 
 - **Your sliders stay where you put them.** On each driven slider, a thin coloured line moves along the track to show where the sound has taken it right now (a driven seed shows its live seed beside its box instead; see **Seeds** above). When you pause, the file ends, you stop listening, or you switch off **Drive letters**, the letters go back exactly to your slider settings and seeds, and the lines and live seeds disappear.
 - **Live · N fps** — shown in the Sound tab and in the status line at the bottom: how many new shapes a second the app can keep up with (fps means frames per second). The app draws the next shape as soon as the last one is ready, at most 30 a second, so heavy settings and long texts give fewer.
-- **No flashing:** every driven slider and seed shares one limit, so that together they make the letters flash at most 3 times a second. A flash is a big change and the change back, so that is about 5 big changes a second. A big change is a slider turning back by a tenth of its track or more (several sliders turning back at the same moment count together once their moves add up to a tenth), or a seed jump (see **Seeds** above). When the music would go faster (fast drums with a short **Smoothing**, for example), the sliders wait a moment before they turn back again, and seed jumps are skipped.
+- **No flashing:** a slider never swings back and forth more than 3 times a second (counting only swings of a tenth of its track or more). When the music would make it do that (fast drums with a short **Smoothing**, for example), the slider waits a moment before it swings again. Seeds have the same kind of limit (see **Seeds** above).
 - If that falls below about 8 a second, the tab says "Too slow to follow the sound: try fewer effects or a shorter text." Turning off some Experimental effects, using a shorter text, or choosing lighter settings helps.
-- **Freeze** — copies what the letters look like right now into the sliders and seed boxes and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters. Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound. **Undo** puts the sliders and seeds back as they were before Freeze (the sound stays paused).
+- **Freeze** — copies what the letters look like right now into the sliders and seed boxes and pauses the sound (the file pauses, or the microphone stops listening). That moment stays on screen as ordinary settings that you can keep adjusting or export. Press **Play** or **Start listening** to carry on. Freeze is greyed out while the sound is not moving the letters. Pressed while the letters match your sliders (for example between two drum hits), it only pauses the sound.
 - **Exports always use the sliders and seed boxes**, never the moving letters. To save a moment of the music, press **Freeze** first, then **Export…**. While the sound is moving the letters, the export dialog reminds you of this. **Fit text** and **Free** (in the Typography tab) also measure the letters as your sliders make them, as exports do.
 
 **Analysis** — how the sound is measured:
@@ -510,15 +472,13 @@ Your audio stays in your browser: a file is read on your computer and never uplo
 | Message | What it means | What to do |
 |---|---|---|
 | This browser cannot analyse sound. | Your browser cannot measure sound. | Use a recent Chrome, Edge, Firefox, or Safari. |
-| This browser cannot use the microphone. | Your browser cannot open a microphone here, or opening it failed for a reason the browser did not explain. | Try another browser, or use a file. |
+| This browser cannot use the microphone. | Your browser cannot open a microphone here. | Try another browser, or use a file. |
 | This file is not audio this browser can play. | The file is not audio, is damaged, or is in a format this browser does not know. | Try an MP3 or WAV file, or another browser. |
 | This file has no length. | The file is empty. | Choose another file. |
 | This file is too large (over 512 MB). | The file is too big to open. | Use a shorter or compressed file, such as an MP3. |
 | Microphone access was refused. Allow it in the browser’s site settings, then try again. | You or the browser said no to the microphone. | Open the site settings (usually the icon at the left of the address bar), allow the microphone, then click **Start listening**. |
-| No microphone found. | No microphone is connected. | Connect one, then try again. |
-| The microphone could not be opened; another app may be using it. | The microphone is there but would not open: another program, such as a video call, may be using it. | Close that program, then try again. |
-| The microphone opened, but this browser could not analyse it. | The microphone works, but the browser could not pass its sound on to be measured. | Try again; if it keeps happening, try another browser or another microphone. |
-| The microphone stopped. | The microphone stopped while listening: it was unplugged, or the browser's permission was taken away. | Plug it in again or allow it again, then click **Start listening**. |
+| No microphone found. | No microphone is connected, or it was unplugged while listening. | Connect one, then try again. |
+| The microphone could not be opened; another app may be using it. | Another program, such as a video call, may be using it. | Close that program, then try again. |
 | The microphone needs a secure page (https or localhost). | The page was opened from an address starting with `http://`. | Open the app's `https://` address. |
 
 ### Typography tab — size, spacing, and alignment
@@ -591,7 +551,7 @@ Experimental tab → **Use slipstream** on, **Strength** 0 %, **Slip** 20–40 %
 Experimental tab → **Use thorn** on, **Anchors** 2–3, **Reach** 60–100 %, **Root** 50–80 %, then raise **Refraction** to 50 % with **Flute width** 8–15 %. Press **Next variant** until the thorns land where you like them.
 
 **Unreadable, shattered letters**
-Experimental tab → **Use crumple** at 300–500 %, or **Use ripple** at 200–400 %, or **Use slipstream** with **Gustiness** 150–200 %. Combine them for total chaos, and press **Next variant** until the shapes surprise you. With several of them near their maximum the letters are simplified into coarse slabs (see "When the settings get very heavy" in the Experimental tab). Exporting a whole large font with every effect at its maximum can exceed the file's point limit; export only the characters in the text instead.
+Experimental tab → **Use crumple** at 300–500 %, or **Use ripple** at 200–400 %, or **Use slipstream** with **Gustiness** 150–200 %. Combine them for total chaos, and press **Next variant** until the shapes surprise you. Exporting a whole large font with every effect at its maximum can exceed the file's point limit; export only the characters in the text instead.
 
 **Letters that pulse with the music**
 Sound tab → **File** → **Choose file** → **Play**. Under **Mappings**, click **Add mapping** (Level → Distortion · Noise amplitude, +50 %): loud passages roughen the letters, quiet ones smooth them. For a stronger effect raise **Depth**, or start Distortion's **Noise amplitude** a little higher. Press **Freeze** at a moment you like, then export it.
@@ -620,8 +580,8 @@ Both save the canvas: its size, your text placed as on the canvas, and your colo
 1. Choose **SVG — main view** (shapes you can keep editing) or **PNG — main view** (a picture).
 2. For a transparent background (only the letters are drawn), tick **Transparent background** in the Color tab first.
 3. Optional: tick **Export the preview look** to save what the small preview shows instead — its blur, and its swapped colours if **Invert** is on. Set Blur and Invert in the preview first.
-4. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. The preview shows the letters at this precision too, and the app keeps your choice for next time. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
-5. Click **Download SVG** or **Download PNG**. If some letters are not ready yet at the current settings, the dialog says **Computing outlines…** and the download starts as soon as they are; **Cancel** stops it.
+4. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
+5. Click **Download SVG** or **Download PNG**.
 
 SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes contain only straight lines. A blurred SVG uses a blur effect that browsers and most design apps show; if an app ignores it, use PNG.
 
@@ -629,19 +589,18 @@ SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes con
 
 1. Choose **Font file — OpenType (.otf)**.
 2. **Glyphs to include:** **Current glyph**, **Specimen characters** (only the characters in your text), or **All mapped characters** (every letter the font has).
-3. Give it a **Family name** and **Style name** — use plain English letters. A new name avoids confusion with the original font. Below the names, the dialog says about how many outline points the font will have. A yellow note warns you if that is more than a font file can hold (1,000,000), or if many letters still have to be worked out at these settings, so that the build may take minutes.
-4. Click **Build & verify**. The app builds the font in the background and then checks it thoroughly, showing how far it has got (for example "Processing outlines 120 / 300", then writing and checking the file). Letters already drawn on the canvas are reused, so only the others need working out. **Cancel** stops the build at once. If the build makes no progress for a whole minute, it is stopped and the dialog says "The export stopped responding."
+3. Give it a **Family name** and **Style name** — use plain English letters. A new name avoids confusion with the original font.
+4. Click **Build & verify**. The app builds the font and then checks it thoroughly. This can take a few seconds for large fonts; **Cancel** stops it.
 5. When it says "Verified", click **Download .otf** and install the font like any other.
 
 Good to know:
 
 - If you change any setting after building, build again before downloading.
-- The new font keeps the original's **kerning** — the fine spacing between pairs such as "AV" — for the letters it contains, so text sets as it does on the canvas. Ligatures, the placing of accents on letters, kerning that depends on the neighbouring letters or on the language, and the original's other advanced features are not included. **What the font file does not include** in the dialog lists them all.
+- The new font has **no kerning**, ligatures, or other advanced features of the original — only the reshaped letters and their widths.
 - Letters are saved with the same weight, style (for example italic), slant, line spacing, and copyright and license details as the original font, so a Regular and a Bold you make install side by side like the originals.
-- Lines are spaced as on the canvas, on Mac and Windows alike. If letters reach far above or below their usual height (for example with Slipstream), a few older apps may space the lines further apart.
 - Very rarely a letter may be left out if its shape has details too fine for a font file to store; the app lists them. Less **Distortion** or **Anchor spacing** usually helps.
-- With very dense settings (Anchor spacing near 1, or strong Experimental effects) a whole font can have too many points for one file. The dialog warns you before you build, and suggests a larger Anchor spacing, weaker Experimental effects, or exporting only the characters in your text.
-- Variable fonts are saved in the version you see on screen, with their kerning rounded to whole font units.
+- With very dense settings (Anchor spacing near 1) a whole font can have too many points for one file; the app stops and suggests a larger Anchor spacing or exporting only the characters in your text.
+- Variable fonts are saved in the version you see on screen.
 - **Licensing:** a modified font is still based on someone else's design. Check the original font's license before sharing it — many open-source fonts require a new name for modified versions. If the original reserves its name, the export dialog tells you to choose a different family name.
 
 ---
@@ -673,22 +632,10 @@ That setting would have made part of a letter collapse, cross over itself, or ru
 The font does not contain that character, or (for Google Fonts) it is in another character subset. Load a different subset or font.
 
 **Will my results change if I reload the page?**
-No. Your text, settings, and Sound mappings are kept in this browser and come back when the page opens again, and the same settings and seed always give the same result. A Google font is downloaded again by itself; a font from your computer has to be imported again. See [Coming back later](#coming-back-later). To keep a result for sure, export it.
-
-**I changed something by mistake.**
-Press **Undo** (the arrow at the top right, or ⌘Z on a Mac, Ctrl+Z elsewhere). See [Undo and redo](#undo-and-redo).
-
-**How do I start over from scratch?**
-Use the reset buttons of the groups you changed, or, to start completely fresh, clear this site's data in your browser's settings and reload the page. See [Coming back later](#coming-back-later).
-
-**A letter is missing, and the text box says some glyphs "failed to process".**
-The app gives up on a letter that takes longer than 60 seconds to work out. That letter is left out of the canvas and of exports; a font export lists it with the reason "Took longer than 60 s; try lighter settings". Lower the heaviest settings (usually Experimental effects or a small **Anchor spacing**).
-
-**A red message on the canvas says "The geometry worker … Reload the page to try again."**
-The letters are worked out in the background by a part of the app called the geometry worker. If it could not start, or kept failing or stopped responding several times in a row, the letters cannot be drawn any more: reload the page. If a heavy setting was the cause, lower it after reloading. "The geometry worker could not open this font" means the font file could not be read for drawing; try another copy of the font.
+Settings are not saved between visits. Within a session, the same settings and seed always give the same result. Export what you want to keep.
 
 **The letters do not move with the music.**
-In the Sound tab, check that a font is loaded, that the file is playing (or the microphone is listening), that **Drive letters** is switched on, and that there is at least one mapping that is ticked and has a **Depth** (or **Rate**) other than 0 %. If a grey note sits under the row, click **Enable** next to it — for example, "Turn on Crumple to hear this." means the Crumple effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**.
+In the Sound tab, check that the file is playing (or the microphone is listening), that **Drive letters** is switched on, and that there is at least one mapping that is ticked and has a **Depth** (or **Rate**) other than 0 %. If a grey note sits under the row, click **Enable** next to it — for example, "Turn on Crumple to hear this." means the Crumple effect is off. If the meters stay empty, the sound is too quiet: raise **Sensitivity**.
 
 **The sliders and seeds do not move while the letters do.**
 That is on purpose: your sliders and seed boxes keep your settings. The thin line on each driven slider shows where the sound has taken it, and the small number beside a driven seed's box is the live seed. When the sound stops, the letters go back to your settings. Press **Freeze** to copy the current look into the sliders and seed boxes.
@@ -732,6 +679,5 @@ No. Local fonts and audio files stay on your computer, and the microphone's soun
 | **Advance width** | How far the text moves forward after a letter, including its side spacing. |
 | **Kerning** | Small spacing adjustments between specific pairs, like "AV". |
 | **Variable font** | A font file that contains a range of weights or widths. |
-| **Font collection** | One file (`.ttc` or `.otc`) that holds several fonts, usually the styles of one family. |
 | **SVG** | A vector image format that keeps shapes sharp at any size. |
 | **OTF (OpenType)** | A standard font file format you can install on a computer. |

@@ -10,10 +10,7 @@ interface TextPanelProps {
   text: string
   scene: SpecimenScene | null
   pending: boolean
-  /** Typing in the text box. */
   onTextChange: (text: string) => void
-  /** A sample or Clear: the whole text at once (its own undo step). */
-  onTextReplace: (text: string) => void
   /** The textarea, so the glyph list can insert at the cursor. */
   inputRef?: Ref<HTMLTextAreaElement>
   onInputFocus?: () => void
@@ -38,7 +35,6 @@ export default function TextPanel({
   scene,
   pending,
   onTextChange,
-  onTextReplace,
   inputRef,
   onInputFocus,
   textCase,
@@ -58,7 +54,7 @@ export default function TextPanel({
   if (scene) {
     notes.push(`${scene.glyphCount} glyphs in ${scene.lines.length} line${scene.lines.length === 1 ? '' : 's'}`)
     notes.push(scene.kerning ? 'kerning from the font applied' : 'this font has no kerning data')
-    if (scene.failedGlyphs) notes.push(`${scene.failedGlyphs} glyph${scene.failedGlyphs === 1 ? '' : 's'} failed to process`)
+    if (scene.failedGlyphs) notes.push(`${scene.failedGlyphs} glyphs failed to process`)
   }
 
   return (
@@ -92,7 +88,7 @@ export default function TextPanel({
             title="Sample text"
             onChange={(e) => {
               const sample = SAMPLES.find((s) => s.label === e.target.value)
-              if (sample) onTextReplace(sample.text)
+              if (sample) onTextChange(sample.text)
             }}
           >
             <option value={EDITED} hidden disabled>
@@ -104,7 +100,7 @@ export default function TextPanel({
               </option>
             ))}
           </select>
-          <button type="button" className="button-small" disabled={!text} onClick={() => onTextReplace('')}>
+          <button type="button" className="button-small" disabled={!text} onClick={() => onTextChange('')}>
             <Icon name="close" />
             Clear
           </button>

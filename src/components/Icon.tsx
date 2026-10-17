@@ -24,9 +24,6 @@ const paths = {
   add: 'M8 3v10M3 8h10',
   // A pin: Freeze pins the live moment to the sliders.
   freeze: 'M5 2.5h6M6 2.5v4l-2 3h8l-2-3v-4M8 9.5v4.5',
-  // Undo and redo: an arrow turning back, drawn with straight edges.
-  undo: 'M5.5 3.5 2.5 6.5l3 3M2.5 6.5h8.5l2 2v2l-2 2H7',
-  redo: 'M10.5 3.5l3 3-3 3M13.5 6.5H5l-2 2v2l2 2h4',
 } as const
 
 export type IconName = keyof typeof paths

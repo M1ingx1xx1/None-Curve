@@ -3,7 +3,6 @@ import type { GlyphRef } from '../geometry/types'
 import type { ArtboardLayout, ArtboardParams, PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import CanvasSizeControls from './CanvasSizeControls'
-import { useGeometryProblem } from '../state/geometryClient'
 import type { DocumentState, OutlineView, ViewParams } from '../state/types'
 import ErrorBoundary from './ErrorBoundary'
 import FileDropTarget from './FileDropTarget'
@@ -32,8 +31,6 @@ interface CanvasViewportProps {
   onResetView: () => void
   onLocalFile: (file: File) => void
   onOpenGoogleFonts: () => void
-  /** About the session restored from the last visit (a font to import again), or null. */
-  note?: string | null
 }
 
 const SIZE_OPEN_KEY = 'none-curve:canvas-size-open'
@@ -89,8 +86,7 @@ export function Legend({ view }: { view: ViewParams }) {
 
 /**
  * Top right: the result canvas. It shows only the text from the input, set with the current font
- * and every geometry parameter. The outline and layer controls are for this canvas only: the preview
- * shows the export.
+ * and every geometry parameter. The outline and layer controls here also drive the miniature preview.
  */
 export default function CanvasViewport(props: CanvasViewportProps) {
   const {
@@ -110,11 +106,8 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     onResetView,
     onLocalFile,
     onOpenGoogleFonts,
-    note,
   } = props
   const { font, selectedGlyph } = document
-  // The geometry worker cannot compute glyphs (it could not start, or keeps failing): the glyphs show as failed.
-  const problem = useGeometryProblem()
   const [dragging, setDragging] = useState(false)
   // The canvas size drawer below the canvas; remembered per browser.
   const [sizeOpen, setSizeOpen] = useState(() => {
@@ -256,17 +249,6 @@ export default function CanvasViewport(props: CanvasViewportProps) {
           <div className="canvas-empty">
             <p className="canvas-message">Type text in the input (bottom right) to preview it here.</p>
           </div>
-        )}
-
-        {note && (
-          <p className="canvas-note" role="status">
-            {note}
-          </p>
-        )}
-        {font && problem && (
-          <p className="canvas-note canvas-note-error" role="alert">
-            {problem}
-          </p>
         )}
 
         {dragging && (

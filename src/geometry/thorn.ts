@@ -23,11 +23,10 @@
 // A thorn may cross the letter or another thorn; the outlines are then merged at the end of the Experimental
 // effects (overlaps.ts), as when an effect folds.
 
-import type { GlyphBudget } from './budget'
 import { hashInts } from './distortion'
 import { signedArea } from './flatten'
-import type { Point, PolygonGlyph, ThornParams } from './types'
-import { applyWarp, breakRuns, WARP_LIMITS, type CreaseMarks, type Warp, type WarpStats } from './warp'
+import type { Point, PolygonContour, PolygonGlyph, ThornParams } from './types'
+import { applyWarp, curveLikeRuns, WARP_LIMITS, type CreaseMarks, type Warp, type WarpStats } from './warp'
 
 export const THORN_LIMITS = {
   minCount: 1,
@@ -96,11 +95,9 @@ export interface ThornStats {
   reducedContours: number
   /** Contours left without roots or refraction because no tried strength kept them valid. */
   fallbackContours: number
-  /** Roots or refraction were left out of the glyph: they would have made more points than its budget allows. */
-  tooComplex: boolean
 }
 
-export const emptyThornStats = (): ThornStats => ({ applied: false, thorns: 0, longest: 0, roots: 0, reducedContours: 0, fallbackContours: 0, tooComplex: false })
+export const emptyThornStats = (): ThornStats => ({ applied: false, thorns: 0, longest: 0, roots: 0, reducedContours: 0, fallbackContours: 0 })
 
 /** Channel numbers keep Thorn's random numbers apart from the other effects' for the same seed. */
 const CHANNEL = { pick: 0x5a1, direction: 0x5a2, distance: 0x5a3, lean: 0x5a4, slide: 0x5a5, lift: 0x5a6 } as const
@@ -125,8 +122,7 @@ interface Thorn {
 /**
  * The thorns, after the warps of earlier effects. `marks` flags the vertices earlier effects added at
  * creases (tidying may remove them); with `folds`, an earlier effect folds the letter, so the root and
- * refraction warps are not checked either (see applyWarp). `budget` keeps the refracted glyph within its vertex
- * budget (see budget.ts); when it simplifies the glyph, the outlines may cross, and the caller merges them.
+ * refraction warps are not checked either (see applyWarp).
  */
 export function applyThorn(
   polygon: PolygonGlyph,
@@ -135,7 +131,6 @@ export function applyThorn(
   unitsPerEm: number,
   marks?: CreaseMarks,
   folds = false,
-  budget?: GlyphBudget,
 ): { polygon: PolygonGlyph; stats: ThornStats } {
   const stats = emptyThornStats()
   const count = Math.round(clamp(finite(params.count, 3), THORN_LIMITS.minCount, THORN_LIMITS.maxCount))
@@ -183,9 +178,7 @@ export function applyThorn(
   const warpStats = (s: WarpStats) => {
     stats.reducedContours += s.reducedContours
     stats.fallbackContours += s.fallbackContours
-    stats.tooComplex ||= s.tooComplex
   }
-  const maxPoints = budget?.maxWarpPoints ?? Infinity
 
   if (thorns.length > 0) {
     // 1. Roots, all at once as one warp. Each anchor is kept as an input vertex, so tidying never removes it.
@@ -201,7 +194,7 @@ export function applyThorn(
       }
       const anchors = new Set(thorns.map((thorn) => `${thorn.contour}:${thorn.index}`))
       const kept = contours.map((points, k) => points.map((_, i) => (marks?.[k]?.[i] ?? false) && !anchors.has(`${k}:${i}`)))
-      const warped = applyWarp(result, warpAt, unitsPerEm, kept, folds, maxPoints)
+      const warped = applyWarp(result, warpAt, unitsPerEm, kept, folds)
       warpStats(warped.stats)
       result = warped.polygon
       resultMarks = warped.marks
@@ -246,16 +239,10 @@ export function applyThorn(
 
   // 3. Refraction. Once a thorn is added, the outlines may cross, so nothing is checked: they are merged next.
   if (refraction > 0 && result.contours.length > 0) {
-    const refracted = applyWarp(result, (scale) => fluteWarp(refraction * scale, flute, seed), unitsPerEm, resultMarks, folds || stats.applied, maxPoints)
+    const refracted = applyWarp(result, (scale) => fluteWarp(refraction * scale, flute, seed), unitsPerEm, resultMarks, folds || stats.applied)
     warpStats(refracted.stats)
     result = refracted.polygon
     resultMarks = refracted.marks
-    // Refraction warps every strip of the letter again, so it can multiply the vertices: keep them within the budget.
-    const fitted = budget ? budget.fit(result) : result
-    if (fitted !== result) {
-      result = fitted
-      resultMarks = undefined
-    }
   }
   // The bases leave out anchors, which can leave a run of creases looking like a curve after all: break it up.
   if (stats.applied) {
@@ -263,6 +250,32 @@ export function applyThorn(
     result = { ...result, contours: result.contours.map((c, k) => breakRuns(c, marks?.[k], WARP_LIMITS.shortEdge * unitsPerEm)) }
   }
   return { polygon: result, stats }
+}
+
+/**
+ * The contour without the creases (`marks`) that make a curve-like run long enough (see curveLikeRuns), weakest turn
+ * first, like the warps' tidying but with no drift limit: it only runs once a thorn is added, and the outlines are
+ * merged next anyway. Such a crease turns gently between short edges, so leaving it out barely moves the outline.
+ */
+function breakRuns(contour: PolygonContour, marks: readonly boolean[] | undefined, shortEdge: number): PolygonContour {
+  if (!marks) return contour
+  let points = contour.points
+  let kept = marks
+  for (let round = 0; round < WARP_LIMITS.maxTidyRounds; round++) {
+    const m = points.length
+    const drop = new Set<number>()
+    for (const run of curveLikeRuns(points, shortEdge)) {
+      if (run.filter((k) => !kept[k]).length >= WARP_LIMITS.curveRun) continue
+      let weakest = -1
+      for (const k of run) if (kept[k] && (weakest < 0 || run.turn(k) < run.turn(weakest))) weakest = k
+      // Never two neighbours in one round: each removal is measured against the other's current place.
+      if (weakest >= 0 && !drop.has((weakest + 1) % m) && !drop.has((weakest - 1 + m) % m)) drop.add(weakest)
+    }
+    if (drop.size === 0 || m - drop.size < 3) break
+    points = points.filter((_, k) => !drop.has(k))
+    kept = kept.filter((_, k) => !drop.has(k))
+  }
+  return points === contour.points ? contour : { points, clockwise: signedArea(points) < 0 }
 }
 
 /** A thorn's tip, and how far along the outline its base reaches on either side of the anchor (font units). */

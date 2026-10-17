@@ -1,10 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
-import { artboardViewFrame, type ArtboardLayout, type ArtboardParams, type PaletteParams } from '../specimen/artboard'
-import { MAX_PREVIEW_BLUR, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
+import { artboardViewFrame, type ArtboardLayout, type PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
+import type { ViewParams } from '../state/types'
 import ErrorBoundary from './ErrorBoundary'
-import ExportedArtboard from './ExportedArtboard'
+import SpecimenView from './SpecimenView'
 import Icon from './Icon'
 
 interface TextPreviewProps {
@@ -12,10 +12,9 @@ interface TextPreviewProps {
   scene: SpecimenScene | null
   layout: ArtboardLayout | null
   palette: PaletteParams
-  /** The artboard's size in pixels, as exported. */
-  artboard: ArtboardParams
-  /** Decimal places of the SVG export: the preview rounds the outlines the same way. */
-  precision: number
+  /** Outline and layer settings of the result canvas; zoom and pan are ignored (always fitted). */
+  view: ViewParams
+  gridSize: number | null
   /** Blur and inversion live in App so the export dialog can reproduce this view. */
   look: PreviewLook
   onLookChange: (look: PreviewLook) => void
@@ -23,21 +22,37 @@ interface TextPreviewProps {
   onScaleChange: (pixelsPerUnit: number) => void
 }
 
+export interface PreviewLook {
+  /** Blur radius in screen pixels of this preview; 0 is off. */
+  blur: number
+  /** Swap the palette's text and background colours. */
+  inverted: boolean
+}
+
+export const DEFAULT_PREVIEW_LOOK: PreviewLook = { blur: 0, inverted: false }
+
+/** The preview's colours: the palette, swapped when inverted. */
+export function previewColors(palette: PaletteParams, look: PreviewLook): PaletteParams {
+  return look.inverted ? { ...palette, ink: palette.paper, paper: palette.ink } : palette
+}
+
+const MAX_BLUR = 12
+const FITTED = { zoom: 1, panX: 0, panY: 0 }
+const ignoreViewChange = () => {}
+const ignoreSelect = () => {}
+
 /**
- * Bottom right, right part: the SVG export, fitted, with its own blur and colour inversion, for judging
- * the overall shape of the text the way it reads from a distance. The outlines come from the export's
- * own builder (specimenPaths) at the export's precision, so the preview is the exported file: filled
- * straight-edged outlines on the artboard, without the canvas's layers, guides, grid or missing-character
- * boxes. Blur and inversion only affect this view unless "Export the preview look" is ticked in the
- * export dialog.
+ * Bottom right, right part: the artboard as it will be exported, fitted, with its own blur and colour
+ * inversion, for judging the overall shape of the text the way it reads from a distance. Blur and
+ * inversion only affect this view unless "Export the preview look" is ticked in the export dialog.
  */
 export default function TextPreview({
   font,
   scene,
   layout,
   palette,
-  artboard,
-  precision,
+  view,
+  gridSize,
   look,
   onLookChange,
   onScaleChange,
@@ -45,9 +60,11 @@ export default function TextPreview({
   const id = useId()
   const { blur, inverted } = look
   const colors = previewColors(palette, look)
+  // A stable object, so glyphs whose shape did not change are not drawn again.
+  const fittedView = useMemo(() => ({ ...view, ...FITTED }), [view])
   const hasText = font !== null && scene !== null && layout !== null && scene.glyphCount > 0
 
-  // The same fit as the canvas at zoom 1, so the export can turn preview pixels into font units.
+  // The same fit as SpecimenView at zoom 1, so the export can turn preview pixels into font units.
   const canvasRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   useLayoutEffect(() => {
@@ -74,7 +91,7 @@ export default function TextPreview({
             id={`${id}-blur`}
             type="range"
             min={0}
-            max={MAX_PREVIEW_BLUR}
+            max={MAX_BLUR}
             step={0.5}
             value={blur}
             aria-valuetext={blur > 0 ? `${blur} pixels` : 'Off'}
@@ -96,21 +113,23 @@ export default function TextPreview({
       <div ref={canvasRef} className="text-preview-canvas">
         {hasText ? (
           <ErrorBoundary resetKey={`${font.id}:preview`} label="The preview">
-            {scale > 0 && (
-              <ExportedArtboard
-                scene={scene}
-                layout={layout}
-                width={artboard.width}
-                height={artboard.height}
-                precision={precision}
-                ink={colors.ink}
-                paper={colors.paper}
-                transparent={palette.transparent}
-                pixelsPerArtboardPixel={scale * layout.unitsPerPx}
-                blur={previewBlur(blur, scale, layout.unitsPerPx)}
-                label={`Preview of the export${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
-              />
-            )}
+            <SpecimenView
+              font={font}
+              scene={scene}
+              layout={layout}
+              ink={colors.ink}
+              paper={colors.paper}
+              transparent={palette.transparent}
+              clip
+              view={fittedView}
+              gridSize={gridSize}
+              selectedGlyph={null}
+              label={`Miniature of the canvas${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
+              onViewChange={ignoreViewChange}
+              onSelectGlyph={ignoreSelect}
+              interactive={false}
+              blur={blur}
+            />
           </ErrorBoundary>
         ) : (
           <p className="text-preview-empty">{font ? 'Type text to preview it here.' : 'Import a font to see a preview.'}</p>

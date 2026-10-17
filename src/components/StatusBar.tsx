@@ -31,8 +31,7 @@ const subscribeSound = (listener: () => void) => getSoundEngine().subscribeState
 const micStatus = (): MicStatus => {
   const s = getSoundEngine().getState()
   if (s.listening) return 'on'
-  const kind = s.error?.kind
-  return s.source === 'microphone' && (kind === 'no-device' || kind === 'mic-ended') ? 'lost' : 'off'
+  return s.source === 'microphone' && s.error?.kind === 'no-device' ? 'lost' : 'off'
 }
 
 export default function StatusBar({ state, glyphGeometry, shownParams, scene }: StatusBarProps) {
@@ -53,9 +52,7 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene }: 
     // The settings the canvas shows, so the method matches the vertex count beside it (also while Sound drives).
     const steps = describePipeline(shownParams)
     const method = steps.join(' → ')
-    const geometry = glyphGeometry.geometry
-    // Marked when the Experimental effects' vertex budget simplified the glyph.
-    const vertices = geometry ? `${geometry.vertexCount} vertices${geometry.experimental.budget.applied ? ' (simplified)' : ''}` : 'flattening failed'
+    const vertices = glyphGeometry.geometry ? `${glyphGeometry.geometry.vertexCount} vertices` : 'flattening failed'
     const target = `text (${scene?.glyphCount ?? 0} glyphs)`
     if (view.outline === 'source') viewing = `Original curves · ${target}`
     else if (view.outline === 'flattened') viewing = `Final polygon (${method}) · ${target} · selected glyph ${vertices}`

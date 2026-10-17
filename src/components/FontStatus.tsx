@@ -8,8 +8,6 @@ interface FontStatusProps {
   font: LoadedFont | null
   onRetry: () => void
   onCancel: () => void
-  /** Opens another face of a font collection. */
-  onFace: (font: LoadedFont, face: number) => void
 }
 
 function formatBytes(bytes: number): string {
@@ -26,42 +24,12 @@ function sourceLine(font: LoadedFont): string {
   return `Google Fonts · ${style} · ${source.subset} subset${version} · ${formatBytes(source.byteSize)}`
 }
 
-/** The style name, or a menu of the faces when the font comes from a collection. */
-function FontName({ font, busy, onFace }: { font: LoadedFont; busy: boolean; onFace: FontStatusProps['onFace'] }) {
-  const faces = font.faces
-  if (!faces || faces.length < 2) {
-    return (
+function FontSummary({ font }: { font: LoadedFont }) {
+  return (
+    <div className="font-summary">
       <p className="font-name">
         {font.familyName} <span className="font-style">{font.styleName}</span>
       </p>
-    )
-  }
-  // A collection of several families names the family in each entry instead.
-  const mixed = new Set(faces.map((f) => f.family)).size > 1
-  return (
-    <p className="font-name">
-      {!mixed && `${font.familyName} `}
-      <select
-        className="font-style"
-        aria-label="Face"
-        value={font.face ?? 0}
-        disabled={busy}
-        onChange={(e) => onFace(font, Number(e.target.value))}
-      >
-        {faces.map((f) => (
-          <option key={f.index} value={f.index}>
-            {mixed ? `${f.family} ${f.style}` : f.style}
-          </option>
-        ))}
-      </select>
-    </p>
-  )
-}
-
-function FontSummary({ font, busy, onFace }: { font: LoadedFont; busy: boolean; onFace: FontStatusProps['onFace'] }) {
-  return (
-    <div className="font-summary">
-      <FontName font={font} busy={busy} onFace={onFace} />
       <p className="font-meta">{sourceLine(font)}</p>
       <dl className="font-facts">
         <div>
@@ -108,7 +76,7 @@ function FontSummary({ font, busy, onFace }: { font: LoadedFont; busy: boolean; 
   )
 }
 
-export default function FontStatus({ status, font, onRetry, onCancel, onFace }: FontStatusProps) {
+export default function FontStatus({ status, font, onRetry, onCancel }: FontStatusProps) {
   return (
     <section className="font-status" aria-label="Font" aria-live="polite" data-state={status.kind}>
       {status.kind === 'empty' && (
@@ -141,7 +109,7 @@ export default function FontStatus({ status, font, onRetry, onCancel, onFace }: 
         </div>
       )}
 
-      {font && status.kind !== 'error' && <FontSummary font={font} busy={status.kind === 'loading'} onFace={onFace} />}
+      {font && status.kind !== 'error' && <FontSummary font={font} />}
     </section>
   )
 }

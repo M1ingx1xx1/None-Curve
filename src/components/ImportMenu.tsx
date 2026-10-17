@@ -71,7 +71,7 @@ export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts }: Imp
             }}
           >
             <span className="import-option-title">Local file</span>
-            <span className="import-option-hint">.ttf, .otf, .woff, .woff2, .ttc, .otc · stays in your browser</span>
+            <span className="import-option-hint">.ttf, .otf, .woff, .woff2 · stays in your browser</span>
           </button>
           <button
             type="button"

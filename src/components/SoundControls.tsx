@@ -1,7 +1,6 @@
 import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode } from 'react'
 import type { GeometryParams } from '../geometry/types'
 import type { SoundEngine } from '../sound/engine'
-import { FLASH_LIMITS } from '../sound/flash'
 import { JUMP_LIMITS } from '../sound/jumps'
 import { freezeLive, useLiveStatus } from '../sound/live'
 import {
@@ -34,7 +33,6 @@ import {
 } from '../sound/types'
 import { useSoundEngine, useSoundFrames, useSoundState } from '../sound/useSound'
 import type { Action } from '../state/editorState'
-import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 
@@ -52,8 +50,6 @@ const errorText: Record<SoundErrorKind, string> = {
   'no-device': 'No microphone found.',
   'device-busy': 'The microphone could not be opened; another app may be using it.',
   insecure: 'The microphone needs a secure page (https or localhost).',
-  'mic-connect': 'The microphone opened, but this browser could not analyse it.',
-  'mic-ended': 'The microphone stopped.',
 }
 
 /** The message for an error. "Unsupported" depends on what was being opened: Web Audio or the microphone. */
@@ -539,12 +535,10 @@ const featureOptions = FEATURE_GROUPS.map((group) => (
   </optgroup>
 ))
 
-/** Applies an activation's (or a preset's) changes to the sliders, as Freeze does: one undo step. */
+/** Applies an activation's (or a preset's) changes to the sliders, as Freeze does. */
 function applyActivation({ patches }: Pick<Activation, 'patches'>, dispatch: Dispatch<Action>): void {
-  undoHistory.transaction(() => {
-    // `group` and `patch` always match; TypeScript cannot pair a union key with its value here.
-    for (const { group, patch } of patches) dispatch({ type: 'updateParams', group, patch } as Action)
-  })
+  // `group` and `patch` always match; TypeScript cannot pair a union key with its value here.
+  for (const { group, patch } of patches) dispatch({ type: 'updateParams', group, patch } as Action)
 }
 
 /**
@@ -566,14 +560,6 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   const [presetNotice, setPresetNotice] = useState<string | null>(null)
   // What picking a target switched on, by mapping id, shown under its row until the row's target changes again.
   const [notices, setNotices] = useState<ReadonlyMap<string, string>>(new Map())
-  // Undo and redo put back settings and mappings these notices no longer describe.
-  const { restores } = useHistoryState()
-  const [noticesFor, setNoticesFor] = useState(restores)
-  if (noticesFor !== restores) {
-    setNoticesFor(restores)
-    setPresetNotice(null)
-    setNotices(new Map())
-  }
   const reducedNote = reducedMotion && !drive
   const full = mappings.length >= MAPPING_LIMITS.maxMappings
   const addBlocked = full || TARGETS.length === 0
@@ -601,11 +587,8 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
     if (addBlocked) return
     // From the store, not this render: two quick clicks must not both pick the same target.
     const target = nextTarget(mappingStore.getState().mappings, params)
-    // The row and what it switches on are one undo step.
-    undoHistory.transaction(() => {
-      const id = target ? mappingStore.add('level', target, DEFAULT_DEPTH) : null
-      if (target && id) activate(id, targetById(target))
-    })
+    const id = target ? mappingStore.add('level', target, DEFAULT_DEPTH) : null
+    if (target && id) activate(id, targetById(target))
   }
 
   /**
@@ -613,27 +596,24 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
    * preset's start values and replaces the mappings with its own (presetSettings). The rows should then
    * need nothing; should one, what it needs is switched on as when a target is picked by hand, row by
    * row against the settings the rows before it left (so a switch is turned on, and named, once).
-   * One undo step puts back the settings and the mappings from before.
    */
   const loadPreset = () => {
     const preset = PRESETS.find((p) => p.id === presetId)
     if (!preset) return
-    undoHistory.transaction(() => {
-      const loaded = presetSettings(params, preset)
-      applyActivation(loaded, dispatch)
-      setPresetNotice(loaded.notice)
-      mappingStore.replace(preset.mappings)
-      let current = loaded.params
-      const next = new Map<string, string>()
-      for (const mapping of mappingStore.getState().mappings) {
-        const activation = targetById(mapping.target)?.activate(current) ?? null
-        if (!activation) continue
-        applyActivation(activation, dispatch)
-        current = applyPatches(current, activation.patches)
-        next.set(mapping.id, activation.notice)
-      }
-      setNotices(next)
-    })
+    const loaded = presetSettings(params, preset)
+    applyActivation(loaded, dispatch)
+    setPresetNotice(loaded.notice)
+    mappingStore.replace(preset.mappings)
+    let current = loaded.params
+    const next = new Map<string, string>()
+    for (const mapping of mappingStore.getState().mappings) {
+      const activation = targetById(mapping.target)?.activate(current) ?? null
+      if (!activation) continue
+      applyActivation(activation, dispatch)
+      current = applyPatches(current, activation.patches)
+      next.set(mapping.id, activation.notice)
+    }
+    setNotices(next)
   }
 
   return (
@@ -703,7 +683,7 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
           <HintText hint={presetHint}>
             Ready-made mappings to start from. Load resets the Geometry and Experimental settings to their defaults
             (seeds kept), then sets the preset up: its own starting values and its mappings, which replace the current
-            ones. Undo ({UNDO_KEYS.undo}) brings back the settings and mappings from before.
+            ones.
             <span className="preset-list">
               {PRESETS.map((p) => (
                 <span key={p.id} className="preset-item">
@@ -764,8 +744,7 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
               aria-describedby={freezeHint.id}
               onClick={() => {
                 if (!status.driving) return
-                // Every group it writes is one undo step.
-                undoHistory.transaction(() => freezeLive(dispatch))
+                freezeLive(dispatch)
               }}
             >
               <Icon name="freeze" />
@@ -788,11 +767,11 @@ function MappingsGroup({ params, dispatch }: { params: GeometryParams; dispatch:
   )
 }
 
-/** What Rate means on a seed, from the jump and flash limits (jumps.ts, flash.ts). */
+/** What Rate means on a seed, from the jump limits (jumps.ts). */
 const rateHelp =
   'How often the seed moves on; each new seed is a new variant. With Beat, 100% moves on at every hit and 50% ' +
   `at every other one. With other features, it moves on faster the higher they read, up to about ${Math.round(JUMP_LIMITS.maxRate)} ` +
-  `times a second at 100%. Seeds and sliders share one limit of ${FLASH_LIMITS.maxFlashes} flashes a second, so busy sliders leave fewer jumps.`
+  `times a second at 100%. All seeds together jump at most about ${Math.round(JUMP_LIMITS.maxJumps / (JUMP_LIMITS.windowMs / 1000))} times a second.`
 
 interface MappingRowProps {
   mapping: Mapping
@@ -874,19 +853,15 @@ function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: Ma
             onBlur={(e) => commitTarget(e.currentTarget.value)}
             onChange={(e) => {
               const next = targetById(e.target.value)
-              const value = e.target.value
-              // The new target and what it switches on are one undo step.
-              undoHistory.transaction(() => {
-                // A seed's Rate is never negative: a negative Depth turns positive in the same update.
-                update(next?.kind === 'jump' && mapping.depth < 0 ? { target: value, depth: -mapping.depth } : { target: value })
-                if (keyboard.current) {
-                  pendingTarget.current = true
-                  // Nothing to switch on yet; this only clears the last target's notice.
-                  onActivate(undefined)
-                } else {
-                  onActivate(next)
-                }
-              })
+              // A seed's Rate is never negative: a negative Depth turns positive in the same update.
+              update(next?.kind === 'jump' && mapping.depth < 0 ? { target: e.target.value, depth: -mapping.depth } : { target: e.target.value })
+              if (keyboard.current) {
+                pendingTarget.current = true
+                // Nothing to switch on yet; this only clears the last target's notice.
+                onActivate(undefined)
+              } else {
+                onActivate(next)
+              }
             }}
           >
             {/* A target this version does not know (none should exist) still shows, so the select stays truthful. */}

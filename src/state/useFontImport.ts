@@ -3,7 +3,6 @@ import { isAbortError, toFontLoadError } from '../font/errors'
 import { loadGoogleFont, type GoogleFontRequest } from '../font/google'
 import { loadLocalFont } from '../font/local'
 import type { LoadedFont } from '../font/model'
-import { parseFont } from '../font/parse'
 import type { Action } from './editorState'
 import type { ImportOrigin } from './types'
 
@@ -65,18 +64,6 @@ export function useFontImport(dispatch: Dispatch<Action>) {
     [start],
   )
 
-  /** Opens another face of the font collection `font` came from; the file is already in memory. */
-  const selectFace = useCallback(
-    (font: LoadedFont, face: number) => {
-      const { source } = font
-      if (source.kind !== 'local') return
-      const entry = font.faces?.find((f) => f.index === face)
-      const label = !entry ? `face ${face + 1}` : entry.family === font.familyName ? entry.style : `${entry.family} ${entry.style}`
-      void start({ origin: 'local', label: `Opening ${label}`, run: (signal) => parseFont(font.bytes, { ...source, face }, signal) })
-    },
-    [start],
-  )
-
   const retry = useCallback(() => {
     if (lastJob.current) void start(lastJob.current)
   }, [start])
@@ -86,7 +73,7 @@ export function useFontImport(dispatch: Dispatch<Action>) {
     dispatch({ type: 'importCancelled', requestId: requestId.current })
   }, [dispatch])
 
-  return { importLocal, importGoogle, selectFace, retry, cancel }
+  return { importLocal, importGoogle, retry, cancel }
 }
 
 export type FontImporter = ReturnType<typeof useFontImport>

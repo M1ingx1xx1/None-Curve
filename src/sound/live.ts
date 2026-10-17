@@ -2,14 +2,13 @@
 // parameters (at most one geometry request in flight), the live slider positions shown as markers,
 // the live seeds, the live frame rate, the flash limit, and Freeze (see docs/SOUND_PLAN.md §5, §8, §9, §10).
 //
-// Every animation frame the engine measures, the driven seeds' jumps are counted (JumpTracker), the
-// mappings are applied to the slider values and seeds (modulate), and the flash limit holds back driven
-// sliders that would turn back too often (FlashLimiter); the jumps and the sliders' turns share one flash
-// budget (flash.ts). A new parameter set is sent to the geometry worker only when it differs from the last
-// one, the previous one's results have all arrived, and at least 1/30 s has passed: the frame rate follows
-// what the geometry can keep up with. It goes to React once its glyphs have arrived, so each frame renders
-// once, complete. While Sound is not driving (no source runs, Drive letters is off, or no font is loaded),
-// the sliders' own parameters are used unchanged.
+// Every animation frame the engine measures, the driven seeds' jumps are counted (JumpTracker, which
+// keeps them to the flash limit itself), the mappings are applied to the slider values and seeds
+// (modulate), and the flash limit holds back a driven slider that would turn back too often
+// (FlashLimiter). A new parameter set goes to React (and so to the geometry worker) only when it differs
+// from the last one, the previous one's results have all arrived, and at least 1/30 s has passed: the
+// frame rate follows what the geometry can keep up with. While Sound is not driving, the sliders'
+// own parameters are used unchanged.
 
 import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore, type Dispatch } from 'react'
 import { paramsKey } from '../geometry/cache'
@@ -17,17 +16,13 @@ import type { GeometryParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { geometryClient } from '../state/geometryClient'
 import { getSoundEngine } from './engine'
-import { FLASH_LIMITS, FlashBudget } from './flash'
 import { JumpTracker } from './jumps'
 import { modulate, targetById, type Mapping, type Modulated } from './mapping'
 import { mappingStore } from './mappingStore'
 import { SILENT_FRAME, type FeatureFrame, type SoundState } from './types'
 
 export interface LiveStatus {
-  /**
-   * Sound is moving the letters now: a font is loaded, a source runs, Drive letters is on, and a mapping acts (on a
-   * slider or a seed).
-   */
+  /** Sound is moving the letters now: a source runs, Drive letters is on, and a mapping acts (on a slider or a seed). */
   driving: boolean
   /**
    * Live frames per second the geometry keeps up with while driving: 1000 ms ÷ the smoothed time from
@@ -50,6 +45,10 @@ export const LIVE_LIMITS = {
   markerRate: 15,
   /** The status line's frame rate changes at most this often (per second). */
   statusRate: 4,
+  /** At most this many flashes (pairs of opposing swings) a second from each feature (WCAG 2.3.1, SOUND_PLAN §10). */
+  maxFlashes: 3,
+  /** A swing counts when it moves a driven slider by at least this share of its travel. */
+  flashSwing: 0.1,
 } as const
 
 const MIN_COMMIT_MS = 1000 / LIVE_LIMITS.maxFps
@@ -67,6 +66,13 @@ const NOT_DRIVING: LiveStatus = { driving: false, fps: 0, slow: false, differs: 
 /** The parameter groups sound can drive (GeometryParams), in the order Freeze writes them. */
 const GROUPS = ['flatten', 'random', 'squaring', 'anchors', 'grid', 'distortion', 'experimental'] as const
 
+/**
+ * Turns that count towards the flash limit are remembered this long (ms): a little over a second, so
+ * that frames reaching the screen up to a quarter second after they were measured (waiting for the
+ * geometry, at most one frame in flight) still turn at most 2 × maxFlashes times in any second on screen.
+ */
+const FLASH_WINDOW_MS = 1250
+
 /** Live values held back by the flash limit, by target id. */
 type Holds = ReadonlyMap<string, number>
 
@@ -75,53 +81,21 @@ type Jumps = ReadonlyMap<string, number>
 
 const NO_JUMPS: Jumps = new Map()
 
-/** A frame as shown: its key, the frame, jumps and held values it came from, and whether it is the sliders' own. */
-type Shown = { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean }
-/** A frame waiting to be committed to React: its glyphs are being computed. */
-type Next = { shown: Shown; params: GeometryParams | null }
-
 /**
- * Keeps the driven sliders to the flash limit (SOUND_PLAN §10, flash.ts). Each slider has a direction and the
- * extreme it has reached that way; moving back from that extreme (or, before its first turn, away from where it
- * started) is a turn. A frame is a large change (an edge) when the sliders' moves back add up to FLASH_LIMITS.swing
- * of a slider's travel: one slider swinging that far, or several smaller swings together. An edge takes from the
- * flash budget shared with the seeds' jumps, and every slider moving back turns. When the budget is spent, the
- * sliders moving back keep their last passed values until it frees up; the others pass. Counted on the slider
- * positions as shown (after rounding to the step), so a coarse slider flipping one step back and forth counts
- * too. A held value is one the slider produced a moment ago (§2), and the markers and Freeze use the same values
- * as the screen.
+ * Keeps sound from flashing (SOUND_PLAN §10; JumpTracker limits the seeds). On each driven slider, the
+ * live value may turn back by a swing of at least flashSwing of the slider's travel at most
+ * 2 × maxFlashes times within FLASH_WINDOW_MS. A further turn keeps the slider's last passed value
+ * until the window has passed. Counted on the slider positions as shown (after rounding to the step),
+ * so a coarse slider flipping one step back and forth counts too. A held value is one the slider
+ * produced a moment ago (§2), and the markers and Freeze use the same values as the screen.
  */
 export class FlashLimiter {
-  /** Per target: the value and position last passed on, the extreme of its current swing, and its direction (−1, 0, 1). */
-  private targets = new Map<string, { value: number; position: number; extreme: number; dir: number }>()
-  /** How far each target moves back in this frame (reused). */
-  private readonly back = new Map<string, number>()
+  /** Per target: the value and position last passed on, the extreme of the current swing, its direction (−1, 0, 1), and recent turn times. */
+  private targets = new Map<string, { value: number; position: number; extreme: number; dir: number; turns: number[] }>()
 
-  /** @param budget the flash budget, shared with the seeds' jumps (LiveScheduler); its own when alone */
-  constructor(private readonly budget = new FlashBudget()) {}
-
-  /**
-   * The modulated parameters with held values put back, and the held values (null when none).
-   * @param time the measured frame's time (ms), as JumpTracker uses it, so one frame's slider turns and jumps are one edge
-   */
-  limit(modulated: Modulated, time: number): { modulated: Modulated; holds: Holds | null } {
+  /** The modulated parameters with held values put back, and the held values (null when none). */
+  limit(modulated: Modulated, now: number): { modulated: Modulated; holds: Holds | null } {
     for (const id of this.targets.keys()) if (!modulated.positions.has(id)) this.targets.delete(id)
-    const back = this.back
-    back.clear()
-    let total = 0
-    for (const [id, position] of modulated.positions) {
-      const state = this.targets.get(id)
-      if (!state) continue
-      const { dir, extreme } = state
-      const amount = dir > 0 ? extreme - position : dir < 0 ? position - extreme : Math.abs(position - extreme)
-      if (amount > 0) {
-        back.set(id, amount)
-        total += amount
-      }
-    }
-    // A hair under the swing, so a swing of exactly FLASH_LIMITS.swing on the step grid counts despite rounding.
-    const edge = total >= FLASH_LIMITS.swing - 1e-9
-    const allowed = !edge || this.budget.take(time)
     let params = modulated.params
     let positions: Map<string, number> | null = null
     let holds: Map<string, number> | null = null
@@ -131,30 +105,38 @@ export class FlashLimiter {
       const value = spec.get(modulated.params)
       const state = this.targets.get(id)
       if (!state) {
-        this.targets.set(id, { value, position, extreme: position, dir: 0 })
+        this.targets.set(id, { value, position, extreme: position, dir: 0, turns: [] })
         continue
       }
-      if (edge && back.has(id)) {
-        if (!allowed) {
-          if (spec.get(params) !== state.value) params = spec.set(params, state.value)
-          positions ??= new Map(modulated.positions)
-          positions.set(id, state.position)
-          holds ??= new Map()
-          holds.set(id, state.value)
-          continue
-        }
-        state.dir = position > state.extreme ? 1 : -1
-        state.extreme = position
-      } else if ((state.dir > 0 && position > state.extreme) || (state.dir < 0 && position < state.extreme)) {
-        state.extreme = position
+      const { dir, extreme } = state
+      // A hair under the swing, so a swing of exactly flashSwing on the step grid counts despite rounding.
+      const swing = LIVE_LIMITS.flashSwing - 1e-9
+      const turn = dir >= 0 && position <= extreme - swing ? -1 : dir <= 0 && position >= extreme + swing ? 1 : 0
+      if (turn === 0) {
+        if ((dir > 0 && position > extreme) || (dir < 0 && position < extreme)) state.extreme = position
+        state.value = value
+        state.position = position
+        continue
       }
+      state.turns = state.turns.filter((t) => now - t < FLASH_WINDOW_MS)
+      if (state.turns.length >= 2 * LIVE_LIMITS.maxFlashes) {
+        if (spec.get(params) !== state.value) params = spec.set(params, state.value)
+        positions ??= new Map(modulated.positions)
+        positions.set(id, state.position)
+        holds ??= new Map()
+        holds.set(id, state.value)
+        continue
+      }
+      state.turns.push(now)
+      state.dir = turn
+      state.extreme = position
       state.value = value
       state.position = position
     }
     return { modulated: positions ? { params, positions, seeds: modulated.seeds } : modulated, holds }
   }
 
-  /** Forgets every slider (Sound stopped driving); the budget keeps its edges. */
+  /** Forgets every slider (Sound stopped driving). */
   reset() {
     this.targets.clear()
   }
@@ -177,18 +159,13 @@ export interface LiveCommit {
   seq: number
 }
 
-/** What the scheduler needs from the page; tests/sound replaces it with fakes (a fake clock, client and React). */
+/** What the scheduler needs from the page; replaced by fakes in tests. */
 export interface LiveDeps {
   now(): number
   /** A file plays or the microphone listens. */
   sourceRunning(): boolean
   /** The geometry client has a request in flight. */
   isComputing(): boolean
-  /**
-   * Asks the geometry worker for a live parameter set's glyphs before it is committed: true while they are
-   * computed (idle() follows when the request ends), false when there is nothing to wait for.
-   */
-  request(params: GeometryParams, key: string): boolean
   /** Hands a parameter set to React (null: the sliders' own). */
   commit(commit: LiveCommit | null): void
   /** Pauses the file or stops listening (Freeze). */
@@ -295,25 +272,21 @@ class StatusStore {
 }
 
 /**
- * The live scheduler (see the file comment). Exported for tests/sound; the page uses the hooks below.
- * Inputs: the slider values and whether a font is loaded (setBase), the mappings (setMappings), each
- * measured frame (setFrame), source changes (sourceChanged), renders of its commits (rendered), and the
- * geometry client going idle (idle). Outputs: commits (deps.commit), positions, seeds, status.
+ * The live scheduler (see the file comment). Exported for tests; the page uses the hooks below.
+ * Inputs: the slider values (setBase), the mappings (setMappings), each measured frame (setFrame),
+ * source changes (sourceChanged), renders of its commits (rendered), and the geometry client going
+ * idle (idle). Outputs: commits (deps.commit), positions, seeds, status.
  */
 export class LiveScheduler {
   readonly positions: LiveValueStore
   /** Live seeds of the driven jump targets (whole numbers, published like the markers). */
   readonly seeds: LiveValueStore
   readonly status = new StatusStore()
-  /** The flash limit's budget: the sliders' turns and the seeds' jumps together. Kept when Sound stops driving. */
-  private readonly budget = new FlashBudget()
-  private readonly flash = new FlashLimiter(this.budget)
-  private readonly jumpTracker = new JumpTracker(this.budget)
+  private readonly flash = new FlashLimiter()
+  private readonly jumpTracker = new JumpTracker()
 
   private base: GeometryParams | null = null
   private baseKey = ''
-  /** A font is loaded: without one there are no letters to move, so Sound does not drive. */
-  private hasFont = true
   private frame: FeatureFrame = SILENT_FRAME
   private mappings: readonly Mapping[] = []
   private drive = false
@@ -324,16 +297,11 @@ export class LiveScheduler {
   /** The newest modulated parameters (after the flash limit), the frame, jumps and held values they came from, and their key. */
   private latest: { modulated: Modulated; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; key: string } | null = null
   /** What React shows (or is about to): its key, the frame, jumps and held values it came from, and whether it is the sliders' own. */
-  private committed: Shown | null = null
+  private committed: { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean } | null = null
   /** React holds a live commit (not null), so stopping must hand it null. */
   private holdsCommit = false
-  /**
-   * The frame under way since `at`: while `next` is set its glyphs are being computed and React has not
-   * seen it; once committed (at `committedAt`) it waits to render and for any request its render makes.
-   */
-  private awaiting: { seq: number; at: number; next: Next | null; committedAt: number; rendered: boolean } | null = null
-  /** When the last frame started, and when React was last handed one: each at most every 1/30 s. */
-  private lastStartAt = -Infinity
+  /** The commit whose results have not all arrived yet. */
+  private awaiting: { seq: number; at: number; rendered: boolean } | null = null
   private lastCommitAt = -Infinity
   private seq = 0
   private timer: unknown = null
@@ -346,12 +314,10 @@ export class LiveScheduler {
     this.seeds = new LiveValueStore(deps, (seed) => seed)
   }
 
-  /** The sliders' own parameters, and whether a font is loaded (no letters: nothing to drive). */
-  setBase(base: GeometryParams, hasFont = true) {
-    if (base === this.base && hasFont === this.hasFont) return
-    if (base !== this.base) this.baseKey = paramsKey(base)
+  setBase(base: GeometryParams) {
+    if (base === this.base) return
     this.base = base
-    this.hasFont = hasFont
+    this.baseKey = paramsKey(base)
     this.update()
   }
 
@@ -364,7 +330,7 @@ export class LiveScheduler {
   setFrame(frame: FeatureFrame) {
     this.frame = frame
     // Jumps are counted only while Sound can drive; stop() forgets them.
-    if (this.base && this.canDrive()) this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base)
+    if (this.base && this.drive && this.deps.sourceRunning()) this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base)
     this.update()
   }
 
@@ -415,14 +381,9 @@ export class LiveScheduler {
     this.stop()
   }
 
-  /** A font is loaded, the slider values are known, Drive letters is on, and a source runs. */
-  private canDrive(): boolean {
-    return this.base !== null && this.hasFont && this.drive && this.deps.sourceRunning()
-  }
-
   private update() {
     const base = this.base
-    if (!base || !this.canDrive()) return this.stop()
+    if (!base || !this.drive || !this.deps.sourceRunning()) return this.stop()
     const unlimited = modulate(base, this.frame, this.mappings, this.jumps)
     // No enabled mapping with a Depth acts on an active target: Sound changes nothing.
     if (unlimited.positions.size === 0 && unlimited.seeds.size === 0) return this.stop()
@@ -433,8 +394,7 @@ export class LiveScheduler {
       // The canvas shows the sliders' own parameters until the first live commit.
       this.committed = { key: this.baseKey, frame: SILENT_FRAME, jumps: NO_JUMPS, holds: null, isBase: true }
     }
-    // On the frame's time, as the jumps: one frame's turns and jumps are one edge of the flash budget.
-    const limited = this.flash.limit(unlimited, this.frame.time)
+    const limited = this.flash.limit(unlimited, this.deps.now())
     const { holds } = limited
     let { modulated } = limited
     const key = modulated.params === base ? this.baseKey : paramsKey(modulated.params)
@@ -447,72 +407,43 @@ export class LiveScheduler {
     this.publishStatus()
   }
 
-  /**
-   * Starts the newest parameters if they are new, nothing is computing, and 1/30 s has passed: asks for
-   * their glyphs, and commits them once those have arrived (at once when nothing needs computing).
-   */
+  /** Commits the newest parameters if they are new, nothing is computing, and 1/30 s has passed. */
   private pump() {
     const { latest, committed } = this
     if (!this.driving || !latest || !committed) return
     if (this.awaiting && !this.finish()) return
     if (latest.key === committed.key) return
     const isBase = latest.modulated.params === this.base
-    const shown: Shown = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase }
     // Back to the sliders' own parameters while React already shows them: nothing to render.
     if (isBase && !this.holdsCommit) {
-      this.committed = shown
+      this.committed = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase }
       return
     }
     if (this.deps.isComputing()) return // idle() pumps again
     const now = this.deps.now()
-    const wait = this.lastStartAt + MIN_COMMIT_MS - now
+    const wait = this.lastCommitAt + MIN_COMMIT_MS - now
     if (wait > 0) {
-      this.wake(wait)
+      this.timer ??= this.deps.setTimer(() => {
+        this.timer = null
+        this.pump()
+      }, wait)
       return
     }
-    const params = isBase ? null : latest.modulated.params
-    this.awaiting = { seq: ++this.seq, at: now, next: { shown, params }, committedAt: now, rendered: false }
-    this.lastStartAt = now
-    // The sliders' own results are kept from normal editing; a live frame's glyphs are computed first, so
-    // React renders the frame once, with every glyph (idle() commits it).
-    if (!params || !this.deps.request(params, latest.key)) this.finish()
-  }
-
-  /** Calls pump (through settle) after `ms`, unless a call is already due. */
-  private wake(ms: number) {
-    this.timer ??= this.deps.setTimer(() => {
-      this.timer = null
-      this.settle()
-    }, ms)
-  }
-
-  /** Hands the awaited frame to React, at most every 1/30 s (its glyphs may arrive sooner after the last). */
-  private commitNext(awaiting: { next: Next | null; committedAt: number; seq: number }, next: Next) {
-    const now = this.deps.now()
-    const wait = this.lastCommitAt + MIN_COMMIT_MS - now
-    if (wait > 0) return this.wake(wait)
-    awaiting.next = null
-    awaiting.committedAt = now
+    const seq = ++this.seq
+    this.committed = { key: latest.key, frame: latest.frame, jumps: latest.jumps, holds: latest.holds, isBase }
+    this.awaiting = { seq, at: now, rendered: false }
     this.lastCommitAt = now
-    this.committed = next.shown
-    this.holdsCommit = !next.shown.isBase
-    this.deps.commit({ params: next.params, seq: awaiting.seq })
+    this.holdsCommit = !isBase
+    this.deps.commit({ params: isBase ? null : latest.modulated.params, seq })
   }
 
-  /**
-   * The awaited frame is complete when it has rendered and nothing is computing; returns true once it is.
-   * A frame whose glyphs have just arrived is committed here.
-   */
+  /** The awaited commit is complete when it has rendered and nothing is computing; returns true once it is. */
   private finish(): boolean {
     const awaiting = this.awaiting
     if (!awaiting) return true
     if (this.deps.isComputing()) return false
-    if (awaiting.next) {
-      this.commitNext(awaiting, awaiting.next)
-      return false
-    }
     const now = this.deps.now()
-    if (!awaiting.rendered && now - awaiting.committedAt < STUCK_MS) return false
+    if (!awaiting.rendered && now - awaiting.at < STUCK_MS) return false
     this.awaiting = null
     this.period += SMOOTHING * (Math.max(MIN_COMMIT_MS, now - awaiting.at) - this.period)
     return true
@@ -543,9 +474,6 @@ export class LiveScheduler {
     this.positions.clear()
     this.seeds.clear()
     if (this.holdsCommit) {
-      // Exact restore: the letters go back to the sliders' own parameters, a large change that always shows; it
-      // counts against the budget, so a quick pause and play cannot let a second burst through.
-      this.budget.spend(this.frame.time)
       this.holdsCommit = false
       this.deps.commit(null)
     }
@@ -583,7 +511,6 @@ function getScheduler(): LiveScheduler {
     now: () => performance.now(),
     sourceRunning: () => isRunning(getSoundEngine().getState()),
     isComputing: () => geometryClient.isComputing(),
-    request: (params, key) => geometryClient.prefetch(params, key),
     commit: (commit) => commitTo?.(commit),
     pauseSound: () => {
       const engine = getSoundEngine()
@@ -623,18 +550,17 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
 
 /**
  * The parameters the canvas should use: `base` itself while Sound is not driving (exact restore), or
- * live parameters updated as fast as the geometry keeps up (capped at 30 fps). Without a font Sound does
- * not drive (no commits, no markers): pass whether one is loaded. Call once, in App.
+ * live parameters updated as fast as the geometry keeps up (capped at 30 fps). Call once, in App.
  */
-export function useLiveParams(base: GeometryParams, hasFont = true): GeometryParams {
+export function useLiveParams(base: GeometryParams): GeometryParams {
   const [commit, setCommit] = useState<LiveCommit | null>(null)
   const live = getScheduler()
   // Layout effect: the scheduler has the new slider values before the next frame can arrive.
-  useLayoutEffect(() => live.setBase(base, hasFont), [live, base, hasFont])
+  useLayoutEffect(() => live.setBase(base), [live, base])
   useEffect(() => attach(setCommit), [])
   useEffect(() => {
     if (!commit) return
-    // After this render's other effects too (one of them asks for any glyph the frame still lacks, e.g. after a text change).
+    // After this render's other effects too (the geometry request is made in one of them).
     const { seq } = commit
     queueMicrotask(() => live.rendered(seq))
   }, [live, commit])
