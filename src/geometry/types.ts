@@ -215,6 +215,16 @@ export interface ThornParams {
    * across counters and past the far side they show as ink. Missing in older saved settings: false.
    */
   reverse: boolean
+  /**
+   * Burst: instead of a few thorns, many straight spikes all round every contour (counters included, pointing into the
+   * counter), with the outline between them sunk into the stroke. Count, Root and the anchors' picks are not used; Reach
+   * sets the longest spike. Missing in older saved settings: false.
+   */
+  burst: boolean
+  /** Spikes per letter in Burst (4–80), spread evenly round all its contours; the Anchors slider shows it in Burst. Missing in older saved settings: 40. */
+  spikes: number
+  /** 0–1: in Burst, how deep the outline between spikes sinks into the stroke (1 = up to 60% of the stroke). Missing in older saved settings: 80%. */
+  dent: number
 }
 
 /** The Experimental tab: effects that run after Geometry and can all be on at once. */

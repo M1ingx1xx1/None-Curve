@@ -18,7 +18,7 @@ import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, layoutArtboard }
 import { placePolygons, shapeSpecimen } from '../../src/specimen/scene'
 import { LATIN_SAMPLE, loadFixture, sampleGlyphs, type FixtureFont } from './fonts'
 import { allFinite, contoursOf, outlineCrossings, sameContours } from './outline'
-import { ALL_DEFAULT, EFFECTS, GEOMETRY, on, paramsWith, SLIDER_MAX, THORN_FARTHEST, withoutEffects } from './params'
+import { ALL_DEFAULT, BURST_MAX, EFFECTS, GEOMETRY, on, paramsWith, SLIDER_MAX, THORN_FARTHEST, withoutEffects } from './params'
 
 /** Path data of the SVG export: moves, lines and closes, with plain decimal numbers. */
 export const STRAIGHT_PATH = /^[MLZ0-9 .-]+$/
@@ -46,6 +46,11 @@ export const CONFIGS: Config[] = [
   { name: 'Ripple at slider max, reversed', params: paramsWith(GEOMETRY.plain, on('ripple', { ...SLIDER_MAX.ripple.ripple, reverse: true })), recheckEvery: 6 },
   { name: 'Thorn reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { reverse: true })), recheckEvery: 3 },
   { name: 'Thorn at slider max (Reach 100%), reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { ...SLIDER_MAX.thorn.thorn, reverse: true })), recheckEvery: 6 },
+  // Burst: up to 80 spikes round every contour, crossing the letter and each other, and dents between them, merged.
+  { name: 'Thorn burst', params: paramsWith(GEOMETRY.plain, on('thorn', { burst: true })), recheckEvery: 3 },
+  { name: 'Thorn burst at slider max (80 spikes, Reach and Dent 100%)', params: paramsWith(GEOMETRY.plain, BURST_MAX), recheckEvery: 6 },
+  { name: 'Thorn burst at slider max, reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { ...BURST_MAX.thorn, reverse: true })), recheckEvery: 6 },
+  { name: 'all five default, Thorn burst, dense Geometry', params: paramsWith(GEOMETRY.dense, { ...ALL_DEFAULT, ...on('thorn', { burst: true }) }), recheckEvery: 6 },
 ]
 
 /** What went wrong with one glyph under one configuration, as readable lines (empty when nothing did). */
