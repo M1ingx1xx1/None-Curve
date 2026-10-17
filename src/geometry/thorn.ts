@@ -30,6 +30,9 @@
 // can span the whole canvas whatever the text size.
 // A thorn may cross the letter or another thorn; the outlines are then merged at the end of the Experimental
 // effects (overlaps.ts), as when an effect folds.
+// Reverse turns every thorn round, so it shoots into the letter along the inward normal: the same anchors, turns,
+// lengths, leans, roots and bases, only each direction negated. Inside a stroke the thorn carves a white slit; where
+// it crosses a counter or comes out past the far side, the merge (nonzero) shows it as an ink spike.
 
 import type { GlyphBudget } from './budget'
 import { hashInts } from './distortion'
@@ -478,17 +481,21 @@ export function applyThorn(
   const flute = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute) * unitsPerEm
   const contours = polygon.contours.map((c) => c.points)
 
+  // Older saved settings have no Reverse; off runs exactly the expressions it always did.
+  const reverse = params.reverse === true
   const thorns: Thorn[] = []
   const picks = maxLength > 0 ? (anchors ?? new ThornAnchors(polygon, polygon, params, seed, unitsPerEm)).located(polygon) : []
   for (const { contour, index, normal, turn: bend, share, lean } of picks) {
     const turn = bend * spread * Math.PI
     const cos = Math.cos(turn)
     const sin = Math.sin(turn)
+    // Reversed: the inward normal, turned the same way, which is exactly the outward direction negated.
+    const n = reverse ? { x: -normal.x, y: -normal.y } : normal
     thorns.push({
       contour,
       index,
       anchor: contours[contour][index],
-      direction: { x: normal.x * cos - normal.y * sin, y: normal.x * sin + normal.y * cos },
+      direction: { x: n.x * cos - n.y * sin, y: n.x * sin + n.y * cos },
       length: maxLength * share,
       lean,
     })

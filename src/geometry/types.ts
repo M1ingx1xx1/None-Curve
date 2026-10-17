@@ -146,6 +146,11 @@ export interface RippleParams {
   fade: number
   /** 0–3: how far each ring is bent into a flower, one petal per side (1 = notches at 10% of their distance). Missing in older saved settings: 0. */
   petals: number
+  /**
+   * Swaps out and in: rings that were pushed out are pulled in and the other way round, and petals point at the middle
+   * of each side instead of the corners. Missing in older saved settings: false.
+   */
+  reverse: boolean
 }
 
 /** Experimental Whorl: a swirl around the middle of each letter, along the straight creases of a ring mesh. */
@@ -205,6 +210,11 @@ export interface ThornParams {
   refraction: number
   /** Width of each glass strip, as a share of the em (0.04–0.3). Missing in older saved settings: 10%. */
   flute: number
+  /**
+   * Thorns shoot into the letter, along the inward normal, instead of out of it: through strokes they cut a slit, and
+   * across counters and past the far side they show as ink. Missing in older saved settings: false.
+   */
+  reverse: boolean
 }
 
 /** The Experimental tab: effects that run after Geometry and can all be on at once. */

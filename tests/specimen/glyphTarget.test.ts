@@ -90,12 +90,14 @@ describe('glyph click targets without thorns', () => {
     expect(glyph.paths).toEqual([])
   })
 
-  it('never grow over the neighbours from Ripple petals', () => {
-    const glyph = render('o', paramsWith({}, on('ripple', { petals: 1.5 })), advanceOf('o'))
-    expect(width(glyph.polygon!)).toBeGreaterThan(advanceOf('o') * 1.2)
-    expect(glyph.group).toEqual(['specimen-glyph'])
-    expect(glyph.rects).toEqual([glyph.column])
-    expect(glyph.paths).toEqual([])
+  it('never grow over the neighbours from Ripple petals, reversed (tips mid-side) or not', () => {
+    for (const reverse of [false, true]) {
+      const glyph = render('o', paramsWith({}, on('ripple', { petals: 1.5, reverse })), advanceOf('o'))
+      expect(width(glyph.polygon!), `reverse ${reverse}`).toBeGreaterThan(advanceOf('o') * 1.2)
+      expect(glyph.group).toEqual(['specimen-glyph'])
+      expect(glyph.rects).toEqual([glyph.column])
+      expect(glyph.paths).toEqual([])
+    }
   })
 
   it('give a zero-width mark no line-tall column over the letter it sits on', () => {

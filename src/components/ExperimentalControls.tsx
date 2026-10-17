@@ -28,10 +28,10 @@ interface ExperimentalControlsProps {
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
   crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
-  ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
+  ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
+  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false },
 }
 
 const percent = (v: number) => Math.round(v * 100)
@@ -230,6 +230,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
   const centerHint = useHint()
   const fadeHint = useHint()
   const petalsHint = useHint()
+  const reverseHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -261,6 +262,22 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           hintText="How far each ring moves. Above 100%, rings overtake each other and the letter folds onto itself."
           onChange={(amount) => update({ amount })}
         />
+        <div className="field field-toggle">
+          <input
+            id="ripple-reverse"
+            type="checkbox"
+            checked={params.reverse === true}
+            disabled={off}
+            aria-describedby={reverseHint.id}
+            onChange={(e) => update({ reverse: e.target.checked })}
+          />
+          <label htmlFor="ripple-reverse">Reverse</label>
+          <HintButton hint={reverseHint} topic="Reverse" />
+        </div>
+        <HintText hint={reverseHint}>
+          Swaps out and in: rings that were pushed out are pulled in, and petals point at the middle of each side instead of
+          the corners.
+        </HintText>
         <RangeField
           id="ripple-wavelength"
           target="experimental.ripple.wavelength"
@@ -583,6 +600,7 @@ function ThornGroup({
   const introHint = useHint()
   const countHint = useHint()
   const reachHint = useHint()
+  const reverseHint = useHint()
   const rootHint = useHint()
   const spreadHint = useHint()
   const widthHint = useHint()
@@ -633,6 +651,22 @@ function ThornGroup({
           hintText={`How far the anchors jump, as a share of the canvas diagonal: at 100% a thorn can cross the whole canvas. Each goes a random 35–100% of it. At this text size and canvas, 100% is about ${ems(reachEm)} em.`}
           onChange={(canvasReach) => update({ canvasReach })}
         />
+        <div className="field field-toggle">
+          <input
+            id="thorn-reverse"
+            type="checkbox"
+            checked={params.reverse === true}
+            disabled={off}
+            aria-describedby={reverseHint.id}
+            onChange={(e) => update({ reverse: e.target.checked })}
+          />
+          <label htmlFor="thorn-reverse">Reverse</label>
+          <HintButton hint={reverseHint} topic="Reverse" />
+        </div>
+        <HintText hint={reverseHint}>
+          Thorns shoot into the letter instead of out of it. Through strokes they cut a slit; across counters and past the
+          far side they show as ink.
+        </HintText>
         <RangeField
           id="thorn-root"
           target="experimental.thorn.root"

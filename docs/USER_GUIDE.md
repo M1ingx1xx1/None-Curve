@@ -356,6 +356,7 @@ At the far ends of several sliders together, the letters turn into a few coarse,
 
 - **Use ripple** — turns it on.
 - **Amount** — how far the waves push the outline in and out. Around 50 % the letters stay readable; 100 % squeezes strokes between the rings into thin slivers and tears the letters into sharp, broken shapes; above that, up to 400 %, the rings pass through each other and the letters fold into spiky, star-like shapes.
+- **Reverse** — swaps out and in: the rings that were pushed out are pulled in, and the other way round. With **Petals**, the petal tips move from the corners to the middle of each side, and the corners are pulled in instead. Off to start with.
 - **Wavelength** — the distance from one wave to the next, as a share of the em (up to 200 %). Short waves give many fine zigzags; long waves bend whole strokes or swell the whole letter.
 - **Sides** — the shape of the rings: 3 gives triangles, 4 squares, 8 octagons, up to 12. The rings always sit on a flat side.
 - **Center X / Center Y** — where the waves start, as a share of each letter's width and height (50 % / 50 % is the middle of the letter). Values below 0 % or above 100 % put the center outside the letter, so the waves sweep across it from one side.
@@ -396,6 +397,7 @@ A few points (anchors) on the outside of each letter jump straight out into the 
   - The **ⓘ** next to Reach says how many ems 100 % is at your current text size and canvas: about 30 em on the starting canvas (1200 × 800 pixels with 48-pixel text). It never goes beyond 256 em, however small the text.
   - Only the tips get longer: **Root**, **Width**, and **Flute width** are still measured on the letters, so they do not change with the canvas.
   - The status line at the bottom and the export dialog show it with its length in ems, for example "reach 10% canvas (about 3.0 em)".
+- **Reverse** — the thorns shoot into the letter instead of out of it, from the same points and at the same angles, and keep going for their whole length. Where a thorn runs through a stroke, it cuts a thin white slit; where it crosses a hole or comes out on the far side of the letter, it shows as an ink spike. Off to start with.
 - **Root** — how much of the letter around each point the thorn pulls along (50 % to start with). The thorn grows out of a wide base that narrows to a sharp tip, and the strokes and holes nearby lean and bend towards it. At 0 % the thorns are simply stuck on, and the letter around them stays as it was.
 - **Spread** — which way they jump (50 % to start with). At 0 % every point jumps straight out, at right angles to the outline; the higher the Spread, the further each one may lean to either side, up to 90° at 100 %, so the thorns fan out in all directions.
 - **Width** — how wide each thorn's tip is where it leaves its base (30 % to start with). At 0 % it is a thin needle; at 100 % the tip is as wide as the base where it starts to narrow.
