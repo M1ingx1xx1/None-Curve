@@ -12,7 +12,7 @@ import type { SquaringScope } from '../geometry/squaring'
 import { THORN_LIMITS } from '../geometry/thorn'
 import type { GoogleFontRequest } from '../font/google'
 import type { LoadedFont } from '../font/model'
-import { featureById, targetById, type FeatureId, type Mapping } from '../sound/mapping'
+import { clampShaping, featureById, shapingChanges, targetById, type FeatureId, type Mapping } from '../sound/mapping'
 import { clampDepth, MAPPING_LIMITS } from '../sound/mappingStore'
 import { DEFAULT_SOUND_SETTINGS, RESPONSE_LIMITS, snapToStep, SOUND_LIMITS, type SoundSettings } from '../sound/types'
 import {
@@ -241,6 +241,11 @@ export function capText(text: string): string {
   return text.slice(0, end)
 }
 
+/**
+ * The saved mappings, each checked. Their shaping (Range, Curve, Smooth, Gate, Mode) is clamped to its limits; a field
+ * that is missing (mappings saved before shaping existed) or damaged is its default, and only fields that differ from
+ * their defaults are kept, so an older mapping reads back exactly as it was saved.
+ */
 function readMappings(saved: unknown): Mapping[] {
   if (!Array.isArray(saved)) return []
   const mappings: Mapping[] = []
@@ -252,7 +257,14 @@ function readMappings(saved: unknown): Mapping[] {
     if (!feature || !target || typeof m.depth !== 'number' || !Number.isFinite(m.depth)) continue
     // A seed's Rate is never negative (as the Sound tab keeps it).
     const depth = target.kind === 'jump' ? Math.abs(clampDepth(m.depth)) : clampDepth(m.depth)
-    mappings.push({ id: `m${mappings.length + 1}`, enabled: typeof m.enabled === 'boolean' ? m.enabled : true, feature: feature.id, target: target.id, depth })
+    mappings.push({
+      id: `m${mappings.length + 1}`,
+      enabled: typeof m.enabled === 'boolean' ? m.enabled : true,
+      feature: feature.id,
+      target: target.id,
+      depth,
+      ...shapingChanges(clampShaping(m)),
+    })
   }
   return mappings
 }

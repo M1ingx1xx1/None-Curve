@@ -6,18 +6,23 @@ import { FLASH_LIMITS } from '../sound/flash'
 import { JUMP_LIMITS } from '../sound/jumps'
 import { freezeLive, useLiveStatus } from '../sound/live'
 import {
+  DEFAULT_SHAPING,
   FEATURE_GROUPS,
   FEATURES,
+  MAPPING_MODES,
+  SHAPING_LIMITS,
   TARGETS,
   applyPatches,
   featureById,
   featureValue,
+  shapingOf,
   targetById,
   type Activation,
   type FeatureGroup,
   type FeatureId,
   type FeatureSpec,
   type Mapping,
+  type MappingMode,
   type TargetSpec,
 } from '../sound/mapping'
 import { MAPPING_LIMITS, mappingStore, useMappingState } from '../sound/mappingStore'
@@ -43,6 +48,7 @@ import type { EditorParams } from '../state/types'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import Knob from './Knob'
+import RangeControl from './RangeControl'
 import { RecordGroup } from './RecordControls'
 
 const sources: [SoundSource, string][] = [
@@ -1089,6 +1095,21 @@ const rateHelp =
   `at every other one. With other features, it moves on faster the higher they read, up to about ${Math.round(JUMP_LIMITS.maxRate)} ` +
   `times a second at 100%. Seeds and sliders share one limit of ${FLASH_LIMITS.maxFlashes} flashes a second, so busy sliders leave fewer jumps.`
 
+const MODE_LABELS: Record<MappingMode, string> = { follow: 'Follow', trigger: 'Trigger', toggle: 'Toggle' }
+
+/** What the shaping settings do (mapping.ts, shaping.ts). */
+const shapingHelp =
+  'Mode: Follow moves with the sound; Trigger gives one push to the full Depth each time the sound rises past Gate, ' +
+  'falling back over Smooth; Toggle flips the target between its slider value and the full Depth at each rise. On a ' +
+  'seed, Trigger and Toggle move it on once per rise. Gate: below it the sound counts as silence. Curve: Log lifts quiet ' +
+  'sound, Exp keeps it low until it gets loud. Smooth: slows this mapping on top of Release. Range: the part of the ' +
+  "slider this mapping may move the target within (not on a seed)."
+
+/** Curve as read under its knob: "Lin", "Log 40", "Exp 40" (percent of the way to the strongest curve). */
+function formatCurve(percent: number): string {
+  return percent === 0 ? 'Lin' : `${percent < 0 ? 'Log' : 'Exp'} ${Math.abs(percent)}`
+}
+
 interface MappingRowProps {
   mapping: Mapping
   index: number
@@ -1113,6 +1134,7 @@ interface MappingRowProps {
 function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate, onRemove }: MappingRowProps) {
   const id = useId()
   const rateHint = useHint()
+  const shapingHint = useHint()
   const targetSelect = useRef<HTMLSelectElement>(null)
   const n = index + 1
   const feature = featureById(mapping.feature)
@@ -1129,6 +1151,8 @@ function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate
   useEffect(() => setMounted(true), [])
   const shownNotice = mounted && !inactive ? notice : null
   const update = (patch: Partial<Omit<Mapping, 'id'>>) => mappingStore.update(mapping.id, patch)
+  const shaping = shapingOf(mapping)
+  const percent = (share: number) => Math.round(share * 100)
   // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
   // what a target needs is switched on only once the choice is made, on Enter or on leaving the select; the
   // settings passed on the way stay as they were. A pick with the mouse is made at once.
@@ -1241,8 +1265,91 @@ function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate
           <Icon name="chevron" />
         </button>
       </div>
-      {/* The rest of the mapping. More of its settings go here, above the actions. */}
+      {/* The rest of the mapping: its shaping, then what Rate means on a seed, then the actions. */}
       <div id={`${id}-details`} className="mapping-details" role="group" aria-label={`Mapping ${n} details`} hidden={!open}>
+        <span className="field-title">
+          <span id={`${id}-mode`}>Mode</span>
+          <HintButton hint={shapingHint} topic="Shaping" />
+        </span>
+        <div className="segmented segmented-small mapping-mode" role="radiogroup" aria-labelledby={`${id}-mode`} aria-describedby={shapingHint.id}>
+          {MAPPING_MODES.map((mode) => (
+            <label key={mode} className="segment-option">
+              <input
+                type="radio"
+                name={`${id}-mode`}
+                value={mode}
+                checked={shaping.mode === mode}
+                aria-label={`${MODE_LABELS[mode]}, mapping ${n}`}
+                onChange={() => update({ mode })}
+              />
+              <span>{MODE_LABELS[mode]}</span>
+            </label>
+          ))}
+        </div>
+        <HintText hint={shapingHint}>{shapingHelp}</HintText>
+        <div className="mapping-shaping">
+          <Knob
+            size="small"
+            label="Gate"
+            name={`Gate, mapping ${n}`}
+            value={percent(shaping.gate)}
+            min={SHAPING_LIMITS.gate.min * 100}
+            max={SHAPING_LIMITS.gate.max * 100}
+            step={1}
+            defaultValue={DEFAULT_SHAPING.gate * 100}
+            format={(v) => formatPercent(v)}
+            valueText={`${percent(shaping.gate)} percent`}
+            unit="%"
+            onChange={(next) => update({ gate: next / 100 })}
+          />
+          <Knob
+            size="small"
+            label="Curve"
+            name={`Curve, mapping ${n}`}
+            value={percent(shaping.curve)}
+            min={SHAPING_LIMITS.curve.min * 100}
+            max={SHAPING_LIMITS.curve.max * 100}
+            step={1}
+            defaultValue={DEFAULT_SHAPING.curve * 100}
+            format={formatCurve}
+            valueText={formatCurve(percent(shaping.curve)).replace('Lin', 'Linear').replace('Log', 'Logarithmic').replace('Exp', 'Exponential')}
+            bipolar
+            onChange={(next) => update({ curve: next / 100 })}
+          />
+          <Knob
+            size="small"
+            label="Smooth"
+            name={`Smooth, mapping ${n}`}
+            value={shaping.smoothMs}
+            min={SHAPING_LIMITS.smoothMs.min}
+            max={SHAPING_LIMITS.smoothMs.max}
+            step={SHAPING_LIMITS.smoothMs.step}
+            defaultValue={DEFAULT_SHAPING.smoothMs}
+            format={(v) => `${v} ms`}
+            valueText={`${shaping.smoothMs} milliseconds`}
+            unit="ms"
+            onChange={(next) => update({ smoothMs: next })}
+          />
+        </div>
+        {!jump && (
+          <div className="mapping-range">
+            <span className="field-title">Range</span>
+            <RangeControl
+              name={`Range, mapping ${n}`}
+              low={percent(shaping.rangeMin)}
+              high={percent(shaping.rangeMax)}
+              min={0}
+              max={100}
+              step={1}
+              minGap={percent(SHAPING_LIMITS.minSpan)}
+              format={(low, high) => `${low}–${high}%`}
+              valueText={(v) => `${v} percent`}
+              onChange={({ low, high }) =>
+                update({ ...(low !== undefined ? { rangeMin: low / 100 } : {}), ...(high !== undefined ? { rangeMax: high / 100 } : {}) })
+              }
+            />
+          </div>
+        )}
         {jump && (
           <span className="field-title">
             <span>Rate</span>

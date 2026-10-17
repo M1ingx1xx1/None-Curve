@@ -494,8 +494,72 @@ export function seedAfter(spec: TargetSpec, seed: number, jumps: number): number
   return (((Math.trunc(seed) + Math.trunc(jumps)) % count) + count) % count
 }
 
-/** A mapping: one feature drives one target. */
-export interface Mapping {
+// ---- Mappings and their shaping ----
+
+/**
+ * How a mapping answers its feature (shaping.ts):
+ * - 'follow': continuously, as the feature moves (the default, and the only mode before shaping existed);
+ * - 'trigger': one event each time the feature rises past the Gate. On a slider, a pulse to the full Depth that falls
+ *   back in a straight line over Smooth (at least SHAPING_LIMITS.pulseMs); on a seed, one jump;
+ * - 'toggle': each rise past the Gate flips the target between its slider value and slider value + Depth (eased
+ *   over Smooth); on a seed, one jump per rise, as Trigger.
+ */
+export type MappingMode = 'follow' | 'trigger' | 'toggle'
+
+export const MAPPING_MODES: readonly MappingMode[] = ['follow', 'trigger', 'toggle']
+
+/**
+ * A mapping's shaping: what it does to the feature before Depth (shaping.ts), and how far it may move its target.
+ * Every field at its default (DEFAULT_SHAPING) gives exactly what a mapping gave before shaping existed.
+ */
+export interface Shaping {
+  /**
+   * Range, as shares (0–1) of the target slider's travel, rangeMin < rangeMax: the mapping moves the slider only within
+   * this span. A slider that sits outside it is not pulled in: sound can then move it only towards the span. Several
+   * mappings on one slider share the widest span among them. No effect on a seed.
+   */
+  rangeMin: number
+  rangeMax: number
+  /**
+   * Curve, −1–1, applied to the feature (after the Gate and Smooth): 0 is linear, above 0 an exponential response
+   * (quiet parts stay low, value^(CURVE_BASE^curve)), below 0 a logarithmic one (quiet parts rise fast).
+   */
+  curve: number
+  /**
+   * Smooth, in ms: the time constant of a smoothing of this mapping's feature on top of the engine's Release. In Trigger
+   * mode, how long the pulse takes to fall back; in Toggle mode, how long a flip takes.
+   */
+  smoothMs: number
+  /**
+   * Gate, 0–SHAPING_LIMITS.maxGate: below it the feature counts as 0, and above it the rest of the travel is spread over
+   * 0–1 again ((value − gate) / (1 − gate)), so nothing jumps where it opens. Trigger and Toggle fire when the feature
+   * rises past it (with Beat, at every hit).
+   */
+  gate: number
+  mode: MappingMode
+}
+
+export const DEFAULT_SHAPING: Shaping = { rangeMin: 0, rangeMax: 1, curve: 0, smoothMs: 0, gate: 0, mode: 'follow' }
+
+export const SHAPING_LIMITS = {
+  /** Range ends: shares of the slider's travel on this step, at least minSpan apart. */
+  rangeStep: 0.01,
+  minSpan: 0.01,
+  curve: { min: -1, max: 1, step: 0.01 },
+  smoothMs: { min: 0, max: 2000, step: 10 },
+  gate: { min: 0, max: 0.95, step: 0.01 },
+  /** The exponent at Curve ±1 is CURVE_BASE^±1. */
+  curveBase: 3,
+  /** Trigger's pulse falls back over Smooth, but never faster than this (ms), so even Smooth 0 shows a pulse. */
+  pulseMs: 80,
+  /** Trigger and Toggle re-arm once the feature falls this far below the Gate (or to 0 at Gate 0), so noise around it fires once. */
+  rearm: 0.05,
+  /** A longer gap between measured frames counts as this long (ms), as for the jumps (JUMP_LIMITS.maxStepMs). */
+  maxStepMs: 100,
+} as const
+
+/** A mapping: one feature drives one target. The shaping fields are optional: missing, each is its default (DEFAULT_SHAPING). */
+export interface Mapping extends Partial<Shaping> {
   id: string
   enabled: boolean
   feature: FeatureId
@@ -507,6 +571,84 @@ export interface Mapping {
   depth: number
 }
 
+const snapTo = (value: number, step: number) => Number((Math.round(value / step) * step).toFixed(String(step).split('.')[1]?.length ?? 0))
+const within = (value: unknown, min: number, max: number, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
+
+/**
+ * Shaping fields clamped to SHAPING_LIMITS and snapped to their steps; a field that is missing or not a finite number
+ * (or an unknown mode) comes from `current`. The range keeps at least minSpan between its ends: a patch that moves one
+ * end stops it short of the other; one that sets both (a saved mapping) keeps rangeMin and moves rangeMax up.
+ */
+export function clampShaping(patch: Partial<Record<keyof Shaping, unknown>>, current: Shaping = DEFAULT_SHAPING): Shaping {
+  const { curve, smoothMs, gate, rangeStep, minSpan } = SHAPING_LIMITS
+  let rangeMin = snapTo(within(patch.rangeMin, 0, 1, current.rangeMin), rangeStep)
+  let rangeMax = snapTo(within(patch.rangeMax, 0, 1, current.rangeMax), rangeStep)
+  if (rangeMax - rangeMin < minSpan - 1e-9) {
+    if (patch.rangeMin !== undefined && patch.rangeMax === undefined) rangeMin = snapTo(Math.max(0, rangeMax - minSpan), rangeStep)
+    else rangeMax = snapTo(Math.min(1, rangeMin + minSpan), rangeStep)
+    if (rangeMax - rangeMin < minSpan - 1e-9) rangeMin = snapTo(rangeMax - minSpan, rangeStep)
+  }
+  return {
+    rangeMin,
+    rangeMax,
+    curve: snapTo(within(patch.curve, curve.min, curve.max, current.curve), curve.step),
+    smoothMs: snapTo(within(patch.smoothMs, smoothMs.min, smoothMs.max, current.smoothMs), smoothMs.step),
+    gate: snapTo(within(patch.gate, gate.min, gate.max, current.gate), gate.step),
+    mode: MAPPING_MODES.includes(patch.mode as MappingMode) ? (patch.mode as MappingMode) : current.mode,
+  }
+}
+
+/** A mapping's shaping with every missing field at its default. */
+export function shapingOf(mapping: Partial<Shaping>): Shaping {
+  return {
+    rangeMin: mapping.rangeMin ?? DEFAULT_SHAPING.rangeMin,
+    rangeMax: mapping.rangeMax ?? DEFAULT_SHAPING.rangeMax,
+    curve: mapping.curve ?? DEFAULT_SHAPING.curve,
+    smoothMs: mapping.smoothMs ?? DEFAULT_SHAPING.smoothMs,
+    gate: mapping.gate ?? DEFAULT_SHAPING.gate,
+    mode: mapping.mode ?? DEFAULT_SHAPING.mode,
+  }
+}
+
+/** Only the shaping fields that differ from their defaults (how they are saved and how presets write them). */
+export function shapingChanges(shaping: Shaping): Partial<Shaping> {
+  const changes: Partial<Shaping> = {}
+  for (const key of Object.keys(DEFAULT_SHAPING) as (keyof Shaping)[]) {
+    if (shaping[key] !== DEFAULT_SHAPING[key]) Object.assign(changes, { [key]: shaping[key] })
+  }
+  return changes
+}
+
+/**
+ * The Gate applied to a feature value (signed for Pan: the gate acts on its size): 0 up to the gate, then the rest of
+ * the travel spread over 0–1. Gate 0 returns `value` itself.
+ */
+export function gateValue(value: number, gate: number): number {
+  if (!(gate > 0)) return value
+  const size = Math.abs(value)
+  if (size <= gate) return 0
+  const opened = (size - gate) / (1 - gate)
+  return value < 0 ? -opened : opened
+}
+
+/** The Curve applied to a value in −1…1 (signed for Pan: the curve acts on its size). Curve 0 returns `value` itself. */
+export function curveValue(value: number, curve: number): number {
+  if (curve === 0 || !Number.isFinite(curve) || value === 0) return value
+  const shaped = Math.abs(value) ** (SHAPING_LIMITS.curveBase ** curve)
+  return value < 0 ? -shaped : shaped
+}
+
+/**
+ * A mapping's feature value as far as it can be shaped without memory (Gate, then Curve; no Smooth): what Follow
+ * gives at Smooth 0. Trigger and Toggle need the frames before (ShapingTracker), so without them they read 0.
+ * At the default shaping, exactly featureValue.
+ */
+export function shapeStateless(mapping: Mapping, frame: FeatureFrame): number {
+  if ((mapping.mode ?? 'follow') !== 'follow') return 0
+  return curveValue(gateValue(featureValue(frame, mapping.feature), mapping.gate ?? 0), mapping.curve ?? 0)
+}
+
 export interface Modulated {
   /** The live parameters: `base` itself (same object) when no mapping moves anything. */
   params: GeometryParams
@@ -514,6 +656,19 @@ export interface Modulated {
   positions: ReadonlyMap<string, number>
   /** Live seed of each driven jump target (its seed field's value plus its jumps, wrapped past the largest seed to 0), by id. */
   seeds: ReadonlyMap<string, number>
+  /**
+   * The span (slider positions, low and high) each slider target's live position keeps to, by id: only targets whose
+   * mappings narrow their Range; missing, the whole slider. Letters on other levels keep to it too (letters.ts).
+   */
+  bounds?: ReadonlyMap<string, readonly [number, number]>
+}
+
+/** `position` kept to `bounds` (none: unchanged); a slider position outside them is not pulled in (see Shaping.rangeMin). */
+export function withinBounds(position: number, basePosition: number, bounds: readonly [number, number] | undefined): number {
+  if (!bounds) return position
+  const low = Math.min(bounds[0], basePosition)
+  const high = Math.max(bounds[1], basePosition)
+  return position < low ? low : position > high ? high : position
 }
 
 const NO_VALUES: ReadonlyMap<string, number> = new Map()
@@ -532,10 +687,15 @@ const NO_VALUES: ReadonlyMap<string, number> = new Map()
  * value moved on by `jumps` (by target id, from JumpTracker), listed in `seeds`.
  *
  * `response` applies the Response group: Melody tracking adds RESPONSE_LIMITS.melodyBoost × melody × the Melody
- * pulse to each slider mapping's feature (capped at 1; not Pan, not a Melody row), and Strength multiplies each
- * target's sum before it is clamped. Neutral (the default) gives exactly the same values as without it (a sum times
- * 1 is that sum, bit for bit). Motion
- * contrast and Pitch reactive act per letter (letters.ts), never here.
+ * pulse to each slider mapping's feature (capped at 1; not Pan, not a Melody row, only in Follow mode), and Strength
+ * multiplies each target's sum before it is clamped. Neutral (the default) gives exactly the same values as without it
+ * (a sum times 1 is that sum, bit for bit). Motion contrast and Pitch reactive act per letter (letters.ts), never here.
+ *
+ * `shaped` holds each mapping's shaped feature value (ShapingTracker, by mapping id: Gate, Curve, Smooth, Trigger's
+ * pulse, Toggle's state) in place of its feature value; a mapping missing from it is shaped without memory
+ * (shapeStateless). Each slider target's live position then keeps to the widest Range among its mappings (`bounds`).
+ * At the default shaping every value is the feature value itself and the range the whole slider, so the result is
+ * exactly what it was before shaping existed.
  */
 export function modulate(
   base: GeometryParams,
@@ -543,11 +703,14 @@ export function modulate(
   mappings: readonly Mapping[],
   jumps: ReadonlyMap<string, number> = NO_VALUES,
   response: ResponseSettings = NEUTRAL_RESPONSE,
+  shaped: ReadonlyMap<string, number> = NO_VALUES,
 ): Modulated {
   const boost = response.melody > 0 ? RESPONSE_LIMITS.melodyBoost * response.melody * featureValue(frame, 'melody') : 0
   // Sum of depth × feature per slider target, in the order targets first appear in the mappings.
   let sums: Map<TargetSpec, number> | null = null
   let seeds: Map<string, number> | null = null
+  // The widest Range among each slider target's mappings: [low, high].
+  let spans: Map<TargetSpec, [number, number]> | null = null
   let params = base
   const inactive = new Map<TargetSpec, boolean>()
   for (const mapping of mappings) {
@@ -566,23 +729,38 @@ export function modulate(
       continue
     }
     sums ??= new Map()
-    let value = featureValue(frame, mapping.feature)
-    if (boost > 0 && mapping.feature !== 'melody' && !featuresById.get(mapping.feature)?.bipolar) value = Math.min(1, value + boost)
+    let value = shaped.get(mapping.id) ?? shapeStateless(mapping, frame)
+    const follow = (mapping.mode ?? 'follow') === 'follow'
+    if (boost > 0 && follow && mapping.feature !== 'melody' && !featuresById.get(mapping.feature)?.bipolar) value = Math.min(1, value + boost)
     sums.set(spec, (sums.get(spec) ?? 0) + mapping.depth * value)
+    spans ??= new Map()
+    const low = mapping.rangeMin ?? 0
+    const high = mapping.rangeMax ?? 1
+    const span = spans.get(spec)
+    if (!span) spans.set(spec, [low, high])
+    else {
+      if (low < span[0]) span[0] = low
+      if (high > span[1]) span[1] = high
+    }
   }
   if (!sums) return { params, positions: NO_VALUES, seeds: seeds ?? NO_VALUES }
 
   const positions = new Map<string, number>()
+  let bounds: Map<string, readonly [number, number]> | null = null
   for (const [spec, added] of sums) {
     const sum = added * response.strength
     const value = spec.get(base)
     const basePosition = spec.toSlider(value)
+    // A narrowed Range only: the whole slider leaves the position to fromSlider's own clamp, as before shaping.
+    const span = spans?.get(spec)
+    const bound = span && (span[0] > 0 || span[1] < 1) ? span : undefined
+    if (bound) (bounds ??= new Map()).set(spec.id, bound)
     // Nothing added this frame: keep the slider's value exactly, even when it lies off the step grid.
     if (sum === 0) {
       positions.set(spec.id, basePosition)
       continue
     }
-    const live = spec.fromSlider(basePosition + sum)
+    const live = spec.fromSlider(withinBounds(basePosition + sum, basePosition, bound))
     // Still within the base value's own step (the step its thumb shows): keep the exact slider value,
     // so a value typed between steps does not jump to its neighbour at the faintest sound.
     if (live === value || live === spec.fromSlider(basePosition)) {
@@ -592,5 +770,5 @@ export function modulate(
     params = spec.set(params, live)
     positions.set(spec.id, spec.toSlider(live))
   }
-  return { params, positions, seeds: seeds ?? NO_VALUES }
+  return bounds ? { params, positions, seeds: seeds ?? NO_VALUES, bounds } : { params, positions, seeds: seeds ?? NO_VALUES }
 }
