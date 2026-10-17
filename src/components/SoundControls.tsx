@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { getRecorder } from '../export/recorder'
 import type { VariationAxis } from '../font/model'
 import type { SoundEngine } from '../sound/engine'
@@ -19,6 +19,7 @@ import {
   shapingOf,
   sharedRange,
   targetById,
+  whileSwitchesFire,
   type Activation,
   type DrivenParams,
   type FeatureGroup,
@@ -1054,6 +1055,8 @@ function ModulationGroup({ params, axes, notices, onActivate, onRemove }: Modula
   // The row whose details are open; null with none.
   const [expanded, setExpanded] = useState<string | null>(null)
   const full = mappings.length >= MAPPING_LIMITS.maxMappings
+  // The settings while the switch rows fire: a row they make act says so.
+  const switched = useMemo(() => whileSwitchesFire(params, mappings), [params, mappings])
   const addBlocked = full || TARGETS.length === 0
 
   const addMapping = () => {
@@ -1077,6 +1080,7 @@ function ModulationGroup({ params, axes, notices, onActivate, onRemove }: Modula
               mapping={mapping}
               index={index}
               params={params}
+              switched={switched}
               axes={axes}
               open={expanded === mapping.id}
               notice={notices.get(mapping.id) ?? null}
@@ -1145,6 +1149,8 @@ interface MappingRowProps {
   mapping: Mapping
   index: number
   params: DrivenParams
+  /** The settings while every switch row fires (whileSwitchesFire). */
+  switched: DrivenParams
   /** The loaded font's variable axes: their targets join the select. */
   axes: readonly VariationAxis[] | undefined
   /** The row's details are on view. */
@@ -1166,7 +1172,7 @@ interface MappingRowProps {
  * The details below it hold the rest (what Rate means, Remove) and are where more of a mapping's settings go.
  * Under the row, what picking the target switched on; or, while the target does nothing now, why, with Enable.
  */
-function MappingRow({ mapping, index, params, axes, open, notice, span, onToggle, onActivate, onRemove }: MappingRowProps) {
+function MappingRow({ mapping, index, params, switched, axes, open, notice, span, onToggle, onActivate, onRemove }: MappingRowProps) {
   const id = useId()
   const rateHint = useHint()
   const shapingHint = useHint()
@@ -1174,17 +1180,21 @@ function MappingRow({ mapping, index, params, axes, open, notice, span, onToggle
   const n = index + 1
   const feature = featureById(mapping.feature)
   const target = targetById(mapping.target)
-  const inactive = target?.inactive(params) ?? null
+  // Off on the sliders but turned on by a switch row while it fires: still offered Enable, and told it acts meanwhile.
+  const off = target?.inactive(params) ?? null
+  const bySwitch = off !== null && switched !== params && target?.inactive(switched) === null
+  const inactive = off && bySwitch ? `${off} Until then, it acts only while a switch mapping turns it on.` : off
   const canEnable = inactive !== null && (target?.activate(params) ?? null) !== null
   // A seed jumps at a Rate (0–100%) instead of moving by a signed Depth.
   const jump = target?.kind === 'jump'
   // A switch (a checkbox) only flips, at each rise (Trigger, for as long as its pulse lasts) or from one rise to the
-  // next (Toggle): it has no Depth, Range or Curve, and Follow is not offered.
+  // next (Toggle): it has no Depth, Range or Curve, and Follow is not offered (but listed, checked, for a switch row
+  // restored or imported in Follow, which still flips at half the level, so the Mode group always shows its mode).
   const flip = target?.kind === 'switch'
   // The font's axes as targets; an axis target the font lacks still shows, so the select stays truthful.
   const axisOptions = axes?.length ? axisTargets() : []
   const missingAxis = target?.tab === 'axes' && !axisOptions.some((t) => t.id === target.id)
-  const modes = flip ? MAPPING_MODES.filter((mode) => mode !== 'follow') : MAPPING_MODES
+  const modes = flip && shapingOf(mapping).mode !== 'follow' ? MAPPING_MODES.filter((mode) => mode !== 'follow') : MAPPING_MODES
   const amountPercent = Math.round((jump ? Math.abs(mapping.depth) : mapping.depth) * 100)
   const amountLabel = jump ? 'Rate' : 'Depth'
   // The notice fills its status region only once the row is in the document, so a notice from Add

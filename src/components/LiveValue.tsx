@@ -5,7 +5,6 @@
 
 import { useLivePosition } from '../sound/live'
 import { targetById } from '../sound/mapping'
-import { hexToLch, lchToHex } from '../specimen/color'
 
 /** The live value of a target from its live slider position, or null while Sound does not drive it. */
 function useLiveValue(targetId: string): number | null {
@@ -26,15 +25,15 @@ export function LiveSwitch({ target }: { target: string }) {
 }
 
 /**
- * The colour Sound has moved a palette colour to: `color` (the field's own) with the live hue and lightness of its
- * targets (`hue`, `lightness`), as a square swatch. Place it in the field's colour row.
+ * The colour Sound has moved a palette colour to, as a square swatch, while Sound drives its hue or lightness targets
+ * (`hue`, `lightness`): `color` is the colour the canvas shows (the committed live look's, else the field's own), never
+ * rebuilt from the markers, so near the gamut's edge the swatch matches the canvas. Place it in the field's colour row.
  */
 export function LiveColor({ color, hue, lightness }: { color: string; hue: string; lightness: string }) {
   const liveHue = useLiveValue(hue)
   const liveLightness = useLiveValue(lightness)
   if (liveHue === null && liveLightness === null) return null
-  const own = hexToLch(color)
-  const hex = lchToHex({ L: liveLightness ?? own.L, C: own.C, h: liveHue ?? own.h })
+  const hex = color
   return <span className="live-color" aria-hidden="true" title={`Live colour ${hex}`} style={{ background: hex }} />
 }
 

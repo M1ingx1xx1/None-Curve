@@ -108,8 +108,11 @@ export default function App({ restored }: AppProps) {
     () => ({ flatten, random, squaring, anchors, grid, distortion, experimental: withThornCanvasEm(experimental, canvasEm) }),
     [flatten, random, squaring, anchors, grid, distortion, experimental, canvasEm],
   )
-  // The loaded font's variable axes are Sound targets: set before the panels and the live scheduler read the targets.
+  // The loaded font's variable axes are Sound targets: set in render, before the panels below read the targets in the
+  // same pass (setTargetFont does nothing for the font it already has). A render React throws away can leave them on a
+  // font it never showed, so every commit sets them again, before the live scheduler's layout effect reads them.
   setTargetFont(font)
+  useLayoutEffect(() => setTargetFont(font))
   // Sound drives the canvas's typography and colours too: the scheduler gets them with the geometry (never in its key).
   const drivenBase = useMemo<DrivenParams>(() => ({ ...baseParams, typography, palette }), [baseParams, typography, palette])
   // Without a font there are no letters to move: Sound does not drive.
@@ -546,6 +549,7 @@ export default function App({ restored }: AppProps) {
             <TextTools
               typography={typography}
               palette={palette}
+              livePalette={livePalette}
               artboard={artboard}
               font={state.document.font}
               scene={scene}

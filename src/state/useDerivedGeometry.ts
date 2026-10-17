@@ -5,7 +5,7 @@ import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../
 import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
 import type { LiveView } from '../sound/live'
 import { layoutArtboard, placementScene, type ArtboardLayout, type SliderPlacement, type TypographyParams } from '../specimen/artboard'
-import { placePolygons, shapeSpecimen, type PolygonLookup, type SpecimenScene } from '../specimen/scene'
+import { placePolygons, shapeSpecimen, type PolygonLookup, type ShapedSpecimen, type SpecimenScene } from '../specimen/scene'
 import { geometryClient, useGlyphGeometry } from './geometryClient'
 import type { AppState } from './types'
 
@@ -93,6 +93,15 @@ export interface GeometryState {
 /** The typography fields shaping uses. */
 const layoutOf = ({ tracking, lineHeight, align, slant }: TypographyParams) => ({ tracking, lineHeight, align, slant })
 
+/** Whether `shaped` sets the glyphs `slots` were made for, in the same order (the same text set otherwise). */
+function sameGlyphs(slots: LetterSlots, shaped: ShapedSpecimen): boolean {
+  let j = 0
+  for (const line of shaped.lines) {
+    for (const glyph of line.glyphs) if (j >= slots.count || slots.index[j++] !== glyph.index) return false
+  }
+  return j === slots.count
+}
+
 /**
  * All derived geometry for the page. Glyphs are computed in the geometry worker, the selected glyph
  * first (for its statistics), then the text's glyphs in reading order; the canvas keeps showing each
@@ -129,13 +138,21 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   )
   const variation = live?.params.variation
   const shownFont = useMemo(() => (font && variation && font.at ? font.at(variation) : font), [font, variation])
-  // Shaped otherwise than by the sliders: measures of the sliders' own letters shape the text again.
+  // The text as the sliders set it, which places the block and assigns the letters' levels.
+  const own = layoutOf(deferredTypography)
+  const sliderShaped = useMemo(
+    () => (font ? shapeSpecimen(font, deferredText, { tracking: own.tracking, lineHeight: own.lineHeight, align: own.align, slant: own.slant }) : null),
+    [font, deferredText, own.tracking, own.lineHeight, own.align, own.slant],
+  )
+  // Shaped otherwise than by the sliders: Sound's typography or axes shape the text again, every frame they change.
   const liveShaping = shownFont !== font || liveTypography !== undefined
   const { tracking, lineHeight, align, slant } = shownTypography
   const shaped = useMemo(
-    () => (shownFont ? shapeSpecimen(shownFont, deferredText, { tracking, lineHeight, align, slant }) : null),
-    [shownFont, deferredText, tracking, lineHeight, align, slant],
+    () => (liveShaping && shownFont ? shapeSpecimen(shownFont, deferredText, { tracking, lineHeight, align, slant }) : sliderShaped),
+    [liveShaping, shownFont, sliderShaped, deferredText, tracking, lineHeight, align, slant],
   )
+  // Placed by the sliders' own letters whenever Sound changes the letters or how the text is set.
+  const placeLive = isLive || liveShaping
 
   const indices = useMemo(() => {
     const list = shaped ? shaped.indices.slice() : []
@@ -147,8 +164,14 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     return list
   }, [shaped, selectedGlyph])
   // The letters on other levels belong to the letters they were assigned for: the same text set differently keeps
-  // them; after a text edit they wait for the next frame.
-  const slots = useMemo(() => (shaped ? letterSlots(shaped) : NO_SLOTS), [shaped])
+  // them; after a text edit they wait for the next frame. The sliders' own setting gives them, so Sound's typography
+  // and axes neither make new slots each frame nor move letters between levels (a letter's place across the block);
+  // only live glyphs other than the sliders' (an axis that substitutes glyphs) are assigned on their own.
+  const sliderSlots = useMemo(() => (sliderShaped ? letterSlots(sliderShaped) : NO_SLOTS), [sliderShaped])
+  const slots = useMemo(
+    () => (!shaped ? NO_SLOTS : shaped === sliderShaped || sameGlyphs(sliderSlots, shaped) ? sliderSlots : letterSlots(shaped)),
+    [shaped, sliderShaped, sliderSlots],
+  )
   const letters = isLive ? lettersOn(live?.letters, slots) : null
   // With Thorn turns, the shown parameters only for the glyphs of the letters that show them (and the selected glyph).
   const geometry = useGlyphGeometry(font, shownParams, shownKey, indices, isLive, letters?.jobs, letters?.sharedGlyphs)
@@ -175,16 +198,16 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   // (The same settings have the same key in every font: what was asked for belongs to its font.)
   const [asked, setAsked] = useState<{ font: LoadedFont; key: string; lookup: PolygonLookup } | null>(null)
   const sliderScene = useMemo(() => {
-    if (!isLive || !font || !shaped) return null
+    if (!placeLive || !font || !sliderShaped) return null
     const known = asked && asked.font === font && asked.key === key ? asked.lookup : null
-    return placePolygons(shaped, (index, occurrence) => known?.(index, occurrence) ?? settled(font, key, index))
-  }, [isLive, shaped, font, key, asked])
+    return placePolygons(sliderShaped, (index, occurrence) => known?.(index, occurrence) ?? settled(font, key, index))
+  }, [placeLive, sliderShaped, font, key, asked])
   const sliderPending = (sliderScene?.pendingGlyphs ?? 0) > 0
   useEffect(() => {
-    if (!sliderPending || !font || !shaped) return
+    if (!sliderPending || !font || !sliderShaped) return
     const abort = new AbortController()
     const timer = setTimeout(() => {
-      geometryClient.ensure(font, params, key, shaped.indices, abort.signal).then(
+      geometryClient.ensure(font, params, key, sliderShaped.indices, abort.signal).then(
         (lookup) => setAsked({ font, key, lookup }),
         () => {},
       )
@@ -193,24 +216,21 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
       clearTimeout(timer)
       abort.abort()
     }
-  }, [sliderPending, font, shaped, params, key])
+  }, [sliderPending, font, sliderShaped, params, key])
   // The sliders' letters last set in full for this text (without Sound, the scene shown) stand in meanwhile:
   // kept by an effect, read by a render where the sliders' letters are pending.
-  const sliderLetters = isLive ? sliderScene : scene
+  const sliderLetters = placeLive ? sliderScene : scene
   const lastSlider = useRef<SliderPlacement | null>(null)
   useEffect(() => {
-    if (shaped && sliderLetters && sliderLetters.pendingGlyphs === 0) lastSlider.current = { shaped, scene: sliderLetters }
-  }, [shaped, sliderLetters])
-  const placement = scene && shaped ? placementScene(scene, isLive, shaped, sliderScene, lastSlider.current) : null
+    if (sliderShaped && sliderLetters && sliderLetters.pendingGlyphs === 0) lastSlider.current = { shaped: sliderShaped, scene: sliderLetters }
+  }, [sliderShaped, sliderLetters])
+  const placement = scene && sliderShaped ? placementScene(scene, placeLive, sliderShaped, sliderScene, lastSlider.current) : null
 
   const loadSliderScene = useCallback(async () => {
-    if (!font || !shaped) return scene
-    // Sound's typography or axes: the text as the sliders set it.
-    const own = liveShaping ? shapeSpecimen(font, deferredText, layoutOf(deferredTypography)) : shaped
-    if (!isLive && !liveShaping) return scene
-    if (!liveShaping && sliderScene && !sliderPending) return sliderScene
-    return placePolygons(own, await geometryClient.ensure(font, params, key, own.indices))
-  }, [isLive, liveShaping, font, shaped, deferredText, deferredTypography, params, key, scene, sliderScene, sliderPending])
+    if (!font || !sliderShaped || !placeLive) return scene
+    if (sliderScene && !sliderPending) return sliderScene
+    return placePolygons(sliderShaped, await geometryClient.ensure(font, params, key, sliderShaped.indices))
+  }, [placeLive, font, sliderShaped, params, key, scene, sliderScene, sliderPending])
   const layout = useMemo(
     () => (font && placement ? layoutArtboard(placement, shownTypography, artboard, font.metrics.unitsPerEm) : null),
     [font, placement, shownTypography, artboard],

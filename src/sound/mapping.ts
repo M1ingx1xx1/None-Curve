@@ -966,6 +966,45 @@ export function switchFires(mapping: Mapping, shaped: number): boolean {
 const drives = (mapping: Mapping) => mapping.enabled && mapping.depth !== 0 && Number.isFinite(mapping.depth)
 
 /**
+ * The switches of `fired` (whether each fires) applied to `base`: each acting one flipped from its checkbox's setting
+ * while it fires. Which switches act is checked on the switched settings, so a switch that needs another (Burst needs
+ * Thorn) acts while a mapping turns that one on, and not while one turns it off. Repeated until the acting switches
+ * hold (each pass follows one more link, so a pass per switch, plus one, settles it). `flips`: each acting switch,
+ * whether it fires, in `fired`'s order; null when none acts.
+ */
+function applySwitches(
+  base: DrivenParams,
+  fired: ReadonlyMap<TargetSpec, boolean>,
+): { params: DrivenParams; flips: Map<TargetSpec, boolean> | null } {
+  let params = base
+  let acting = new Set<TargetSpec>()
+  for (let pass = 0; pass <= fired.size; pass++) {
+    const next = new Set<TargetSpec>()
+    for (const spec of fired.keys()) if (spec.inactive(params) === null) next.add(spec)
+    if (pass > 0 && next.size === acting.size && [...next].every((spec) => acting.has(spec))) break
+    acting = next
+    params = base
+    for (const spec of acting) if (fired.get(spec)) params = spec.set(params, 1 - spec.get(base))
+  }
+  let flips: Map<TargetSpec, boolean> | null = null
+  for (const [spec, fires] of fired) if (acting.has(spec)) (flips ??= new Map()).set(spec, fires)
+  return { params, flips }
+}
+
+/**
+ * The settings while every switch mapping fires (each switch flipped as modulate flips it), or `params` itself when
+ * no mapping drives a switch: what the Sound tab checks a row against to tell that a switch row can make it act.
+ */
+export function whileSwitchesFire(params: DrivenParams, mappings: readonly Mapping[]): DrivenParams {
+  let fired: Map<TargetSpec, boolean> | null = null
+  for (const mapping of mappings) {
+    const spec = drives(mapping) ? targetById(mapping.target) : undefined
+    if (spec?.kind === 'switch') (fired ??= new Map()).set(spec, true)
+  }
+  return fired ? applySwitches(params, fired).params : params
+}
+
+/**
  * Applies the mappings to the slider values: for each slider target, its slider position plus the sum
  * of depth × feature over its enabled mappings, clamped to the slider, converted back and rounded to
  * the slider's step. Targets that are inactive, mappings with depth 0, and features at 0 contribute
@@ -1004,17 +1043,20 @@ export function modulate(
 ): Modulated {
   const boost = response.melody > 0 ? RESPONSE_LIMITS.melodyBoost * response.melody * featureValue(frame, 'melody') : 0
   let params = base
-  // The switches first: which are flipped, in the order they first appear in the mappings.
-  let flips: Map<TargetSpec, boolean> | null = null
+  // The switches first: whether each fires, in the order they first appear in the mappings.
+  let fired: Map<TargetSpec, boolean> | null = null
   for (const mapping of mappings) {
     if (!drives(mapping)) continue
     const spec = targetById(mapping.target)
-    if (spec?.kind !== 'switch' || spec.inactive(base) !== null) continue
+    if (spec?.kind !== 'switch') continue
     const fires = switchFires(mapping, shaped.get(mapping.id) ?? shapeStateless(mapping, frame))
-    ;(flips ??= new Map()).set(spec, (flips.get(spec) ?? false) || fires)
+    ;(fired ??= new Map()).set(spec, (fired.get(spec) ?? false) || fires)
   }
-  if (flips) {
-    for (const [spec, flipped] of flips) if (flipped) params = spec.set(params, 1 - spec.get(base))
+  let flips: Map<TargetSpec, boolean> | null = null
+  if (fired) {
+    const switched = applySwitches(base, fired)
+    params = switched.params
+    flips = switched.flips
   }
   // What the other targets need is checked on the switched settings.
   const switched = params

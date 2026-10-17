@@ -16,6 +16,7 @@ import {
   switchFires,
   targetById,
   TARGETS,
+  whileSwitchesFire,
   type DrivenParams,
   type Mapping,
 } from '../../src/sound/mapping'
@@ -176,6 +177,37 @@ describe('Switch targets', () => {
     const { params } = modulate(DRIVEN, frame(1), [row('experimental.thorn.enabled'), row('experimental.thorn.width', 0.5)])
     expect(params.experimental.thorn.enabled).toBe(true)
     expect(params.experimental.thorn.width).not.toBe(DRIVEN.experimental.thorn.width)
+  })
+
+  it('let a switch act while another switch turns its effect on, and stop while one turns it off', () => {
+    // "Use thorn" (Toggle) and "Burst" (Trigger) together, with Thorn off on the sliders: Burst flips in the same frame.
+    const use = row('experimental.thorn.enabled', 0.5, { mode: 'toggle' })
+    const trigger = row(burst, 0.5, { mode: 'trigger' })
+    const shaped = new Map([[use.id, 1], [trigger.id, 0.2]])
+    const both = modulate(DRIVEN, frame(1), [trigger, use], undefined, undefined, shaped)
+    expect(both.params.experimental.thorn.enabled).toBe(true)
+    expect(both.params.experimental.thorn.burst).toBe(!DRIVEN.experimental.thorn.burst)
+    expect(both.positions.get(burst)).toBe(1 - Number(DRIVEN.experimental.thorn.burst))
+    // Ripple's Reverse the same way.
+    const reverse = modulate(DRIVEN, frame(1), [row('experimental.ripple.reverse'), row('experimental.ripple.enabled')])
+    expect(reverse.params.experimental.ripple.reverse).toBe(!DRIVEN.experimental.ripple.reverse)
+    // Thorn on in the sliders, switched off by sound: Burst does nothing and shows no marker.
+    const off = modulate(thornOn, frame(1), [trigger, use], undefined, undefined, shaped)
+    expect(off.params.experimental.thorn.enabled).toBe(false)
+    expect(off.params.experimental.thorn.burst).toBe(thornOn.experimental.thorn.burst)
+    expect(off.positions.has(burst)).toBe(false)
+  })
+
+  it('tell the Sound tab what acts while the switch rows fire', () => {
+    const width = targetById('experimental.thorn.width')!
+    expect(whileSwitchesFire(DRIVEN, [row('experimental.thorn.width')])).toBe(DRIVEN)
+    // Off rows and rows without Depth switch nothing.
+    expect(whileSwitchesFire(DRIVEN, [row('experimental.thorn.enabled', 0)])).toBe(DRIVEN)
+    const switched = whileSwitchesFire(DRIVEN, [row(burst), row('experimental.thorn.enabled')])
+    expect(width.inactive(DRIVEN)).not.toBeNull()
+    expect(width.inactive(switched)).toBeNull()
+    expect(targetById(burst)!.inactive(switched)).toBeNull()
+    expect(switched.experimental.thorn.burst).toBe(!DRIVEN.experimental.thorn.burst)
   })
 })
 
