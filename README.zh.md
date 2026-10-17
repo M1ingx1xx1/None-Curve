@@ -23,7 +23,7 @@
 | 导出画布的 SVG 与 PNG，可选带上预览的模糊与反色 | ✅ 已实现 |
 | 导出 OpenType 字体（CFF，.otf），带原字体的成对字偶距和与画布一致的行距，在后台生成，Cancel 可立即停止，导出后自动校验；伸得太远、字体存不下的轮廓部分（很长的 Thorn 刺尖）会被裁到能存下的范围内 | ✅ 已实现——见[限制](#字体文件) |
 | 画布随声音变化的视频，实时录制并带上声音（MP4；浏览器不能写 MP4 时为 WebM），可从 Export 对话框或 Sound 标签页开始 | 🧪 实验性——见[视频](#视频) |
-| 设置、文字、声音映射和 Sound 标签页的 Response 设置保存在浏览器中，下次打开时恢复；撤销与重做 | ✅ 已实现——见[保存与撤销](#保存与撤销) |
+| 设置、文字、声音映射和 Sound 标签页的 Response 设置保存在浏览器中，下次打开时恢复；撤销与重做；**Reset all settings**（重置所有设置）算一步撤销 | ✅ 已实现——见[保存与撤销](#保存与撤销) |
 | TTF / WOFF / WOFF2 输出；上下文字偶距、附加符号定位及其他 OpenType 排版特性 | ❌ 不支持 |
 | Sound 标签页：本地音频文件或麦克风，实时测量（11 个特征：响度与缓变响度，低音、中音与高音，亮度、音高与旋律（每个新音一次脉冲），节拍脉冲与活跃度，以及文件的立体声声像）并以紧凑的电平表显示；最多 8 个映射实时移动 Geometry 和 Experimental 的滑块，并让三个种子跳变（锚点随声音跳到新位置），选择目标时会打开它需要的设置；十个可载入的预设；Response 分组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking）调节动作的幅度，并能让每个字母按自己的幅度反应；声音从不移动文字块，还有 Thorn 轮换（开启 Thorn 时，刺每次只在少数几个字母上变化）；带滑块上的实时值标记、实时种子、实时帧率、闪烁限制、Freeze 和视频录制 | 🧪 实验性——开发中，见[声音](#声音) |
 | 声音事件：Step 映射（Allowed directions、Sides、Rings） | ⏳ 规划中，尚未实现 |
@@ -71,7 +71,7 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 - **左下——文字工具：** 三个标签页（会记在浏览器里，可用方向键切换；始终保持加载，切换时不会丢失局部状态）：**Typography（排版）**——文字在画布上如何排布（见[排版](#排版)）；**Glyphs（字形）**——见下条；**Color（颜色）**——文字与背景的颜色。
 - **Glyphs 标签页：** 可搜索的字符网格，列出字体映射的所有字符，用作插入器：点击字符会把它插入到文字输入框的光标处（有选中文字时替换选中部分），并选中该字形。输入框从未获得焦点时，字符追加到末尾。没有对应字符的字形（连字、替代字形）和控制字符无法输入，因此不列出。字形列表窄于 280 像素时，格子会缩小并只显示字符本身；超过这个宽度时重新显示 Unicode 编码（编码始终保留在每个格子的悬停提示里）。
 - **右下——输入与预览：** 左边是紧凑的多行文字输入（Text 标题右边的大小写开关 **AA** / **Aa** / **aa**、示例文本菜单、Clear、字符数、字偶距状态、缺字提示）；右边是缩小显示的 SVG 导出结果本身（裁到画布边缘；见[文字预览](#文字预览)），带独立的 **Blur（模糊）** 滑块（0–12 像素）和 **Invert（反色）** 按钮（交换文字与背景的颜色）。除非勾选 **Export the preview look**，模糊和反色只作用于这个视图，相当于“眯眼看整体字形”。两部分之间有一个拖动手柄，可以移动分界线（默认 40 / 60）。
-- **状态栏：** 字体状态、选中的字形和当前视图（其中有选中字形的顶点数；实验效果的顶点预算简化过这个字形时，后面跟着 “(simplified)”，见[翻折](#实验效果crumpleripplewhorlslipstream-与-thorn)）；Sound 驱动字母期间显示 **Live · N fps**（实时帧率）；麦克风收音期间显示 **Microphone on**（在任何标签页都能看到），麦克风自己停止时（被拔出或权限被收回）显示 **No microphone**；最右端是一个小小的界面亮色 / 暗色切换。每次打开都先按系统设置（`prefers-color-scheme`），系统设置改变时也会跟随；在这里的选择只在本次访问有效，不会保存。主题色是 CSS `light-dark()` 值，由 `<html data-theme>` 上的 `color-scheme` 切换。画布在两种主题下都使用颜色设置里的配色。
+- **状态栏：** 字体状态、选中的字形和当前视图（其中有选中字形的顶点数；实验效果的顶点预算简化过这个字形时，后面跟着 “(simplified)”，见[翻折](#实验效果crumpleripplewhorlslipstream-与-thorn)）；Sound 驱动字母期间显示 **Live · N fps**（实时帧率）；麦克风收音期间显示 **Microphone on**（在任何标签页都能看到），麦克风自己停止时（被拔出或权限被收回）显示 **No microphone**；最右端是 **Reset all settings**（重置所有设置，一个画着回转箭头的图标按钮；见[保存与撤销](#保存与撤销)）和一个小小的界面亮色 / 暗色切换。每次打开都先按系统设置（`prefers-color-scheme`），系统设置改变时也会跟随；在这里的选择只在本次访问有效，不会保存。主题色是 CSS `light-dark()` 值，由 `<html data-theme>` 上的 `color-scheme` 切换。画布在两种主题下都使用颜色设置里的配色。
 - 只面向桌面浏览器：没有手机或窄屏布局。窗口变窄时布局不变：各区域先缩到各自的最小尺寸，再窄就按比例一起缩小。
 
 ### 画布
@@ -123,12 +123,13 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 
 ### 保存与撤销
 
-`src/state/persist.ts` 与 `src/state/history.ts`。
+`src/state/persist.ts`、`src/state/history.ts` 与 `src/state/reset.ts`。
 
 - **在两次访问之间保存**在 `localStorage` 里（键名 `none-curve:session`，带版本号；约 2 KB），每次改动后半秒、以及页面被隐藏或关闭时写入：所有设置（Geometry、Experimental、Typography、Color 和 Canvas size）、画布视图的轮廓和图层按钮（不含缩放和平移）、文字（最多 10,000 个字符）、预览的 Blur 和 Invert、导出精度、声音映射、Sound 标签页的 Response 分组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive 和 Melody tracking；在它们出现之前保存的记录读作默认值）、选中的字形（只在同一字体族和样式中恢复），以及字体。Google 字体会在页面打开时重新下载；本地文件无法重新打开，所以画布会写出它的名字（“Last font: X. Import it again to continue.”）。读取时，每个值都会对照默认值检查，所以损坏的或旧版本的记录不会让应用出错（旧的效果名和特征名会改成新名字）。当前版本是 2：版本 1 记录里的 Thorn **Reach**（em 的比例）会按该记录保存的字号和画布，换算成同样长度在画布对角线中所占的比例（对角线最多按 256 em 计，与 Thorn 的算法相同），最多 100%，保留 4 位小数；大于 0 的 Reach 换算后不会低于滑块的第一档（0.01%），所以原来长着刺的 Thorn 仍然长刺（`src/state/persist.ts` 中的 `fromV1`）；作用在 Thorn · Reach 上的声音映射保留原来的 Depth。Thorn 用到的“画布对角线有多少 em”由设置算出，从不保存。
 - **不保存：** Drive letters、音频文件或麦克风、声音的实时值、视频录制选项（Format、Length、Include audio、Use the preview look）、打开的对话框，以及亮色 / 暗色主题。（各区域的分隔比例、选中的标签页和 Show all explanations 本来就各自记在浏览器里。）清除网站数据即可从头开始。保存只针对当前浏览器：同时开着两个标签页时，最后保存的那个为准；Safari 在 7 天没有访问后可能会清掉它。
 - **崩溃保护：** 第一次画出恢复的设置时，会写入一个标记（`none-curve:restoring`）。如果下次启动时标记还在，说明上次访问在绘制时关闭了（可能是崩溃），这次设置和视图就从默认值开始，画布显示 “The last visit closed while drawing, so its settings were not restored.”；文字、映射和字体照常恢复。
-- **撤销与重做：** Mac 上用 ⌘Z 和 ⇧⌘Z；其他系统用 Ctrl+Z，以及 Ctrl+Shift+Z 或 Ctrl+Y；也可以用顶部栏的 **Undo** 和 **Redo** 按钮。所有设置、文字、声音映射和 Sound 标签页的 Response 分组共用一份历史。拖动一次滑块是一步（Response 的滑块也一样）；连续打字在停顿一秒之前算一步；Clear、示例文本和插入的字形各算一步，预设的 Load、Freeze、**Reset sound**，以及选择目标连同它打开的设置也各算一步。声音的实时帧从不成为撤销步骤。不能撤销的：画布视图、缩放和平移、字形选择、预览的 Blur 和 Invert、导出精度、导入字体、Drive letters，以及视频录制选项。在文字输入框和其他文本框里使用的是输入框自己的撤销；对话框打开时快捷键不起作用。最多 100 步；历史不会在两次访问之间保存。
+- **撤销与重做：** Mac 上用 ⌘Z 和 ⇧⌘Z；其他系统用 Ctrl+Z，以及 Ctrl+Shift+Z 或 Ctrl+Y；也可以用顶部栏的 **Undo** 和 **Redo** 按钮。所有设置、文字、声音映射和 Sound 标签页的 Response 分组共用一份历史。拖动一次滑块是一步（Response 的滑块也一样）；连续打字在停顿一秒之前算一步；Clear、示例文本和插入的字形各算一步，预设的 Load、Freeze、**Reset sound**、**Reset all settings**，以及选择目标连同它打开的设置也各算一步。声音的实时帧从不成为撤销步骤。不能撤销的：画布视图、缩放和平移、字形选择、预览的 Blur 和 Invert、导出精度、导入字体、Drive letters，以及视频录制选项。在文字输入框和其他文本框里使用的是输入框自己的撤销；对话框打开时快捷键不起作用。最多 100 步；历史不会在两次访问之间保存。
+- **Reset all settings**（重置所有设置；状态栏里紧挨在亮色 / 暗色切换左边的图标按钮）：不经确认，一次把历史所管的一切恢复为默认值：所有设置（Geometry、包括种子在内的 Experimental、Typography、Color 和 Canvas size）、Sound 映射（全部移除）以及 Response 组。字体、选中的字形和文字保持不变，撤销不管的内容也都不变（画布视图、缩放和平移、预览的 Blur 和 Invert、导出精度、Drive letters 和界面主题）。它是一步撤销（`UndoHistory.apply`）：Undo 恢复它改动的一切，Redo 再次重置。没有可重置的内容时按钮不可用，提示文字为 “All settings are at their defaults”。
 
 ### 性能
 

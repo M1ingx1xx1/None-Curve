@@ -209,7 +209,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 - 每个核心控件提供简短说明；复杂术语可通过提示解释。
 - 覆盖未载入字体、处理等待、解析错误和导出完成等状态。
 - 界面可通过键盘操作，焦点状态清晰可见。
-- 所有设置、文字、声音映射和 Sound 标签页的 Response 设置都可以撤销和重做，可用键盘（Mac 上 ⌘Z / ⇧⌘Z，其他系统 Ctrl+Z / Ctrl+Shift+Z 或 Ctrl+Y），也可用顶部栏的按钮；拖动一次滑块算一步，文本框保留自己的撤销。
+- 所有设置、文字、声音映射和 Sound 标签页的 Response 设置都可以撤销和重做，可用键盘（Mac 上 ⌘Z / ⇧⌘Z，其他系统 Ctrl+Z / Ctrl+Shift+Z 或 Ctrl+Y），也可用顶部栏的按钮；拖动一次滑块算一步，文本框保留自己的撤销。状态栏里的 **Reset all settings**（重置所有设置）按钮把除文字以外的这些内容恢复为默认值，算一步撤销，并保留字体和选中的字形。
 - 下次访问时恢复上次的会话：设置、文字、声音映射和 Response 设置，以及字体（Google 字体会重新下载；本地文件需要重新导入，画布会写出它的名字）。
 
 ### 形态变化视觉参考
@@ -363,7 +363,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 | P2 字体文件导出 | 已实现：OpenType（CFF，.otf），字形范围可选，带原字体的成对字偶距（GPOS）和画布的行距（`USE_TYPO_METRICS`），在专用 Worker 中生成，带进度、大小估计和立即生效的 Cancel，超出字体限制的字形裁剪到能放下，导出后用 fontkit 与浏览器字体引擎校验 |
 | P2 实验效果 | 已实现：Crumple（含 Turn）、Ripple（含花瓣）、Whorl、Slipstream（含 Slip、Cuts、Trails）、Thorn（含 Root 和 Refraction，Reach 按画布计量，锚点在 Distortion 之前选出，所以 Distortion 和 Thorn 之前的效果做小幅变化时，刺留在原处），可叠加，超过 100% 时可翻折，每个字形有顶点预算 |
 | P2 视频导出 | 已实现：实时录制画布和它的声音，保存为 MP4 或 WebM（不支持 MP4 时保存为 WebM 并给出说明），可从 Sound 标签页的 Record 组或 Export → Video 开始，顶部栏有录制指示和 Stop；见第 11 节 |
-| 撤销、重做与会话保存（第 6、7 节） | 已实现：设置、文字、声音映射和 Sound 标签页的 Response 设置共用一份最多 100 步的历史；会话保存在 `localStorage` 中，下次访问时恢复 |
+| 撤销、重做与会话保存（第 6、7 节） | 已实现：设置、文字、声音映射和 Sound 标签页的 Response 设置共用一份最多 100 步的历史，**Reset all settings** 算其中一步；会话保存在 `localStorage` 中，下次访问时恢复 |
 | 后台计算（第 7 节） | 已实现：几何只在 Worker 中计算，有 60 秒看门狗并会重启 Worker（Worker 无法运行时画布给出提示）；字体导出在专用 Worker 中进行；CI 中运行自动测试 |
 | 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）、会自己打开所需设置的目标（共 42 个，包括重做后的 Experimental 效果的滑块），以及十个预设（Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值并设好预设的起始值；Flicker 的少数锚点模式）已完成；Pitch 和 Pan（第 4 阶段）提前完成，特征共 10 个，分五组，电平表改为紧凑排列；File 作为默认来源、没有 Off，Drive letters 改为开关；滑块和种子共用一个闪烁限制，Beat 忽略持续的低音，映射在两次访问之间保存；阶段 H 中，字母可以按不同幅度反应（Motion contrast、Pitch reactive），仍在同一个闪烁限制之内，加入了 Response 组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking；保存并可撤销）、作为第 11 个特征的 Melody，以及视频录制；阶段 I 中（已完成，尚未合并），声音播放时文字块保持不动，刺按轮次变化、每次只变少数几个字母。尚未实现：Step 映射（Allowed directions、Sides、Rings），以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
 

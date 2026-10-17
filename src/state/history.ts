@@ -1,8 +1,8 @@
 // Undo and redo: the settings (every parameter group but the canvas view), the text, the Sound mappings
-// and the Sound tab's Response group, as one history. A small store outside React state, read with a hook.
-// Changes are recorded where they are made (App's dispatch and text setters, the mapping store, the
-// Response sliders), never in the reducer, so it stays pure; live Sound frames never dispatch, so they
-// never enter the history.
+// and the Sound tab's Response group, as one history; Reset all settings (state/reset.ts) is one step of
+// it. A small store outside React state, read with a hook. Changes are recorded where they are made
+// (App's dispatch and text setters, the mapping store, the Response sliders), never in the reducer, so it
+// stays pure; live Sound frames never dispatch, so they never enter the history.
 
 import { useSyncExternalStore } from 'react'
 import type { Mapping } from '../sound/mapping'
@@ -34,7 +34,7 @@ export const HISTORY_LIMITS = {
 export interface HistoryState {
   canUndo: boolean
   canRedo: boolean
-  /** Counts undo and redo steps, so a panel can drop notices about the state it replaced. */
+  /** Counts undo, redo and Reset steps, so a panel can drop notices about the state it replaced. */
   restores: number
 }
 
@@ -115,6 +115,21 @@ export class UndoHistory {
     this.close()
   }
 
+  /**
+   * Replaces the whole state in one step (Reset all settings): `next` gets the current state and returns the
+   * state to put in its place, or null to change nothing. Undo brings back the state from before, redo this one.
+   */
+  apply(next: (current: Snapshot) => Snapshot | null): boolean {
+    const source = this.source
+    if (this.restoring || this.transactions > 0 || !source) return false
+    const current = source.read()
+    const snapshot = next(current)
+    if (!snapshot) return false
+    this.push(current)
+    this.put(source, snapshot)
+    return true
+  }
+
   undo(): boolean {
     return this.step(this.past, this.future)
   }
@@ -128,6 +143,12 @@ export class UndoHistory {
     const snapshot = from.pop()
     if (!source || !snapshot) return false
     to.push(source.read())
+    this.put(source, snapshot)
+    return true
+  }
+
+  /** Puts `snapshot` in place without recording it, and counts the restore. */
+  private put(source: HistorySource, snapshot: Snapshot) {
     this.close()
     this.restoring = true
     try {
@@ -136,7 +157,6 @@ export class UndoHistory {
       this.restoring = false
     }
     this.emit(this.state.restores + 1)
-    return true
   }
 
   private push(snapshot: Snapshot) {
