@@ -1,6 +1,7 @@
 // Undo and redo (src/state/history.ts), driven the way App drives it: settings changes recorded with the leaves they
 // change as the key (one step per slider drag), typing joined until a pause, the Sound mappings and the Response
-// group in the same history, a preset Load and Reset sound as one step each, and live Sound frames never recorded.
+// group in the same history, a preset Load, Reset sound and Reset all settings as one step each, and live Sound
+// frames never recorded.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GeometryParams } from '../../src/geometry/types'
@@ -10,6 +11,7 @@ import { LiveScheduler, type LiveCommit } from '../../src/sound/live'
 import { DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureSettings } from '../../src/sound/types'
 import { editorReducer, initialState, type Action } from '../../src/state/editorState'
 import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory } from '../../src/state/history'
+import { DEFAULT_SETTINGS, isDefaultSnapshot, resetSettings } from '../../src/state/reset'
 import type { AppState, SettingsParams } from '../../src/state/types'
 
 const settingsOf = ({ view: _view, ...settings }: AppState['params']): SettingsParams => settings
@@ -60,6 +62,9 @@ function app(history: UndoHistory) {
     type: (next: string) => {
       history.record('text', true)
       text = next
+    },
+    get state() {
+      return state
     },
     get params() {
       return state.params
@@ -292,5 +297,105 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     live.dispose()
     expect(commits.filter((c) => c?.params).length).toBeGreaterThan(10)
     expect(steps()).toBe(recorded)
+  })
+})
+
+describe('Reset all settings', () => {
+  let a: ReturnType<typeof app>
+
+  beforeEach(() => {
+    a = app(undoHistory)
+    mappingStore.restore([])
+    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+    while (undoHistory.undo());
+    undoHistory.endStep()
+  })
+  afterEach(() => {
+    a.disconnect()
+    mappingStore.restore([])
+    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+  })
+
+  /** Every kind of setting changed, each as its own step, with the text typed and the view and glyph changed (not undone). */
+  function changeEverything() {
+    a.setSpacing(17)
+    a.edit({ type: 'updateParams', group: 'experimental', patch: { seed: 7, crumple: { ...a.params.experimental.crumple, enabled: true } } })
+    a.edit({ type: 'updateParams', group: 'typography', patch: { size: 96, tracking: 40 } })
+    a.edit({ type: 'updateParams', group: 'palette', patch: { ink: '#123456', transparent: true } })
+    a.edit({ type: 'updateParams', group: 'artboard', patch: { width: 640 } })
+    undoHistory.endStep()
+    mappingStore.add('bass', 'distortion.amount', 0.5)
+    undoHistory.endStep()
+    a.setSetting('sensitivity', 9)
+    undoHistory.endGesture()
+    mappingStore.setResponse({ strength: 2, melody: 1 })
+    undoHistory.endGesture()
+    a.type('Typed text')
+    undoHistory.endStep()
+    a.edit({ type: 'selectGlyph', glyph: { index: 5, name: 'b', unicode: 98 } })
+    a.edit({ type: 'updateParams', group: 'view', patch: { outline: 'compare', showVertices: true, zoom: 3 } })
+  }
+
+  const soundNow = () => ({ settings: a.engine.settings, response: mappingStore.getState().response })
+
+  it('puts every setting back to its default and keeps the text, the glyph and the view', () => {
+    changeEverything()
+    const { document, params } = a.state
+    const restores = undoHistory.getState().restores
+    expect(resetSettings()).toBe(true)
+    expect(settingsOf(a.params)).toEqual(DEFAULT_SETTINGS)
+    expect(DEFAULT_SETTINGS).toEqual(settingsOf(initialState.params))
+    expect(mappingStore.getState().mappings).toEqual([])
+    expect(soundNow()).toEqual({ settings: DEFAULT_FEATURE_SETTINGS, response: NEUTRAL_RESPONSE })
+    expect(a.text).toBe('Typed text')
+    expect(a.state.document).toBe(document)
+    expect(a.params.view).toBe(params.view)
+    // A panel drops its notices about the state the reset replaced, as after an undo.
+    expect(undoHistory.getState().restores).toBe(restores + 1)
+  })
+
+  it('is one undo step: undo brings everything back, redo resets again', () => {
+    changeEverything()
+    const before = { params: settingsOf(a.params), mappings: mappingStore.getState().mappings, sound: soundNow() }
+    resetSettings()
+    expect(undoHistory.undo()).toBe(true)
+    expect(settingsOf(a.params)).toEqual(before.params)
+    expect(mappingStore.getState().mappings).toEqual(before.mappings)
+    expect(soundNow()).toEqual(before.sound)
+    expect(a.text).toBe('Typed text')
+    // The step before the reset is the text, still as typed.
+    expect(undoHistory.redo()).toBe(true)
+    expect(settingsOf(a.params)).toEqual(DEFAULT_SETTINGS)
+    expect(mappingStore.getState().mappings).toEqual([])
+    expect(soundNow()).toEqual({ settings: DEFAULT_FEATURE_SETTINGS, response: NEUTRAL_RESPONSE })
+    expect(undoHistory.getState().canRedo).toBe(false)
+  })
+
+  it('does nothing, and records nothing, when every setting is already at its default', () => {
+    a.type('Only the text')
+    undoHistory.endStep()
+    expect(resetSettings()).toBe(false)
+    expect(undoHistory.undo()).toBe(true)
+    expect(a.text).toBe('Text')
+    expect(undoHistory.getState().canUndo).toBe(false)
+  })
+
+  it('ends the open slider step, so the next drag is a step of its own', () => {
+    a.setSpacing(5)
+    resetSettings()
+    a.setSpacing(6)
+    undoHistory.undo()
+    expect(a.params.anchors.spacing).toBe(DEFAULT_SETTINGS.anchors.spacing)
+    undoHistory.undo()
+    expect(a.params.anchors.spacing).toBe(5)
+  })
+
+  it('knows when there is nothing to reset: the text never counts, any setting, mapping or Sound value does', () => {
+    const defaults = { params: DEFAULT_SETTINGS, mappings: [], sound: { ...DEFAULT_FEATURE_SETTINGS, ...NEUTRAL_RESPONSE } }
+    expect(isDefaultSnapshot(defaults)).toBe(true)
+    expect(isDefaultSnapshot({ ...defaults, params: { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, snap: true } } })).toBe(false)
+    expect(isDefaultSnapshot({ ...defaults, mappings: [{ id: 'm1', enabled: true, feature: 'level', target: 'distortion.amount', depth: 0.5 }] })).toBe(false)
+    expect(isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, releaseMs: defaults.sound.releaseMs + 50 } })).toBe(false)
+    expect(isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, contrast: 0.5 } })).toBe(false)
   })
 })
