@@ -43,6 +43,38 @@ class FakePainter implements Painter<FakePath> {
     this.calls.push(['fillStyle', value])
     this.fill_ = value
   }
+  private stroke_: unknown = '#000000'
+  private lineWidth_ = 1
+  private lineJoin_ = 'miter'
+  private miterLimit_ = 10
+  get strokeStyle() {
+    return this.stroke_
+  }
+  set strokeStyle(value: unknown) {
+    this.calls.push(['strokeStyle', value])
+    this.stroke_ = value
+  }
+  get lineWidth() {
+    return this.lineWidth_
+  }
+  set lineWidth(value: number) {
+    this.calls.push(['lineWidth', value])
+    this.lineWidth_ = value
+  }
+  get lineJoin() {
+    return this.lineJoin_
+  }
+  set lineJoin(value: string) {
+    this.calls.push(['lineJoin', value])
+    this.lineJoin_ = value
+  }
+  get miterLimit() {
+    return this.miterLimit_
+  }
+  set miterLimit(value: number) {
+    this.calls.push(['miterLimit', value])
+    this.miterLimit_ = value
+  }
   get filter() {
     return this.filter_
   }
@@ -76,6 +108,9 @@ class FakePainter implements Painter<FakePath> {
   }
   fill(path: FakePath, rule: 'nonzero') {
     this.calls.push(['fill', path, rule])
+  }
+  stroke(path: FakePath) {
+    this.calls.push(['stroke', path])
   }
   drawImage(image: unknown, x: number, y: number) {
     this.calls.push(['drawImage', image, x, y])

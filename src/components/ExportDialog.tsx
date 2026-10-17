@@ -17,7 +17,7 @@ import {
 } from '../export/fontFile'
 import { svgToPng } from '../export/png'
 import { getRecorder, useRecording } from '../export/recorder'
-import { specimenToSvg, type SvgLook } from '../export/svg'
+import { OUTLINE_STROKE_PX, specimenToSvg, type SvgLook } from '../export/svg'
 import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
@@ -47,6 +47,8 @@ interface ExportDialogProps {
   /** Blur and inversion of the bottom-right preview, and its scale (screen pixels per font unit). */
   previewLook: PreviewLook
   previewScale: number
+  /** The canvas's Fill: off, the SVG, PNG and video draw outlines only (the font file is always filled). */
+  fill: boolean
   params: GeometryParams
   paramsKey: string
   pending: boolean
@@ -67,7 +69,7 @@ type BuiltFont = { result: FontExportResult; key: string; fileName: string }
 const formats: { value: Format; label: string; hint: string }[] = [
   { value: 'svg', label: 'SVG — main view', hint: 'The canvas with its text, colours, and size, as vector outlines.' },
   { value: 'png', label: 'PNG — main view', hint: 'The canvas as an image, at the size and multiplier set under Canvas size.' },
-  { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download.' },
+  { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download. Always filled.' },
   { value: 'video', label: 'Video — live sound', hint: 'Records the canvas as it moves with the sound, in real time, with its audio.' },
 ]
 
@@ -115,7 +117,7 @@ function estimateExport(font: LoadedFont, plan: FontExportPlan, key: string) {
  * dialog and starts the take. The header shows it running, with Stop; opened again during the take (the header
  * is out of reach behind the dialog), the dialog has its own Stop, and then shows how the take ended.
  */
-function VideoExport({ artboard, transparent, onRecord }: { artboard: ArtboardParams; transparent: boolean; onRecord: () => void }) {
+function VideoExport({ artboard, transparent, fill, onRecord }: { artboard: ArtboardParams; transparent: boolean; fill: boolean; onRecord: () => void }) {
   const { phase, message } = useRecording()
   const still = useStillVideo()
   const blockerId = useId()
@@ -125,6 +127,7 @@ function VideoExport({ artboard, transparent, onRecord }: { artboard: ArtboardPa
   return (
     <div className="export-section">
       <RecordOptionsFields artboard={artboard} transparent={transparent} />
+      <PaintNote format="video" fill={fill} />
       {still && <p className="font-warning">Sound is not moving the letters: the video will be still.</p>}
       {blocked !== null && (
         <p id={blockerId} className="font-warning">
@@ -159,6 +162,28 @@ function VideoExport({ artboard, transparent, onRecord }: { artboard: ArtboardPa
   )
 }
 
+/**
+ * Whether this export fills the letters or draws outlines only, which follows the canvas's Fill for the
+ * SVG, PNG and video; a font file is always filled.
+ */
+function PaintNote({ format, fill }: { format: Format; fill: boolean }) {
+  if (format === 'otf') {
+    return (
+      <p className="field-hint">
+        A font file is always filled{fill ? '' : ': Fill, off on the canvas, only changes the SVG, PNG and video'}.
+      </p>
+    )
+  }
+  return fill ? (
+    <p className="field-hint">Fill is on: the letters are filled.</p>
+  ) : (
+    <p className="panel-notice">
+      Fill is off on the canvas: outlines only, {OUTLINE_STROKE_PX} px strokes in the text colour with no fill. Turn Fill on
+      in the canvas toolbar for filled letters.
+    </p>
+  )
+}
+
 /** Loads the font through the browser's own font engine (OTS sanitizer in Chrome and Firefox). */
 async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
   if (typeof FontFace === 'undefined') return true
@@ -171,7 +196,7 @@ async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
 }
 
 export default function ExportDialog(props: ExportDialogProps) {
-  const { open, onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale } = props
+  const { open, onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale, fill } = props
   const { params, paramsKey, pending, precision, onPrecisionChange, onExported } = props
   // While Sound drives the letters the canvas shows live shapes, but exports use the sliders (SOUND_PLAN §9).
   const { driving: soundLive } = useLiveStatus()
@@ -238,14 +263,17 @@ export default function ExportDialog(props: ExportDialogProps) {
   // The preview's blur keeps its size relative to the letters (previewBlur).
   const look = (unitsPerPx: number): SvgLook => {
     const background = !palette.transparent
-    if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background, blur: 0 }
-    return { ...previewColors(palette, previewLook), background, blur: previewBlur(previewLook.blur, previewScale, unitsPerPx) }
+    const outlineOnly = !fill
+    if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background, blur: 0, outlineOnly }
+    return { ...previewColors(palette, previewLook), background, blur: previewBlur(previewLook.blur, previewScale, unitsPerPx), outlineOnly }
   }
   const pngWidth = artboard.width * artboard.scale
   const pngHeight = artboard.height * artboard.scale
-  const lookName = usePreviewLook
-    ? `preview look (${previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}${previewLook.inverted ? ', inverted' : ''})`
-    : 'main view'
+  const lookName = `${
+    usePreviewLook
+      ? `preview look (${previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}${previewLook.inverted ? ', inverted' : ''})`
+      : 'main view'
+  }${fill ? '' : ', outlines only'}`
 
   const exportImage = async () => {
     if (!font) return
@@ -404,6 +432,7 @@ export default function ExportDialog(props: ExportDialogProps) {
                   {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}, {previewLook.inverted ? 'colours swapped' : 'same colours'}. The
                   blur keeps its size relative to the letters{format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
                 </p>
+                <PaintNote format={format} fill={fill} />
                 {palette.transparent && (
                   <p className="field-hint">
                     Transparent background (set in Color): only the text is drawn{format === 'png' ? ' (PNG with transparency)' : ''}.
@@ -435,7 +464,7 @@ export default function ExportDialog(props: ExportDialogProps) {
                 <p className="export-summary">
                   Text: “{specimenText.slice(0, 60)}
                   {specimenText.length > 60 ? '…' : ''}” · {lookName}
-                  {format === 'svg' ? ' · SVG paths use only M, L, and Z with nonzero fill.' : ''}
+                  {format === 'svg' ? (fill ? ' · SVG paths use only M, L, and Z with nonzero fill.' : ' · SVG paths use only M, L, and Z, stroked with no fill.') : ''}
                 </p>
                 <div className="export-actions">
                   <button type="button" className="button-primary" disabled={pending || working || !specimenText.trim()} onClick={exportImage}>
@@ -481,6 +510,7 @@ export default function ExportDialog(props: ExportDialogProps) {
                     family name.
                   </p>
                 )}
+                <PaintNote format="otf" fill={fill} />
                 <p className="export-summary">
                   {plan.glyphs.length} glyph{plan.glyphs.length === 1 ? '' : 's'} plus .notdef, every one processed with the
                   current pipeline.
@@ -562,6 +592,7 @@ export default function ExportDialog(props: ExportDialogProps) {
               <VideoExport
                 artboard={artboard}
                 transparent={palette.transparent}
+                fill={fill}
                 onRecord={() => {
                   // In the same click: the dialog closes and the take starts the sound (play() needs the click).
                   close()

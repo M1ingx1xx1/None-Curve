@@ -18,6 +18,8 @@ interface TextPreviewProps {
   precision: number
   /** Blur and inversion live in App so the export dialog can reproduce this view. */
   look: PreviewLook
+  /** The canvas's Fill: off, the preview shows outlines only, as the exports draw them. */
+  fill: boolean
   onLookChange: (look: PreviewLook) => void
   /** Reports the preview's scale (screen pixels per font unit), so exports can size the blur alike. */
   onScaleChange: (pixelsPerUnit: number) => void
@@ -26,8 +28,8 @@ interface TextPreviewProps {
 /**
  * Bottom right, right part: the SVG export, fitted, with its own blur and colour inversion, for judging
  * the overall shape of the text the way it reads from a distance. The outlines come from the export's
- * own builder (specimenPaths) at the export's precision, so the preview is the exported file: filled
- * straight-edged outlines on the artboard, without the canvas's layers, guides, grid or missing-character
+ * own builder (specimenPaths) at the export's precision, so the preview is the exported file: straight-edged
+ * outlines on the artboard, filled, or stroked with no fill when the canvas's Fill is off (as the exports), without the canvas's layers, guides, grid or missing-character
  * boxes. Blur and inversion only affect this view unless "Export the preview look" is ticked in the
  * export dialog.
  */
@@ -39,6 +41,7 @@ export default function TextPreview({
   artboard,
   precision,
   look,
+  fill,
   onLookChange,
   onScaleChange,
 }: TextPreviewProps) {
@@ -108,7 +111,8 @@ export default function TextPreview({
                 transparent={palette.transparent}
                 pixelsPerArtboardPixel={scale * layout.unitsPerPx}
                 blur={previewBlur(blur, scale, layout.unitsPerPx)}
-                label={`Preview of the export${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
+                outlineOnly={!fill}
+                label={`Preview of the export${fill ? '' : ', outlines only'}${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
               />
             )}
           </ErrorBoundary>
