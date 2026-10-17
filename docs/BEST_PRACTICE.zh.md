@@ -27,7 +27,7 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 
 ## 测试
 
-- 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`）；慢的测试放在 `tests/slow`。
+- 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`，以及测试 `scripts/` 中 Jira 同步的 `tests/scripts`）；慢的测试放在 `tests/slow`。
 - `npm test` 运行快速测试（约 15 秒）。`npm run test:slow` 运行慢速测试（完整的 42 秒 Sound 测试音轨，以及两种测试字体的全部字形；约 3 分钟），只有点名要求时才运行。
 - `npm run build` 也会对测试和脚本做类型检查（`tsconfig.test.json`）。
 - 向 `develop` 提交 pull request 之前先运行 `npm test`。CI 在每个提交到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm test` 和 `npm run build`；Pages 部署也会先运行 `npm test` 再构建。
@@ -36,10 +36,20 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 生成的文件不提交。Sound 测试音轨由 `npm run test-track`（来自 `scripts/test-track.ts`）渲染为 `test-audio/sound-test.wav`，git 会忽略它；有一个测试检查它每次渲染出的采样都相同。
 - 需要测试里跑不了的浏览器 API（MediaRecorder、画布捕获、Web Audio、标签页是否可见）的代码，要拆成纯模块和一个控制器：控制器通过注入的依赖拿到这些 API，上面再加一层很薄的页面单例。视频录制就是范例：`RecordingController`（`src/export/recorder.ts`）把时钟和计时器、声音引擎、画布、MediaRecorder、标签页可见性以及 `save` 作为 `RecorderDeps` 接收，`tests/export/recorder.test.ts` 用它们的假实现跑完每一次录制，完全不碰 DOM。画布绘制接收一个绘制器（`src/export/drawArtboard.ts`），所以一个记录调用的假绘制器就能拿它和 SVG 导出对照。
 - 绝不真的下载文件。测试传入假的 `save`（或其他注入的接收方），从不调用 `downloadFile`。要导出或录制的浏览器检查，先把 `HTMLAnchorElement.prototype.click` 换成只收集链接、不打开它的函数，并让 `URL.revokeObjectURL` 什么都不做，这样收集到的 blob 仍然能读。
-- `tests/sound/neutral.test.ts` 把 Response 设置为中性值（Strength 100%，Motion contrast、Pitch reactive 和 Melody tracking 为 0）时的 Sound 固定为提交 4a54e5d（这些设置出现之前）时的输出：除分析器的读数外都是精确值，读数按 10 位有效数字计算哈希（见下一条）。实时调度器的哈希不包含起始设置会打开 Thorn 的预设（Flare）：Thorn 轮次有意改变了它们的实时帧，Flare 改由 `tests/sound/turns.test.ts` 测试。永远不要修改这个测试，包括其中的哈希值：它失败时，说明某处改动影响到了中性路径，应该修正那处改动。唯一的例外是从 4a54e5d 的导出重新取得锁定值（读数，以及不含 Flare 的调度器 `32a8121b`，都是这样取的），绝不能从新代码取。
+- `tests/sound/neutral.test.ts` 把 Response 设置为中性值（Strength 100%，Motion contrast、Pitch reactive 和 Melody tracking 为 0）时的 Sound 固定为提交 4a54e5d（这些设置出现之前）时的输出：除分析器的读数外都是精确值，读数按 10 位有效数字计算哈希（见下一条）。实时调度器的哈希不包含起始设置会打开 Thorn 的预设（Flare）：Thorn 轮次有意改变了它们的实时帧，Flare 改由 `tests/sound/turns.test.ts` 测试。永远不要修改这个测试，包括其中的哈希值：它失败时，说明某处改动影响到了中性路径，应该修正那处改动。例外只有两种：从 4a54e5d 的导出重新取得锁定值（读数，以及不含 Flare 的调度器 `32a8121b`，都是这样取的）；以及一处会改变所有实时值的有意改动（NOCUR-60 中 Crumple 去掉 Detail，NOCUR-63 中滑块档位改细），这时可以从新代码取锁定值，但必须先证明只撤销这一处改动就能得到原来的哈希，并在哈希旁边的注释里写明。
 - 来自 `Math` 函数（`log`、`exp`、`sin` 等）的数值要先取整再计算哈希，不要用精确值。V8 的 x64 版和 arm64 版在最后一位上可能不同（`Math.log2` 和 `Math.log10` 就是这样），而 CI 运行在 Linux x64 上，Apple 芯片的 Mac 是 arm64，所以在一边锁定的精确哈希到另一边会失败。`neutral.test.ts` 把这类数值取到 10 位有效数字：两边结果一致，而千万分之一的改动仍能被发现。锁定哈希前要在两边都核对过，例如在 Rosetta 下运行官方的 x64 版 Node。
 - 按屏幕显示的样子计算闪烁。`tests/sound/flash.test.ts` 中的 `lettersOnScreen` 把档位之间的移动从最近 250 ms 内显示过的任何一帧算起（`SPREAD_MS`，与 `LIVE_LIMITS.switchSpanMs` 是同一个时长），一帧里的变化只算一次；这样分几帧到达屏幕的一次变化只算一次，而摊薄在几帧里的变化也不会漏掉。
 - 在浏览器中检查 Sound 时让标签页保持可见。声音在 `requestAnimationFrame` 上读取，所以标签页被隐藏或被遮住时（包括隐藏起来的浏览器面板）没有帧，或只有一阵一阵的帧，字母也就不再跟随声音；"Live · N fps" 显示的是几何计算的速率，而不是读取声音的频率，所以看不出这一点。
+
+## 分支、Pull Request 与 Jira
+
+- 工作在从 `develop` 拉出的 `feature/NOCUR-<编号>-<简短名称>` 分支上进行，分支名带上所做的 Jira issue（NOCUR 是本项目的 key），通过 pull request 合并进 `develop`。`main` 是发布分支：从 `develop` 到 `main` 的 pull request 就是一次发布，每次推送 `main` 都会部署 Pages。
+- `.github/workflows/jira.yml`（`scripts/jira-pr-sync.ts`）会推进 pull request 提到的 issue：pull request 处于打开状态时（打开、重新打开、有新的推送或被编辑时）转为 In Progress，合并时转为 Done。pull request 通过分支名、标题，或正文中以 `Jira:` 开头的一行（`Jira: NOCUR-57, NOCUR-58`）开头的那些 key 提到 issue。这一行到第一个不是 key 的词为止，所以 `Jira: NOCUR-60 (split from NOCUR-41)` 只提到 NOCUR-60；正文其他地方出现的 key（例如顺带提到的父任务）不算。
+- issue 只往前走。打开时只推进还在 To Do 的 issue，已经在 In Progress、In Review 或 Done 的保持原样；合并时推进所有还没完成的 issue；关闭但未合并的 pull request 什么都不改。issue 在它的 pull request 合并进 `develop` 时就算完成，而不是发布时；发布用的 pull request 不提任何 issue，也不改动任何 issue。
+- 打开 pull request 时就把 key 写进分支名或标题；之后才加上的 key 会在下一次推送或编辑时推进对应的 issue。与目标分支有冲突的 pull request 不会触发任何 workflow，所以它的 issue 要等冲突解决并推送后才会推进。
+- issue 只通过 pull request 推进。手动只更新 issue 的描述；每次发布后，把发布日期和发布用的 pull request 记到发布记录 NOCUR-28 里。
+- workflow 读取三个仓库 secret：`JIRA_BASE_URL`（`https://<站点>.atlassian.net`）、`JIRA_EMAIL`，以及该账号的 Atlassian API token `JIRA_API_TOKEN`（状态变更记在这个账号名下）。没有配置时只给警告，检查不会因此失败；GitHub 不会把 secret 交给来自 fork 的 pull request，所以这类 pull request 的 issue 要手动推进。脚本先向 Jira 核对账号：token 过期或被吊销时，Jira 会当作没有人登录，每个 issue 看起来都不存在；核对之后检查会直接失败，解决办法是把新的 token 填进 `JIRA_API_TOKEN`，再重跑失败的 job。Jira 拒绝请求或无法连接、`JIRA_BASE_URL` 不是 `https` 地址时，检查同样失败；Jira 不认识的 key 只给警告。日志中会隐去站点地址。
+- 脚本从事件文件读取 pull request，从不把文字放进 shell 命令，所以标题或正文无法执行任何东西。
 
 ## 几何计算与 Worker
 
@@ -54,6 +64,7 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 
 - 每个 Geometry 和 Experimental 滑块的范围和档位只写一次，写在 `src/state/sliderScales.ts` 里：`SLIDER_RANGES`，按滑块的 Sound 目标 id 索引（`"group.key"`、`"experimental.effect.key"`）；对数刻度的 Tolerance 滑块用 `TOLERANCE`。
 - 面板把这一项展开到它的 range 输入上（或在 `RangeField` 上写明目标），Sound（`src/sound/mapping.ts`）和保存会话的检查也读同一项，所以实时值和恢复的值总是滑块自己能给出的值。
+- 每个滑块都有一个数字框（`SliderNumber`，基于 `NumberField`），读的也是同一项：它按标签的单位显示数值（以百分比显示的比例用 `scale` 100），输入的值先限制在范围内、取整到档位，再提交。Tolerance 和 Reach 的数字框直接输入值本身（Tolerance 精确到 0.01 个单位，再由 `roundTolerance` 取整；Reach 为画布的百分比，精确到 0.01%）。
 - 不要在别处再写滑块的最小值、最大值或档位；要改范围，就改这一项。新滑块先在这里加一项。`sliderRange(id)` 遇到没有的 id 会抛错，所以拼写错误会立刻暴露。
 - Sound 标签页自己的滑块也遵守同样的规则，范围来自 `src/sound/types.ts`：Sensitivity 和 Release 来自 `SOUND_LIMITS`（`minSensitivity`、`maxSensitivity`、`sensitivityStep`；`minReleaseMs`、`maxReleaseMs`、`releaseStepMs`），Strength、Motion contrast、Pitch reactive 和 Melody tracking 来自 `RESPONSE_LIMITS`。存储中这四个值是小数（Strength 1 即 100%），面板按同一项以百分比显示；`clampResponse` 和保存会话的检查（`persist.ts` 中的 `SOUND_RANGES`）也读这些项。
 - 视频的限制只写一次，写在 `VIDEO_LIMITS`（`src/export/videoFormat.ts`）里：最长边和面积、10 分钟上限、码率范围、音频延迟的范围，以及录制器的各个时间。Record 的选项和录制器都从那里读取。
@@ -66,4 +77,4 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 新增一个设置，或新增一个以前的会话没有的块，不需要迁移：缺少的值按默认值读取。`sound` 块就是这样加入的，会话版本仍是 2。
 - 重命名或移动已保存的设置，或重命名 Sound 的特征或目标 id，都需要迁移：提高 `SESSION_VERSION`，并在 `MIGRATIONS` 里加一步，把旧名称改成新名称，这样以前的会话能保留它们的值（从没有版本号的会话迁移的那一步，会改第 9 阶段的效果名和合并后的 Sound 特征名）。不要把旧名称挪作他用。旧版应用读到新版本的会话时，能读多少就读多少。
 - 每次访问 `localStorage` 都要用 `try`/`catch` 包起来：存储可能被禁用或已满，这时应用照常工作，只是不保存。
-- 撤销（`src/state/history.ts`）：修改在发生的地方记录（App 的 `edit` 和文字的设置函数、映射存储，以及 Response 组：它先记录 Sensitivity 和 Release，再把它们设到引擎上），从不在 reducer 里记录，reducer 保持纯函数。设置通过 `edit` 修改；画布视图、字形选择、导出设置和导入使用 `dispatch`，不能撤销。记录每个修改时都带一个说明改了什么的键（`edit` 会根据改变的设置自动得出），这样一次滑块拖动是一步；由多个更新组成的修改（预设的 Load、Freeze、一个目标连同它打开的设置、Reset sound）要包在 `undoHistory.transaction` 里。Sound 的实时帧从不 dispatch，所以从不进入历史；录制选项和录制本身也不进入历史。
+- 撤销（`src/state/history.ts`）：修改在发生的地方记录（App 的 `edit` 和文字的设置函数、映射存储，以及 Response 组：它先记录 Sensitivity 和 Release，再把它们设到引擎上），从不在 reducer 里记录，reducer 保持纯函数。设置通过 `edit` 修改；画布视图、字形选择、导出设置和导入使用 `dispatch`，不能撤销。记录每个修改时都带一个说明改了什么的键（`edit` 会根据改变的设置自动得出），这样一次滑块拖动是一步；由多个更新组成的修改（预设的 Load、Freeze、一个目标连同它打开的设置、Reset sound）要包在 `undoHistory.transaction` 里。替换整个状态的修改（Reset all settings，`src/state/reset.ts`）走 `undoHistory.apply`：它是一步，像撤销一样恢复。Sound 的实时帧从不 dispatch，所以从不进入历史；录制选项和录制本身也不进入历史。

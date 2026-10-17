@@ -19,6 +19,8 @@ export function previewColors(palette: PaletteParams, look: PreviewLook): Palett
 }
 
 export const MAX_PREVIEW_BLUR = 12
+/** The Blur slider's step, in screen pixels. */
+export const PREVIEW_BLUR_STEP = 0.1
 
 /**
  * The preview's blur as the SVG export writes it: screen pixels of the preview, divided by its scale

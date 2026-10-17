@@ -488,7 +488,7 @@ describe('Thorn state', () => {
   it('the turn state holds every target that moves the thorns: not Distortion, nor the Amounts the thorns keep through', () => {
     const ids = TARGETS.filter((t) => isTurnTarget(t.id)).map((t) => t.id)
     const upstream = ['flatten.segmentsPerCurve', 'squaring.amount', 'anchors.simplify', 'grid.size', 'random.seed']
-    const warps = ['experimental.crumple.detail', 'experimental.ripple.petals', 'experimental.whorl.amount', 'experimental.slipstream.slip']
+    const warps = ['experimental.crumple.facet', 'experimental.ripple.petals', 'experimental.whorl.amount', 'experimental.slipstream.slip']
     expect(ids).toEqual(expect.arrayContaining([...THORN_IDS, 'experimental.seed', ...upstream, ...warps]))
     for (const id of ['distortion.amount', 'distortion.frequency', 'distortion.seed', 'experimental.crumple.amount', 'experimental.ripple.amount']) {
       expect(ids).not.toContain(id)
@@ -787,8 +787,11 @@ describe('the live scheduler with Thorn turns', () => {
     }
     hash.add(freeze ? JSON.stringify(freeze) : 'null')
     expect(r.commits.filter(({ commit }) => commit?.letters).length).toBeGreaterThan(20)
-    // Pinned on develop at f4483b5, before Thorn turns. Never edit.
-    expect(hash.hex).toBe('12b619b8')
+    // Pinned on develop at f4483b5, before Thorn turns. Never edit, except for a change of the params' shape: pinned
+    // again when Crumple lost Detail (NOCUR-60); with that field put back it gives the f4483b5 value (12b619b8).
+    // Pinned again when the sliders got finer steps (NOCUR-63): live values snap to the finer steps; with the old
+    // steps put back in SLIDER_RANGES it gives 50d3f31c.
+    expect(hash.hex).toBe('82cf3338')
   })
 
   it('every letter shows slider values and seeds the panel could set, the same turn state across its group and levels', () => {

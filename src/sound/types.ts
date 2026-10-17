@@ -77,7 +77,7 @@ export const SOUND_LIMITS = {
   defaultReleaseMs: 150,
   minReleaseMs: 20,
   maxReleaseMs: 1000,
-  releaseStepMs: 10,
+  releaseStepMs: 1,
   /** Swell: Level with these fixed rise and fall time constants (ms), whatever Release says. */
   swellAttackMs: 300,
   swellReleaseMs: 2000,
@@ -290,10 +290,10 @@ export interface ResponseSettings {
 }
 
 export const RESPONSE_LIMITS = {
-  strength: { min: 0, max: 4, step: 0.05 },
+  strength: { min: 0, max: 4, step: 0.01 },
   contrast: { min: 0, max: 1, step: 0.01 },
-  pitchReactive: { min: 0, max: 2, step: 0.05 },
-  melody: { min: 0, max: 2, step: 0.05 },
+  pitchReactive: { min: 0, max: 2, step: 0.01 },
+  melody: { min: 0, max: 2, step: 0.01 },
   /** Melody tracking 1 adds this × Melody to a slider mapping's feature (capped at 1). */
   melodyBoost: 0.5,
 } as const

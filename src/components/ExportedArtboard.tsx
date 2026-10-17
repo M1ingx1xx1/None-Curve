@@ -1,6 +1,6 @@
 import { useDeferredValue, useId, useMemo, useState, type CSSProperties } from 'react'
 import { ExportError } from '../export/quantize'
-import { specimenPaths, type SpecimenPaths, type SvgPathCache } from '../export/svg'
+import { OUTLINE_MITER_LIMIT, outlineStrokeWidth, specimenPaths, type SpecimenPaths, type SvgPathCache } from '../export/svg'
 import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 
@@ -21,15 +21,17 @@ interface ExportedArtboardProps {
   pixelsPerArtboardPixel: number
   /** Gaussian blur in artboard pixels (as written to the SVG); 0 is off. */
   blur: number
+  /** Outlines only (the canvas's Fill off): stroked as the SVG export strokes them, with no fill. */
+  outlineOnly: boolean
   label: string
 }
 
 /**
  * The exported SVG drawn in place: the same artboard frame, background, blur filter, group transform
- * and glyph paths as specimenToSvg writes. Only a transparent background differs: the file leaves it
+ * and glyph paths as specimenToSvg writes, filled or (outlineOnly) stroked. Only a transparent background differs: the file leaves it
  * out, the preview shows it as a checkerboard.
  */
-export default function ExportedArtboard({ scene, layout, width, height, precision, ink, paper, transparent, pixelsPerArtboardPixel, blur, label }: ExportedArtboardProps) {
+export default function ExportedArtboard({ scene, layout, width, height, precision, ink, paper, transparent, pixelsPerArtboardPixel, blur, outlineOnly, label }: ExportedArtboardProps) {
   const ids = useId()
   const blurId = `${ids}-blur`
   const checkerId = `${ids}-checker`
@@ -77,7 +79,18 @@ export default function ExportedArtboard({ scene, layout, width, height, precisi
           </defs>
           <rect width={width} height={height} fill={transparent ? `url(#${checkerId})` : paper} />
           <g filter={blur > 0 ? `url(#${blurId})` : undefined}>
-            <g fill={ink} fillRule="nonzero" transform={outlines.transform}>
+            <g
+              transform={outlines.transform}
+              {...(outlineOnly
+                ? {
+                    fill: 'none',
+                    stroke: ink,
+                    strokeWidth: outlineStrokeWidth(layout.unitsPerPx),
+                    strokeLinejoin: 'miter' as const,
+                    strokeMiterlimit: OUTLINE_MITER_LIMIT,
+                  }
+                : { fill: ink, fillRule: 'nonzero' as const })}
+            >
               {outlines.paths.map((path, i) => (
                 <path key={i} transform={path.transform} d={path.d} />
               ))}

@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch } from 'react'
 import { getRecorder } from '../export/recorder'
 import type { GeometryParams } from '../geometry/types'
 import type { SoundEngine } from '../sound/engine'
@@ -42,7 +42,9 @@ import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
 import type { EditorParams } from '../state/types'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
+import NumberField from './NumberField'
 import { RecordGroup } from './RecordControls'
+import SliderNumber from './SliderNumber'
 
 const sources: [SoundSource, string][] = [
   ['file', 'File'],
@@ -506,12 +508,6 @@ function MeterGroup({ group, meters }: { group: FeatureGroup; meters: readonly M
   )
 }
 
-/** Depth as a signed percentage with a real minus sign: "+40%", "−20%", "0%". */
-function formatDepth(depth: number): string {
-  const n = Math.round(depth * 100)
-  return `${n < 0 ? '−' : n > 0 ? '+' : ''}${Math.abs(n)}%`
-}
-
 /**
  * What Add mapping adds: Level → Distortion's amount (Noise amplitude) at +50%, or the first target no
  * mapping uses yet. A target that already acts comes first, so adding a row switches nothing another
@@ -939,16 +935,23 @@ function MappingRow({ mapping, index, params, notice, onActivate, onRemove }: Ma
             type="range"
             min={jump ? 0 : -100}
             max={100}
-            step={5}
+            step={1}
             value={amountPercent}
             aria-valuetext={`${amountPercent} percent`}
             aria-describedby={jump ? rateHint.id : undefined}
             onChange={(e) => update({ depth: Number(e.target.value) / 100 })}
           />
-          {/* Hidden from screen readers: an output is a live region, and the slider says the same. */}
-          <output htmlFor={`${id}-depth`} className="mapping-depth" aria-hidden="true">
-            {jump ? `${amountPercent}%` : formatDepth(mapping.depth)}
-          </output>
+          <span className="slider-number mapping-depth">
+            <NumberField
+              value={amountPercent}
+              min={jump ? 0 : -100}
+              max={100}
+              step={1}
+              aria-label={`${jump ? 'Rate' : 'Depth'}, mapping ${n} (%)`}
+              onCommit={(percent) => update({ depth: percent / 100 })}
+            />
+            <span className="unit">%</span>
+          </span>
           <input
             type="checkbox"
             checked={mapping.enabled}
@@ -1082,7 +1085,7 @@ function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
           min={SOUND_LIMITS.minSensitivity}
           max={SOUND_LIMITS.maxSensitivity}
           step={SOUND_LIMITS.sensitivityStep}
-          display={formatDb(settings.sensitivity, true)}
+          unit="dB"
           valueText={`${Math.round(settings.sensitivity)} decibels`}
           hint={sensitivityHint}
           hintText="Boosts or cuts the input before measuring, for quiet or loud sources."
@@ -1097,7 +1100,7 @@ function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
           min={SOUND_LIMITS.minReleaseMs}
           max={SOUND_LIMITS.maxReleaseMs}
           step={SOUND_LIMITS.releaseStepMs}
-          display={`${releaseMs} ms`}
+          unit="ms"
           valueText={`${releaseMs} milliseconds`}
           hint={releaseHint}
           hintText="How slowly the readings fall back after a sound: short is jumpy, long is calm. They always rise at once."
@@ -1129,7 +1132,7 @@ function ResponseField({ field, response }: { field: keyof ResponseSettings; res
       min={percent(min)}
       max={percent(max)}
       step={percent(step)}
-      display={`${value}%`}
+      unit="%"
       valueText={`${value} percent`}
       hint={hint}
       hintText={hintText}
@@ -1145,15 +1148,15 @@ interface RangeFieldProps {
   min: number
   max: number
   step: number
-  display: ReactNode
+  unit: string
   valueText: string
   hint: HintState
   hintText: string
   onChange: (value: number) => void
 }
 
-/** A labelled slider with its value and an ⓘ explanation (as on the Experimental tab). */
-function RangeField({ id, label, value, min, max, step, display, valueText, hint, hintText, onChange }: RangeFieldProps) {
+/** A labelled slider with a number box for its value and an ⓘ explanation (as on the Experimental tab). */
+function RangeField({ id, label, value, min, max, step, unit, valueText, hint, hintText, onChange }: RangeFieldProps) {
   return (
     <div className="field">
       <div className="field-head">
@@ -1161,7 +1164,7 @@ function RangeField({ id, label, value, min, max, step, display, valueText, hint
           <label htmlFor={id}>{label}</label>
           <HintButton hint={hint} topic={label} />
         </span>
-        <output htmlFor={id}>{display}</output>
+        <SliderNumber value={value} min={min} max={max} step={step} unit={unit} label={label} onCommit={onChange} />
       </div>
       <input
         id={id}

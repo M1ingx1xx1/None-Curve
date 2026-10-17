@@ -1,11 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import { artboardViewFrame, type ArtboardLayout, type ArtboardParams, type PaletteParams } from '../specimen/artboard'
-import { MAX_PREVIEW_BLUR, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
+import { MAX_PREVIEW_BLUR, PREVIEW_BLUR_STEP, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import type { SpecimenScene } from '../specimen/scene'
 import ErrorBoundary from './ErrorBoundary'
 import ExportedArtboard from './ExportedArtboard'
 import Icon from './Icon'
+import SliderNumber from './SliderNumber'
 
 interface TextPreviewProps {
   font: LoadedFont | null
@@ -18,6 +19,8 @@ interface TextPreviewProps {
   precision: number
   /** Blur and inversion live in App so the export dialog can reproduce this view. */
   look: PreviewLook
+  /** The canvas's Fill: off, the preview shows outlines only, as the exports draw them. */
+  fill: boolean
   onLookChange: (look: PreviewLook) => void
   /** Reports the preview's scale (screen pixels per font unit), so exports can size the blur alike. */
   onScaleChange: (pixelsPerUnit: number) => void
@@ -26,8 +29,8 @@ interface TextPreviewProps {
 /**
  * Bottom right, right part: the SVG export, fitted, with its own blur and colour inversion, for judging
  * the overall shape of the text the way it reads from a distance. The outlines come from the export's
- * own builder (specimenPaths) at the export's precision, so the preview is the exported file: filled
- * straight-edged outlines on the artboard, without the canvas's layers, guides, grid or missing-character
+ * own builder (specimenPaths) at the export's precision, so the preview is the exported file: straight-edged
+ * outlines on the artboard, filled, or stroked with no fill when the canvas's Fill is off (as the exports), without the canvas's layers, guides, grid or missing-character
  * boxes. Blur and inversion only affect this view unless "Export the preview look" is ticked in the
  * export dialog.
  */
@@ -39,6 +42,7 @@ export default function TextPreview({
   artboard,
   precision,
   look,
+  fill,
   onLookChange,
   onScaleChange,
 }: TextPreviewProps) {
@@ -75,12 +79,20 @@ export default function TextPreview({
             type="range"
             min={0}
             max={MAX_PREVIEW_BLUR}
-            step={0.5}
+            step={PREVIEW_BLUR_STEP}
             value={blur}
             aria-valuetext={blur > 0 ? `${blur} pixels` : 'Off'}
             onChange={(e) => onLookChange({ ...look, blur: Number(e.target.value) })}
           />
-          <output htmlFor={`${id}-blur`}>{blur > 0 ? `${blur} px` : 'Off'}</output>
+          <SliderNumber
+            value={blur}
+            min={0}
+            max={MAX_PREVIEW_BLUR}
+            step={PREVIEW_BLUR_STEP}
+            unit="px"
+            label="Blur"
+            onCommit={(next) => onLookChange({ ...look, blur: next })}
+          />
           <button
             type="button"
             className="button-small"
@@ -108,7 +120,8 @@ export default function TextPreview({
                 transparent={palette.transparent}
                 pixelsPerArtboardPixel={scale * layout.unitsPerPx}
                 blur={previewBlur(blur, scale, layout.unitsPerPx)}
-                label={`Preview of the export${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
+                outlineOnly={!fill}
+                label={`Preview of the export${fill ? '' : ', outlines only'}${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
               />
             )}
           </ErrorBoundary>

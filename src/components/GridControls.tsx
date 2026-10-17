@@ -6,6 +6,7 @@ import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import SliderNumber from './SliderNumber'
 import { sameControlProps } from './sameControlProps'
 
 interface GridControlsProps {
@@ -86,10 +87,14 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
               <label htmlFor="grid-size">Grid size</label>
 
             </span>
-            <output htmlFor="grid-size">
-              {params.size > 0 ? params.size : 'Off'}
-              {params.size > 0 && <span className="unit">u</span>}
-            </output>
+            <SliderNumber
+              {...SLIDER_RANGES['grid.size']}
+              value={params.size}
+              unit="u"
+              label="Grid size"
+              disabled={!params.snap}
+              onCommit={(size) => update({ size })}
+            />
           </div>
           <span className="live-slider">
             <input

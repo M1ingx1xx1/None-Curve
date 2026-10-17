@@ -29,6 +29,33 @@ export interface SvgLook {
   background: boolean
   /** Gaussian blur standard deviation in artboard pixels; 0 is none. */
   blur: number
+  /**
+   * Outlines only (the canvas's Fill off): every outline stroked in the ink, OUTLINE_STROKE_PX artboard pixels
+   * wide, with no fill. Off or left out, the letters are filled as always.
+   */
+  outlineOnly?: boolean
+}
+
+/**
+ * Stroke width of outline-only exports, in artboard pixels, so it scales with the PNG multiplier and the
+ * video size. The canvas draws Fill-off outlines 1.5 screen pixels wide at any zoom; at zoom 100% the
+ * default 1200 × 800 artboard (with its view margin, 1272 px wide) fits a desktop canvas about 950 screen
+ * pixels wide, where 1.5 screen pixels is 2 artboard pixels.
+ */
+export const OUTLINE_STROKE_PX = 2
+
+/**
+ * Miter joins keep the corners sharp, as straight segments meet on the canvas; past this ratio (the SVG
+ * and CSS default, so the canvas's own limit; about 29°) a spike is bevelled instead of drawn as a long point.
+ */
+export const OUTLINE_MITER_LIMIT = 4
+
+/**
+ * The outline stroke's width in font units, for the glyph group (whose transform scales font units to
+ * artboard pixels), rounded to 6 significant digits.
+ */
+export function outlineStrokeWidth(unitsPerPx: number): number {
+  return Number((OUTLINE_STROKE_PX * unitsPerPx).toPrecision(6))
 }
 
 /** Removes characters that are not allowed in XML 1.0, then escapes markup characters. */
@@ -127,7 +154,7 @@ export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, deci
 
 /**
  * The artboard: width × height pixels with the text placed exactly as on the canvas, its outlines from
- * specimenPaths.
+ * specimenPaths, filled, or stroked with no fill when look.outlineOnly.
  */
 export function specimenToSvg(
   scene: SpecimenScene,
@@ -149,6 +176,7 @@ export function specimenToSvg(
   if (scene.missingCharacters.length) {
     lines.push(comment(`Missing from the font, left as blank advances: ${scene.missingCharacters.join(' ')}`))
   }
+  if (look.outlineOnly) lines.push(comment(`Outlines only (Fill off): ${OUTLINE_STROKE_PX} px strokes in the text colour, no fill.`))
   if (look.background) lines.push(`  <rect width="${width}" height="${height}" fill="${paper}"/>`)
   if (blur > 0) {
     lines.push(
@@ -159,7 +187,11 @@ export function specimenToSvg(
   }
   // The filter sits on an untransformed group, so its blur is measured in canvas pixels.
   lines.push(blur > 0 ? '  <g filter="url(#blur)">' : '  <g>')
-  lines.push(`  <g fill="${ink}" fill-rule="nonzero" transform="${outlines.transform}">`)
+  if (look.outlineOnly) {
+    lines.push(
+      `  <g fill="none" stroke="${ink}" stroke-width="${outlineStrokeWidth(layout.unitsPerPx)}" stroke-linejoin="miter" stroke-miterlimit="${OUTLINE_MITER_LIMIT}" transform="${outlines.transform}">`,
+    )
+  } else lines.push(`  <g fill="${ink}" fill-rule="nonzero" transform="${outlines.transform}">`)
   for (const path of outlines.paths) lines.push(`    <path transform="${path.transform}" d="${path.d}"/>`)
   lines.push('  </g>', '  </g>', '</svg>', '')
   return { svg: lines.join('\n'), paths: outlines.paths.length, vertices: outlines.vertices }

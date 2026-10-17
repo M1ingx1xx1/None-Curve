@@ -1,5 +1,4 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
-import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
 import type { SlipstreamStats } from '../geometry/slipstream'
 import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
@@ -11,6 +10,7 @@ import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
 import LiveSeed from './LiveSeed'
+import SliderNumber from './SliderNumber'
 import { sameControlProps } from './sameControlProps'
 
 interface ExperimentalControlsProps {
@@ -27,7 +27,7 @@ interface ExperimentalControlsProps {
 
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
-  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0, detail: 0.5 },
+  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
@@ -39,7 +39,13 @@ const percent = (v: number) => Math.round(v * 100)
 const ems = (v: number) => (Math.round(v * 10) < 100 ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)))
 
 // Reach is cubic (THORN_REACH): short thorns keep fine steps, and the top flings anchors across the whole canvas.
-const REACH_CURVE: SliderCurve = { slider: THORN_REACH.slider, toSlider: reachToSlider, fromSlider: reachFromSlider }
+// Its number box takes the reach itself, to roundReach's unit.
+const REACH_CURVE: SliderCurve = {
+  slider: THORN_REACH.slider,
+  toSlider: reachToSlider,
+  fromSlider: reachFromSlider,
+  value: { min: 0, max: THORN_REACH.max, step: THORN_REACH.step },
+}
 
 /**
  * The Experimental tab: effects that run after the whole Geometry pipeline and can all be on at once.
@@ -150,7 +156,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
   const off = disabled || !params.enabled
   const introHint = useHint()
   const amountHint = useHint()
-  const detailHint = useHint()
   const facetHint = useHint()
   const turnHint = useHint()
 
@@ -162,9 +167,8 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Crumples the letters like paper at three scales: large folds tilt and kink whole strokes, medium ones bend a
-          stroke end here and there, and small sharp creases gather in busy stretches between calm ones. The outline bends
-          only along straight creases; counters fold with the strokes around them.
+          Crumples the letters like paper: the plane is cut into triangles that each move a little, so the outline bends
+          only along straight creases. Counters and the strokes around them fold together.
         </HintText>
 
         <div className="field field-toggle">
@@ -177,7 +181,8 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           target="experimental.crumple.amount"
           label="Amount"
           value={params.amount}
-          display={`${percent(params.amount)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
           hint={amountHint}
@@ -185,28 +190,16 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           onChange={(amount) => update({ amount })}
         />
         <RangeField
-          id="crumple-detail"
-          target="experimental.crumple.detail"
-          label="Detail"
-          value={params.detail ?? CRUMPLE_LIMITS.defaultDetail}
-          display={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)}%`}
-          valueText={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)} percent`}
-          disabled={off}
-          hint={detailHint}
-          hintText="How the crumpling is shared between the scales. At 0 only the large folds bend whole strokes; higher values move strength to bent stroke ends and small sharp creases, and make their busy stretches longer. Up to 100% Amount the letter stays valid at any detail."
-          onChange={(detail) => update({ detail })}
-        />
-        <RangeField
           id="crumple-facet"
           target="experimental.crumple.facet"
           label="Facet size"
           value={params.facet}
-          display={percent(params.facet)}
+          scale={100}
           unit="% em"
           valueText={`${percent(params.facet)} percent of the em`}
           disabled={off}
           hint={facetHint}
-          hintText="Size of the medium triangles, as a share of the em; the large folds are 2.25 times as big, the small creases 0.4 times. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
+          hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
           onChange={(facet) => update({ facet })}
         />
         <RangeField
@@ -214,7 +207,7 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           target="experimental.crumple.turn"
           label="Turn"
           value={params.turn ?? 0}
-          display={`${Math.round(params.turn ?? 0)}°`}
+          unit="°"
           valueText={`${Math.round(params.turn ?? 0)} degrees`}
           disabled={off}
           hint={turnHint}
@@ -260,7 +253,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.amount"
           label="Amount"
           value={params.amount}
-          display={`${percent(params.amount)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
           hint={amountHint}
@@ -272,7 +266,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.wavelength"
           label="Wavelength"
           value={params.wavelength}
-          display={percent(params.wavelength)}
+          scale={100}
           unit="% em"
           valueText={`${percent(params.wavelength)} percent of the em`}
           disabled={off}
@@ -285,7 +279,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.sides"
           label="Sides"
           value={params.sides}
-          display={params.sides}
           valueText={`${params.sides} sides`}
           disabled={off}
           onChange={(sides) => update({ sides })}
@@ -295,7 +288,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.centerX"
           label="Center X"
           value={params.centerX}
-          display={`${percent(params.centerX)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.centerX)} percent across the letter`}
           disabled={off}
           hint={centerHint}
@@ -307,7 +301,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.centerY"
           label="Center Y"
           value={params.centerY}
-          display={`${percent(params.centerY)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.centerY)} percent up the letter`}
           disabled={off}
           onChange={(centerY) => update({ centerY })}
@@ -317,7 +312,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.fade"
           label="Fade"
           value={params.fade}
-          display={`${percent(params.fade)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.fade)} percent`}
           disabled={off}
           hint={fadeHint}
@@ -329,7 +325,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.petals"
           label="Petals"
           value={params.petals ?? 0}
-          display={`${percent(params.petals ?? 0)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.petals ?? 0)} percent`}
           disabled={off}
           hint={petalsHint}
@@ -373,7 +370,8 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           target="experimental.whorl.amount"
           label="Amount"
           value={params.amount}
-          display={`${percent(params.amount)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
           hint={amountHint}
@@ -401,7 +399,6 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           target="experimental.whorl.rings"
           label="Rings"
           value={params.rings}
-          display={params.rings}
           valueText={`${params.rings} rings`}
           disabled={off}
           hint={ringsHint}
@@ -413,7 +410,6 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           target="experimental.whorl.sides"
           label="Sides"
           value={params.sides}
-          display={params.sides}
           valueText={`${params.sides} sides`}
           disabled={off}
           onChange={(sides) => update({ sides })}
@@ -470,7 +466,7 @@ function SlipstreamGroup({
           target="experimental.slipstream.direction"
           label="Direction"
           value={params.direction}
-          display={`${Math.round(params.direction)}°`}
+          unit="°"
           valueText={`${Math.round(params.direction)} degrees`}
           disabled={off}
           hint={directionHint}
@@ -482,7 +478,8 @@ function SlipstreamGroup({
           target="experimental.slipstream.strength"
           label="Strength"
           value={params.strength}
-          display={`${percent(params.strength)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.strength)} percent`}
           disabled={off}
           hint={strengthHint}
@@ -494,7 +491,7 @@ function SlipstreamGroup({
           target="experimental.slipstream.slip"
           label="Slip"
           value={slip}
-          display={percent(slip)}
+          scale={100}
           unit="% em"
           valueText={`${percent(slip)} percent of the em`}
           disabled={off}
@@ -507,7 +504,7 @@ function SlipstreamGroup({
           target="experimental.slipstream.gust"
           label="Gust size"
           value={params.gust}
-          display={percent(params.gust)}
+          scale={100}
           unit="% em"
           valueText={`${percent(params.gust)} percent of the em`}
           disabled={off}
@@ -520,7 +517,8 @@ function SlipstreamGroup({
           target="experimental.slipstream.gustiness"
           label="Gustiness"
           value={params.gustiness}
-          display={`${percent(params.gustiness)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.gustiness)} percent`}
           disabled={off}
           hint={gustinessHint}
@@ -532,7 +530,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.cuts"
           label="Cuts"
           value={cuts}
-          display={cuts}
           valueText={`${cuts} ${cuts === 1 ? 'cut' : 'cuts'} per letter`}
           disabled={off}
           hint={cutsHint}
@@ -544,7 +541,6 @@ function SlipstreamGroup({
           target="experimental.slipstream.trails"
           label="Trails"
           value={trails}
-          display={trails}
           valueText={`${trails} ${trails === 1 ? 'trail' : 'trails'} per letter`}
           disabled={off}
           hint={trailsHint}
@@ -617,7 +613,6 @@ function ThornGroup({
           target="experimental.thorn.count"
           label="Anchors"
           value={params.count}
-          display={params.count}
           valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
           disabled={off}
           hint={countHint}
@@ -630,7 +625,7 @@ function ThornGroup({
           curve={REACH_CURVE}
           label="Reach"
           value={params.canvasReach}
-          display={reachPercent(params.canvasReach)}
+          scale={100}
           unit="% canvas"
           valueText={`${reachPercent(params.canvasReach)} percent of the canvas`}
           disabled={off}
@@ -643,7 +638,8 @@ function ThornGroup({
           target="experimental.thorn.root"
           label="Root"
           value={root}
-          display={`${percent(root)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(root)} percent`}
           disabled={off}
           hint={rootHint}
@@ -655,7 +651,8 @@ function ThornGroup({
           target="experimental.thorn.spread"
           label="Spread"
           value={params.spread}
-          display={`${percent(params.spread)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.spread)} percent`}
           disabled={off}
           hint={spreadHint}
@@ -667,7 +664,8 @@ function ThornGroup({
           target="experimental.thorn.width"
           label="Width"
           value={params.width}
-          display={`${percent(params.width)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(params.width)} percent`}
           disabled={off}
           hint={widthHint}
@@ -679,7 +677,8 @@ function ThornGroup({
           target="experimental.thorn.refraction"
           label="Refraction"
           value={refraction}
-          display={`${percent(refraction)}%`}
+          scale={100}
+          unit="%"
           valueText={`${percent(refraction)} percent`}
           disabled={off}
           hint={refractionHint}
@@ -691,7 +690,7 @@ function ThornGroup({
           target="experimental.thorn.flute"
           label="Flute width"
           value={flute}
-          display={percent(flute)}
+          scale={100}
           unit="% em"
           valueText={`${percent(flute)} percent of the em`}
           disabled={off || refraction === 0}
@@ -734,18 +733,23 @@ function ThornGroup({
   )
 }
 
-/** A slider that is not linear: its range input's own range, and how a value maps to a position on it and back. */
+/**
+ * A slider that is not linear: its range input's own range, how a value maps to a position on it and back, and
+ * the value's own range and finest step, for its number box.
+ */
 interface SliderCurve {
   slider: SliderRange
   toSlider: (value: number) => number
   fromSlider: (position: number) => number
+  value: SliderRange
 }
 
 type RangeFieldProps = {
   id: string
   label: string
   value: number
-  display: ReactNode
+  /** What the number box shows per unit of the value: 100 for a share shown in percent. */
+  scale?: number
   unit?: string
   valueText: string
   disabled: boolean
@@ -759,8 +763,8 @@ type RangeFieldProps = {
   | { target: string; curve: SliderCurve }
 )
 
-/** A labelled slider with its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
-function RangeField({ id, target, curve, label, value, display, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
+/** A labelled slider with a number box for its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
+function RangeField({ id, target, curve, label, value, scale, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
   const range = curve ? curve.slider : SLIDER_RANGES[target]
   return (
     <div className="field">
@@ -769,10 +773,15 @@ function RangeField({ id, target, curve, label, value, display, unit, valueText,
           <label htmlFor={id}>{label}</label>
           {hint && <HintButton hint={hint} topic={label} />}
         </span>
-        <output htmlFor={id}>
-          {display}
-          {unit && <span className="unit">{unit}</span>}
-        </output>
+        <SliderNumber
+          {...(curve ? curve.value : range)}
+          value={value}
+          scale={scale}
+          unit={unit}
+          label={label}
+          disabled={disabled}
+          onCommit={onChange}
+        />
       </div>
       <span className="live-slider">
         <input

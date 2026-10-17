@@ -9,7 +9,6 @@
 // The seeds are jump targets: a seed moves on by one whole number on each jump (jumps.ts), so every
 // anchor lands somewhere new, and it stays within its field's range.
 
-import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { DISTORTION_LIMITS } from '../geometry/distortion'
 import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
@@ -324,8 +323,8 @@ interface TargetDef {
   /** Defaults to the linear scale of min, max, step. */
   scale?: Scale
   /**
-   * Value when the field is missing, as the panel shows it (older saved settings lack Crumple Turn and
-   * Detail, Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction and Flute width).
+   * Value when the field is missing, as the panel shows it (older saved settings lack Crumple Turn,
+   * Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction and Flute width).
    * Defaults to min.
    */
   fallback?: number
@@ -386,7 +385,7 @@ export const TARGETS: readonly TargetSpec[] = [
     // Log slider: min and max are its values, step roundTolerance's finest unit; the scale holds the slider's real steps.
     min: TOLERANCE.min,
     max: TOLERANCE.max,
-    step: 0.01,
+    step: TOLERANCE.step,
     scale: toleranceScale,
     requires: [flattenNotReplaced, flattenMode('adaptive', 'Adaptive')],
   }),
@@ -413,7 +412,6 @@ export const TARGETS: readonly TargetSpec[] = [
   // Experimental tab, as in ExperimentalControls: each effect acts only while its "Use …" is on; the
   // shared Seed sits in its own group at the bottom.
   experimental('crumple', 'amount', 'Amount'),
-  experimental('crumple', 'detail', 'Detail', { fallback: CRUMPLE_LIMITS.defaultDetail }),
   experimental('crumple', 'facet', 'Facet size'),
   experimental('crumple', 'turn', 'Turn', { fallback: 0 }),
   experimental('ripple', 'amount', 'Amount'),
@@ -442,7 +440,7 @@ export const TARGETS: readonly TargetSpec[] = [
     label: 'Reach',
     min: 0,
     max: THORN_REACH.max,
-    step: 0.0001,
+    step: THORN_REACH.step,
     scale: reachScale,
     requires: [effectOn('thorn')],
   }),

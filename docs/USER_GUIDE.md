@@ -39,7 +39,7 @@ The screen is split into two rows and five areas:
 ```text
 ┌────────────────────────╥─────────────────────────────────────────────────────┐
 │ ① Tools                ║ ② Result canvas                                     │
-│   Import font          ║   your text, rebuilt live                           │
+│   Import               ║   your text, rebuilt live                           │
 │   Font information     ║                                                     │
 │   Shaping controls     ║                                                     │
 ╞════════════════════════╩═╦══════════════════════════╦════════════════════════╡
@@ -49,15 +49,17 @@ The screen is split into two rows and five areas:
 └──────────────────────────╨──────────────────────────╨────────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import font** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control.
+1. **Tools (top left)** — the **Import** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control.
 2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
 3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
 4. **Text input** — type the text you want to see on the canvas.
-5. **Preview** — a small picture of exactly what an SVG export would save: all your text, filled, on the canvas, with its own **Blur** slider and **Invert** button.
+5. **Preview** — a small picture of exactly what an SVG export would save: all your text on the canvas (filled, or as outlines when **Fill** is off), with its own **Blur** slider and **Invert** button.
 
 At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo and redo](#undo-and-redo) below), and an **Export…** button. While a video is being recorded, a red light, the time recorded (for example "Recording 0:12"), and a square stop button appear beside them (see [Record a video](#record-a-video)). Along the bottom a status line tells you what is shown and which settings are active.
 
 **Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
+
+**Starting over in one click.** Just left of the sun and moon, a button with a turning arrow (pointing at it says **Reset all settings**) puts every setting back to how the app first opens: the Geometry, Experimental, Typography, and Color tabs, the canvas size, and in the Sound tab the mappings (all removed) and the six **Response** sliders. It also turns off the preview's **Blur** and **Invert** and puts **Coordinate precision** back to 2. Your font, the selected letter, and your text stay as they are, and so do the canvas view and the other export settings. It does not ask first, because one **Undo** brings every setting back (Blur, Invert, and the precision stay reset). The button is greyed out while every setting is already at its starting value.
 
 **Changing the size of the areas.** The double lines in the picture are the thin grey lines between the areas; you can drag them:
 
@@ -72,8 +74,8 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 
 **Undo** takes back your last change and **Redo** puts it back again. Use the two arrow buttons at the top right, or the keyboard: on a Mac, ⌘Z undoes and ⇧⌘Z redoes; on Windows and Linux, Ctrl+Z undoes and Ctrl+Shift+Z or Ctrl+Y redoes. Pointing at a button shows its shortcut. The app keeps up to 100 steps.
 
-- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and in the Sound tab the mappings and the six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking). The reset buttons count too, so Undo brings back what a reset (including **Reset sound**) cleared.
-- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, and picking a mapping target together with the settings it switched on.
+- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and in the Sound tab the mappings and the six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking). The reset buttons count too, so Undo brings back what a reset (including **Reset sound** and **Reset all settings**) cleared.
+- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, loading a config file, and picking a mapping target together with the settings it switched on.
 - **What is not undone:** the canvas view (Original / Flattened / Compare, the layer buttons, zoom, and moving around), which letter is selected, the preview's Blur and Invert, the export settings, loading a font, the Sound tab's **Drive letters** and source, and the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**). Sound moving the letters is never recorded either: only your own changes are.
 - **Inside a typing box** — the text box, or a box you type a number, colour code, or name into — the shortcuts undo your typing in that box only, as in any text field. The buttons at the top still undo whole steps. While a dialog (such as **Export…**) is open, the shortcuts do nothing.
 - The steps are forgotten when you close the page: the next visit starts with nothing to undo.
@@ -85,16 +87,16 @@ The app keeps your work in this browser by itself, a moment after each change, a
 - **Kept:** the text; every setting in the Geometry, Experimental, Typography, and Color tabs; the canvas size; the canvas view buttons (Original / Flattened / Compare and the layers, but not the zoom or where you moved to); the preview's Blur and Invert; the export's **Coordinate precision**; the Sound tab's mappings and its six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking); the selected letter (when the same font opens again); and the font itself.
 - **The font:** a Google font is downloaded again by itself when the page opens (this needs an internet connection). A font from your computer cannot be reopened for you: the canvas says "Last font: *name*. Import it again to continue." Import the same file and carry on — your settings are already in place.
 - **Not kept:** the Sound tab's **Drive letters** and source (file or microphone); the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**), which last until you close the page; open dialogs; the light or dark look; and the undo steps. (As before, the app also remembers the size of the areas, the tabs you had open, whether the **Canvas size** settings are open, and **Show all explanations**.)
-- **Work saved by an older version of the app:** Thorn's **Reach** used to be a share of the em (the letters' design square) and is now a share of the canvas (see Thorn in the Experimental tab). Older saved work is converted to the share that gives the thorns the same length with the text size and canvas size it was saved with, so they come back as they were. Thorns that were on stay on: however short they were, they come back at least as long as the slider's first step. Sound rows on Reach keep their **Depth**. Thorns may also grow from other points than they did before with the same **Seed**, because the app now picks them in a steadier way (see Thorn in the Experimental tab); press **Next variant** until you like them again.
+- **Work saved by an older version of the app:** Thorn's **Reach** used to be a share of the em (the letters' design square) and is now a share of the canvas (see Thorn in the Experimental tab). Older saved work is converted to the share that gives the thorns the same length with the text size and canvas size it was saved with, so they come back as they were. Thorns that were on stay on: however short they were, they come back at least as long as the slider's first step. Sound rows on Reach keep their **Depth**. Thorns may also grow from other points than they did before with the same **Seed**, because the app now picks them in a steadier way (see Thorn in the Experimental tab); press **Next variant** until you like them again. Crumple no longer has a **Detail** slider: a saved Detail value is ignored, Sound rows on **Crumple · Detail** are dropped, and Crumple folds the letters as Noise did before it was renamed, so the same **Seed** gives different folds than in the version that had Detail.
 - **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, mappings, and **Response** sliders still come back.
-- **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
-- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it.
+- **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. The arrow button at the right end of the status line (**Reset all settings**) resets every tab at once and keeps your font and text (see *Starting over in one click* in [A tour of the screen](#3-a-tour-of-the-screen)). To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
+- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it; to keep the settings themselves, or take them to another browser, save a [config file](#as-a-config-file-settings-only).
 
 ---
 
 ## 4. Quick start (five minutes)
 
-1. Click **Import font** (top left) → **Google Fonts** → choose **Inter** → **Load font**.
+1. Click **Import** (top left) → **Google Fonts** → choose **Inter** → **Load font**.
 2. In the text input, type a word, for example `Hello`.
 3. In the tools area, find **Curve flattening**, choose **Fixed segments**, and set **Segments per curve** to `2`.
 4. Turn on **Merge joined curves**. The letters become clearly faceted.
@@ -106,7 +108,7 @@ That's the whole workflow. The rest of this guide explains each step in more det
 
 ## 5. Loading a font
 
-Click **Import font** at the top of the tools area. You get two choices.
+Click **Import** at the top of the tools area. You get three choices: a font from your computer, a font from Google Fonts, or a **Config file** with saved settings (see [As a config file](#as-a-config-file-settings-only)).
 
 ### From your computer
 
@@ -175,7 +177,7 @@ If a new font fails to load, the previous font stays on screen.
 
 **Layers** — extra information you can switch on and off (only **Fill** is on at the start):
 
-- **Fill** — solid letters. Turn it off to see only the outlines.
+- **Fill** — solid letters. Turn it off to see only the outlines. This also changes what you export: with Fill off, the preview, the SVG, the PNG, and the video show the letters as thin outlines with nothing inside. A font file always has solid letters.
 - **Skeleton** — the points that define the original curves: blue squares sit on the curve, hollow orange circles are the "control points" that pull the curve, and thin lines connect them.
 - **Vertices** — green dots at every corner of the new straight-line shape.
 - **Metrics** — horizontal guide lines: ascender (top of tall letters like "h"), cap height (top of capitals), x-height (top of "x"), baseline (where letters sit), and descender (bottom of "p" and "g").
@@ -197,7 +199,7 @@ If a new font fails to load, the previous font stays on screen.
 
 The **Preview** (bottom right) shows the whole canvas exactly as an SVG export would save it — anything outside the canvas is cut off.
 
-- It always shows the finished, filled letters and nothing else. It does not follow the big canvas's Original / Flattened / Compare and layer buttons, its zoom, the snap grid, or the dashed boxes for missing characters: those only help you on the big canvas and are never exported.
+- It always shows the finished letters and nothing else: solid, or as outlines when **Fill** is off, just as they will be exported. Apart from Fill, it does not follow the big canvas's Original / Flattened / Compare and layer buttons, its zoom, the snap grid, or the dashed boxes for missing characters: those only help you on the big canvas and are never exported.
 - Its outlines are rounded the same way as the SVG file (see **Coordinate precision** in [Saving your work](#10-saving-your-work-export)), so what you see here is what you get.
 - With **Transparent background** (Color tab) on, the empty background shows as a checkerboard.
 - If saving the text as an SVG would fail, the preview says "Export would fail: …" with the reason instead.
@@ -231,6 +233,8 @@ These are in the tools panel (top left), in two tabs. (The third tab, **Sound**,
 **Curve flattening → Squaring → Anchors → Grid & angles → Distortion → Experimental**
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
+
+Every slider has a small number box next to its name that shows its value (in %, °, u, and so on). Drag the slider to try things out quickly; to set an exact value, click the box, type the number, and press Enter (or click somewhere else). A number beyond the slider's range is set to its nearest end, and Escape puts the old value back. The sliders move in small steps — 1 % for most of them, 1° for angles — and once you click a slider, each press of an arrow key moves it one step.
 
 Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the tools panel, just below the tabs (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself, or push the hole of an **A**, **B**, or **e** out of the letter so it shows as a solid blob), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
@@ -335,10 +339,8 @@ At the far ends of several sliders together, the letters turn into a few coarse,
 
 - **Use crumple** — turns it on.
 - **Amount** — how strongly the letters are crumpled, up to 500 %. Small values give a light, hand-folded feel; 100 % gives sharp, obvious folds; above that the folds flip over each other, and towards 500 % the letters break into a heap of overlapping shards.
-- **Detail** — how the crumpling is shared between big and small folds (50 % to start with). The paper is crumpled at three sizes at once: big folds that tilt and kink whole strokes, middle-sized ones that bend a stroke end here and there, and small, sharp corners. At 0 % only the big folds move; the higher you go, the more the smaller folds take over, and the small corners gather in busy stretches with calm, smoothly folded stretches in between.
-- **Facet size** — the size of the folds, as a share of the em (the font's design square). It sets the middle-sized folds; the big ones are about twice as large and the small ones less than half. Small facets give many small folds; large facets give a few big ones that can bend whole strokes. Even the smallest folds stay far enough apart to read as corners.
+- **Facet size** — the size of the folds, as a share of the em (the font's design square). Small facets give many small folds; large facets give a few big ones that can bend whole strokes. The smallest size still keeps the folds far enough apart to read as corners.
 - **Turn** — which way the folds go. Raising **Amount** pushes every fold further the same way; Turn points them another way while the creases stay where they are. At 180° the letters are crumpled the opposite way. (**Next variant** under Seed instead gives a completely new sheet of paper.)
-- Each letter is crumpled in its own way, so neighbouring letters such as **l**, **i**, and **h** look different, while every copy of the same letter looks the same.
 - The numbers show how far the outline moved at most (**Max move**) and how many corners the folds added (**Creases**).
 
 **Ripple — polygonal waves**
@@ -379,8 +381,8 @@ A few points (anchors) on the outside of each letter jump straight out into the 
 
 - **Use thorn** — turns it on.
 - **Anchors** — how many points of each letter jump, from 1 to 12 (3 to start with).
-- **Reach** — how far they jump, as a share of the canvas (10 % to start with; the number reads, for example, "10% canvas"). 100 % is the canvas's diagonal, from one corner to the opposite one, so at 100 % a thorn can cross the whole canvas. Each point goes its own distance, somewhere between about a third of Reach and all of it, so the thorns come out in different lengths. At 0 % nothing jumps.
-  - The slider is fine at the left and coarse at the right, so short thorns are easy to set exactly: the middle of the track is only 12.5 %, and the right half covers the rest up to 100 %. At the far left, each step (or each press of an arrow key) adds 0.01 %, so even the first step grows tiny thorns; only 0 grows none. Below 1 % the number shows two decimals, below 10 % one, and above that none; it reads 0.0 only at 0.
+- **Reach** — how far they jump, as a share of the canvas (10 % to start with; the box reads, for example, "10" followed by "% canvas"). 100 % is the canvas's diagonal, from one corner to the opposite one, so at 100 % a thorn can cross the whole canvas. Each point goes its own distance, somewhere between about a third of Reach and all of it, so the thorns come out in different lengths. At 0 % nothing jumps.
+  - The slider is fine at the left and coarse at the right, so short thorns are easy to set exactly: the middle of the track is only 12.5 %, and the right half covers the rest up to 100 %. At the far left, each step (or each press of an arrow key) adds 0.01 %, so even the first step grows tiny thorns; only 0 grows none. The box shows the reach to two decimals, and you can type an exact one there, for example 0.35.
   - Because Reach is measured on the canvas, the thorns keep the same share of the canvas when you change the text **Size** or the canvas size (**W** and **H**): with smaller text or a larger canvas they reach further past the letters. While Thorn is on, such a change makes the app work the letters out again. The PNG multiplier (1×–4×) changes nothing.
   - The **ⓘ** next to Reach says how many ems 100 % is at your current text size and canvas: about 30 em on the starting canvas (1200 × 800 pixels with 48-pixel text). It never goes beyond 256 em, however small the text.
   - Only the tips get longer: **Root**, **Width**, and **Flute width** are still measured on the letters, so they do not change with the canvas.
@@ -466,7 +468,7 @@ Your audio stays in your browser: a file is read on your computer and never uplo
   - the Curve flattening sliders turn random anchors off (they replace flattening) and set what they need: **Tolerance** sets **Mode** to Adaptive, **Segments per curve** sets it to Fixed segments, and **Corner angle** turns on **Merge joined curves** — for example "Turned off Random anchors. Set Mode to Adaptive." (Corner angle shows little on its own; see Curve flattening.)
 - Changing a row to another target, or removing it, never switches anything off again. The note stays until you change the row's target or remove the row. If you go through the **Target** list with the arrow keys, only the target you settle on switches anything on, when you press Enter or move on to another control; a pick with the mouse counts at once.
 - If the setting is off again later — you switched it off yourself, or another row needed a different Mode (Tolerance needs Adaptive, Segments per curve needs Fixed segments) — a grey note under the row says why, for example "Turn on Ripple to hear this.", and an **Enable** button next to it switches the setting on again.
-- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Crumple, Ripple, Whorl, Slipstream, and Thorn — and the three seeds: 43 in all. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
+- **What can be driven:** every slider of the **Geometry** and **Experimental** tabs — Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Noise amplitude, Noise frequency, and Normal bias; Random anchors Density and Randomness; and every slider of Crumple, Ripple, Whorl, Slipstream, and Thorn — and the three seeds: 42 in all. Switches and choices (such as **Mode** or **Allowed directions**) cannot be driven.
 - Mappings are kept with your other settings and come back the next time you open the app (see [Coming back later](#coming-back-later)); **Drive letters** is not kept. Adding, changing, or removing a row can be undone like any other change.
 
 **Seeds** — points that jump to new places. A seed picks one random pattern (see Distortion, Random anchors, and the Experimental tab). When the sound drives a seed, each jump moves it on by one — 1234 becomes 1235 — and because every seed is a completely different pattern, every point of the outline lands somewhere new at once (after loading **Flicker**, only a few points of each letter move, a different few each time; while Thorn is on, the Experimental **Seed** and the Random anchors seed reach the letters a few at a time, see **Thorns take turns** below). After 999 999 it starts again at 0.
@@ -643,7 +645,7 @@ Fixed segments 3 with merging, then Distortion → **Noise amplitude** 10–30, 
 Random anchors → **Use random anchors** on, **Density** 3–5, **Randomness** 100 %, **Keep sharp corners** on. Press **Shuffle** until you like it, then **Copy** the seed.
 
 **Crumpled paper**
-Experimental tab → **Use crumple** on, **Amount** 70–100 %, **Facet size** 15–25 %. Raise **Detail** for small, sharp creases, or lower it towards 0 % for a few big, calm folds. For bold, chunky folds, combine it with a large Curve flattening **Tolerance** (40 or more). Press **Next variant** until you like the folds.
+Experimental tab → **Use crumple** on, **Amount** 70–100 %, **Facet size** 15–25 %. For bold, chunky folds, combine it with a large Curve flattening **Tolerance** (40 or more). Press **Next variant** until you like the folds.
 
 **Polygonal ripples**
 Experimental tab → **Use ripple** on, **Amount** 50 %, **Wavelength** 25–35 %, **Sides** 6 or 8. For hard, triangular shock waves try **Sides** 3 with a large Curve flattening **Tolerance**; for a wave sweeping in from a corner, set **Center X** and **Center Y** to 0 %.
@@ -693,8 +695,9 @@ Both save the canvas: its size, your text placed as on the canvas, and your colo
 1. Choose **SVG — main view** (shapes you can keep editing) or **PNG — main view** (a picture).
 2. For a transparent background (only the letters are drawn), tick **Transparent background** in the Color tab first.
 3. Optional: tick **Export the preview look** to save what the small preview shows instead — its blur, and its swapped colours if **Invert** is on. Set Blur and Invert in the preview first.
-4. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. The preview shows the letters at this precision too, and the app keeps your choice for next time. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
-5. Click **Download SVG** or **Download PNG**. If some letters are not ready yet at the current settings, the dialog says **Computing outlines…** and the download starts as soon as they are; **Cancel** stops it.
+4. **Solid or outlines only:** the image follows the canvas's **Fill** button. With Fill on (the usual), the letters are solid. With Fill off, they are drawn as outlines only — lines 2 px wide on the canvas (so 4 px in a 2× PNG), in the text colour, with nothing inside. The dialog tells you which one you will get; to change it, close the dialog and click **Fill** above the canvas.
+5. For SVG, **Coordinate precision** — how many decimals the numbers in the file keep; 2 is a good default. The preview shows the letters at this precision too, and the app keeps your choice for next time. For PNG, the image size comes from **Canvas size** (width × height × the 1×–4× multiplier).
+6. Click **Download SVG** or **Download PNG**. If some letters are not ready yet at the current settings, the dialog says **Computing outlines…** and the download starts as soon as they are; **Cancel** stops it.
 
 SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes contain only straight lines. A blurred SVG uses a blur effect that browsers and most design apps show; if an app ignores it, use PNG.
 
@@ -709,6 +712,7 @@ SVG files open in Illustrator, Figma, Inkscape, and web browsers; the shapes con
 Good to know:
 
 - If you change any setting after building, build again before downloading.
+- A font file always has solid letters, even when **Fill** is off on the canvas; the dialog reminds you.
 - The new font keeps the original's **kerning** — the fine spacing between pairs such as "AV" — for the letters it contains, so text sets as it does on the canvas. Ligatures, the placing of accents on letters, kerning that depends on the neighbouring letters or on the language, and the original's other advanced features are not included. **What the font file does not include** in the dialog lists them all.
 - Letters are saved with the same weight, style (for example italic), slant, line spacing, and copyright and license details as the original font, so a Regular and a Bold you make install side by side like the originals.
 - Lines are spaced as on the canvas, on Mac and Windows alike. If letters reach far above or below their usual height (for example with Slipstream), a few older apps may space the lines further apart.
@@ -725,7 +729,25 @@ Good to know:
 3. Click **Record**. The dialog closes and the take starts at once: a paused file starts playing, or the microphone starts listening. The top of the screen shows, for example, "Recording 0:02" and a square stop button.
 4. Click the stop button, or wait for the chosen **Length**. The video is saved when the take ends, and the header says what was saved.
 
+The video follows the canvas's **Fill** button like an image: with Fill off it shows outlines only, and the dialog says so.
+
 What each option does, what ends a take, and how the file is named are explained in [Record a video](#record-a-video).
+
+### As a config file (settings only)
+
+A config file keeps your settings, not your letters: load it later, in another browser, or on another computer, and the app is set up as it was. It is a small `.json` file.
+
+1. Choose **Config — settings (.json)**. This also works before you load a font.
+2. The dialog says which font the file asks for. Click **Download config**. The file is named after the font, for example `none-curve-Roboto-config.json`.
+
+It holds the same things the app keeps between visits (see [Coming back later](#coming-back-later)): every setting, the canvas size, the text, the canvas view buttons, the preview's Blur and Invert, the **Coordinate precision**, the Sound tab's mappings and **Response** sliders, the selected letter, and the font's name. It never holds the font itself, the sound, or the video options.
+
+**To load it:** click **Import** → **Config file** and pick the file, or drag it onto the canvas.
+
+- Your settings, text, Sound mappings, and Response sliders change in one go, and one **Undo** brings back what you had before. The canvas view buttons, the preview's Blur and Invert, and the Coordinate precision change too, but Undo leaves them as they are (they are never undone).
+- A **Google font** in the file is downloaded again (unless it is already open). A **font from your computer** cannot be opened for you: the note under the menu names the file — import it and the letters appear with the loaded settings.
+- A file that is not a config file (any other `.json`, or a damaged one) is refused: the note says "Config not imported" and nothing changes. A file saved by an older version of the app is converted, as saved work is; one from a newer version loads what this version knows, and the note says so.
+- Close the note with its × button; it also goes away when you load another font.
 
 ---
 

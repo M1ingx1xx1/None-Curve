@@ -28,6 +28,8 @@ export const TOLERANCE = {
   /** Smallest and largest tolerance (font units). */
   min: 0.1,
   max: 500,
+  /** roundTolerance's finest unit: the step of its number box. */
+  step: 0.01,
   /** The range input itself. */
   slider: range(0, 100, 0.5),
 } as const
@@ -56,6 +58,8 @@ export const toleranceFromSlider = (pos: number) =>
 export const THORN_REACH = {
   /** Largest reach: the whole canvas diagonal. */
   max: 1,
+  /** roundReach's unit: the step of its number box. */
+  step: 0.0001,
   /** The range input itself. */
   slider: range(0, 1, 0.005),
 } as const
@@ -80,48 +84,51 @@ export const reachToSlider = (reach: number) => Math.min(Math.cbrt(reach / THORN
 /** The reach at a position of the Reach range input (0–1), rounded by roundReach: the cube, or a hundredth of a percent per step near 0. */
 export const reachFromSlider = (pos: number) => roundReach(Math.max(THORN_REACH.max * pos ** 3, pos / THORN_REACH.slider.step / 10_000))
 
-/** Every linear slider Sound can drive, Geometry tab then Experimental tab, in panel order. */
+/**
+ * Every linear slider Sound can drive, Geometry tab then Experimental tab, in panel order. Steps are fine (NOCUR-63):
+ * 1% for shares, 1% of the em for sizes, 1° for angles (whose range stops at 359°, a step short of a full turn),
+ * whole font units, and whole counts; each slider's number box takes exact values on the same step.
+ */
 export const SLIDER_RANGES = {
   // Geometry tab (Tolerance is the logarithmic TOLERANCE above).
   'flatten.segmentsPerCurve': range(1, 32, 1),
   'flatten.cornerAngle': range(1, 90, 1),
-  'squaring.amount': range(0, 1, 0.05),
+  'squaring.amount': range(0, 1, 0.01),
   'anchors.spacing': range(0, 200, 1),
-  'anchors.simplify': range(0, 100, 0.5),
+  'anchors.simplify': range(0, 100, 0.1),
   'grid.size': range(0, 200, 1),
   'distortion.amount': range(0, DISTORTION_LIMITS.maxAmount, 1),
-  'distortion.frequency': range(DISTORTION_LIMITS.minFrequency, DISTORTION_LIMITS.maxFrequency, 0.5),
-  'distortion.normalBias': range(0, 1, 0.05),
+  'distortion.frequency': range(DISTORTION_LIMITS.minFrequency, DISTORTION_LIMITS.maxFrequency, 0.1),
+  'distortion.normalBias': range(0, 1, 0.01),
   'random.density': range(RANDOM_ANCHOR_LIMITS.minDensity, RANDOM_ANCHOR_LIMITS.maxDensity, 1),
-  'random.randomness': range(0, 1, 0.05),
+  'random.randomness': range(0, 1, 0.01),
 
   // Experimental tab (Thorn's Reach is the cubic THORN_REACH above).
-  'experimental.crumple.amount': range(0, CRUMPLE_LIMITS.maxAmount, 0.1),
-  'experimental.crumple.detail': range(0, 1, 0.05),
-  'experimental.crumple.facet': range(CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet, 0.02),
-  'experimental.crumple.turn': range(0, 345, 15),
-  'experimental.ripple.amount': range(0, RIPPLE_LIMITS.maxAmount, 0.1),
-  'experimental.ripple.wavelength': range(RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength, 0.02),
+  'experimental.crumple.amount': range(0, CRUMPLE_LIMITS.maxAmount, 0.01),
+  'experimental.crumple.facet': range(CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet, 0.01),
+  'experimental.crumple.turn': range(0, 359, 1),
+  'experimental.ripple.amount': range(0, RIPPLE_LIMITS.maxAmount, 0.01),
+  'experimental.ripple.wavelength': range(RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength, 0.01),
   'experimental.ripple.sides': range(RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides, 1),
-  'experimental.ripple.centerX': range(RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.1),
-  'experimental.ripple.centerY': range(RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.1),
-  'experimental.ripple.fade': range(0, 1, 0.1),
-  'experimental.ripple.petals': range(0, RIPPLE_LIMITS.maxPetals, 0.1),
-  'experimental.whorl.amount': range(-WHORL_LIMITS.maxAmount, WHORL_LIMITS.maxAmount, 0.1),
+  'experimental.ripple.centerX': range(RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.01),
+  'experimental.ripple.centerY': range(RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.01),
+  'experimental.ripple.fade': range(0, 1, 0.01),
+  'experimental.ripple.petals': range(0, RIPPLE_LIMITS.maxPetals, 0.01),
+  'experimental.whorl.amount': range(-WHORL_LIMITS.maxAmount, WHORL_LIMITS.maxAmount, 0.01),
   'experimental.whorl.rings': range(WHORL_LIMITS.minRings, WHORL_LIMITS.maxRings, 1),
   'experimental.whorl.sides': range(WHORL_LIMITS.minSides, WHORL_LIMITS.maxSides, 1),
-  'experimental.slipstream.direction': range(0, 345, 15),
-  'experimental.slipstream.strength': range(0, SLIPSTREAM_LIMITS.maxStrength, 0.1),
+  'experimental.slipstream.direction': range(0, 359, 1),
+  'experimental.slipstream.strength': range(0, SLIPSTREAM_LIMITS.maxStrength, 0.01),
   'experimental.slipstream.slip': range(0, SLIPSTREAM_LIMITS.maxSlip, 0.01),
-  'experimental.slipstream.gust': range(SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust, 0.02),
-  'experimental.slipstream.gustiness': range(0, SLIPSTREAM_LIMITS.maxGustiness, 0.1),
+  'experimental.slipstream.gust': range(SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust, 0.01),
+  'experimental.slipstream.gustiness': range(0, SLIPSTREAM_LIMITS.maxGustiness, 0.01),
   'experimental.slipstream.cuts': range(0, SLIPSTREAM_LIMITS.maxCuts, 1),
   'experimental.slipstream.trails': range(0, SLIPSTREAM_LIMITS.maxTrails, 1),
   'experimental.thorn.count': range(THORN_LIMITS.minCount, THORN_LIMITS.maxCount, 1),
-  'experimental.thorn.root': range(0, 1, 0.05),
-  'experimental.thorn.spread': range(0, 1, 0.05),
-  'experimental.thorn.width': range(0, 1, 0.05),
-  'experimental.thorn.refraction': range(0, 1, 0.05),
+  'experimental.thorn.root': range(0, 1, 0.01),
+  'experimental.thorn.spread': range(0, 1, 0.01),
+  'experimental.thorn.width': range(0, 1, 0.01),
+  'experimental.thorn.refraction': range(0, 1, 0.01),
   'experimental.thorn.flute': range(THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute, 0.01),
 } as const satisfies Record<string, SliderRange>
 

@@ -7,6 +7,7 @@ import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import SliderNumber from './SliderNumber'
 import LiveSeed from './LiveSeed'
 import { sameControlProps } from './sameControlProps'
 
@@ -61,10 +62,13 @@ function DistortionControls({
               <label htmlFor="distortion-amount">Noise amplitude</label>
 
             </span>
-            <output htmlFor="distortion-amount">
-              {on ? params.amount : 'Off'}
-              {on && <span className="unit">u</span>}
-            </output>
+            <SliderNumber
+              {...SLIDER_RANGES['distortion.amount']}
+              value={params.amount}
+              unit="u"
+              label="Noise amplitude"
+              onCommit={(amount) => update({ amount })}
+            />
           </div>
           <span className="live-slider">
             <input
@@ -85,7 +89,12 @@ function DistortionControls({
               <label htmlFor="distortion-frequency">Noise frequency</label>
               <HintButton hint={frequencyHint} topic="Noise frequency" />
             </span>
-            <output htmlFor="distortion-frequency">{params.frequency}</output>
+            <SliderNumber
+              {...SLIDER_RANGES['distortion.frequency']}
+              value={params.frequency}
+              label="Noise frequency"
+              onCommit={(frequency) => update({ frequency })}
+            />
           </div>
           <span className="live-slider">
             <input
@@ -111,7 +120,14 @@ function DistortionControls({
               <label htmlFor="distortion-bias">Normal bias</label>
               <HintButton hint={biasHint} topic="Normal bias" />
             </span>
-            <output htmlFor="distortion-bias">{Math.round(params.normalBias * 100)}%</output>
+            <SliderNumber
+              {...SLIDER_RANGES['distortion.normalBias']}
+              value={params.normalBias}
+              scale={100}
+              unit="%"
+              label="Normal bias"
+              onCommit={(normalBias) => update({ normalBias })}
+            />
           </div>
           <span className="live-slider">
             <input

@@ -1,0 +1,43 @@
+name: Jira
+
+# Moves the Jira issues a pull request names, only ever forward (scripts/jira-pr-sync.ts): In Progress while it is open,
+# Done when it merges. A push or an edit counts as well as opening: GitHub runs nothing for a pull request that conflicts
+# with its base, and a key may be added to the title later. An issue is named by its key in the branch name, the title,
+# or the keys that start a "Jira:" line of the body. Needs the repository secrets JIRA_BASE_URL
+# (https://<site>.atlassian.net), JIRA_EMAIL, and JIRA_API_TOKEN; without them, as for a pull request from a fork, it
+# only warns. The script reads the pull request from the event file, so none of its text reaches a shell.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    # Open, or closed by merging; a pull request closed without merging moves nothing.
+    if: >-
+      github.event.action == 'closed' && github.event.pull_request.merged ||
+      github.event.action != 'closed' && github.event.pull_request.state == 'open'
+    # One run at a time per pull request, so a quick push and merge still end in Done.
+    concurrency:
+      group: jira-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            package.json
+            scripts/jira-pr-sync.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --experimental-strip-types scripts/jira-pr-sync.ts
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT: NOCUR

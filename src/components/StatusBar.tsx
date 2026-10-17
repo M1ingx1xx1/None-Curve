@@ -4,9 +4,12 @@ import { describePipeline } from '../geometry/describe'
 import type { GeometryParams } from '../geometry/types'
 import { getSoundEngine } from '../sound/engine'
 import { useLiveStatus } from '../sound/live'
+import { useMappingState } from '../sound/mappingStore'
 import type { SpecimenScene } from '../specimen/scene'
+import { isDefaultExtras, isDefaultSnapshot, resetSettings, type ResetExtras } from '../state/reset'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
+import Icon from './Icon'
 import ThemeToggle from './ThemeToggle'
 
 interface StatusBarProps {
@@ -15,6 +18,9 @@ interface StatusBarProps {
   /** The geometry parameters the canvas shows (live while Sound drives the letters), which the View line describes. */
   shownParams: GeometryParams
   scene: SpecimenScene | null
+  /** The preview look and export precision, which Reset also restores (they live in App, outside the history). */
+  extras: ResetExtras
+  onResetExtras: () => void
 }
 
 const statusText: Record<AppState['document']['status']['kind'], string> = {
@@ -34,12 +40,18 @@ const micStatus = (): MicStatus => {
   const kind = s.error?.kind
   return s.source === 'microphone' && (kind === 'no-device' || kind === 'mic-ended') ? 'lost' : 'off'
 }
+// Sensitivity and Release, for whether Reset has anything to do: the same object until they change.
+const soundSettings = () => getSoundEngine().getState().settings
 
-export default function StatusBar({ state, glyphGeometry, shownParams, scene }: StatusBarProps) {
+export default function StatusBar({ state, glyphGeometry, shownParams, scene, extras, onResetExtras }: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
   const mic = useSyncExternalStore(subscribeSound, micStatus)
   const live = useLiveStatus()
+  const { mappings, response } = useMappingState()
+  const sound = useSyncExternalStore(subscribeSound, soundSettings)
+  const { view: _view, ...settings } = state.params
+  const atDefaults = isDefaultSnapshot({ params: settings, mappings, sound: { ...sound, ...response } }) && isDefaultExtras(extras)
   let glyphInfo = '—'
   let advance: number | null = null
   let viewing = '—'
@@ -84,6 +96,23 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene }: 
       <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}
       </span>
+      {/* Every setting back to its default, as one undo step, and the preview look and export precision with it
+          (not undone); the font, glyph and text stay (state/reset.ts).
+          aria-disabled, not disabled: the button keeps keyboard focus when its own click disables it (at the
+          defaults resetSettings does nothing). */}
+      <button
+        type="button"
+        className="statusbar-reset"
+        aria-label="Reset all settings"
+        title={atDefaults ? 'All settings are at their defaults' : 'Reset all settings (the font and text stay)'}
+        aria-disabled={atDefaults || undefined}
+        onClick={() => {
+          resetSettings()
+          onResetExtras()
+        }}
+      >
+        <Icon name="reset" />
+      </button>
       <ThemeToggle />
     </footer>
   )
