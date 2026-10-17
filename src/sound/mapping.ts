@@ -385,7 +385,7 @@ export const TARGETS: readonly TargetSpec[] = [
     // Log slider: min and max are its values, step roundTolerance's finest unit; the scale holds the slider's real steps.
     min: TOLERANCE.min,
     max: TOLERANCE.max,
-    step: 0.01,
+    step: TOLERANCE.step,
     scale: toleranceScale,
     requires: [flattenNotReplaced, flattenMode('adaptive', 'Adaptive')],
   }),
@@ -440,7 +440,7 @@ export const TARGETS: readonly TargetSpec[] = [
     label: 'Reach',
     min: 0,
     max: THORN_REACH.max,
-    step: 0.0001,
+    step: THORN_REACH.step,
     scale: reachScale,
     requires: [effectOn('thorn')],
   }),

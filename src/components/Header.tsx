@@ -45,7 +45,7 @@ export default function Header({ document, history, onUndo, onRedo, onOpenExport
         <button type="button" className="icon-button" aria-label="Redo" title={`Redo (${UNDO_KEYS.redo})`} disabled={!history.canRedo} onClick={onRedo}>
           <Icon name="redo" />
         </button>
-        <button type="button" disabled={!document.font} onClick={onOpenExport} title={document.font ? 'Export SVG, PNG, a font file or a video' : 'Load a font to export'}>
+        <button type="button" onClick={onOpenExport} title={document.font ? 'Export SVG, PNG, a font file, a video or the config' : 'Export the config (load a font to export the rest)'}>
           <Icon name="download" />
           Export…
         </button>

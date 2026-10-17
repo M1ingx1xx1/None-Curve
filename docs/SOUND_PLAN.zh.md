@@ -55,7 +55,7 @@
 
 **由 20 个合并而来。** 第 3 阶段最初测量 20 个特征，分为六组，后来合并成这 10 个：Low、Mid、High 改名为 Bass、Mids、Treble；六个窄频带（Sub、Bass、Low mid、High mid、Presence、Air）、Noisiness（噪声度）和立体声的 Width（宽度）被去掉；Kick（底鼓）变成 Beat 的第二个检测器；Change 和 Pace 合成 Activity，取两者中较大的那个而不是平均值，因为平均值会让范围减半，永远到不了 1；Balance 改名为 Pan。H 阶段又加入了第 11 个特征 Melody。
 
-- **Release（释放）**（H 阶段之前叫 Smoothing；滑块的 id 现在是 `sound-release`）：每个连续特征都以快速的起音（10 ms，固定）和较慢的释放（默认 150 ms，20–1000 ms，步长 10，由 **Release** 设置）跟随声音，所以字母立即响应，但不会闪烁。有些特征用自己的时间常数：Swell（见上表）；Pitch 上下都用 30 ms，静音时按释放时间降到 0；Pan 上下都按释放时间变化；Beat 和 Melody 跳起后按释放时间回落。
+- **Release（释放）**（H 阶段之前叫 Smoothing；滑块的 id 现在是 `sound-release`）：每个连续特征都以快速的起音（10 ms，固定）和较慢的释放（默认 150 ms，20–1000 ms，步长 1，由 **Release** 设置）跟随声音，所以字母立即响应，但不会闪烁。有些特征用自己的时间常数：Swell（见上表）；Pitch 上下都用 30 ms，静音时按释放时间降到 0；Pan 上下都按释放时间变化；Beat 和 Melody 跳起后按释放时间回落。
 - **音高置信度**（帧里的 `pitchConfidence`）：Pitch 读数有多可靠，0–1。清晰的单个音符时高，噪声或很轻的音时低，无音高或静音时为 0；按起音时间上升，按 Release 回落。它不是特征：没有电平表，也不能被映射。Melody 按它缩放；Pitch reactive 也需要清晰的音符（第 5.2 节）。
 - **旋律音域**（帧里的 `pitchLow` 和 `pitchHigh`；`features.ts` 中的 `followRange` 和 `melodyRange`）：Pitch reactive 放置音高的范围（第 5.2 节），在 Pitch 的 0–1 刻度上，从 Melody 近来稳定下来的最低音符到最高音符。它一开始是围绕第一个稳定下来的音符的一个八度；新的最低或最高音符以 150 ms 的时间常数（`melodyRangeAttackMs`）把它撑开；两端以 8 秒（`melodyRangeReleaseMs`）向正在听到的音符（两个音符之间则是上一个）收拢；距上一个音符超过 8 秒的第一个音符让它重新开始。它在所含音符周围始终至少 12 个半音宽（`melodyRangeMinSt`），并保持在 0–1 之内，所以平稳的人声不会随每次晃动扫过整段文字。不计入的有：重新开始后仍在稳定中的音符（滑进来的音）、Melody 离开其稳定音符的那些帧（鼓击、八度误判、颤音），以及距 Pitch 刻度两端一个半音以内的音符，和弦或完整混音会读在那里（约 55 Hz，置信度很高）。在任何音符之前它是 0 到 1，即 Pitch 的全部（与 `SILENT_FRAME` 相同）。和置信度一样，它不是特征。
 - **Melody 的已知限制：** 4.5 Hz、±80 音分的颤音在 120 fps 下仍会产生约 5 个脉冲；带 ±80 音分颤音的人声旋律会漏掉一些换音；150 ms 长的音符，5 次换音只能抓到 3 到 4 次，200 ms 的音符全部抓到。
@@ -105,11 +105,11 @@ Response 分组设置字母如何回应声音，作用于所有映射。它的�
 | 控件 | 范围、步长 | 默认值 | 作用 |
 |---|---|---|---|
 | **Sensitivity** | −24 到 +24 dB，1 dB | 0 dB | 测量前对输入的增益（第 4 节） |
-| **Strength** | 0–400%，5% | 100% | 在截断之前，把每个滑块目标的偏移总和乘上它，所以 200% 让字母移动两倍远，直到滑块尽头。它也乘上每个种子的 Rate，Rate 仍以 100% 为上限。为 0% 时 Sound 停止驱动，和 Pause 一样：完全恢复，种子回到输入框的值，不显示标记，Mappings 分组显示 "Strength is 0%: the letters hold still." |
+| **Strength** | 0–400%，1% | 100% | 在截断之前，把每个滑块目标的偏移总和乘上它，所以 200% 让字母移动两倍远，直到滑块尽头。它也乘上每个种子的 Rate，Rate 仍以 100% 为上限。为 0% 时 Sound 停止驱动，和 Pause 一样：完全恢复，种子回到输入框的值，不显示标记，Mappings 分组显示 "Strength is 0%: the letters hold still." |
 | **Motion contrast** | 0–100%，1% | 0% | 每个字母按自己的幅度响应（第 5.2 节） |
-| **Release** | 20–1000 ms，10 ms | 150 ms | 读数回落得多慢（第 4 节） |
-| **Pitch reactive** | 0–200%，5% | 0% | 近来旋律中的低音让左边的字母动得更多，高音让右边的字母动得更多；需要清晰的单个音符（第 5.2 节） |
-| **Melody tracking** | 0–200%，5% | 0% | 给每个滑块映射的特征加上 0.5 × Melody tracking × Melody 脉冲（上限为 1），Pan 行和读 Melody 的行除外。种子不受影响。所以即使响度不变，字母也会在每个新音符上动起来。 |
+| **Release** | 20–1000 ms，1 ms | 150 ms | 读数回落得多慢（第 4 节） |
+| **Pitch reactive** | 0–200%，1% | 0% | 近来旋律中的低音让左边的字母动得更多，高音让右边的字母动得更多；需要清晰的单个音符（第 5.2 节） |
+| **Melody tracking** | 0–200%，1% | 0% | 给每个滑块映射的特征加上 0.5 × Melody tracking × Melody 脉冲（上限为 1），Pan 行和读 Melody 的行除外。种子不受影响。所以即使响度不变，字母也会在每个新音符上动起来。 |
 
 - 默认值是中性的：Sound 的表现和 H 阶段之前完全一样，所以已保存的会话和预设看起来不变；只有 Thorn 打开时例外：它的设置现在按轮换传到字母（第 5.3 节），这有意改变了 Flare 的实时帧。`tests/sound/neutral.test.ts` 对照 4a54e5d 锁定了这一点，其调度器哈希不含 Flare（第 12 节）。
 - `ResponseSettings`、`RESPONSE_LIMITS` 和 `NEUTRAL_RESPONSE` 在 `src/sound/types.ts` 中；Strength 和 Melody tracking 在 `modulate` 和 `JumpTracker.advance` 中生效，Motion contrast 和 Pitch reactive 在 `src/sound/letters.ts` 和调度器中生效。
@@ -347,7 +347,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 - **Drive letters：** 一个开关（`role="switch"` 的复选框，画成按主题配色的小滑轨和圆钮）；只有打开时声音才会移动字母。开启减少动态效果时它一开始是关的，并说明原因（第 10 节）。Strength 为 0% 时，它下方有一行说明 "Strength is 0%: the letters hold still."。
 - **映射：**
   - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，说明 Load 会恢复哪些默认值、撤销可以恢复之前的设置和映射，并给每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。这一行下方有一个状态行，说明上一次 Load 做了什么（“Loaded X. Turned off …. Other Geometry and Experimental settings back to defaults (seeds kept).”），一直保留到下一次 Load、在列表里选了另一个预设，或者撤销或重做为止。
-  - 每行有 Feature（与电平表相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、Depth 和开关。在种子上，Depth 显示为 **Rate**，0–100%，步长 5%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
+  - 每行有 Feature（与电平表相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、Depth 和开关。在种子上，Depth 显示为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
   - **Add mapping** 和每行一个删除按钮。删除一行后，键盘焦点移到下一行的删除按钮（没有时移到上一行的，都没有时移到 Add mapping）。
   - **Freeze**，在这个分组的末尾，旁边显示 "Live · N fps"。录制视频期间它不可用（`aria-disabled`，保留键盘焦点），并显示 "Freeze is off while recording."。它的 ⓘ 还说明，按不同幅度响应的字母会取共享值。

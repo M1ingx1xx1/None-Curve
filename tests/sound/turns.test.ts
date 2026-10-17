@@ -789,7 +789,9 @@ describe('the live scheduler with Thorn turns', () => {
     expect(r.commits.filter(({ commit }) => commit?.letters).length).toBeGreaterThan(20)
     // Pinned on develop at f4483b5, before Thorn turns. Never edit, except for a change of the params' shape: pinned
     // again when Crumple lost Detail (NOCUR-60); with that field put back it gives the f4483b5 value (12b619b8).
-    expect(hash.hex).toBe('50d3f31c')
+    // Pinned again when the sliders got finer steps (NOCUR-63): live values snap to the finer steps; with the old
+    // steps put back in SLIDER_RANGES it gives 50d3f31c.
+    expect(hash.hex).toBe('82cf3338')
   })
 
   it('every letter shows slider values and seeds the panel could set, the same turn state across its group and levels', () => {

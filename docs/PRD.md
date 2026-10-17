@@ -150,6 +150,12 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 - Start a take from the Sound tab's Record group or from Export → Video. Wherever it started, the header shows its time and a Stop button, and the file is saved when the take ends.
 - Record and encode in the browser, with no new dependency; nothing is uploaded.
 
+### P2: Config file
+
+- Export the saved session (settings, view buttons, text, preview look, export precision, Sound mappings and Response, the font's name) as a `.json` file from the Export dialog, with or without a font, and import it again from the Import menu.
+- Read it exactly as the saved session is read: marked as the app's, versioned, migrated, and checked leaf by leaf; any other file is refused with a clear message and changes nothing.
+- Apply it as one undo step; download a Google font again; name a local font file, which cannot be reopened.
+
 ### P2: Experimental effects (stackable)
 
 Creative effects in one **Experimental** tab beside Geometry: **Crumple** (crumpled paper), **Ripple** (waves from a point), and **Slipstream** (letters caught in a stream), built in that order, then **Whorl** (a swirl around each letter's middle) and **Thorn** (a few anchors jumping out into the canvas as thorns). Phase 9 renamed them (they were Noise, Curl, Wind, and Spikes) and reworked Slipstream and Thorn; it reworked Crumple too, but NOCUR-60 brought back Noise's single lattice under the name Crumple. Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
@@ -205,12 +211,12 @@ The canvas is the primary feedback area and remains visible during editing. Load
 
 - Use a dark, high-contrast, minimal visual language that supports outline inspection and form-making.
 - Prefer designer-friendly labels such as “Curve approximation,” “Lines per curve,” and “Anchor spacing.”
-- Show both a slider and numeric input for key parameters, supporting exploration and precise values.
+- Show a number box beside every slider, in the unit of its label, supporting exploration and precise values; sliders move in fine steps (1% for shares, 1% of the em for sizes, 1° for angles).
 - Use distinct markers or colors for source skeleton points and polygon vertices.
 - Give each core control a short explanation; explain specialized terms in tooltips.
 - Cover empty, loading, parsing-error, and export-complete states.
 - Support keyboard operation and make focus states easy to see.
-- Undo and redo every setting, the text, the Sound mappings, and the Sound tab's Response settings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo.
+- Undo and redo every setting, the text, the Sound mappings, and the Sound tab's Response settings, from the keyboard (⌘Z / ⇧⌘Z on a Mac, Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y elsewhere) and from header buttons; a slider drag is one step, and text fields keep their own undo. A **Reset all settings** button in the status bar puts all of these but the text back to their defaults as one undo step, keeping the font and selected glyph.
 - Restore the last session on the next visit: the settings, the text, the Sound mappings and Response settings, and the font (a Google font is downloaded again; a local file must be imported again, and the canvas names it).
 
 ### Visual reference for outline transformation
@@ -228,7 +234,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Validate SVG output to ensure path data contains no curve commands such as `C` or `Q`.
 - Experimental effects are piecewise-linear warps that add vertices only at creases (Slipstream's trails and cuts and Thorn's tips add a few straight edges); they must not add runs of small same-direction turns that read as curves.
 - Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing. Glyph geometry for the canvas is computed only in a background worker, never on the page. A worker that stays silent on one glyph for 60 s is stopped, the glyph is reported as failed, and the worker is restarted; when the worker cannot run at all, the canvas says so and asks for a reload. The font file is built in a worker of its own.
-- The saved session (settings, text, mappings, and which font was open) stays in the browser's own storage and is never uploaded. A damaged or older saved session must never break the app: anything that does not fit falls back to its default, and older settings are converted (an older Thorn Reach, in em, becomes the same share of its saved canvas).
+- The saved session (settings, text, mappings, and which font was open) stays in the browser's own storage and is never uploaded. A damaged or older saved session must never break the app: anything that does not fit falls back to its default, and older settings are converted (an older Thorn Reach, in em, becomes the same share of its saved canvas). A config file holds the same session and is read the same way.
 
 ## 8. Acceptance criteria
 
@@ -364,7 +370,7 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, the source's pair kerning (GPOS) and the canvas's line spacing (`USE_TYPO_METRICS`), built in a worker of its own with progress, a size estimate, and an immediate Cancel, glyphs beyond a font's limits trimmed to fit, verified with fontkit and the browser's font engine after writing |
 | P2 Experimental effects | Implemented: Crumple (with Turn), Ripple (with petals), Whorl, Slipstream (with Slip, Cuts, and Trails), and Thorn (with Root and Refraction, Reach measured on the canvas, and anchors picked before Distortion, so small changes of Distortion and the effects before Thorn keep the thorns in place), stackable, with folds beyond 100% and a per-glyph vertex budget |
 | P2 Video export | Implemented: real-time recording of the canvas with its sound, as MP4 or WebM (WebM with a note where MP4 is not supported), from the Sound tab's Record group or Export → Video, with a header indicator and Stop; see section 11 |
-| Undo, redo, and saved sessions (sections 6 and 7) | Implemented: one history of up to 100 steps for the settings, the text, the Sound mappings, and the Sound tab's Response settings; the session saved in `localStorage` and restored on the next visit |
+| Undo, redo, and saved sessions (sections 6 and 7) | Implemented: one history of up to 100 steps for the settings, the text, the Sound mappings, and the Sound tab's Response settings, with **Reset all settings** as one step; the session saved in `localStorage` and restored on the next visit, or exported as a config file (`.json`) and imported again as one undo step |
 | Background computation (section 7) | Implemented: geometry only in the worker, with a 60 s watchdog and restarts (a canvas alert when the worker cannot run); font export in its own worker; automated tests in CI |
 | Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, targets that switch themselves on (42, including the reworked Experimental effects' sliders), and ten presets (Preset and Load, which resets the Geometry and Experimental settings and sets the preset's start values; Flicker's few anchors mode); Pitch and Pan (phase 4) built early, among 10 features in five groups with compact meters; File as the default source with no Off, and Drive letters as a switch; one flash limit shared by sliders and seeds, a Beat that ignores steady bass, and mappings saved between visits; from Phase H, letters that react by different amounts (Motion contrast, Pitch reactive) within the same flash limit, the Response group (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, Melody tracking; saved and undone), Melody as an eleventh feature, and video recording; from Phase I (built, not merged yet), a text block that holds still while Sound plays and thorns that change by turns, a few letters at a time. Not implemented yet: Step mappings (Allowed directions, Sides, Rings) and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
 

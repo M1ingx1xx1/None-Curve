@@ -3,9 +3,10 @@ import type { BreakRule } from '../geometry/curveRuns'
 import type { FlattenStats } from '../geometry/flatten'
 import type { FlattenMode, FlattenParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES, TOLERANCE, toleranceFromSlider, toleranceToSlider } from '../state/sliderScales'
+import { roundTolerance, SLIDER_RANGES, TOLERANCE, toleranceFromSlider, toleranceToSlider } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import LiveMarker from './LiveMarker'
+import SliderNumber from './SliderNumber'
 import { sameControlProps } from './sameControlProps'
 
 interface FlattenControlsProps {
@@ -98,10 +99,16 @@ function FlattenControls({
                 <label htmlFor="flatten-tolerance">Tolerance</label>
                 <HintButton hint={toleranceHint} topic="Tolerance" />
               </span>
-              <output htmlFor="flatten-tolerance">
-                {params.tolerance}
-                <span className="unit">u</span>
-              </output>
+              {/* The tolerance itself, in hundredths, rounded as the slider rounds it. */}
+              <SliderNumber
+                min={TOLERANCE.min}
+                max={TOLERANCE.max}
+                step={TOLERANCE.step}
+                value={params.tolerance}
+                unit="u"
+                label="Tolerance"
+                onCommit={(tolerance) => update({ tolerance: roundTolerance(tolerance) })}
+              />
             </div>
             <span className="live-slider">
               <input
@@ -131,7 +138,12 @@ function FlattenControls({
                 <label htmlFor="flatten-segments">Segments per curve</label>
 
               </span>
-              <output htmlFor="flatten-segments">{params.segmentsPerCurve}</output>
+              <SliderNumber
+                {...SLIDER_RANGES['flatten.segmentsPerCurve']}
+                value={params.segmentsPerCurve}
+                label="Segments per curve"
+                onCommit={(segmentsPerCurve) => update({ segmentsPerCurve })}
+              />
             </div>
             <span className="live-slider">
               <input
@@ -220,10 +232,13 @@ function FlattenControls({
                     <label htmlFor="flatten-corner">Corner angle</label>
                     <HintButton hint={cornerHint} topic="Corner angle" />
                   </span>
-                  <output htmlFor="flatten-corner">
-                    {params.cornerAngle}
-                    <span className="unit">°</span>
-                  </output>
+                  <SliderNumber
+                    {...SLIDER_RANGES['flatten.cornerAngle']}
+                    value={params.cornerAngle}
+                    unit="°"
+                    label="Corner angle"
+                    onCommit={(cornerAngle) => update({ cornerAngle })}
+                  />
                 </div>
                 <span className="live-slider">
                   <input

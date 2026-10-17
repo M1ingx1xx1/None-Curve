@@ -54,7 +54,7 @@ export default function CanvasSizeControls({ params, onChange }: CanvasSizeContr
               type="range"
               min={ARTBOARD_LIMITS.min}
               max={ARTBOARD_LIMITS.max}
-              step={10}
+              step={1}
               value={params[key]}
               aria-label={`${label} in pixels`}
               aria-valuetext={`${params[key]} pixels`}

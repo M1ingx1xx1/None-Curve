@@ -59,6 +59,8 @@ At the very top there are two arrow buttons, **Undo** and **Redo** (see [Undo an
 
 **Light or dark screen.** At the far right of the status line, two small buttons — a sun and a moon — switch the app between a light and a dark look. The app always opens in the same look as your computer (its light or dark mode); your choice lasts until you close the page and is not remembered. The canvas is not affected: its colours come from the **Color** tab.
 
+**Starting over in one click.** Just left of the sun and moon, a button with a turning arrow (pointing at it says **Reset all settings**) puts every setting back to how the app first opens: the Geometry, Experimental, Typography, and Color tabs, the canvas size, and in the Sound tab the mappings (all removed) and the six **Response** sliders. Your font, the selected letter, and your text stay as they are, and so do the canvas view, the preview's Blur and Invert, and the export settings. It does not ask first, because one **Undo** brings everything back. The button is greyed out while every setting is already at its starting value.
+
 **Changing the size of the areas.** The double lines in the picture are the thin grey lines between the areas; you can drag them:
 
 - between the **top and bottom rows** — drag up or down to give the canvas or the bottom row more height;
@@ -72,8 +74,8 @@ Whatever one side gains, the other side loses, so everything always fits in the 
 
 **Undo** takes back your last change and **Redo** puts it back again. Use the two arrow buttons at the top right, or the keyboard: on a Mac, ⌘Z undoes and ⇧⌘Z redoes; on Windows and Linux, Ctrl+Z undoes and Ctrl+Shift+Z or Ctrl+Y redoes. Pointing at a button shows its shortcut. The app keeps up to 100 steps.
 
-- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and in the Sound tab the mappings and the six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking). The reset buttons count too, so Undo brings back what a reset (including **Reset sound**) cleared.
-- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, and picking a mapping target together with the settings it switched on.
+- **What can be undone:** every setting in the Geometry, Experimental, Typography, and Color tabs, the canvas size, the text, and in the Sound tab the mappings and the six **Response** sliders (Sensitivity, Strength, Motion contrast, Release, Pitch reactive, and Melody tracking). The reset buttons count too, so Undo brings back what a reset (including **Reset sound** and **Reset all settings**) cleared.
+- **How big one step is:** one drag of a slider is one step, however far you move it. Typing is one step until you pause for a moment. **Clear**, picking a sample text, and inserting a character from **Glyphs** are a step each. Some actions that change several things at once are a single step as well: loading a Sound preset, **Freeze**, loading a config file, and picking a mapping target together with the settings it switched on.
 - **What is not undone:** the canvas view (Original / Flattened / Compare, the layer buttons, zoom, and moving around), which letter is selected, the preview's Blur and Invert, the export settings, loading a font, the Sound tab's **Drive letters** and source, and the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**). Sound moving the letters is never recorded either: only your own changes are.
 - **Inside a typing box** — the text box, or a box you type a number, colour code, or name into — the shortcuts undo your typing in that box only, as in any text field. The buttons at the top still undo whole steps. While a dialog (such as **Export…**) is open, the shortcuts do nothing.
 - The steps are forgotten when you close the page: the next visit starts with nothing to undo.
@@ -87,8 +89,8 @@ The app keeps your work in this browser by itself, a moment after each change, a
 - **Not kept:** the Sound tab's **Drive letters** and source (file or microphone); the video options (**Format**, **Length**, **Include audio**, and **Use the preview look**), which last until you close the page; open dialogs; the light or dark look; and the undo steps. (As before, the app also remembers the size of the areas, the tabs you had open, whether the **Canvas size** settings are open, and **Show all explanations**.)
 - **Work saved by an older version of the app:** Thorn's **Reach** used to be a share of the em (the letters' design square) and is now a share of the canvas (see Thorn in the Experimental tab). Older saved work is converted to the share that gives the thorns the same length with the text size and canvas size it was saved with, so they come back as they were. Thorns that were on stay on: however short they were, they come back at least as long as the slider's first step. Sound rows on Reach keep their **Depth**. Thorns may also grow from other points than they did before with the same **Seed**, because the app now picks them in a steadier way (see Thorn in the Experimental tab); press **Next variant** until you like them again. Crumple no longer has a **Detail** slider: a saved Detail value is ignored, Sound rows on **Crumple · Detail** are dropped, and Crumple folds the letters as Noise did before it was renamed, so the same **Seed** gives different folds than in the version that had Detail.
 - **If the page closed while drawing your settings** — for example because a very heavy setting made the browser give up — the next visit opens with every setting back at its starting value, so it cannot get stuck again, and the canvas says "The last visit closed while drawing, so its settings were not restored." Your text, font, mappings, and **Response** sliders still come back.
-- **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
-- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it.
+- **Starting over:** most groups have a reset button (**Reset anchors**, **Reset grid & angles**, **Reset distortion**, **Reset random anchors**, **Reset experimental**, **Reset typography**), and **Charcoal** in the Color tab is the starting colour pair. The arrow button at the right end of the status line (**Reset all settings**) resets every tab at once and keeps your font and text (see *Starting over in one click* in [A tour of the screen](#3-a-tour-of-the-screen)). To start completely fresh, clear this site's data (cookies and site data) in your browser's settings and reload the page; this also forgets the area sizes and open tabs.
+- **Good to know:** each browser keeps its own copy. If the app is open in two tabs, the one you changed last wins. Safari may clear the saved work of a site you have not opened for 7 days. To keep a result for sure, export it; to keep the settings themselves, or take them to another browser, save a [config file](#as-a-config-file-settings-only).
 
 ---
 
@@ -106,7 +108,7 @@ That's the whole workflow. The rest of this guide explains each step in more det
 
 ## 5. Loading a font
 
-Click **Import font** at the top of the tools area. You get two choices.
+Click **Import font** at the top of the tools area. You get three choices: a font from your computer, a font from Google Fonts, or a **Config file** with saved settings (see [As a config file](#as-a-config-file-settings-only)).
 
 ### From your computer
 
@@ -231,6 +233,8 @@ These are in the tools panel (top left), in two tabs. (The third tab, **Sound**,
 **Curve flattening → Squaring → Anchors → Grid & angles → Distortion → Experimental**
 
 All sizes are in **font units**. A font is designed on an invisible square called the **em**, usually 1000 or 2048 units wide (shown as "Units/em" in the font information). So "20 u" in a 1000-unit font is 2 % of the letter height. The settings do not change when you zoom.
+
+Every slider has a small number box next to its name that shows its value (in %, °, u, and so on). Drag the slider to try things out quickly; to set an exact value, click the box, type the number, and press Enter (or click somewhere else). A number beyond the slider's range is set to its nearest end, and Escape puts the old value back. The sliders move in small steps — 1 % for most of them, 1° for angles — and once you click a slider, each press of an arrow key moves it one step.
 
 Controls whose name does not say it all have a short explanation. To keep the panel tidy, explanations are folded away: click the small **ⓘ** next to a control's name to read it, and click again to fold it. To see all of them at once — handy the first time — tick **Show all explanations** at the top of the tools panel, just below the tabs (it opens the explanations in the Typography and Color tabs too). Yellow warnings and numbers are always shown. If a setting would break a shape (for example, make a letter cross over itself, or push the hole of an **A**, **B**, or **e** out of the letter so it shows as a solid blob), the app first tries a gentler version for that part of the letter — a little less squaring, a slightly simpler outline, stair steps for angle lock, or less distortion — and a grey note says so. Only if nothing works does that part keep its previous shape, with a yellow note explaining why.
 
@@ -377,8 +381,8 @@ A few points (anchors) on the outside of each letter jump straight out into the 
 
 - **Use thorn** — turns it on.
 - **Anchors** — how many points of each letter jump, from 1 to 12 (3 to start with).
-- **Reach** — how far they jump, as a share of the canvas (10 % to start with; the number reads, for example, "10% canvas"). 100 % is the canvas's diagonal, from one corner to the opposite one, so at 100 % a thorn can cross the whole canvas. Each point goes its own distance, somewhere between about a third of Reach and all of it, so the thorns come out in different lengths. At 0 % nothing jumps.
-  - The slider is fine at the left and coarse at the right, so short thorns are easy to set exactly: the middle of the track is only 12.5 %, and the right half covers the rest up to 100 %. At the far left, each step (or each press of an arrow key) adds 0.01 %, so even the first step grows tiny thorns; only 0 grows none. Below 1 % the number shows two decimals, below 10 % one, and above that none; it reads 0.0 only at 0.
+- **Reach** — how far they jump, as a share of the canvas (10 % to start with; the box reads, for example, "10" followed by "% canvas"). 100 % is the canvas's diagonal, from one corner to the opposite one, so at 100 % a thorn can cross the whole canvas. Each point goes its own distance, somewhere between about a third of Reach and all of it, so the thorns come out in different lengths. At 0 % nothing jumps.
+  - The slider is fine at the left and coarse at the right, so short thorns are easy to set exactly: the middle of the track is only 12.5 %, and the right half covers the rest up to 100 %. At the far left, each step (or each press of an arrow key) adds 0.01 %, so even the first step grows tiny thorns; only 0 grows none. The box shows the reach to two decimals, and you can type an exact one there, for example 0.35.
   - Because Reach is measured on the canvas, the thorns keep the same share of the canvas when you change the text **Size** or the canvas size (**W** and **H**): with smaller text or a larger canvas they reach further past the letters. While Thorn is on, such a change makes the app work the letters out again. The PNG multiplier (1×–4×) changes nothing.
   - The **ⓘ** next to Reach says how many ems 100 % is at your current text size and canvas: about 30 em on the starting canvas (1200 × 800 pixels with 48-pixel text). It never goes beyond 256 em, however small the text.
   - Only the tips get longer: **Root**, **Width**, and **Flute width** are still measured on the letters, so they do not change with the canvas.
@@ -728,6 +732,22 @@ Good to know:
 The video follows the canvas's **Fill** button like an image: with Fill off it shows outlines only, and the dialog says so.
 
 What each option does, what ends a take, and how the file is named are explained in [Record a video](#record-a-video).
+
+### As a config file (settings only)
+
+A config file keeps your settings, not your letters: load it later, in another browser, or on another computer, and the app is set up as it was. It is a small `.json` file.
+
+1. Choose **Config — settings (.json)**. This also works before you load a font.
+2. The dialog says which font the file asks for. Click **Download config**. The file is named after the font, for example `none-curve-Roboto-config.json`.
+
+It holds the same things the app keeps between visits (see [Coming back later](#coming-back-later)): every setting, the canvas size, the text, the canvas view buttons, the preview's Blur and Invert, the **Coordinate precision**, the Sound tab's mappings and **Response** sliders, the selected letter, and the font's name. It never holds the font itself, the sound, or the video options.
+
+**To load it:** click **Import font** → **Config file** and pick the file, or drag it onto the canvas.
+
+- Your settings, text, Sound mappings, and Response sliders change in one go, and one **Undo** brings back what you had before. The canvas view buttons, the preview's Blur and Invert, and the Coordinate precision change too, but Undo leaves them as they are (they are never undone).
+- A **Google font** in the file is downloaded again (unless it is already open). A **font from your computer** cannot be opened for you: the note under the menu names the file — import it and the letters appear with the loaded settings.
+- A file that is not a config file (any other `.json`, or a damaged one) is refused: the note says "Config not imported" and nothing changes. A file saved by an older version of the app is converted, as saved work is; one from a newer version loads what this version knows, and the note says so.
+- Close the note with its × button; it also goes away when you load another font.
 
 ---
 

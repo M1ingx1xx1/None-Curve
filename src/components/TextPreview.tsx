@@ -1,11 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import { artboardViewFrame, type ArtboardLayout, type ArtboardParams, type PaletteParams } from '../specimen/artboard'
-import { MAX_PREVIEW_BLUR, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
+import { MAX_PREVIEW_BLUR, PREVIEW_BLUR_STEP, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import type { SpecimenScene } from '../specimen/scene'
 import ErrorBoundary from './ErrorBoundary'
 import ExportedArtboard from './ExportedArtboard'
 import Icon from './Icon'
+import SliderNumber from './SliderNumber'
 
 interface TextPreviewProps {
   font: LoadedFont | null
@@ -78,12 +79,20 @@ export default function TextPreview({
             type="range"
             min={0}
             max={MAX_PREVIEW_BLUR}
-            step={0.5}
+            step={PREVIEW_BLUR_STEP}
             value={blur}
             aria-valuetext={blur > 0 ? `${blur} pixels` : 'Off'}
             onChange={(e) => onLookChange({ ...look, blur: Number(e.target.value) })}
           />
-          <output htmlFor={`${id}-blur`}>{blur > 0 ? `${blur} px` : 'Off'}</output>
+          <SliderNumber
+            value={blur}
+            min={0}
+            max={MAX_PREVIEW_BLUR}
+            step={PREVIEW_BLUR_STEP}
+            unit="px"
+            label="Blur"
+            onCommit={(next) => onLookChange({ ...look, blur: next })}
+          />
           <button
             type="button"
             className="button-small"

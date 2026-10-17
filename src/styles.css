@@ -895,12 +895,6 @@ input[type='range']:disabled {
   width: clamp(80px, 12vw, 180px);
 }
 
-.text-preview-controls output {
-  min-width: 3.5em;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 .text-preview-canvas {
   position: relative;
   flex: 1;
@@ -1293,6 +1287,20 @@ input[type='range']:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* A slider's number box in its head, where the readout was (SliderNumber): readout-sized, its unit after it. */
+.slider-number {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.slider-number .number-field {
+  width: 5.5em;
+  padding: 1px 4px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
 /* Align: icon-only options (each keeps an aria-label and a tooltip). */
 .segmented-icons .segment-option span {
   display: flex;
@@ -1518,13 +1526,35 @@ input[type='range']:disabled {
   color: var(--faint);
 }
 
-/* Light / dark interface, the last item of the status bar (bottom right). Small enough not to change
-   the bar's height. */
+/* Reset all settings, then light / dark interface: the last items of the status bar (bottom right), close
+   together. Small enough not to change the bar's height. */
+.statusbar-reset,
 .theme-toggle {
   flex: none;
   align-self: center;
-  margin: -2px 0 -2px auto;
   border-color: var(--border);
+}
+
+.statusbar-reset {
+  margin: -2px -12px -2px auto;
+  padding: 2px 5px;
+  line-height: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.statusbar-reset:hover:not([aria-disabled='true']) {
+  color: var(--text);
+}
+
+.statusbar-reset .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.4;
+}
+
+.theme-toggle {
+  margin: -2px 0;
 }
 
 .theme-toggle button {
@@ -1689,6 +1719,19 @@ input[type='range']:disabled {
 
 .font-error .button-small {
   align-self: flex-start;
+}
+
+/* How a config file import went (Import → Config file), with its Dismiss button in the corner. */
+.config-notice {
+  position: relative;
+  padding-right: 40px;
+}
+
+.config-notice > .button-small {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 6px;
 }
 
 .font-summary {
@@ -2114,8 +2157,8 @@ input[type='range']:disabled {
 }
 
 .legend-vertex {
-  width: 7px;
-  height: 7px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--vertex);
   display: inline-block;

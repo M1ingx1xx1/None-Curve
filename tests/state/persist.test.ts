@@ -1,6 +1,7 @@
 // The session saved between visits (src/state/persist.ts): it survives a round trip, and whatever is in storage
 // (damaged JSON, an older version, unknown keys, values out of range, a full or blocked storage) never breaks the
-// start: every leaf is checked against the defaults, the Sound tab's Response group too.
+// start: every leaf is checked against the defaults, the Sound tab's Response group too. The config file (Export →
+// Config) holds the same session, marked as the app's: it round-trips, is migrated, and anything else is refused.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
@@ -9,12 +10,17 @@ import { initialState } from '../../src/state/editorState'
 import {
   capText,
   clearRestoring,
+  CONFIG_MARKER,
   createSessionSaver,
   loadSession,
   markRestoring,
   MAX_SAVED_TEXT,
+  parseConfig,
+  parseSession,
   readSession,
   saveSession,
+  serializeConfig,
+  serializeSession,
   SESSION_VERSION,
   type Session,
 } from '../../src/state/persist'
@@ -127,14 +133,18 @@ describe('saved session', () => {
       strength: 0,
       contrast: 1,
     })
-    expect(read({ sensitivity: -3.4, releaseMs: 237, strength: 1.234, contrast: 0.456, pitchReactive: 0.33, melody: 1.97, extra: 1 })).toEqual({
+    // Steps of 1 dB, 1 ms and 0.01 (Release and the Response sliders went from 10 ms and 0.05 to these in NOCUR-63).
+    expect(read({ sensitivity: -3.4, releaseMs: 237.4, strength: 1.234, contrast: 0.456, pitchReactive: 0.333, melody: 1.967, extra: 1 })).toEqual({
       sensitivity: -3,
-      releaseMs: 240,
-      strength: 1.25,
+      releaseMs: 237,
+      strength: 1.23,
       contrast: 0.46,
-      pitchReactive: 0.35,
-      melody: 1.95,
+      pitchReactive: 0.33,
+      melody: 1.97,
     })
+    // Values saved on the coarser steps are still on the finer ones, so they come back as they were.
+    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95 }
+    expect(read(coarse)).toEqual(coarse)
     // Saved as JSON, the values come back exactly.
     const storage = new MemoryStorage()
     saveSession({ ...changedSession(), sound: { ...DEFAULT_SOUND_SETTINGS, strength: 0.15, contrast: 0.07 } }, storage)
@@ -270,6 +280,8 @@ describe('saved session', () => {
     expect(p.palette.paper).toBe(DEFAULT_SETTINGS.palette.paper)
     expect(session.previewLook).toEqual({ blur: 12, inverted: false })
     expect(session.precision).toBe(DEFAULT_PRECISION)
+    // The Blur slider's 0.1 px step; a blur saved on the old 0.5 px step stays as it was.
+    for (const [blur, expected] of [[2.34, 2.3], [2.5, 2.5]]) expect(readSession({ version: SESSION_VERSION, previewLook: { blur } })!.previewLook.blur).toBe(expected)
   })
 
   it('checks the mappings: at most 8, known features and targets, depth clamped, Rates never negative', () => {
@@ -345,5 +357,85 @@ describe('saved session', () => {
     saver.flush()
     vi.advanceTimersByTime(1000)
     expect(read).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('config file', () => {
+  const NOT_CONFIG = 'This is not a None-Curve config file. Save one with Export → Config.'
+
+  it('round-trips every part, marked and versioned, the same as the saved session', () => {
+    const session = changedSession()
+    const text = serializeConfig(session)
+    const raw = JSON.parse(text)
+    expect([raw.app, raw.kind, raw.version]).toEqual([CONFIG_MARKER.app, CONFIG_MARKER.kind, SESSION_VERSION])
+    expect(parseConfig(text)).toEqual({ ok: true, session, newer: false })
+    // The config is the saved session with the marker: the same keys and values.
+    const { app: _app, kind: _kind, ...rest } = raw
+    expect(rest).toEqual(JSON.parse(serializeSession(session)))
+    expect(parseSession(serializeSession(session))).toEqual(session)
+  })
+
+  it('never writes Thorn\'s derived canvasEm, and caps the text', () => {
+    const session = changedSession()
+    const thorn = { ...session.params.experimental.thorn, canvasEm: 30.04 }
+    const long = 'x'.repeat(MAX_SAVED_TEXT + 5)
+    const raw = JSON.parse(serializeConfig({ ...session, text: long, params: { ...session.params, experimental: { ...session.params.experimental, thorn } } }))
+    expect('canvasEm' in raw.params.experimental.thorn).toBe(false)
+    expect(raw.text).toHaveLength(MAX_SAVED_TEXT)
+  })
+
+  it('refuses damaged JSON and JSON that is not a config, the saved session included', () => {
+    expect(parseConfig('{"app":')).toEqual({ ok: false, error: 'The file is not valid JSON.' })
+    expect(parseConfig('')).toEqual({ ok: false, error: 'The file is not valid JSON.' })
+    const foreign = [
+      null,
+      42,
+      'config',
+      [CONFIG_MARKER],
+      {},
+      JSON.parse(serializeSession(changedSession())),
+      { app: 'other-app', kind: 'config', version: SESSION_VERSION },
+      { app: CONFIG_MARKER.app, kind: 'preset', version: SESSION_VERSION },
+      { kind: CONFIG_MARKER.kind, params: {} },
+    ]
+    for (const value of foreign) expect(parseConfig(JSON.stringify(value)), JSON.stringify(value)).toEqual({ ok: false, error: NOT_CONFIG })
+  })
+
+  it('reads a damaged config leaf by leaf: wrong values are the defaults, unknown keys dropped', () => {
+    const parsed = parseConfig(
+      JSON.stringify({ ...CONFIG_MARKER, version: SESSION_VERSION, params: { anchors: { spacing: 'wide' }, palette: { ink: '#abc' } }, text: 7, mappings: 'all', extra: true }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    expect(parsed.session.params.anchors.spacing).toBe(DEFAULT_SETTINGS.anchors.spacing)
+    expect(parsed.session.params.palette.ink).toBe('#aabbcc')
+    expect(parsed.session.text).toBe(DEFAULT_TEXT)
+    expect(parsed.session.mappings).toEqual([])
+    expect('extra' in parsed.session).toBe(false)
+  })
+
+  it('migrates an older config as it migrates an older saved session', () => {
+    const v1 = {
+      version: 1,
+      params: { experimental: { thorn: { enabled: true, reach: 0.6 } }, typography: { size: 48 }, artboard: { width: 1200, height: 800 } },
+      mappings: [{ feature: 'level', target: 'experimental.thorn.reach', depth: 0.3 }],
+    }
+    const parsed = parseConfig(JSON.stringify({ ...CONFIG_MARKER, ...v1 }))
+    expect(parsed).toEqual({ ok: true, session: readSession(v1), newer: false })
+    if (!parsed.ok) return
+    expect(parsed.session.params.experimental.thorn.canvasReach).toBe(0.02)
+    expect(parsed.session.mappings[0].target).toBe('experimental.thorn.canvasReach')
+    // Without a version: the oldest names (Noise became Crumple, Low became Bass).
+    const unversioned = parseConfig(
+      JSON.stringify({ ...CONFIG_MARKER, params: { experimental: { noise: { enabled: true } } }, mappings: [{ feature: 'low', target: 'experimental.noise.amount', depth: 0.4 }] }),
+    )
+    if (!unversioned.ok) throw new Error(unversioned.error)
+    expect(unversioned.session.params.experimental.crumple.enabled).toBe(true)
+    expect(unversioned.session.mappings.map((m) => [m.feature, m.target])).toEqual([['bass', 'experimental.crumple.amount']])
+  })
+
+  it('reads a newer config as far as it fits, and says so', () => {
+    const session = changedSession()
+    const raw = { ...JSON.parse(serializeConfig(session)), version: SESSION_VERSION + 1, future: { setting: 1 } }
+    expect(parseConfig(JSON.stringify(raw))).toEqual({ ok: true, session, newer: true })
   })
 })

@@ -25,11 +25,12 @@ import { useLiveStatus } from '../sound/live'
 import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen } from '../specimen/scene'
 import { geometryClient } from '../state/geometryClient'
+import { serializeConfig, type SavedFont, type Session } from '../state/persist'
 import { previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import Icon from './Icon'
 import { RecordOptionsFields, useStillVideo } from './RecordControls'
 
-type Format = 'svg' | 'png' | 'otf' | 'video'
+type Format = 'svg' | 'png' | 'otf' | 'video' | 'config'
 
 /** Above this many outline points still to compute, the build may take minutes (heavy settings: about 5,000 points a second). */
 const SLOW_EXPORT_POINTS = 300_000
@@ -54,6 +55,8 @@ interface ExportDialogProps {
   pending: boolean
   precision: number
   onPrecisionChange: (precision: number) => void
+  /** Everything the config file holds: the session as it would be saved now. */
+  readConfig: () => Session
   onExported: (fileName: string) => void
 }
 
@@ -71,7 +74,15 @@ const formats: { value: Format; label: string; hint: string }[] = [
   { value: 'png', label: 'PNG — main view', hint: 'The canvas as an image, at the size and multiplier set under Canvas size.' },
   { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download. Always filled.' },
   { value: 'video', label: 'Video — live sound', hint: 'Records the canvas as it moves with the sound, in real time, with its audio.' },
+  { value: 'config', label: 'Config — settings (.json)', hint: 'Every setting, the text, Sound and the font’s name, to load again with Import font → Config file.' },
 ]
+
+/** The font a config names, as the dialog describes it. */
+function configFontLine(font: SavedFont | null): string {
+  if (!font) return 'No font: importing it keeps the font that is open.'
+  if (font.kind === 'local') return `Font: the local file ${font.fileName}, named only. Import that file again after the config.`
+  return `Font: ${font.family} ${font.weight}${font.italic ? ' italic' : ''} from Google Fonts, downloaded again on import.`
+}
 
 /** The canvas's results for the plan's glyphs under these settings, which the build uses as they are. */
 function knownGlyphs(font: LoadedFont, plan: FontExportPlan, key: string): Map<number, KnownGlyph> {
@@ -197,12 +208,14 @@ async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
 
 export default function ExportDialog(props: ExportDialogProps) {
   const { open, onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale, fill } = props
-  const { params, paramsKey, pending, precision, onPrecisionChange, onExported } = props
+  const { params, paramsKey, pending, precision, onPrecisionChange, readConfig, onExported } = props
   // While Sound drives the letters the canvas shows live shapes, but exports use the sliders (SOUND_PLAN §9).
   const { driving: soundLive } = useLiveStatus()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const firstRef = useRef<HTMLInputElement>(null)
-  const [format, setFormat] = useState<Format>('svg')
+  const [chosen, setFormat] = useState<Format>('svg')
+  // Without a font only the config can be saved.
+  const format: Format = font ? chosen : 'config'
   // Off by default: exports show the main view; ticked, they carry the preview's blur and inversion.
   const [usePreviewLook, setUsePreviewLook] = useState(false)
   const [glyphSet, setGlyphSet] = useState<GlyphSet>('specimen')
@@ -355,6 +368,15 @@ export default function ExportDialog(props: ExportDialogProps) {
     }
   }
 
+  const exportConfig = () => {
+    const config = readConfig()
+    const family = font?.familyName ?? (config.font?.kind === 'google' ? config.font.family : '')
+    const fileName = safeFileName(['none-curve', family, 'config'], 'json')
+    downloadFile(serializeConfig(config), fileName, 'application/json')
+    setStatus({ kind: 'done', message: `Saved ${fileName}.` })
+    onExported(fileName)
+  }
+
   const downloadFont = () => {
     if (!currentBuild) return
     downloadFile(currentBuild.result.bytes, currentBuild.fileName, 'font/otf')
@@ -368,6 +390,39 @@ export default function ExportDialog(props: ExportDialogProps) {
     all: font ? `${font.characters.length} characters` : '',
   }
 
+  const configSection = (
+    <div className="export-section">
+      <p className="field-hint">
+        The settings, the canvas view’s buttons, the text, the preview look, the coordinate precision, the Sound mappings and
+        Response, and the selected glyph. {configFontLine(format === 'config' && open ? readConfig().font : null)}
+      </p>
+      <div className="export-actions">
+        <button type="button" className="button-primary" onClick={exportConfig}>
+          Download config
+        </button>
+      </div>
+    </div>
+  )
+
+  const statusLine = (
+    <div className="export-status" aria-live="polite">
+      {status.kind === 'working' && (
+        <p className="gf-placeholder">
+          <span className="spinner" aria-hidden="true" />
+          {status.message}
+        </p>
+      )}
+      {status.kind === 'done' && <p className="export-done">{status.message}</p>}
+      {status.kind === 'cancelled' && <p className="field-hint">Export cancelled.</p>}
+      {status.kind === 'error' && (
+        <div className="font-error" role="alert">
+          <p className="font-error-kind">Export failed</p>
+          <p>{status.message}</p>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <dialog ref={dialogRef} className="gf-dialog export-dialog" aria-labelledby="export-title" onClose={close} onCancel={(e) => { e.preventDefault(); close() }}>
       <div className="gf-body">
@@ -379,7 +434,11 @@ export default function ExportDialog(props: ExportDialogProps) {
         </header>
 
         {!font ? (
-          <p className="gf-intro">Load a font first.</p>
+          <>
+            <p className="gf-intro">Load a font to export SVG, PNG, a font file or a video. The config can be saved without one.</p>
+            {configSection}
+            {statusLine}
+          </>
         ) : (
           <>
             <p className="gf-intro">
@@ -413,7 +472,7 @@ export default function ExportDialog(props: ExportDialogProps) {
               ))}
             </fieldset>
 
-            {pending && format !== 'video' && <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>}
+            {pending && format !== 'video' && format !== 'config' && <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>}
 
             {(format === 'svg' || format === 'png') && (
               <div className="export-section">
@@ -601,22 +660,8 @@ export default function ExportDialog(props: ExportDialogProps) {
               />
             )}
 
-            <div className="export-status" aria-live="polite">
-              {status.kind === 'working' && (
-                <p className="gf-placeholder">
-                  <span className="spinner" aria-hidden="true" />
-                  {status.message}
-                </p>
-              )}
-              {status.kind === 'done' && <p className="export-done">{status.message}</p>}
-              {status.kind === 'cancelled' && <p className="field-hint">Export cancelled.</p>}
-              {status.kind === 'error' && (
-                <div className="font-error" role="alert">
-                  <p className="font-error-kind">Export failed</p>
-                  <p>{status.message}</p>
-                </div>
-              )}
-            </div>
+            {format === 'config' && configSection}
+            {statusLine}
           </>
         )}
 

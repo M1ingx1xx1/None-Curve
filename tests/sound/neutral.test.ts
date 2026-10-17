@@ -35,9 +35,11 @@ import { BASE } from '../helpers/params'
 // Pinned at 4a54e5d (features to 10 significant digits, on arm64 and x64; the scheduler without Flare). Never edit,
 // except for a change of the params' shape: modulate and scheduler hash whole params, so they were pinned again when
 // Crumple lost Detail (NOCUR-60); with that field put back they give the 4a54e5d values (ef59f235, 32a8121b).
+// Pinned again when the sliders got finer steps (NOCUR-63): Sound snaps a live value to its slider's step, so
+// modulate and scheduler moved; with the old steps put back in SLIDER_RANGES they give a0bbe805 and c91cc307.
 const PINNED = {
-  modulate: 'a0bbe805',
-  scheduler: 'c91cc307',
+  modulate: 'a02149f5',
+  scheduler: 'cf6faa50',
   features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',
