@@ -1,4 +1,4 @@
-import NumberField from './NumberField'
+import NumberField, { decimals } from './NumberField'
 
 interface SliderNumberProps {
   /** The setting's own value, range and step (a share 0–1, font units, degrees…). */
@@ -17,8 +17,6 @@ interface SliderNumberProps {
   onCommit: (value: number) => void
 }
 
-/** Decimals of a number as written ("0.05" → 2). */
-const decimals = (n: number) => (String(n).split('.')[1] ?? '').length
 /** Strips floating-point noise from a scaled number (0.07 × 100 → 7). */
 const clean = (n: number) => Number(n.toPrecision(12))
 

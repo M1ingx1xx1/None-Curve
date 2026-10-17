@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
 
 interface NumberFieldProps {
   id?: string
@@ -11,6 +11,15 @@ interface NumberFieldProps {
   disabled?: boolean
   'aria-label'?: string
   'aria-describedby'?: string
+}
+
+/** Decimals of a number as written ("0.05" → 2). */
+export const decimals = (n: number) => (String(n).split('.')[1] ?? '').length
+
+/** Characters of the widest value the box can hold ("-100", "359", "0.01"), which sizes it (`--chars` in styles.css). */
+export function widestChars(min: number, max: number, step: number): number {
+  const d = decimals(step)
+  return Math.max(min.toFixed(d).length, max.toFixed(d).length)
 }
 
 /**
@@ -31,9 +40,8 @@ export default function NumberField({ id, value, min, max, step, onCommit, disab
       setDraft(String(value))
       return
     }
-    const decimals = (String(step).split('.')[1] ?? '').length
     const clamped = Math.min(max, Math.max(min, parsed))
-    const rounded = Number((Math.round(clamped / step) * step).toFixed(decimals))
+    const rounded = Number((Math.round(clamped / step) * step).toFixed(decimals(step)))
     setDraft(String(rounded))
     if (rounded !== value) onCommit(rounded)
   }
@@ -50,6 +58,7 @@ export default function NumberField({ id, value, min, max, step, onCommit, disab
     <input
       id={id}
       className="number-field"
+      style={{ '--chars': widestChars(min, max, step) } as CSSProperties}
       type="number"
       min={min}
       max={max}
