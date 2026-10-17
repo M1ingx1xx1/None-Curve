@@ -233,6 +233,15 @@ const effectOn = (effect: EffectKey): Requirement => ({
     notice: `Turned on ${EFFECT_NAMES[effect]}.`,
   }),
 })
+// Thorn's Burst (applyThorn) spreads its own number of spikes, sunk by Dent, and grows no roots: Anchors and Root act
+// with Burst off, Burst's Anchors and Dent with it on.
+const burst = (on: boolean): Requirement => ({
+  unmet: (p) => ((p.experimental.thorn?.burst === true) === on ? null : `Turn ${on ? 'on' : 'off'} Burst to hear this.`),
+  meet: (p) => ({
+    patch: { group: 'experimental', patch: { thorn: { ...p.experimental.thorn, burst: on } } as Partial<ExperimentalParams> },
+    notice: `Turned ${on ? 'on' : 'off'} Burst.`,
+  }),
+})
 // Refraction 0 turns Thorn's fluted glass off (applyThorn), so its Flute width does nothing.
 const refractionOn: Requirement = {
   unmet: (p) => ((p.experimental.thorn?.refraction ?? 0) > 0 ? null : 'Set Refraction above 0% to hear this.'),
@@ -331,7 +340,7 @@ interface TargetDef {
   scale?: Scale
   /**
    * Value when the field is missing, as the panel shows it (older saved settings lack Crumple Turn,
-   * Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction and Flute width).
+   * Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction, Flute width, Burst anchors and Dent).
    * Defaults to min.
    */
   fallback?: number
@@ -438,7 +447,7 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('slipstream', 'gustiness', 'Gustiness'),
   experimental('slipstream', 'cuts', 'Cuts', { fallback: 0 }),
   experimental('slipstream', 'trails', 'Trails', { fallback: 0 }),
-  experimental('thorn', 'count', 'Anchors'),
+  experimental('thorn', 'count', 'Anchors', { requires: [effectOn('thorn'), burst(false)] }),
   // Cubic slider: min and max are its values, step roundReach's unit; the scale holds the slider's real steps.
   target({
     field: effectField('thorn', 'canvasReach'),
@@ -451,7 +460,7 @@ export const TARGETS: readonly TargetSpec[] = [
     scale: reachScale,
     requires: [effectOn('thorn')],
   }),
-  experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root }),
+  experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root, requires: [effectOn('thorn'), burst(false)] }),
   experimental('thorn', 'spread', 'Spread'),
   experimental('thorn', 'width', 'Width'),
   experimental('thorn', 'refraction', 'Refraction', { fallback: 0 }),
@@ -460,6 +469,9 @@ export const TARGETS: readonly TargetSpec[] = [
     fallback: THORN_FALLBACK.flute,
     requires: [effectOn('thorn'), refractionOn],
   }),
+  // Burst's own sliders: the panel shows its Anchors in place of Anchors, and disables Dent with Burst off.
+  experimental('thorn', 'spikes', 'Burst anchors', { fallback: THORN_FALLBACK.spikes, requires: [effectOn('thorn'), burst(true)] }),
+  experimental('thorn', 'dent', 'Dent', { fallback: THORN_FALLBACK.dent, requires: [effectOn('thorn'), burst(true)] }),
   experimental('dissolve', 'amount', 'Amount'),
   experimental('dissolve', 'grain', 'Grain'),
   experimental('dissolve', 'spread', 'Spread'),

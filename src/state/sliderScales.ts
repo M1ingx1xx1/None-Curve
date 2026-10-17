@@ -131,6 +131,8 @@ export const SLIDER_RANGES = {
   'experimental.thorn.width': range(0, 1, 0.01),
   'experimental.thorn.refraction': range(0, 1, 0.01),
   'experimental.thorn.flute': range(THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute, 0.01),
+  'experimental.thorn.spikes': range(THORN_LIMITS.minSpikes, THORN_LIMITS.maxSpikes, 1),
+  'experimental.thorn.dent': range(0, 1, 0.01),
   'experimental.dissolve.amount': range(0, 1, 0.01),
   'experimental.dissolve.grain': range(DISSOLVE_LIMITS.minGrain, DISSOLVE_LIMITS.maxGrain, 0.01),
   'experimental.dissolve.spread': range(0, DISSOLVE_LIMITS.maxSpread, 0.01),

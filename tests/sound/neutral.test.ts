@@ -37,11 +37,13 @@ import { BASE } from '../helpers/params'
 // Crumple lost Detail (NOCUR-60); with that field put back they give the 4a54e5d values (ef59f235, 32a8121b).
 // Pinned again when the sliders got finer steps (NOCUR-63): Sound snaps a live value to its slider's step, so
 // modulate and scheduler moved; with the old steps put back in SLIDER_RANGES they give a0bbe805 and c91cc307.
-// Pinned again when Dissolve was added (NOCUR-69, off by default): with its default left out of the params they give
-// a02149f5 and cf6faa50.
+// Pinned again when Ripple and Thorn got Reverse (NOCUR-68); with the reverse fields taken out they give a02149f5 /
+// cf6faa50. Pinned again when Thorn got Burst (NOCUR-70); with the burst, spikes and dent fields taken out they give
+// bdfa9875 / f3f239b8. Pinned again when Dissolve was added (NOCUR-69, off by default); with its default left out
+// of the params they give 20eebabd / 5d255e78.
 const PINNED = {
-  modulate: '4b75ecd5',
-  scheduler: 'aa7d54e0',
+  modulate: '107bb3bd',
+  scheduler: 'abe13938',
   features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',

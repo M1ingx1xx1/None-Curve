@@ -74,6 +74,16 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
 /** Thorn at slider max on the largest canvas in em that Reach spans (THORN_LIMITS.maxReachEm: 256 em). */
 export const THORN_FARTHEST: EffectPatch = on('thorn', { ...SLIDER_MAX.thorn.thorn, canvasEm: THORN_LIMITS.maxReachEm })
 
+/** Thorn's Burst at the ends of its sliders that make the most and longest spikes, the widest bases and the deepest dents. */
+export const BURST_MAX: EffectPatch = on('thorn', {
+  burst: true,
+  spikes: top('experimental.thorn.spikes'),
+  canvasReach: 1,
+  dent: top('experimental.thorn.dent'),
+  width: top('experimental.thorn.width'),
+  spread: top('experimental.thorn.spread'),
+})
+
 export const ALL_DEFAULT: EffectPatch = Object.assign({}, ...EFFECTS.map((e) => on(e)))
 export const ALL_MAX: EffectPatch = Object.assign({}, ...EFFECTS.map((e) => SLIDER_MAX[e]))
 
