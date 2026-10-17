@@ -305,8 +305,8 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
     - **Gate**（0–95%）：低于它时特征按 0 算；高于它时，特征剩下的行程重新铺满 0–100%，所以门限打开处不会突跳。
     - **Curve**（Log 100 … Lin … Exp 100）：在 Gate 之后弯曲特征；Exp 让小声部分保持低位，Log 把它们抬高（数值取 3^curve 次幂）。
     - **Smooth**（0–2000 ms，步长 10 ms）：在 Release 之上再让这一行变慢（以该值为时间常数的平滑）。
-    - **Range**（一条滑道上的两个滑块，目标滑块行程的 0–100%，至少相隔 1%；种子上没有）：这一行只在这个区间内移动滑块。滑块本身位于区间之外时，绝不会被拉进区间：声音只能把它朝区间方向移动。同一滑块上的多行共用其中最宽的区间，强弱不同的字母（Motion contrast、Pitch reactive）也同样受它限制。
-    - **Mode**（Follow、Trigger、Toggle）：**Follow** 随特征连续移动。**Trigger** 在特征每次升过 Gate 时触发一次（特征回落到 Gate 以下 5% 后重新待命，Gate 为 0 时须回落到 0；配 Beat 时每次击打都触发）：在滑块上是推到满 Depth，再沿直线在 Smooth 时长内落回（至少 80 ms）；在种子上是跳一次。**Toggle** 在每次升过时切换：在滑块上于滑块值与滑块值 + Depth 之间切换（按 Smooth 过渡）；在种子上是跳一次。种子上 Rate 依然有效（Rate 50%：每隔一次）。
+    - **Range**（一条滑道上的两个滑块，目标滑块行程的 0–100%，至少相隔 1%；种子上没有）：这一行只在这个区间内移动滑块。滑块本身位于区间之外时，绝不会被拉进区间：声音只能把它朝区间方向移动。同一滑块上的多行共用一个区间，从其中最低的下端到最高的上端（0–20% 和 80–100% 的两行得到整个滑块，满程的一行会让其他行的 Range 失效，这时那一行会在 Range 下方说明），强弱不同的字母（Motion contrast、Pitch reactive）也同样受它限制。
+    - **Mode**（Follow、Trigger、Toggle）：**Follow** 随特征连续移动。**Trigger** 在特征每次升过 Gate 时触发一次（在高于 Gate 时触发，但触发线不低于 10%；特征回落到触发线以下 5% 后重新待命；配 Beat 时每次击打都触发）：在滑块上是推到满 Depth，再沿直线在 Smooth 时长内落回（至少 80 ms）；在种子上是跳一次。**Toggle** 在每次升过时切换：在滑块上于滑块值与滑块值 + Depth 之间切换（按 Smooth 过渡）；在种子上是跳一次。种子上 Rate 依然有效（Rate 50%：每隔一次）。某一行的 Mode 或 Feature 改变时，它从头开始。种子行只显示起作用的旋钮：Follow 下有 Gate、Curve 和 Smooth，Trigger 和 Toggle 下只有 Gate，配 Beat 时三者都不显示；配 Beat 且为 Trigger 或 Toggle 时，滑块行也不显示 Gate。
     - 平滑、脉冲和切换状态只按测得帧的时间计算，所以同样的声音总得到同样的动作；声音停止驱动时（暂停、关闭 Drive letters、Strength 0%），以及文件被拖动进度或循环回开头时，它们都从头开始。塑形随映射一起保存和撤销，也从配置文件读入；较早保存的设置里没有这些字段，读作默认值。
   - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
   - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 42 个。

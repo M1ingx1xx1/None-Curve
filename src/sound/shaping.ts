@@ -6,15 +6,15 @@
 // - Trigger: a rise past the Gate starts a pulse at 1 that falls back to 0 in a straight line over Smooth (at least
 //   SHAPING_LIMITS.pulseMs), then the Curve;
 // - Toggle: a rise past the Gate flips a state between 0 and 1, eased by Smooth, then the Curve.
-// A rise is the feature going above the Gate after it had fallen SHAPING_LIMITS.rearm below it (to 0 at Gate 0); with
-// Beat (an event feature), every hit is a rise. modulate() puts the shaped value in place of the feature value on a
+// A rise is the feature going above its firing level (the Gate, but at least SHAPING_LIMITS.minFire) after it had fallen
+// SHAPING_LIMITS.rearm below that level; with Beat (an event feature), every hit is a rise. modulate() puts the shaped value in place of the feature value on a
 // slider; on a seed, JumpTracker reads Follow's shaped value as the feature and counts each rise in Trigger and Toggle
 // as one jump.
 //
 // Time comes from frame.time only (a gap counts as at most SHAPING_LIMITS.maxStepMs), so the same frames always give
 // the same values: live, in a recording, or in a test run over the test track. Everything starts from 0 (smoothing,
-// pulse, toggle) when a mapping first drives and after reset(): Sound stopped driving (pause, Drive letters off) or
-// the file was sought (LiveScheduler.seeked).
+// pulse, toggle) when a mapping first drives, when its Mode or Feature changes, and after reset(): Sound stopped
+// driving (pause, Drive letters off) or the file was sought (LiveScheduler.seeked).
 
 import { curveValue, featureById, featureValue, gateValue, SHAPING_LIMITS, shapingOf, targetById, type Mapping } from './mapping'
 import { SILENT_FRAME, type FeatureFrame } from './types'
@@ -30,6 +30,9 @@ export interface ShapedFrame {
 export const NO_SHAPING: ShapedFrame = { values: new Map(), rises: new Set() }
 
 interface MappingState {
+  /** The Mode and Feature this state was built for: a change of either starts the mapping afresh. */
+  mode: Mapping['mode']
+  feature: Mapping['feature']
   /** The smoothed value (Follow, Toggle). */
   smooth: number
   /** A rise can fire: the feature has fallen far enough below the Gate since the last one. */
@@ -67,19 +70,24 @@ export class ShapingTracker {
       const shaping = shapingOf(mapping)
       const raw = featureValue(frame, mapping.feature)
       let state = this.states.get(mapping.id)
-      if (!state) this.states.set(mapping.id, (state = { smooth: 0, armed: true, pulse: 0, toggled: 0 }))
+      if (!state || state.mode !== shaping.mode || state.feature !== mapping.feature) {
+        state = { mode: shaping.mode, feature: mapping.feature, smooth: 0, armed: true, pulse: 0, toggled: 0 }
+        this.states.set(mapping.id, state)
+      }
 
-      // A rise past the Gate: with an event feature (Beat) each hit; else above the Gate once re-armed below it.
+      // A rise past the Gate: with an event feature (Beat) each hit; else above the firing level once re-armed below
+      // it. The band never closes, so a feature that never reaches exactly 0 still re-arms at a low Gate.
       const event = featureById(mapping.feature)?.event
       let rose = false
       if (event) {
         rose = frame[event] === true
       } else {
         const size = Math.abs(raw)
-        if (state.armed && size > shaping.gate) {
+        const fire = Math.max(shaping.gate, SHAPING_LIMITS.minFire)
+        if (state.armed && size > fire) {
           rose = true
           state.armed = false
-        } else if (!state.armed && size <= Math.max(0, shaping.gate - SHAPING_LIMITS.rearm)) {
+        } else if (!state.armed && size <= fire - SHAPING_LIMITS.rearm) {
           state.armed = true
         }
       }

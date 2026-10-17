@@ -516,7 +516,8 @@ export interface Shaping {
   /**
    * Range, as shares (0–1) of the target slider's travel, rangeMin < rangeMax: the mapping moves the slider only within
    * this span. A slider that sits outside it is not pulled in: sound can then move it only towards the span. Several
-   * mappings on one slider share the widest span among them. No effect on a seed.
+   * mappings on one slider share one span, from the lowest of their lows to the highest of their highs (sharedRange),
+   * so a full Range on one of them leaves the others' Ranges with no effect. No effect on a seed.
    */
   rangeMin: number
   rangeMax: number
@@ -533,7 +534,7 @@ export interface Shaping {
   /**
    * Gate, 0–SHAPING_LIMITS.maxGate: below it the feature counts as 0, and above it the rest of the travel is spread over
    * 0–1 again ((value − gate) / (1 − gate)), so nothing jumps where it opens. Trigger and Toggle fire when the feature
-   * rises past it (with Beat, at every hit).
+   * rises past it (but at least SHAPING_LIMITS.minFire; with Beat, at every hit).
    */
   gate: number
   mode: MappingMode
@@ -552,7 +553,11 @@ export const SHAPING_LIMITS = {
   curveBase: 3,
   /** Trigger's pulse falls back over Smooth, but never faster than this (ms), so even Smooth 0 shows a pulse. */
   pulseMs: 80,
-  /** Trigger and Toggle re-arm once the feature falls this far below the Gate (or to 0 at Gate 0), so noise around it fires once. */
+  /**
+   * Trigger and Toggle fire when the feature rises above the Gate, but never below minFire, and re-arm once it falls
+   * rearm below that level, so noise around it fires once and the band stays open at Gate 0.
+   */
+  minFire: 0.1,
   rearm: 0.05,
   /** A longer gap between measured frames counts as this long (ms), as for the jumps (JUMP_LIMITS.maxStepMs). */
   maxStepMs: 100,
@@ -671,6 +676,25 @@ export function withinBounds(position: number, basePosition: number, bounds: rea
   return position < low ? low : position > high ? high : position
 }
 
+/**
+ * The span (shares of the slider's travel, low and high) that modulate() keeps a slider target to: from the lowest
+ * rangeMin to the highest rangeMax among the target's enabled mappings with a Depth; undefined when none drives it.
+ */
+export function sharedRange(mappings: readonly Mapping[], targetId: string): readonly [number, number] | undefined {
+  let span: [number, number] | undefined
+  for (const mapping of mappings) {
+    if (mapping.target !== targetId || !mapping.enabled || mapping.depth === 0 || !Number.isFinite(mapping.depth)) continue
+    const low = mapping.rangeMin ?? 0
+    const high = mapping.rangeMax ?? 1
+    if (!span) span = [low, high]
+    else {
+      if (low < span[0]) span[0] = low
+      if (high > span[1]) span[1] = high
+    }
+  }
+  return span
+}
+
 const NO_VALUES: ReadonlyMap<string, number> = new Map()
 
 /**
@@ -693,7 +717,8 @@ const NO_VALUES: ReadonlyMap<string, number> = new Map()
  *
  * `shaped` holds each mapping's shaped feature value (ShapingTracker, by mapping id: Gate, Curve, Smooth, Trigger's
  * pulse, Toggle's state) in place of its feature value; a mapping missing from it is shaped without memory
- * (shapeStateless). Each slider target's live position then keeps to the widest Range among its mappings (`bounds`).
+ * (shapeStateless). Each slider target's live position then keeps to one span shared by its mappings, from the lowest
+ * of their Range lows to the highest of their highs (`bounds`, as sharedRange).
  * At the default shaping every value is the feature value itself and the range the whole slider, so the result is
  * exactly what it was before shaping existed.
  */
@@ -709,7 +734,7 @@ export function modulate(
   // Sum of depth × feature per slider target, in the order targets first appear in the mappings.
   let sums: Map<TargetSpec, number> | null = null
   let seeds: Map<string, number> | null = null
-  // The widest Range among each slider target's mappings: [low, high].
+  // Each slider target's shared Range (sharedRange): the lowest low and the highest high among its mappings.
   let spans: Map<TargetSpec, [number, number]> | null = null
   let params = base
   const inactive = new Map<TargetSpec, boolean>()

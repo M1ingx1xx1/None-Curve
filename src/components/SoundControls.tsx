@@ -16,6 +16,7 @@ import {
   featureById,
   featureValue,
   shapingOf,
+  sharedRange,
   targetById,
   type Activation,
   type FeatureGroup,
@@ -1059,6 +1060,7 @@ function ModulationGroup({ params, notices, onActivate, onRemove }: ModulationGr
               params={params}
               open={expanded === mapping.id}
               notice={notices.get(mapping.id) ?? null}
+              span={sharedRange(mappings, mapping.target)}
               onToggle={() => setExpanded((current) => (current === mapping.id ? null : mapping.id))}
               onActivate={(target) => onActivate(mapping.id, target)}
               onRemove={() => onRemove(mapping.id)}
@@ -1103,11 +1105,18 @@ const shapingHelp =
   'falling back over Smooth; Toggle flips the target between its slider value and the full Depth at each rise. On a ' +
   'seed, Trigger and Toggle move it on once per rise. Gate: below it the sound counts as silence. Curve: Log lifts quiet ' +
   'sound, Exp keeps it low until it gets loud. Smooth: slows this mapping on top of Release. Range: the part of the ' +
-  "slider this mapping may move the target within (not on a seed)."
+  'slider this mapping may move the target within; mappings on one slider share the outer edges of their Ranges. On a ' +
+  'seed there is no Range, Curve and Smooth act only in Follow, and with Beat Gate, Curve and Smooth do nothing; with ' +
+  "Beat in Trigger or Toggle every hit fires, so there is no Gate. Knobs that do nothing are not shown."
 
 /** Curve as read under its knob: "Lin", "Log 40", "Exp 40" (percent of the way to the strongest curve). */
 function formatCurve(percent: number): string {
   return percent === 0 ? 'Lin' : `${percent < 0 ? 'Log' : 'Exp'} ${Math.abs(percent)}`
+}
+
+/** Curve as screen readers read it: "Linear", "Logarithmic, 40 percent". */
+function curveText(percent: number): string {
+  return percent === 0 ? 'Linear' : `${percent < 0 ? 'Logarithmic' : 'Exponential'}, ${Math.abs(percent)} percent`
 }
 
 interface MappingRowProps {
@@ -1118,6 +1127,8 @@ interface MappingRowProps {
   open: boolean
   /** What picking this row's target switched on ("Turned on Ripple."), or null. */
   notice: string | null
+  /** The Range shared by every mapping on this row's target (sharedRange), if any drives it. */
+  span: readonly [number, number] | undefined
   /** Opens or closes the row's details. */
   onToggle: () => void
   /** Switches on what `target` needs to act and sets the row's notice. */
@@ -1131,7 +1142,7 @@ interface MappingRowProps {
  * The details below it hold the rest (what Rate means, Remove) and are where more of a mapping's settings go.
  * Under the row, what picking the target switched on; or, while the target does nothing now, why, with Enable.
  */
-function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate, onRemove }: MappingRowProps) {
+function MappingRow({ mapping, index, params, open, notice, span, onToggle, onActivate, onRemove }: MappingRowProps) {
   const id = useId()
   const rateHint = useHint()
   const shapingHint = useHint()
@@ -1153,6 +1164,16 @@ function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate
   const update = (patch: Partial<Omit<Mapping, 'id'>>) => mappingStore.update(mapping.id, patch)
   const shaping = shapingOf(mapping)
   const percent = (share: number) => Math.round(share * 100)
+  // On a seed only rises count in Trigger and Toggle, and Beat's hits count as they are (in Trigger and Toggle on a
+  // slider too): knobs that would do nothing there are not shown (as Range is not on a seed).
+  const event = feature?.event !== undefined
+  const showGate = !event || (!jump && shaping.mode === 'follow')
+  const showCurveSmooth = !jump || (!event && shaping.mode === 'follow')
+  // Another mapping on the target widens this row's Range (they share the outer edges): say so under the Range.
+  const widened =
+    !jump && mapping.enabled && mapping.depth !== 0 && span !== undefined && (span[0] < shaping.rangeMin || span[1] > shaping.rangeMax)
+      ? span
+      : undefined
   // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
   // what a target needs is switched on only once the choice is made, on Enter or on leaving the select; the
   // settings passed on the way stay as they were. A pick with the mouse is made at once.
@@ -1287,50 +1308,58 @@ function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate
           ))}
         </div>
         <HintText hint={shapingHint}>{shapingHelp}</HintText>
-        <div className="mapping-shaping">
-          <Knob
-            size="small"
-            label="Gate"
-            name={`Gate, mapping ${n}`}
-            value={percent(shaping.gate)}
-            min={SHAPING_LIMITS.gate.min * 100}
-            max={SHAPING_LIMITS.gate.max * 100}
-            step={1}
-            defaultValue={DEFAULT_SHAPING.gate * 100}
-            format={(v) => formatPercent(v)}
-            valueText={`${percent(shaping.gate)} percent`}
-            unit="%"
-            onChange={(next) => update({ gate: next / 100 })}
-          />
-          <Knob
-            size="small"
-            label="Curve"
-            name={`Curve, mapping ${n}`}
-            value={percent(shaping.curve)}
-            min={SHAPING_LIMITS.curve.min * 100}
-            max={SHAPING_LIMITS.curve.max * 100}
-            step={1}
-            defaultValue={DEFAULT_SHAPING.curve * 100}
-            format={formatCurve}
-            valueText={formatCurve(percent(shaping.curve)).replace('Lin', 'Linear').replace('Log', 'Logarithmic').replace('Exp', 'Exponential')}
-            bipolar
-            onChange={(next) => update({ curve: next / 100 })}
-          />
-          <Knob
-            size="small"
-            label="Smooth"
-            name={`Smooth, mapping ${n}`}
-            value={shaping.smoothMs}
-            min={SHAPING_LIMITS.smoothMs.min}
-            max={SHAPING_LIMITS.smoothMs.max}
-            step={SHAPING_LIMITS.smoothMs.step}
-            defaultValue={DEFAULT_SHAPING.smoothMs}
-            format={(v) => `${v} ms`}
-            valueText={`${shaping.smoothMs} milliseconds`}
-            unit="ms"
-            onChange={(next) => update({ smoothMs: next })}
-          />
-        </div>
+        {(showGate || showCurveSmooth) && (
+          <div className="mapping-shaping">
+            {showGate && (
+              <Knob
+                size="small"
+                label="Gate"
+                name={`Gate, mapping ${n}`}
+                value={percent(shaping.gate)}
+                min={SHAPING_LIMITS.gate.min * 100}
+                max={SHAPING_LIMITS.gate.max * 100}
+                step={1}
+                defaultValue={DEFAULT_SHAPING.gate * 100}
+                format={(v) => formatPercent(v)}
+                valueText={`${percent(shaping.gate)} percent`}
+                unit="%"
+                onChange={(next) => update({ gate: next / 100 })}
+              />
+            )}
+            {showCurveSmooth && (
+              <Knob
+                size="small"
+                label="Curve"
+                name={`Curve, mapping ${n}`}
+                value={percent(shaping.curve)}
+                min={SHAPING_LIMITS.curve.min * 100}
+                max={SHAPING_LIMITS.curve.max * 100}
+                step={1}
+                defaultValue={DEFAULT_SHAPING.curve * 100}
+                format={formatCurve}
+                valueText={curveText(percent(shaping.curve))}
+                bipolar
+                onChange={(next) => update({ curve: next / 100 })}
+              />
+            )}
+            {showCurveSmooth && (
+              <Knob
+                size="small"
+                label="Smooth"
+                name={`Smooth, mapping ${n}`}
+                value={shaping.smoothMs}
+                min={SHAPING_LIMITS.smoothMs.min}
+                max={SHAPING_LIMITS.smoothMs.max}
+                step={SHAPING_LIMITS.smoothMs.step}
+                defaultValue={DEFAULT_SHAPING.smoothMs}
+                format={(v) => `${v} ms`}
+                valueText={`${shaping.smoothMs} milliseconds`}
+                unit="ms"
+                onChange={(next) => update({ smoothMs: next })}
+              />
+            )}
+          </div>
+        )}
         {!jump && (
           <div className="mapping-range">
             <span className="field-title">Range</span>
@@ -1344,10 +1373,16 @@ function MappingRow({ mapping, index, params, open, notice, onToggle, onActivate
               minGap={percent(SHAPING_LIMITS.minSpan)}
               format={(low, high) => `${low}–${high}%`}
               valueText={(v) => `${v} percent`}
+              describedBy={widened ? `${id}-widened` : undefined}
               onChange={({ low, high }) =>
                 update({ ...(low !== undefined ? { rangeMin: low / 100 } : {}), ...(high !== undefined ? { rangeMax: high / 100 } : {}) })
               }
             />
+            {widened && (
+              <p id={`${id}-widened`} className="panel-notice">
+                {`Another mapping on this target widens the Range to ${percent(widened[0])}–${percent(widened[1])}%.`}
+              </p>
+            )}
           </div>
         )}
         {jump && (

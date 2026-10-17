@@ -18,6 +18,7 @@ import {
   modulate,
   SHAPING_LIMITS,
   shapingOf,
+  sharedRange,
   targetById,
   type FeatureId,
   type Mapping,
@@ -244,11 +245,18 @@ describe('Range', () => {
     expect(down.positions.get(AMOUNT)).toBeCloseTo(0.2, 2)
   })
 
-  it('takes the widest span among the mappings on one slider, and reports it', () => {
+  it('takes the outer edges of the spans on one slider, and reports them as sharedRange does', () => {
     const m = [row({ id: 'a', depth: 0.6, rangeMin: 0, rangeMax: 0.2 }), row({ id: 'b', depth: 0.6, rangeMin: 0.1, rangeMax: 0.4 })]
     const out = modulate(base, frameAt(10, 1), m)
     expect(out.bounds?.get(AMOUNT)).toEqual([0, 0.4])
+    expect(sharedRange(m, AMOUNT)).toEqual([0, 0.4])
     expect(out.positions.get(AMOUNT)).toBeLessThanOrEqual(0.4 + 1e-9)
+    // Two narrow spans apart give the whole slider between them; a row switched off or at Depth 0 takes no part.
+    const apart = [row({ id: 'a', rangeMin: 0, rangeMax: 0.2 }), row({ id: 'b', rangeMin: 0.8, rangeMax: 1 })]
+    expect(sharedRange(apart, AMOUNT)).toEqual([0, 1])
+    expect(sharedRange([...apart, row({ id: 'c', enabled: false, rangeMin: 0.5, rangeMax: 0.6 })], AMOUNT)).toEqual([0, 1])
+    expect(sharedRange([apart[0], { ...apart[1], depth: 0 }], AMOUNT)).toEqual([0, 0.2])
+    expect(sharedRange(apart, SEED)).toBeUndefined()
   })
 
   it('keeps letters on a stronger level within it too', () => {
@@ -275,6 +283,18 @@ describe('Trigger', () => {
     expect(rises[0]).toBeGreaterThan(200)
     expect(rises[0]).toBeLessThan(220)
     expect(rises[2]).toBeGreaterThan(1200)
+  })
+
+  it('re-arms at Gate 0 when the feature dips but never reaches 0', () => {
+    // Three loud bursts over a floor of 0.02 (never 0), with noise around SHAPING_LIMITS.minFire in between.
+    const floor = frames(2, (t) =>
+      (t > 200 && t < 300) || (t > 800 && t < 900) || (t > 1400 && t < 1500) ? 0.6 : t > 1000 && t < 1300 ? (Math.round(t) % 3 ? 0.09 : 0.11) : 0.02,
+    )
+    for (const mode of ['trigger', 'toggle'] as const) {
+      const tracker = new ShapingTracker()
+      const m = row({ mode })
+      expect(floor.filter((f) => tracker.advance(f, [m]).rises.has('m1'))).toHaveLength(4)
+    }
   })
 
   it('pushes a slider to the full Depth and lets it fall back in a straight line over Smooth', () => {
@@ -382,6 +402,19 @@ describe('determinism and restarts', () => {
     expect(tracker.advance(frameAt(20, 1), [m]).values.get('m1')).toBe(1)
     tracker.advance(frameAt(30, 0), [{ ...m, enabled: false }])
     expect(tracker.advance(frameAt(40, 0), [m]).values.get('m1')).toBe(0)
+  })
+
+  it('starts a mapping afresh when its Mode or Feature changes', () => {
+    const tracker = new ShapingTracker()
+    const m = row({ mode: 'toggle', gate: 0.5 })
+    tracker.advance(frameAt(10, 0), [m])
+    expect(tracker.advance(frameAt(20, 1), [m]).values.get('m1')).toBe(1)
+    tracker.advance(frameAt(30, 0), [{ ...m, mode: 'follow' }])
+    // Back in Toggle: no flip is left over, so the target stays at its slider value until the next rise.
+    expect(tracker.advance(frameAt(40, 0), [m]).values.get('m1')).toBe(0)
+    expect(tracker.advance(frameAt(50, 1), [m]).values.get('m1')).toBe(1)
+    // Still above the Gate, a new Feature re-arms at once: its first rise fires.
+    expect(tracker.advance(frameAt(60, 1), [{ ...m, feature: 'swell' }]).rises.has('m1')).toBe(true)
   })
 })
 
