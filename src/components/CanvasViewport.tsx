@@ -22,7 +22,10 @@ interface CanvasViewportProps {
    * the edge warning does not follow the live frames. Defaults to `scene`.
    */
   placement?: SpecimenScene | null
+  /** The colours as shown (Sound's while it drives them). */
   palette: PaletteParams
+  /** The sliders' own colours, which the selection highlight is computed from (so it holds still while Sound moves them). */
+  ownPalette?: PaletteParams
   artboard: ArtboardParams
   onArtboardChange: (patch: Partial<ArtboardParams>) => void
   /** Snapping grid spacing to draw, or null when snapping is off. */
@@ -105,6 +108,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     layout,
     placement,
     palette,
+    ownPalette = palette,
     artboard,
     onArtboardChange,
     gridSize,
@@ -231,6 +235,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
               layout={layout}
               ink={palette.ink}
               paper={palette.paper}
+              highlightFrom={ownPalette}
               transparent={palette.transparent}
               view={view}
               gridSize={gridSize}

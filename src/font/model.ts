@@ -202,6 +202,12 @@ export interface LoadedFont {
   getGlyph(index: number): SourceGlyph
   /** SVG path data (font units, y-up) for small glyph previews. */
   getPreviewPath(index: number): string
+  /**
+   * A variable font at other axis values (by tag; the others keep this font's own): the same font, id included, with
+   * the outlines and shaping of that instance; this font itself for its own values. Used while Sound drives an axis.
+   * Missing on a font without axes.
+   */
+  at?(coords: Readonly<Record<string, number>>): LoadedFont
 }
 
 export function glyphLabel(glyph: GlyphRef): string {

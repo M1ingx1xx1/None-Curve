@@ -6,10 +6,15 @@
 // detector; Rate 100%: every one, 50%: every other one), any other feature jumps at a rate that follows its value,
 // up to maxRate a second at Rate 100%. Seeds that jump in the same frame jump together, and each such frame is
 // a large change taken from the flash budget the driven sliders share (flash.ts): over budget, the jump is skipped.
+//
+// Shaping (shaping.ts): in Follow mode a continuous feature is read after its Gate, Smooth and Curve; Beat counts its
+// onsets as ever. In Trigger and Toggle mode every rise past the Gate counts as an onset does (Rate 50%: every other
+// one). Range does nothing on a seed.
 
 import type { GeometryParams } from '../geometry/types'
 import { FLASH_LIMITS, FlashBudget } from './flash'
-import { featureById, featureValue, targetById, type Mapping, type TargetSpec } from './mapping'
+import { featureById, shapeStateless, targetById, type Mapping, type TargetSpec } from './mapping'
+import { NO_SHAPING, type ShapedFrame } from './shaping'
 import { SILENT_FRAME, type FeatureFrame } from './types'
 
 export const JUMP_LIMITS = {
@@ -47,9 +52,16 @@ export class JumpTracker {
   /**
    * Advances with one measured frame and returns the jumps so far by target id (the same Map object when nothing
    * changed). Uses frame.time for the time step and the flash budget. SILENT_FRAME / time <= 0: no change.
-   * `strength` (the Response group's Strength) multiplies every Rate, which still caps at 1.
+   * `strength` (the Response group's Strength) multiplies every Rate, which still caps at 1. `shaped`: this frame's
+   * shaping (ShapingTracker); without it, Follow is shaped without memory and Trigger and Toggle never jump.
    */
-  advance(frame: FeatureFrame, mappings: readonly Mapping[], base: GeometryParams, strength = 1): ReadonlyMap<string, number> {
+  advance(
+    frame: FeatureFrame,
+    mappings: readonly Mapping[],
+    base: GeometryParams,
+    strength = 1,
+    shaped: ShapedFrame = NO_SHAPING,
+  ): ReadonlyMap<string, number> {
     if (frame === SILENT_FRAME || !(frame.time > 0)) return this.current
     const dt = this.lastTime === null ? 0 : Math.min(JUMP_LIMITS.maxStepMs, Math.max(0, frame.time - this.lastTime))
     this.lastTime = frame.time
@@ -65,9 +77,12 @@ export class JumpTracker {
       driven.add(spec.id)
       const rate = Math.min(1, strength * Math.abs(mapping.depth))
       const event = featureById(mapping.feature)?.event
-      const step = event
-        ? frame[event] === true ? rate : 0
-        : (rate * Math.abs(featureValue(frame, mapping.feature)) * JUMP_LIMITS.maxRate * dt) / 1000
+      const step =
+        (mapping.mode ?? 'follow') !== 'follow'
+          ? shaped.rises.has(mapping.id) ? rate : 0
+          : event
+            ? frame[event] === true ? rate : 0
+            : (rate * Math.abs(shaped.values.get(mapping.id) ?? shapeStateless(mapping, frame)) * JUMP_LIMITS.maxRate * dt) / 1000
       let sum = (this.progress.get(mapping.id) ?? 0) + step
       const whole = Math.floor(sum + EPSILON)
       if (whole >= 1) {

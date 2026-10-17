@@ -5,7 +5,7 @@
 
 import type { ExperimentalParams, GeometryParams } from '../geometry/types'
 import { initialState } from '../state/editorState'
-import { applyPatches, type Mapping, type ParamPatch } from './mapping'
+import { applyPatches, type Mapping, type ParamPatch, type Shaping } from './mapping'
 
 export interface Preset {
   id: string
@@ -34,11 +34,13 @@ const EFFECTS: readonly [EffectKey, string][] = [
   ['dissolve', 'Dissolve'],
 ]
 
-const map = (feature: Mapping['feature'], target: string, depth: number): Omit<Mapping, 'id'> => ({
+/** A preset's row; `shaping` sets only the fields that differ from DEFAULT_SHAPING (mapping.ts). */
+const map = (feature: Mapping['feature'], target: string, depth: number, shaping: Partial<Shaping> = {}): Omit<Mapping, 'id'> => ({
   enabled: true,
   feature,
   target,
   depth,
+  ...shaping,
 })
 
 /** Start values for a Geometry group. */

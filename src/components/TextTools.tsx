@@ -11,6 +11,8 @@ import TypographyControls from './TypographyControls'
 interface TextToolsProps {
   typography: TypographyParams
   palette: PaletteParams
+  /** The colours Sound shows over `palette` (the live look), for the Color tab's live swatches. */
+  livePalette?: Partial<Pick<PaletteParams, 'ink' | 'paper'>>
   artboard: ArtboardParams
   font: LoadedFont | null
   /** The laid-out text, for whether Fit text can run. */
@@ -46,7 +48,7 @@ function readTab(): Tab {
  * canvas (Typography), characters to insert (Glyphs), and its colours (Color). Every tab stays
  * mounted, so switching keeps local state such as the glyph search or a hex value being typed.
  */
-export default function TextTools({ typography, palette, artboard, font, scene, loadSliderScene, dispatch, onInsertGlyph }: TextToolsProps) {
+export default function TextTools({ typography, palette, livePalette, artboard, font, scene, loadSliderScene, dispatch, onInsertGlyph }: TextToolsProps) {
   const [tab, setTab] = useState<Tab>(readTab)
   const ids = useId()
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ typography: null, glyphs: null, color: null })
@@ -114,7 +116,7 @@ export default function TextTools({ typography, palette, artboard, font, scene, 
         <GlyphPanel font={font} onInsert={onInsertGlyph} />
       </div>
       <div className="text-tools-panel text-tools-scroll" {...panel('color')}>
-        <ColorControls params={palette} disabled={false} dispatch={dispatch} />
+        <ColorControls params={palette} live={livePalette} disabled={false} dispatch={dispatch} />
       </div>
     </section>
   )

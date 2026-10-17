@@ -301,10 +301,18 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
     - **Jump：** 种子前进一个，让锚点、翻折、阵风、切口、拖尾或刺跳到新位置。三个种子都是目标，新的种子让每个锚点落到新的地方（打开 Thorn 时，新的 Experimental 或 Random anchors 种子每次只传到一组字母：见下文的刺按轮次变化）。在种子上，这一行的滑块显示为 **Rate**（0–100%）：配 Beat 时，每次起音种子前进一个（Rate 50% 是每隔一次起音，25% 是每四次）；配其他特征时，每秒最多跳 4.8 次 × Rate × 特征值。种子始终是字段范围内（0–999 999）的整数，超过最大值后回到 0。
     - **Step：** 换到几个可选值中的下一个，例如 Allowed directions（角度步长）。
     - **脉冲：** 跃起后再回落。Beat 用在任意滑块上就是这样，靠的是它的脉冲。
+  - **塑形**（每行一组，在这一行的详情里；NOCUR-72）：这一行如何回应它的特征。全部为默认值时（Range 满程、Linear、Smooth 0 ms、Gate 0%、Follow），这一行的动作和有塑形之前完全一样。
+    - **Gate**（0–95%）：低于它时特征按 0 算；高于它时，特征剩下的行程重新铺满 0–100%，所以门限打开处不会突跳。
+    - **Curve**（Log 100 … Lin … Exp 100）：在 Gate 之后弯曲特征；Exp 让小声部分保持低位，Log 把它们抬高（数值取 3^curve 次幂）。
+    - **Smooth**（0–2000 ms，步长 10 ms）：在 Release 之上再让这一行变慢（以该值为时间常数的平滑）。
+    - **Range**（一条滑道上的两个滑块，目标滑块行程的 0–100%，至少相隔 1%；种子上没有）：这一行只在这个区间内移动滑块。滑块本身位于区间之外时，绝不会被拉进区间：声音只能把它朝区间方向移动。同一滑块上的多行共用一个区间，从其中最低的下端到最高的上端（0–20% 和 80–100% 的两行得到整个滑块，满程的一行会让其他行的 Range 失效，这时那一行会在 Range 下方说明），强弱不同的字母（Motion contrast、Pitch reactive）也同样受它限制。
+    - **Mode**（Follow、Trigger、Toggle）：**Follow** 随特征连续移动。**Trigger** 在特征每次升过 Gate 时触发一次（在高于 Gate 时触发，但触发线不低于 10%；特征回落到触发线以下 5% 后重新待命；配 Beat 时每次击打都触发）：在滑块上是推到满 Depth，再沿直线在 Smooth 时长内落回（至少 80 ms）；在种子上是跳一次。**Toggle** 在每次升过时切换：在滑块上于滑块值与滑块值 + Depth 之间切换（按 Smooth 过渡）；在种子上是跳一次。种子上 Rate 依然有效（Rate 50%：每隔一次）。某一行的 Mode 或 Feature 改变时，它从头开始。种子行只显示起作用的旋钮：Follow 下有 Gate、Curve 和 Smooth，Trigger 和 Toggle 下只有 Gate，配 Beat 时三者都不显示；配 Beat 且为 Trigger 或 Toggle 时，滑块行也不显示 Gate。
+    - 平滑、脉冲和切换状态只按测得帧的时间计算，所以同样的声音总得到同样的动作；声音停止驱动时（暂停、关闭 Drive letters、Strength 0%），以及文件被拖动进度或循环回开头时，它们都从头开始。塑形随映射一起保存和撤销，也从配置文件读入；较早保存的设置里没有这些字段，读作默认值。
   - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
   - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 42 个。
   - 开关从不作为目标，Distortion 的少数锚点模式也不是。
   - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标选择则立即应用。**Add mapping** 优先选已经起作用的目标。
+  - **更多目标（NOCUR-73）：** 除了 Geometry 和 Experimental 的滑块和种子，一行还可以驱动：(1) 效果的开关（每个 **Use …**、Ripple 的 Reverse、Thorn 的 Burst 和 Reverse），只在 Trigger（脉冲期间）或 Toggle（从一次上升到下一次）下翻转，没有 Depth、Range 和 Curve；(2) Typography 的 Size、Tracking、Line height 和 Slant；(3) 文字颜色和背景颜色的 Hue 和 Lightness（OKLCH，保持彩度；灰色没有色相，背景需要关闭 Transparent background）；(4) 所载入可变字体的每个轴。字体没有的轴上的行会保留，但在载入带有该轴的字体之前不起作用。Target 列表分组为 Geometry / Experimental / Switches / Typography / Color / Variable axes。画布、预览和视频显示实时值，被驱动的控件显示标记，Freeze 保留除轴以外的全部值；没有映射这些目标时，输出不变。
     - Curve flattening 的目标会关闭 Random anchors，并设置各自需要的：Tolerance 需要 Adaptive 模式，Segments per curve 需要 Fixed segments 模式，Corner angle 需要 Merge joined curves（两种模式下都可以）。
     - Grid size 打开 Snap to grid。
     - Distortion 的 Noise frequency、Normal bias 和 Seed 在 Noise amplitude 为 0 时把它设为 40。

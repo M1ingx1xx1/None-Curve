@@ -71,6 +71,7 @@ export default function TypographyControls({ params, artboard, font, scene, load
 
         <SliderField
           id="type-size"
+          target="typography.size"
           label="Size"
           value={params.size}
           min={TYPOGRAPHY_LIMITS.minSize}
@@ -100,6 +101,7 @@ export default function TypographyControls({ params, artboard, font, scene, load
         </div>
         <SliderField
           id="type-tracking"
+          target="typography.tracking"
           label="Tracking"
           value={params.tracking}
           min={TYPOGRAPHY_LIMITS.minTracking}
@@ -112,6 +114,7 @@ export default function TypographyControls({ params, artboard, font, scene, load
 
         <SliderField
           id="type-leading"
+          target="typography.lineHeight"
           label="Line height"
           value={params.lineHeight}
           min={TYPOGRAPHY_LIMITS.minLineHeight}
@@ -124,6 +127,7 @@ export default function TypographyControls({ params, artboard, font, scene, load
 
         <SliderField
           id="type-slant"
+          target="typography.slant"
           label="Slant"
           value={params.slant}
           min={-TYPOGRAPHY_LIMITS.maxSlant}
