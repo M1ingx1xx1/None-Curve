@@ -1,9 +1,9 @@
-import { curlIsOn } from './curl'
-import { spikesIsOn } from './spikes'
+import { whorlIsOn } from './whorl'
+import { thornIsOn } from './thorn'
 import { experimentalFolds } from './experimental'
-import { noiseIsOn } from './noise'
+import { crumpleIsOn } from './crumple'
 import { rippleIsOn } from './ripple'
-import { windIsOn } from './wind'
+import { slipstreamIsOn } from './slipstream'
 import type { GeometryParams } from './types'
 
 /** Human-readable list of the active pipeline steps, in pipeline order. */
@@ -32,8 +32,8 @@ export function describePipeline(params: GeometryParams): string[] {
       `distortion ${distortion.amount} u${distortion.sparse ? ', few anchors' : ''}, frequency ${distortion.frequency}, bias ${Math.round(distortion.normalBias * 100)}%, seed ${distortion.seed}`,
     )
   }
-  if (noiseIsOn(experimental.noise)) {
-    steps.push(`noise ${Math.round(experimental.noise.amount * 100)}%, facets ${Math.round(experimental.noise.facet * 100)}% em${experimental.noise.turn ? `, turn ${Math.round(experimental.noise.turn)}°` : ''}, seed ${experimental.seed}`)
+  if (crumpleIsOn(experimental.crumple)) {
+    steps.push(`crumple ${Math.round(experimental.crumple.amount * 100)}%, facets ${Math.round(experimental.crumple.facet * 100)}% em${experimental.crumple.turn ? `, turn ${Math.round(experimental.crumple.turn)}°` : ''}, seed ${experimental.seed}`)
   }
   if (rippleIsOn(experimental.ripple)) {
     const r = experimental.ripple
@@ -42,18 +42,18 @@ export function describePipeline(params: GeometryParams): string[] {
       `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}`,
     )
   }
-  if (curlIsOn(experimental.curl)) {
-    const c = experimental.curl
-    steps.push(`curl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`)
+  if (whorlIsOn(experimental.whorl)) {
+    const c = experimental.whorl
+    steps.push(`whorl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`)
   }
-  if (windIsOn(experimental.wind)) {
-    const w = experimental.wind
+  if (slipstreamIsOn(experimental.slipstream)) {
+    const w = experimental.slipstream
     const pct = (v: number) => `${Math.round(v * 100)}%`
-    steps.push(`wind ${pct(w.strength)} toward ${Math.round(w.direction)}°, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}, seed ${experimental.seed}`)
+    steps.push(`slipstream ${pct(w.strength)} toward ${Math.round(w.direction)}°, gusts ${pct(w.gust)} em, gustiness ${pct(w.gustiness)}, seed ${experimental.seed}`)
   }
-  if (spikesIsOn(experimental.spikes)) {
-    const s = experimental.spikes
-    steps.push(`spikes ×${s.count}, reach ${Math.round(s.reach * 100)}% em, spread ${Math.round(s.spread * 100)}%, width ${Math.round(s.width * 100)}%, seed ${experimental.seed}`)
+  if (thornIsOn(experimental.thorn)) {
+    const s = experimental.thorn
+    steps.push(`thorn ×${s.count}, reach ${Math.round(s.reach * 100)}% em, spread ${Math.round(s.spread * 100)}%, width ${Math.round(s.width * 100)}%, seed ${experimental.seed}`)
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')
   return steps

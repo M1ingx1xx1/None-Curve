@@ -139,15 +139,15 @@ Keep the rendered result visible on the main canvas while users drag or adjust c
 
 ### P2: Experimental effects (stackable)
 
-Creative effects in one **Experimental** tab beside Geometry: **Noise** (crumpled paper), **Ripple** (waves from a point), and **Wind** (pulled along a direction), built in that order, then **Curl** (a swirl around each letter's middle) and **Spikes** (a few anchors jumping out into the canvas). Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
+Creative effects in one **Experimental** tab beside Geometry: **Crumple** (crumpled paper), **Ripple** (waves from a point), and **Slipstream** (pulled along a direction), built in that order, then **Whorl** (a swirl around each letter's middle) and **Thorn** (a few anchors jumping out into the canvas). Detailed plan: [EXPERIMENTAL_PLAN.md](EXPERIMENTAL_PLAN.md).
 
-- **No curves, also to the eye:** every effect is a piecewise-linear warp of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible. Spikes is the one effect that is not a warp: it moves a few anchors along straight lines, so its edges stay straight too.
-- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Noise → Ripple → Curl → Wind → Spikes, each on the previous result.
+- **No curves, also to the eye:** every effect is a piecewise-linear warp of the plane. Edges stay straight inside each mesh triangle and bend only at creases, where the only new vertices go. No effect samples a smooth function along the outline, and meshes have a minimum cell size so facets stay visible. Thorn is the one effect that is not a warp: it moves a few anchors along straight lines, so its edges stay straight too.
+- **Stackable:** any combination can be on at once. They run after the Geometry pipeline in the fixed order Crumple → Ripple → Whorl → Slipstream → Thorn, each on the previous result.
 - **Always valid:** up to 100%, every warp is one-to-one (no mesh triangle flips), so any combination keeps outlines from crossing and counters inside their letters. Contours are still checked after each effect, with reductions reported.
-- **Folds for unreadable extremes:** above 100% (Noise to 500%, Ripple to 400%, Curl to ±400%, Wind Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports. Spikes may cross the letter at any setting, so whenever it is on the outlines are merged the same way.
+- **Folds for unreadable extremes:** above 100% (Crumple to 500%, Ripple to 400%, Whorl to ±400%, Slipstream Gustiness to 200% with backward gusts, Strength to 800%) the letter may fold onto itself. The overlaps are merged into clean, non-crossing outlines of what the nonzero rule fills, still with straight edges only, so every glyph still exports. Thorn may cross the letter at any setting, so whenever it is on the outlines are merged the same way.
 - **Petals:** Ripple can bend its rings into a flower, one straight-edged petal per side (0–300%). Petals is one-to-one at any depth, so it never folds on its own; folding still comes only from Ripple Amount above 100%.
-- **Curl:** rings of straight-sided polygons each turn as a whole about the letter's middle, either with the top and bottom pinned (the middle twists) or as a whole (the top and bottom swing round too). Up to 100% either way it is one-to-one; beyond, it folds like the other effects.
-- **Spikes:** a few anchors on the outside of each letter (counters never spike) jump straight out into the canvas, and their edges become long, straight spikes. Anchors sets how many per letter (1–12), Reach how far (up to 200% of the em), Spread how far they turn aside (up to 90° either way), and Width how wide each spike is where it leaves the letter (from a thin needle to a wide wedge). The shared seed picks which anchors jump and where, so Next variant, or a seed driven by Sound, moves them.
+- **Whorl:** rings of straight-sided polygons each turn as a whole about the letter's middle, either with the top and bottom pinned (the middle twists) or as a whole (the top and bottom swing round too). Up to 100% either way it is one-to-one; beyond, it folds like the other effects.
+- **Thorn:** a few anchors on the outside of each letter (counters never grow thorns) jump straight out into the canvas, and their edges become long, straight thorns. Anchors sets how many per letter (1–12), Reach how far (up to 200% of the em), Spread how far they turn aside (up to 90° either way), and Width how wide each thorn is where it leaves the letter (from a thin needle to a wide wedge). The shared seed picks which anchors jump and where, so Next variant, or a seed driven by Sound, moves them.
 - **Repeatable:** one shared seed for the tab; effects work in glyph coordinates, so every copy of a letter has the same shape and fonts can be exported.
 - Random anchors moves out of "experimental" and stays in the Geometry tab.
 
@@ -176,7 +176,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 2. **Geometry and grid:** Grid snapping, grid size, angle locking, fixed-anchor behavior.
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed (plus the few anchors mode, which has no control: only the Flicker preset sets it).
 4. **Export:** SVG settings, font glyph coverage, and font metadata.
-5. **Experimental** (its own tab beside Geometry): Noise, Ripple, Curl, Wind, and Spikes, stackable, with one shared seed.
+5. **Experimental** (its own tab beside Geometry): Crumple, Ripple, Whorl, Slipstream, and Thorn, stackable, with one shared seed.
 
 ### Tool hierarchy
 
@@ -208,7 +208,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Derive geometry from the source curves and current parameters; changing parameters must not mutate the original data cumulatively.
 - Use an explicit seed for random distortion so previews are repeatable.
 - Validate SVG output to ensure path data contains no curve commands such as `C` or `Q`.
-- Experimental effects are piecewise-linear warps that add vertices only at creases (Spikes moves a few anchors along straight lines); they must not add runs of small same-direction turns that read as curves.
+- Experimental effects are piecewise-linear warps that add vertices only at creases (Thorn moves a few anchors along straight lines); they must not add runs of small same-direction turns that read as curves.
 - Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing.
 
 ## 8. Acceptance criteria
@@ -225,7 +225,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Font loading, preview, and export all run client-side.
 - Loading a font does not automatically create a download; export happens only after an explicit user action.
 - If font export cannot preserve certain features, the app explains this before export.
-- Experimental effects can all be on at once; any combination within 100% gives valid outlines (no crossings, counters inside) and adds no curve-like runs. Beyond 100%, or with Spikes on, folded or spiked letters are merged into non-crossing outlines that export.
+- Experimental effects can all be on at once; any combination within 100% gives valid outlines (no crossings, counters inside) and adds no curve-like runs. Beyond 100%, or with Thorn on, folded or thorned letters are merged into non-crossing outlines that export.
 
 ## 9. Suggested milestones
 
@@ -264,7 +264,7 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 - **Mappings:** up to 8 rows, each connecting one feature to one target.
   - **Continuous:** slider position (0–1 along the slider as drawn) + Depth × feature, clamped to the slider's ends and rounded to its step; contributions to one target add up before clamping. On an ordinary slider this is slider value + Depth × feature × the slider's range; a log-scaled slider such as Tolerance moves evenly along its track.
   - **Events** (Beat, Kick), in three kinds:
-    - **Jump:** a seed moves on, so anchors, folds, gusts, or spikes jump to new places. The three seeds are targets, and a new seed puts every anchor somewhere new. On a seed, the row's slider reads **Rate** (0–100%): with Beat or Kick the seed moves on by one per onset (Rate 50% is every other onset, 25% every fourth); with any other feature it jumps at up to 4.8 times a second × Rate × the feature's value. Seeds stay whole numbers in their field's range (0–999 999), wrapping to 0.
+    - **Jump:** a seed moves on, so anchors, folds, gusts, or thorns jump to new places. The three seeds are targets, and a new seed puts every anchor somewhere new. On a seed, the row's slider reads **Rate** (0–100%): with Beat or Kick the seed moves on by one per onset (Rate 50% is every other onset, 25% every fourth); with any other feature it jumps at up to 4.8 times a second × Rate × the feature's value. Seeds stay whole numbers in their field's range (0–999 999), wrapping to 0.
     - **Step:** the next of a few choices, such as Allowed directions (the angle step).
     - **Kick:** a leap that falls back. Beat or Kick on any slider does this, through their pulses.
   - **Targets in the Geometry tab:** Distortion Seed, Noise amplitude, Noise frequency, and Normal bias; Random anchors Seed, Randomness, and Density; Curve flattening Tolerance, Segments per curve, and Corner angle; Squaring Amount; Anchor spacing and Anchor reduction; Grid size; Allowed directions. Allowed directions comes with Step mappings.
@@ -275,10 +275,10 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
     - Grid size turns on Snap to grid.
     - Distortion Noise frequency, Normal bias, and Seed set Noise amplitude to 40 when it is 0.
     - Random anchors targets turn Random anchors on; Seed also sets Randomness to 100% when it is 0%.
-    - Experimental effect sliders turn their effect on. The Experimental Seed turns on Noise when none of Noise, Wind, and Spikes is on (Ripple and Curl have no randomness).
-  - **Presets:** Flicker, Scatter, Pixel, Low poly, Block, Jitter, Facet, Bloom, Flare, Gale. Each sets a few start values as well as its mappings. Most keep to the Geometry tab, so the letters stay readable while it is quiet; at most one Experimental effect each (Bloom Ripple, Flare Spikes, Gale Wind). Flicker turns on Distortion's few anchors mode (P1). An ⓘ lists each preset with one line.
+    - Experimental effect sliders turn their effect on. The Experimental Seed turns on Crumple when none of Crumple, Slipstream, and Thorn is on (Ripple and Whorl have no randomness).
+  - **Presets:** Flicker, Scatter, Pixel, Low poly, Block, Jitter, Facet, Bloom, Flare, Gale. Each sets a few start values as well as its mappings. Most keep to the Geometry tab, so the letters stay readable while it is quiet; at most one Experimental effect each (Bloom Ripple, Flare Thorn, Gale Slipstream). Flicker turns on Distortion's few anchors mode (P1). An ⓘ lists each preset with one line.
     - Choosing one in the **Preset** list only selects it.
-    - **Load** resets every Geometry and Experimental setting to its default, keeping the three seeds; sets the preset's start values; replaces the mappings with the preset's; and shows a notice under the Preset row, for example "Loaded Bloom. Turned off Noise. Other Geometry and Experimental settings back to defaults (seeds kept)." So every preset starts from the same letters, whatever was set before.
+    - **Load** resets every Geometry and Experimental setting to its default, keeping the three seeds; sets the preset's start values; replaces the mappings with the preset's; and shows a notice under the Preset row, for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." So every preset starts from the same letters, whatever was set before.
     - Picking a target by hand still only switches on what it needs; it resets nothing.
 - **Slider and seed values preserved:**
   - Sliders keep their own values, and a marker shows the live value. Seed fields keep their own seeds, and a small number beside a driven seed shows the live one; the Distortion and Random anchors statistics show the live seed too.
@@ -313,7 +313,7 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 | P1 Anchor and geometry controls (spacing, simplification, grid, angle, distortion) | Implemented, in a fixed, documented order |
 | P1 Fill and specimen | Implemented: editable multi-line text, advance widths and the font's own kerning, missing characters marked |
 | P2 Font-file export | Implemented: OpenType (CFF, .otf), selectable glyph range, verified with fontkit and the browser's font engine after writing |
-| P2 Experimental effects | Implemented: Noise, Ripple (with petals), Curl, Wind, and Spikes, stackable, with folds beyond 100% |
+| P2 Experimental effects | Implemented: Crumple, Ripple (with petals), Whorl, Slipstream, and Thorn, stackable, with folds beyond 100% |
 | Section 11 Sound-reactive geometry | In progress: phases 1–2 built (sources, features, meters; continuous mappings, live scheduler with its own cache, live slider markers, Freeze); from phase 3, Jump mappings on the three seeds with Rate and their flash limit, targets that switch themselves on, and ten presets (Preset and Load, which resets the Geometry and Experimental settings and sets the preset's start values; Flicker's few anchors mode); Pitch and Balance (phase 4) built early, with 20 features in all and compact meters. Not implemented yet: Step mappings (Allowed directions, Sides, Rings) and measuring the live SVG redraw; see [SOUND_PLAN.md](SOUND_PLAN.md) |
 
 Font-export boundaries (answering the open question in section 10): no TTF / WOFF / WOFF2 output; kerning and other GPOS / GSUB features, hinting, and variation axes are not exported (a variable font exports the default instance shown on the canvas); only glyphs reachable through the character map are exported; characters above U+FFFF are left out because the writer cannot map them reliably; coordinates are rounded to whole font units.

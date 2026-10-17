@@ -119,8 +119,8 @@ export interface RandomAnchorParams {
   seed: number
 }
 
-/** Experimental Noise: crumples the letter along straight creases of a seeded triangle mesh. */
-export interface NoiseParams {
+/** Experimental Crumple: crumples the letter along straight creases of a seeded triangle mesh. */
+export interface CrumpleParams {
   enabled: boolean
   /** 0–5: how far lattice points move, as a share of the safe maximum (30% of the facet size); above 1, facets fold. */
   amount: number
@@ -148,9 +148,9 @@ export interface RippleParams {
   petals: number
 }
 
-/** Experimental Wind: letters drawn out along the wind, dragged further in gusts, along straight creases. */
-/** Experimental Curl: a swirl around the middle of each letter, along the straight creases of a ring mesh. */
-export interface CurlParams {
+/** Experimental Slipstream: letters drawn out along the wind, dragged further in gusts, along straight creases. */
+/** Experimental Whorl: a swirl around the middle of each letter, along the straight creases of a ring mesh. */
+export interface WhorlParams {
   enabled: boolean
   /** -4 to 4: how far the rings turn, as a share of the safe maximum (above 1 either way, the letter folds); negative turns clockwise. */
   amount: number
@@ -162,7 +162,7 @@ export interface CurlParams {
   pinned: boolean
 }
 
-export interface WindParams {
+export interface SlipstreamParams {
   enabled: boolean
   /** Where the wind blows to, in degrees counter-clockwise from the right (0 = right, 90 = up). */
   direction: number
@@ -174,8 +174,8 @@ export interface WindParams {
   gustiness: number
 }
 
-/** Experimental Spikes: a few anchors of each letter jump straight out from it, pulling long straight spikes. */
-export interface SpikeParams {
+/** Experimental Thorn: a few anchors of each letter jump straight out from it, pulling long straight thorns. */
+export interface ThornParams {
   enabled: boolean
   /** Anchors per letter that jump (1–12), on the letter's outside only. */
   count: number
@@ -183,7 +183,7 @@ export interface SpikeParams {
   reach: number
   /** 0–1: 0 = straight out from the outline, 1 = anywhere up to 90° to either side. */
   spread: number
-  /** 0–1: how wide each spike is at its base, as a share of the anchor's shorter edge (1 = the anchor's whole edges). */
+  /** 0–1: how wide each thorn is at its base, as a share of the anchor's shorter edge (1 = the anchor's whole edges). */
   width: number
 }
 
@@ -191,12 +191,12 @@ export interface SpikeParams {
 export interface ExperimentalParams {
   /** Integer seed shared by every effect; the same seed always gives the same result. */
   seed: number
-  noise: NoiseParams
+  crumple: CrumpleParams
   ripple: RippleParams
-  curl: CurlParams
-  wind: WindParams
+  whorl: WhorlParams
+  slipstream: SlipstreamParams
   /** Missing in older saved settings: off. */
-  spikes: SpikeParams
+  thorn: ThornParams
 }
 
 export interface GeometryParams {

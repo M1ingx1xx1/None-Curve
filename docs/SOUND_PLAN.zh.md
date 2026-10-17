@@ -7,7 +7,7 @@
 
 ## 1. 目标
 
-- 声音**只驱动已有的参数**，包括 Geometry 标签页（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion）和 Experimental 标签页（Noise、Ripple、Curl、Wind、Spikes、Seed）。不新增任何变形操作。
+- 声音**只驱动已有的参数**，包括 Geometry 标签页（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion）和 Experimental 标签页（Crumple、Ripple、Whorl、Slipstream、Thorn、Seed）。不新增任何变形操作。
 - 两种驱动方式：
   - **连续：** 响度这样的特征让滑块上下移动。
   - **跳变：** 种子前进，于是锚点跳到新位置：每个节拍跳一次，或者某个特征的读数越高跳得越频繁。节拍也可以让一个值换到下一个可选值，例如下一档角度（尚待完成）。
@@ -115,7 +115,7 @@
 
 以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 36 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
 
-**Experimental 标签页**：Noise 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Curl 的 Amount / Rings / Sides；Wind 的 Direction / Strength / Gust size / Gustiness；Spikes 的 Anchors / Reach / Spread / Width；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。
+**Experimental 标签页**：Crumple 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Gust size / Gustiness；Thorn 的 Anchors / Reach / Spread / Width；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。
 
 **目标起作用需要什么**（即它的未生效说明，以及选择它时会打开什么，见第 5 节）：
 
@@ -129,8 +129,8 @@
 | Distortion 的 Noise frequency、Normal bias、Seed | Noise amplitude 大于 0（为 0 时 Distortion 不起作用） | 把 Noise amplitude 设为 40 |
 | Random anchors 的 Density、Randomness、Seed | Random anchors 打开 | 打开 Random anchors |
 | Random anchors 的 Seed | Randomness 大于 0%（为 0% 时锚点均匀分布，种子没有可选的） | 把 Randomness 设为 100% |
-| Noise、Ripple、Curl、Wind、Spikes 的滑块 | 对应效果打开 | 打开对应效果 |
-| Experimental 的 Seed | Noise、Wind 或 Spikes 打开（Ripple 和 Curl 没有随机性） | 打开 Noise |
+| Crumple、Ripple、Whorl、Slipstream、Thorn 的滑块 | 对应效果打开 | 打开对应效果 |
+| Experimental 的 Seed | Crumple、Slipstream 或 Thorn 打开（Ripple 和 Whorl 没有随机性） | 打开 Crumple |
 
 Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 Merge joined curves 打开、Random anchors 关闭，Corner angle 就起作用，与 Mode 无关：面板把它和合并相关的控件放在一起显示，而这些控件是两种模式共用的。
 
@@ -145,7 +145,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
 1. 把 Geometry 和 Experimental 的每个设置都恢复为默认值（Curve flattening、Random anchors、Squaring、Anchors、Grid & angles、Distortion，以及每个 Experimental 效果），但保留三个种子（Distortion、Random anchors 和 Experimental 的种子）。Typography、Color、画布，以及 Sound 标签页的来源、Drive letters、Sensitivity 和 Smoothing 都不动。
 2. 设好预设的起始值。
 3. 用预设的映射替换当前的映射，并清除之前各行的提示。
-4. 在 Preset 一行下方显示提示：先是 “Loaded X.”（已载入 X），然后用 “Turned off ….” 列出原来打开、现在被关闭的 Experimental 效果（Noise、Ripple、Curl、Wind、Spikes），Random anchors 被关闭时接着是 “Turned off Random anchors.”，如果预设没有设置的其他设置有被恢复为默认值的，最后是 “Other Geometry and Experimental settings back to defaults (seeds kept).”（其他 Geometry 和 Experimental 设置已恢复默认，种子保留）。例如：“Loaded Bloom. Turned off Noise and Wind. Other Geometry and Experimental settings back to defaults (seeds kept).”。这条提示一直保留到下一次 Load，或在列表里选了另一个预设为止，屏幕阅读器会读出它。
+4. 在 Preset 一行下方显示提示：先是 “Loaded X.”（已载入 X），然后用 “Turned off ….” 列出原来打开、现在被关闭的 Experimental 效果（Crumple、Ripple、Whorl、Slipstream、Thorn），Random anchors 被关闭时接着是 “Turned off Random anchors.”，如果预设没有设置的其他设置有被恢复为默认值的，最后是 “Other Geometry and Experimental settings back to defaults (seeds kept).”（其他 Geometry 和 Experimental 设置已恢复默认，种子保留）。例如：“Loaded Bloom. Turned off Crumple and Slipstream. Other Geometry and Experimental settings back to defaults (seeds kept).”。这条提示一直保留到下一次 Load，或在列表里选了另一个预设为止，屏幕阅读器会读出它。
 
 所以无论之前设了什么，每个预设都从同样的字母开始，它的各行也不需要再打开任何设置。万一某一行仍然需要，就像手动选择目标时一样（第 5 节）逐行打开，并在该行显示提示。手动选择目标仍然只会打开它所需的设置，不会恢复任何默认值。
 
@@ -161,13 +161,13 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
 | **Jitter** | High → Distortion · Noise amplitude（60%）；Brightness → Distortion · Noise frequency（30%） | Noise amplitude 2；Noise frequency 20 | 无 | 嘶声和镲片让轮廓颤动；声音越亮，颤动越细碎 |
 | **Facet** | Level → Curve flattening · Segments per curve（−15%）；Kick → Curve flattening · Segments per curve（−15%）；Pitch → Curve flattening · Segments per curve（20%） | Mode 为 Fixed segments；Merge joined curves 打开；Segments per curve 6 | 无 | 越响、每次底鼓时，曲线碎成少数几条直边；音越高，又变得平滑 |
 | **Bloom** | Kick → Ripple · Amount（15%）；Bass → Ripple · Petals（30%） | Ripple 打开，Amount 30% | Ripple | 波纹穿过字母，每次底鼓时涌起；低音把波纹弯成花瓣 |
-| **Flare** | Beat → Seed（Rate 100%）；Level → Spikes · Reach（40%）；Kick → Spikes · Anchors（20%） | Spikes 打开，Anchors 1，Reach 0% em | Spikes | 安静时没有尖刺；越响，每个字母就有一两个锚点射出尖刺，并在每个节拍跳到新的地方；底鼓让尖刺更多 |
-| **Gale** | Level → Wind · Strength（10%）；Pace → Wind · Gustiness（25%） | Wind 打开，Strength 0% | Wind | 响度把字母顺着风拉长；繁忙的段落让阵风不均匀 |
+| **Flare** | Beat → Seed（Rate 100%）；Level → Thorn · Reach（40%）；Kick → Thorn · Anchors（20%） | Thorn 打开，Anchors 1，Reach 0% em | Thorn | 安静时没有刺；越响，每个字母就有一两个锚点射出刺，并在每个节拍跳到新的地方；底鼓让刺更多 |
+| **Gale** | Level → Slipstream · Strength（10%）；Pace → Slipstream · Gustiness（25%） | Slipstream 打开，Strength 0% | Slipstream | 响度把字母顺着风拉长；繁忙的段落让阵风不均匀 |
 
 - **Flicker** 打开 Distortion 的**少数锚点**模式。它没有自己的控件，也不是 Sound 的目标：只有这个预设会设置它，Reset distortion 或载入另一个预设会把它关掉。每个字母只有 1–5 个锚点移动，拐角和最外侧的点从不移动，每个移动的锚点至少移动幅度的 60%，换一个种子就换一组锚点（见 README 的“顶点扰动”和 PRD 的 P1）。很小的幅度 2 让 Distortion 保持打开，所以安静时 Seed 那一行也起作用。
 - **Jitter** 的幅度 2 同理，让它的 Noise frequency 那一行在安静时也起作用。
 - **Low poly** 合并相连的曲线，所以较大的 Tolerance 能作用到整个碗形（不合并时，字体里的每段曲线至少保留一条边）。**Facet** 也合并曲线，所以它的段数按合并后的曲线（四分之一个碗形）计算，而不是按字体里的每段曲线计算。
-- **Flare** 从 Reach 0 开始，所以安静时没有尖刺。Spikes 一开始就打开，所以它的 Seed 那一行不需要再打开任何设置，Noise 也保持关闭。
+- **Flare** 从 Reach 0 开始，所以安静时没有刺。Thorn 一开始就打开，所以它的 Seed 那一行不需要再打开任何设置，Crumple 也保持关闭。
 
 ## 8. 架构与性能
 
@@ -195,7 +195,7 @@ Squaring、Anchors 和 Distortion 的 Noise amplitude 始终起作用。只要 M
 - **实测耗时：**
   - 只有 Geometry 时，每个字形约 0.1 ms。
   - 所有 Experimental 效果同时翻折时，每个字形最多约 20 ms，对较长的文字来说太重，无法实时使用。
-  - 实时帧（在 worker 中测量；Node、Arial、默认文字的 24 个不同字形，特征扫动时取 30 帧）：Level → Distortion 的 Noise amplitude 约 2.6 ms，Level → Noise Amount 7.4 ms，Low → Ripple Petals 6.2 ms，三者同时 12.3 ms，都达到 30 fps 上限。Noise、Ripple、Curl、Wind 全开时每帧约 41 ms（约 24 fps）。重复的值命中缓存，不到 0.1 ms；页面上排布字形和画板每次渲染约 0.3 ms。第 3 阶段完成后重新测量，结果在每次运行的波动范围内相同：2.4 ms，三者同时 12 ms，全部打开 37–41 ms（24–27 fps）。
+  - 实时帧（在 worker 中测量；Node、Arial、默认文字的 24 个不同字形，特征扫动时取 30 帧）：Level → Distortion 的 Noise amplitude 约 2.6 ms，Level → Crumple Amount 7.4 ms，Low → Ripple Petals 6.2 ms，三者同时 12.3 ms，都达到 30 fps 上限。Crumple、Ripple、Whorl、Slipstream 全开时每帧约 41 ms（约 24 fps）。重复的值命中缓存，不到 0.1 ms；页面上排布字形和画板每次渲染约 0.3 ms。第 3 阶段完成后重新测量，结果在每次运行的波动范围内相同：2.4 ms，三者同时 12 ms，全部打开 37–41 ms（24–27 fps）。
   - 种子跳变一次就是一组新参数，所以每个不同的字形都要重新计算：在 worker 中每个跳变帧约 2–3.5 ms（同样的设置，Beat 分别驱动三个种子），远在 30 fps 上限之内。
   - 特征提取（`process`，Node，48 kHz）加入新特征后，每帧从约 35 µs 增加到约 90 µs，主要来自 Pitch；累计跳变不到 1 µs。
   - 页面上，Geometry 和 Experimental 标签页的控件以及字形列表会跳过实时帧，除非它们自己的统计数字变了（`React.memo`）：在生产构建中（Arial、默认文字、驱动 Noise amplitude），每个实时帧的页面 JavaScript 从约 5.3 ms 降到约 4.5 ms。种子输入框旁的实时种子自己订阅更新（`LiveSeed`），所以这些控件不需要新的属性；只有 Distortion 和 Random anchors 会在实时种子变化时为统计数字额外重新渲染。

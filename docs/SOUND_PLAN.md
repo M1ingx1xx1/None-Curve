@@ -7,7 +7,7 @@
 
 ## 1. Goals
 
-- Sound drives **existing parameters only**, in both the Geometry tab (Curve flattening, Random anchors, Squaring, Anchors, Grid & angles, Distortion) and the Experimental tab (Noise, Ripple, Curl, Wind, Spikes, Seed). There are no new deformation operators.
+- Sound drives **existing parameters only**, in both the Geometry tab (Curve flattening, Random anchors, Squaring, Anchors, Grid & angles, Distortion) and the Experimental tab (Crumple, Ripple, Whorl, Slipstream, Thorn, Seed). There are no new deformation operators.
 - Two kinds of drive:
   - **Continuous:** a feature such as loudness moves a slider up and down.
   - **Jumps:** a seed moves on, so the anchors jump to new places: on each beat, or more often the higher a feature reads. A beat can also step a value to its next choice, such as the next angle (still to do).
@@ -115,7 +115,7 @@ A mapping connects one feature to one target parameter. The Sound tab holds up t
 
 Also targets, with no suggested drive: Curve flattening · Segments per curve and Corner angle, and Distortion · Normal bias. The full list, in panel order, is `TARGETS` in `src/sound/mapping.ts` (README, Targets): 36 targets, of which the three seeds are jump targets and the rest sliders. Allowed directions becomes a target with Step mappings.
 
-**Experimental tab**: Noise Amount / Facet size / Turn; Ripple Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals; Curl Amount / Rings / Sides; Wind Direction / Strength / Gust size / Gustiness; Spikes Anchors / Reach / Spread / Width; and the shared **Seed** (Beat at Rate 100%), listed last as its group sits at the bottom of the tab. The Target list shows it as just "Seed"; every other target reads "Section · Label", such as "Distortion · Seed".
+**Experimental tab**: Crumple Amount / Facet size / Turn; Ripple Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals; Whorl Amount / Rings / Sides; Slipstream Direction / Strength / Gust size / Gustiness; Thorn Anchors / Reach / Spread / Width; and the shared **Seed** (Beat at Rate 100%), listed last as its group sits at the bottom of the tab. The Target list shows it as just "Seed"; every other target reads "Section · Label", such as "Distortion · Seed".
 
 **What a target needs to act** (its inactive note, and what picking it switches on, §5):
 
@@ -129,8 +129,8 @@ Also targets, with no suggested drive: Curve flattening · Segments per curve an
 | Distortion · Noise frequency, Normal bias, Seed | Noise amplitude above 0 (at 0, Distortion is off) | Sets Noise amplitude to 40 |
 | Random anchors · Density, Randomness, Seed | Random anchors on | Turns on Random anchors |
 | Random anchors · Seed | Randomness above 0% (at 0% the anchors are evenly spaced, so the seed has nothing to choose) | Sets Randomness to 100% |
-| Noise, Ripple, Curl, Wind, Spikes sliders | That effect on | Turns on that effect |
-| Experimental Seed | Noise, Wind or Spikes on (Ripple and Curl have no randomness) | Turns on Noise |
+| Crumple, Ripple, Whorl, Slipstream, Thorn sliders | That effect on | Turns on that effect |
+| Experimental Seed | Crumple, Slipstream or Thorn on (Ripple and Whorl have no randomness) | Turns on Crumple |
 
 Squaring, Anchors, and Distortion · Noise amplitude always act. Corner angle acts whenever Merge joined curves is on and Random anchors are off, whatever the Mode: the panel shows it with the merge controls, which both modes share.
 
@@ -145,7 +145,7 @@ Choosing a preset in the **Preset** list only selects it. **Load** (`presetSetti
 1. Resets every Geometry and Experimental setting to its default (Curve flattening, Random anchors, Squaring, Anchors, Grid & angles, Distortion, and every Experimental effect), keeping the three seeds (Distortion, Random anchors, and the Experimental seed). Typography, Color, the canvas, and the Sound tab's source, Drive letters, Sensitivity, and Smoothing are left alone.
 2. Sets the preset's start values.
 3. Replaces the mappings with the preset's, and clears the earlier row notices.
-4. Shows a notice under the Preset row: "Loaded X.", then "Turned off …." for the Experimental effects that were on and are now off (Noise, Ripple, Curl, Wind, Spikes), then "Turned off Random anchors." when that happened, then "Other Geometry and Experimental settings back to defaults (seeds kept)." when any other setting the preset does not set went back to its default. For example: "Loaded Bloom. Turned off Noise and Wind. Other Geometry and Experimental settings back to defaults (seeds kept)." The notice stays until the next Load or until another preset is chosen in the list, and screen readers announce it.
+4. Shows a notice under the Preset row: "Loaded X.", then "Turned off …." for the Experimental effects that were on and are now off (Crumple, Ripple, Whorl, Slipstream, Thorn), then "Turned off Random anchors." when that happened, then "Other Geometry and Experimental settings back to defaults (seeds kept)." when any other setting the preset does not set went back to its default. For example: "Loaded Bloom. Turned off Crumple and Slipstream. Other Geometry and Experimental settings back to defaults (seeds kept)." The notice stays until the next Load or until another preset is chosen in the list, and screen readers announce it.
 
 So every preset starts from the same letters, whatever was set before, and its rows need nothing switched on. Should a row still need something, it is switched on as when its target is picked by hand (§5), row by row, with the row's notice. Picking a target by hand still only switches on what it needs; it resets nothing.
 
@@ -161,13 +161,13 @@ Depth is in brackets, as a share of the slider's travel (negative turns the slid
 | **Jitter** | High → Distortion · Noise amplitude (60%); Brightness → Distortion · Noise frequency (30%) | Noise amplitude 2; Noise frequency 20 | None | Hiss and cymbals make the outlines tremble; brighter sound makes the tremor finer |
 | **Facet** | Level → Curve flattening · Segments per curve (−15%); Kick → Curve flattening · Segments per curve (−15%); Pitch → Curve flattening · Segments per curve (20%) | Mode Fixed segments; Merge joined curves on; Segments per curve 6 | None | Curves break into a few straight sides as it gets louder and on each kick; higher notes smooth them again |
 | **Bloom** | Kick → Ripple · Amount (15%); Bass → Ripple · Petals (30%) | Ripple on, Amount 30% | Ripple | Ripples run through the letters and swell on each kick; the bass bends them into petals |
-| **Flare** | Beat → Seed (Rate 100%); Level → Spikes · Reach (40%); Kick → Spikes · Anchors (20%) | Spikes on, Anchors 1, Reach 0% em | Spikes | No spikes while it is quiet; as it gets louder, spikes shoot out of one or two anchors per letter and jump somewhere new on every beat; kicks add more |
-| **Gale** | Level → Wind · Strength (10%); Pace → Wind · Gustiness (25%) | Wind on, Strength 0% | Wind | Loudness drags the letters out along the wind; busy passages make the gusts uneven |
+| **Flare** | Beat → Seed (Rate 100%); Level → Thorn · Reach (40%); Kick → Thorn · Anchors (20%) | Thorn on, Anchors 1, Reach 0% em | Thorn | No thorns while it is quiet; as it gets louder, thorns shoot out of one or two anchors per letter and jump somewhere new on every beat; kicks add more |
+| **Gale** | Level → Slipstream · Strength (10%); Pace → Slipstream · Gustiness (25%) | Slipstream on, Strength 0% | Slipstream | Loudness drags the letters out along the wind; busy passages make the gusts uneven |
 
 - **Flicker** turns on Distortion's **few anchors** mode. It has no control of its own and is not a Sound target: only this preset sets it, and Reset distortion, or loading another preset, turns it off. Only 1–5 anchors of each letter move, never its corners or extremes, each by at least 60% of the amplitude, and a new seed picks a new set (README, Vertex distortion; PRD, P1). The tiny amplitude, 2, keeps Distortion on, so the Seed row acts while it is quiet.
 - **Jitter**'s amplitude of 2 likewise keeps its Noise frequency row acting while it is quiet.
 - **Low poly** merges joined curves, so a large Tolerance reaches whole bowls (unmerged, each font curve keeps at least one edge). **Facet** merges them too, so its segments count per merged curve, a quarter of a bowl, not per font curve.
-- **Flare** starts at Reach 0, so there are no spikes while it is quiet. Spikes is on from the start, so its Seed row needs nothing switched on, and Noise stays off.
+- **Flare** starts at Reach 0, so there are no thorns while it is quiet. Thorn is on from the start, so its Seed row needs nothing switched on, and Crumple stays off.
 
 ## 8. Architecture and performance
 
@@ -195,7 +195,7 @@ Depth is in brackets, as a share of the slider's travel (negative turns the slid
 - **Measured cost:**
   - Geometry alone takes roughly 0.1 ms per glyph.
   - All Experimental effects folding at once take up to about 20 ms per glyph, too heavy for live use with a long text.
-  - Live frames, measured in the worker (Node, Arial, the default text's 24 distinct glyphs, 30 frames while the feature sweeps): Level → Distortion · Noise amplitude about 2.6 ms, Level → Noise Amount 7.4 ms, Low → Ripple Petals 6.2 ms, and all three together 12.3 ms, all at the 30 fps cap. With Noise, Ripple, Curl and Wind all on, a frame takes about 41 ms (about 24 fps). A repeated value hits the cache in under 0.1 ms, and placing the glyphs and laying out the artboard on the page takes about 0.3 ms per render. Measured again with phase 3 in place, the same within run-to-run noise: 2.4 ms, all three 12 ms, and everything on 37–41 ms (24–27 fps).
+  - Live frames, measured in the worker (Node, Arial, the default text's 24 distinct glyphs, 30 frames while the feature sweeps): Level → Distortion · Noise amplitude about 2.6 ms, Level → Crumple Amount 7.4 ms, Low → Ripple Petals 6.2 ms, and all three together 12.3 ms, all at the 30 fps cap. With Crumple, Ripple, Whorl and Slipstream all on, a frame takes about 41 ms (about 24 fps). A repeated value hits the cache in under 0.1 ms, and placing the glyphs and laying out the artboard on the page takes about 0.3 ms per render. Measured again with phase 3 in place, the same within run-to-run noise: 2.4 ms, all three 12 ms, and everything on 37–41 ms (24–27 fps).
   - A seed jump is a new parameter set, so every distinct glyph is computed again: about 2–3.5 ms per jump frame in the worker (same setup, Beat → each of the three seeds), well within the 30 fps cap.
   - Feature extraction (`process`, Node, 48 kHz) went from about 35 µs to about 90 µs per frame with the new features, mostly Pitch; counting the jumps takes under 1 µs.
   - On the page, the controls of the Geometry and Experimental tabs and the glyph list skip live frames unless their own statistics change (`React.memo`): in a production build (Arial, default text, Noise amplitude driven), the page's JavaScript per live frame fell from about 5.3 ms to about 4.5 ms. The live seed beside a field subscribes on its own (`LiveSeed`), so those controls get no new props; only Distortion and Random anchors also re-render when their live seed changes, for their statistics.

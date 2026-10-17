@@ -22,15 +22,15 @@ const RESET_GROUPS = ['flatten', 'random', 'squaring', 'anchors', 'grid', 'disto
 
 const DEFAULTS: GeometryParams = initialState.params
 
-type EffectKey = 'noise' | 'ripple' | 'curl' | 'wind' | 'spikes'
+type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
 
 /** The Experimental effects, in panel order, with their names in the Experimental tab. */
 const EFFECTS: readonly [EffectKey, string][] = [
-  ['noise', 'Noise'],
+  ['crumple', 'Crumple'],
   ['ripple', 'Ripple'],
-  ['curl', 'Curl'],
-  ['wind', 'Wind'],
-  ['spikes', 'Spikes'],
+  ['whorl', 'Whorl'],
+  ['slipstream', 'Slipstream'],
+  ['thorn', 'Thorn'],
 ]
 
 const map = (feature: Mapping['feature'], target: string, depth: number): Omit<Mapping, 'id'> => ({
@@ -119,21 +119,21 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'flare',
     name: 'Flare',
-    description: 'Spikes shoot out of one or two anchors per letter as it gets louder and jump somewhere new on every beat; kicks add more.',
-    // Reach 0: no spikes while it is quiet.
-    start: [effect('spikes', { enabled: true, count: 1, reach: 0 })],
+    description: 'Thorns shoot out of one or two anchors per letter as it gets louder and jump somewhere new on every beat; kicks add more.',
+    // Reach 0: no thorns while it is quiet.
+    start: [effect('thorn', { enabled: true, count: 1, reach: 0 })],
     mappings: [
       map('beatPulse', 'experimental.seed', 1),
-      map('level', 'experimental.spikes.reach', 0.4),
-      map('kickPulse', 'experimental.spikes.count', 0.2),
+      map('level', 'experimental.thorn.reach', 0.4),
+      map('kickPulse', 'experimental.thorn.count', 0.2),
     ],
   },
   {
     id: 'gale',
     name: 'Gale',
     description: 'Loudness drags the letters out along the wind; busy passages make the gusts uneven.',
-    start: [effect('wind', { enabled: true, strength: 0 })],
-    mappings: [map('level', 'experimental.wind.strength', 0.1), map('pace', 'experimental.wind.gustiness', 0.25)],
+    start: [effect('slipstream', { enabled: true, strength: 0 })],
+    mappings: [map('level', 'experimental.slipstream.strength', 0.1), map('pace', 'experimental.slipstream.gustiness', 0.25)],
   },
 ]
 
@@ -144,13 +144,13 @@ export interface PresetSettings {
   /** The groups that changed, each as the whole group object, ready for the editor's updateParams action. */
   patches: readonly ParamPatch[]
   /**
-   * "Loaded Flicker." and what was turned off ("Turned off Noise and Ripple.", "Turned off Random
+   * "Loaded Flicker." and what was turned off ("Turned off Crumple and Ripple.", "Turned off Random
    * anchors."), then whether any other setting the preset does not set went back to its default.
    */
   notice: string
 }
 
-/** A setting's path in the params, e.g. ['experimental', 'noise', 'amount']. */
+/** A setting's path in the params, e.g. ['experimental', 'crumple', 'amount']. */
 type Path = readonly string[]
 
 /** Every setting Load resets, from the defaults' shape. */
@@ -172,7 +172,7 @@ const NAMED_SWITCHES = new Set(['random.enabled', ...EFFECTS.map(([key]) => `exp
 
 const same = (a: unknown, b: unknown) => a === b || (Number.isNaN(a) && Number.isNaN(b))
 
-/** "Noise", "Noise and Ripple", "Noise, Ripple and Curl". */
+/** "Crumple", "Crumple and Ripple", "Crumple, Ripple and Whorl". */
 function listNames(names: readonly string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join('')
 }

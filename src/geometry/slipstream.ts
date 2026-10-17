@@ -1,4 +1,4 @@
-// Experimental Wind: letters pulled out in the wind's direction, ragged where gusts drag them further.
+// Experimental Slipstream: letters pulled out in the wind's direction, ragged where gusts drag them further.
 // Pure functions in font units; no React, no DOM, no Math.random.
 //
 // Every point moves along the wind by Strength × its band's gust × its distance downwind of the
@@ -17,10 +17,10 @@
 
 import { hashInts } from './distortion'
 import type { Box } from './ripple'
-import type { Point, WindParams } from './types'
+import type { Point, SlipstreamParams } from './types'
 import type { Warp } from './warp'
 
-export const WIND_LIMITS = {
+export const SLIPSTREAM_LIMITS = {
   /** Strength: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
   maxStrength: 8,
   /**
@@ -36,36 +36,36 @@ export const WIND_LIMITS = {
   maxGust: 0.5,
 } as const
 
-/** Channel numbers keep Wind's random numbers apart from the other effects' for the same seed. */
+/** Channel numbers keep Slipstream's random numbers apart from the other effects' for the same seed. */
 const CHANNEL = { gust: 201, diagonal: 202 } as const
 const UINT = 0x1_0000_0000
 
-export function windIsOn(params: WindParams): boolean {
+export function slipstreamIsOn(params: SlipstreamParams): boolean {
   return params.enabled && params.strength > 0
 }
 
-/** True when Wind goes beyond its safe range (gusts blowing backwards), so the letter can fold onto itself. */
-export function windFolds(params: WindParams): boolean {
-  return windIsOn(params) && params.gustiness > 1
+/** True when Slipstream goes beyond its safe range (gusts blowing backwards), so the letter can fold onto itself. */
+export function slipstreamFolds(params: SlipstreamParams): boolean {
+  return slipstreamIsOn(params) && params.gustiness > 1
 }
 
-/** The Wind warp for a glyph with this ink box, at `scale` × its strength. */
-export function windWarp(params: WindParams, seed: number, box: Box, unitsPerEm: number, scale = 1): Warp {
+/** The Slipstream warp for a glyph with this ink box, at `scale` × its strength. */
+export function slipstreamWarp(params: SlipstreamParams, seed: number, box: Box, unitsPerEm: number, scale = 1): Warp {
   const angle = (finite(params.direction, 0) * Math.PI) / 180
   const wx = Math.cos(angle)
   const wy = Math.sin(angle)
-  const size = clamp(finite(params.gust, 0.12), WIND_LIMITS.minGust, WIND_LIMITS.maxGust) * unitsPerEm
-  const strength = clamp(finite(params.strength, 0), 0, WIND_LIMITS.maxStrength) * scale
-  const gustiness = clamp(finite(params.gustiness, 0.6), 0, WIND_LIMITS.maxGustiness)
+  const size = clamp(finite(params.gust, 0.12), SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust) * unitsPerEm
+  const strength = clamp(finite(params.strength, 0), 0, SLIPSTREAM_LIMITS.maxStrength) * scale
+  const gustiness = clamp(finite(params.gustiness, 0.6), 0, SLIPSTREAM_LIMITS.maxGustiness)
   // The glyph's upwind edge: the smallest distance along the wind over the ink box.
   const upwind = Math.min(...[box.minX, box.maxX].flatMap((x) => [box.minY, box.maxY].map((y) => x * wx + y * wy)))
 
   /** Lattice coordinates: u counts cells downwind of the upwind edge, v counts bands across the wind. */
   const toLattice = (p: Point) => ({ u: (p.x * wx + p.y * wy - upwind) / size, v: (p.y * wx - p.x * wy) / size })
   const gust = (band: number) => 1 - gustiness * (hashInts(seed, CHANNEL.gust, band) / UINT)
-  const reach = WIND_LIMITS.maxReach * unitsPerEm
+  const reach = SLIPSTREAM_LIMITS.maxReach * unitsPerEm
   /**
-   * How far lattice point (i, j) moves along the wind: nothing upwind, then growing with the distance
+   * How far lattice point (i, j) moves along the slipstream: nothing upwind, then growing with the distance
    * downwind, up to the reach. Capping keeps the movement from ever shrinking downwind (for gusts that
    * blow forward), so it still stretches every triangle and never squeezes one.
    */

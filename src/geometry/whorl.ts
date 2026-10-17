@@ -1,4 +1,4 @@
-// Experimental Curl: a swirl around the middle of each letter. Pure functions in font units; no React,
+// Experimental Whorl: a swirl around the middle of each letter. Pure functions in font units; no React,
 // no DOM, no Math.random.
 //
 // The mesh is the one Ripple uses: concentric regular polygons (Sides) around the centre of the
@@ -23,10 +23,10 @@
 // overlaps.ts).
 
 import type { Box } from './ripple'
-import type { CurlParams, Point } from './types'
+import type { WhorlParams, Point } from './types'
 import type { Warp } from './warp'
 
-export const CURL_LIMITS = {
+export const WHORL_LIMITS = {
   minRings: 2,
   maxRings: 12,
   minSides: 3,
@@ -39,23 +39,23 @@ export const CURL_LIMITS = {
   minRadius: 0.05,
 } as const
 
-export function curlIsOn(params: CurlParams | undefined): boolean {
+export function whorlIsOn(params: WhorlParams | undefined): boolean {
   return !!params && params.enabled && finite(params.amount, 0) !== 0
 }
 
-/** True when Curl goes beyond its safe range, so the letter folds onto itself. */
-export function curlFolds(params: CurlParams | undefined): boolean {
-  return curlIsOn(params) && Math.abs(params!.amount) > 1
+/** True when Whorl goes beyond its safe range, so the letter folds onto itself. */
+export function whorlFolds(params: WhorlParams | undefined): boolean {
+  return whorlIsOn(params) && Math.abs(params!.amount) > 1
 }
 
-/** The Curl warp for a glyph with this ink box, at `scale` × its strength. */
-export function curlWarp(params: CurlParams, box: Box, unitsPerEm: number, scale = 1): Warp {
-  const rings = Math.round(clamp(finite(params.rings, 6), CURL_LIMITS.minRings, CURL_LIMITS.maxRings))
-  const sides = Math.round(clamp(finite(params.sides, 8), CURL_LIMITS.minSides, CURL_LIMITS.maxSides))
-  const amount = clamp(finite(params.amount, 0), -CURL_LIMITS.maxAmount, CURL_LIMITS.maxAmount) * scale
+/** The Whorl warp for a glyph with this ink box, at `scale` × its strength. */
+export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, scale = 1): Warp {
+  const rings = Math.round(clamp(finite(params.rings, 6), WHORL_LIMITS.minRings, WHORL_LIMITS.maxRings))
+  const sides = Math.round(clamp(finite(params.sides, 8), WHORL_LIMITS.minSides, WHORL_LIMITS.maxSides))
+  const amount = clamp(finite(params.amount, 0), -WHORL_LIMITS.maxAmount, WHORL_LIMITS.maxAmount) * scale
   const pinned = params.pinned !== false
   const centre = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 }
-  const radius = Math.max((box.maxY - box.minY) / 2, CURL_LIMITS.minRadius * unitsPerEm)
+  const radius = Math.max((box.maxY - box.minY) / 2, WHORL_LIMITS.minRadius * unitsPerEm)
   const spacing = radius / rings
   const half = Math.PI / sides
   const tanHalf = Math.tan(half)
@@ -70,7 +70,7 @@ export function curlWarp(params: CurlParams, box: Box, unitsPerEm: number, scale
   const limits = [true, false].map((rising) => ({ rising, step: largestStep(rings, half, rising, relative) }))
   const best = limits[0].step >= limits[1].step ? limits[0] : limits[1]
   const rising = best.rising
-  const step = Math.abs(amount) * CURL_LIMITS.safety * best.step
+  const step = Math.abs(amount) * WHORL_LIMITS.safety * best.step
   /** How far ring k turns (radians, counter-clockwise); beyond the outermost ring, as that ring. */
   const turn = (k: number) => {
     const r = Math.min(k, rings)

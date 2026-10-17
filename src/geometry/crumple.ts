@@ -1,4 +1,4 @@
-// Experimental Noise: crumples the letter like paper. Pure functions in font units; no React, no DOM,
+// Experimental Crumple: crumples the letter like paper. Pure functions in font units; no React, no DOM,
 // no Math.random.
 //
 // The mesh is a square lattice with cells of the facet size (a fraction of the em), turned by an angle from the seed, each
@@ -13,15 +13,15 @@
 //
 // Up to 100% Amount, no lattice point moves more than 30% of the cell size. A triangle whose corners
 // each move less than that keeps about 15% of its area or more and cannot flip, so the warp is
-// one-to-one: Noise never needs to be weakened to keep the letter valid. Above 100% the points move
+// one-to-one: Crumple never needs to be weakened to keep the letter valid. Above 100% the points move
 // further along the same directions, triangles flip over their neighbours, and the letter folds onto
 // itself; the overlaps are then merged into one outline (see overlaps.ts).
 
 import { hashInts } from './distortion'
-import type { NoiseParams, Point } from './types'
+import type { CrumpleParams, Point } from './types'
 import type { Warp } from './warp'
 
-export const NOISE_LIMITS = {
+export const CRUMPLE_LIMITS = {
   /**
    * Facet sizes, as fractions of the em. Creases fall about 40% of a facet apart along the outline, so
    * the smallest facet keeps them about 3% of the em apart or more: far enough to read as corners
@@ -35,25 +35,25 @@ export const NOISE_LIMITS = {
   maxMove: 0.3,
 } as const
 
-/** Channel numbers keep Noise's random numbers apart from the other effects' for the same seed. */
+/** Channel numbers keep Crumple's random numbers apart from the other effects' for the same seed. */
 const CHANNEL = { angle: 101, direction: 102, distance: 103, diagonal: 104 } as const
 const UINT = 0x1_0000_0000
 
-export function noiseIsOn(params: NoiseParams): boolean {
+export function crumpleIsOn(params: CrumpleParams): boolean {
   return params.enabled && params.amount > 0
 }
 
-/** True when Noise goes beyond its safe range, so the letter folds onto itself. */
-export function noiseFolds(params: NoiseParams): boolean {
-  return noiseIsOn(params) && params.amount > 1
+/** True when Crumple goes beyond its safe range, so the letter folds onto itself. */
+export function crumpleFolds(params: CrumpleParams): boolean {
+  return crumpleIsOn(params) && params.amount > 1
 }
 
-/** The Noise warp at `scale` × its strength (1 = the safe maximum). */
-export function noiseWarp(params: NoiseParams, seed: number, unitsPerEm: number, scale = 1): Warp {
-  const amount = clamp(finite(params.amount, 0), 0, NOISE_LIMITS.maxAmount) * scale
+/** The Crumple warp at `scale` × its strength (1 = the safe maximum). */
+export function crumpleWarp(params: CrumpleParams, seed: number, unitsPerEm: number, scale = 1): Warp {
+  const amount = clamp(finite(params.amount, 0), 0, CRUMPLE_LIMITS.maxAmount) * scale
   const turned = (finite(params.turn, 0) * Math.PI) / 180
-  const size = clamp(finite(params.facet, 0.18), NOISE_LIMITS.minFacet, NOISE_LIMITS.maxFacet) * unitsPerEm
-  const reach = amount * NOISE_LIMITS.maxMove * size
+  const size = clamp(finite(params.facet, 0.18), CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet) * unitsPerEm
+  const reach = amount * CRUMPLE_LIMITS.maxMove * size
   // The square lattice looks the same every quarter turn, so a quarter turn of angles covers all.
   const angle = (hashInts(seed, CHANNEL.angle) / UINT) * (Math.PI / 2)
   const cos = Math.cos(angle)

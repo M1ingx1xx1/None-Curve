@@ -1,12 +1,12 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
-import { CURL_LIMITS } from '../geometry/curl'
+import { WHORL_LIMITS } from '../geometry/whorl'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
-import { NOISE_LIMITS } from '../geometry/noise'
+import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SPIKE_LIMITS, type SpikeStats } from '../geometry/spikes'
-import type { CurlParams, ExperimentalParams, NoiseParams, RippleParams, SpikeParams, WindParams } from '../geometry/types'
+import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
+import type { WhorlParams, ExperimentalParams, CrumpleParams, RippleParams, ThornParams, SlipstreamParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
-import { WIND_LIMITS } from '../geometry/wind'
+import { SLIPSTREAM_LIMITS } from '../geometry/slipstream'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
@@ -26,11 +26,11 @@ interface ExperimentalControlsProps {
 
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
-  noise: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
+  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
-  curl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
-  wind: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
-  spikes: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3 },
+  whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
+  slipstream: { enabled: false, direction: 0, strength: 0.3, gust: 0.12, gustiness: 0.6 },
+  thorn: { enabled: false, count: 3, reach: 0.6, spread: 0.5, width: 0.3 },
 }
 
 const percent = (v: number) => Math.round(v * 100)
@@ -51,29 +51,29 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
     <>
       <div className="panel-notice panel-intro">
         <p className="field-title">
-          <span>Runs after Geometry: Noise → Ripple → Curl → Wind → Spikes. Effects can be on together.</span>
+          <span>Runs after Geometry: Crumple → Ripple → Whorl → Slipstream → Thorn. Effects can be on together.</span>
           <HintButton hint={introHint} topic="Experimental effects" />
         </p>
         {statistics}
         <HintText hint={introHint}>
           Each effect folds the letters along straight creases, so it adds corners but never curves. Up to 100%, any
           combination keeps every letter as it was arranged. Beyond that, parts of a letter fold over other parts; the
-          overlaps are merged into one clean outline, so the letters still export. Spikes are merged the same way.
+          overlaps are merged into one clean outline, so the letters still export. Thorns are merged the same way.
           Statistics are for the selected glyph.
         </HintText>
         {experimentalMerges(params) && <FoldStats stats={stats} pending={pending} />}
       </div>
 
-      <NoiseGroup params={params.noise} stats={stats?.noise ?? null} pending={pending} disabled={disabled} onChange={(noise) => update({ noise })} />
+      <CrumpleGroup params={params.crumple} stats={stats?.crumple ?? null} pending={pending} disabled={disabled} onChange={(crumple) => update({ crumple })} />
       <RippleGroup params={params.ripple} stats={stats?.ripple ?? null} pending={pending} disabled={disabled} onChange={(ripple) => update({ ripple })} />
-      <CurlGroup params={params.curl} stats={stats?.curl ?? null} pending={pending} disabled={disabled} onChange={(curl) => update({ curl })} />
-      <WindGroup params={params.wind} stats={stats?.wind ?? null} pending={pending} disabled={disabled} onChange={(wind) => update({ wind })} />
-      <SpikesGroup
-        params={params.spikes ?? DEFAULT_EXPERIMENTAL.spikes}
-        stats={stats?.spikes ?? null}
+      <WhorlGroup params={params.whorl} stats={stats?.whorl ?? null} pending={pending} disabled={disabled} onChange={(whorl) => update({ whorl })} />
+      <SlipstreamGroup params={params.slipstream} stats={stats?.slipstream ?? null} pending={pending} disabled={disabled} onChange={(slipstream) => update({ slipstream })} />
+      <ThornGroup
+        params={params.thorn ?? DEFAULT_EXPERIMENTAL.thorn}
+        stats={stats?.thorn ?? null}
         pending={pending}
         disabled={disabled}
-        onChange={(spikes) => update({ spikes })}
+        onChange={(thorn) => update({ thorn })}
       />
 
       <fieldset className="group experimental" disabled={disabled}>
@@ -109,7 +109,7 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
               </button>
             </div>
             <HintText hint={seedHint}>
-              Picks Noise’s folds, Wind’s gusts and which anchors Spikes moves; Ripple and Curl have no randomness. The same seed
+              Picks Crumple’s folds, Slipstream’s gusts and which anchors Thorn moves; Ripple and Whorl have no randomness. The same seed
               and settings always produce the same letters.
             </HintText>
           </div>
@@ -137,8 +137,8 @@ interface GroupProps<T> {
   onChange: (params: T) => void
 }
 
-function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<NoiseParams>) {
-  const update = (patch: Partial<NoiseParams>) => onChange({ ...params, ...patch })
+function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps<CrumpleParams>) {
+  const update = (patch: Partial<CrumpleParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const amountHint = useHint()
@@ -148,7 +148,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Noise <HintButton hint={introHint} topic="Noise" />
+        Crumple <HintButton hint={introHint} topic="Crumple" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
@@ -158,17 +158,17 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
         </HintText>
 
         <div className="field field-toggle">
-          <input id="noise-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="noise-enabled">Use noise</label>
+          <input id="crumple-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="crumple-enabled">Use crumple</label>
         </div>
 
         <RangeField
-          id="noise-amount"
-          target="experimental.noise.amount"
+          id="crumple-amount"
+          target="experimental.crumple.amount"
           label="Amount"
           value={params.amount}
           min={0}
-          max={NOISE_LIMITS.maxAmount}
+          max={CRUMPLE_LIMITS.maxAmount}
           step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
@@ -178,12 +178,12 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           onChange={(amount) => update({ amount })}
         />
         <RangeField
-          id="noise-facet"
-          target="experimental.noise.facet"
+          id="crumple-facet"
+          target="experimental.crumple.facet"
           label="Facet size"
           value={params.facet}
-          min={NOISE_LIMITS.minFacet}
-          max={NOISE_LIMITS.maxFacet}
+          min={CRUMPLE_LIMITS.minFacet}
+          max={CRUMPLE_LIMITS.maxFacet}
           step={0.02}
           display={percent(params.facet)}
           unit="% em"
@@ -194,8 +194,8 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           onChange={(facet) => update({ facet })}
         />
         <RangeField
-          id="noise-turn"
-          target="experimental.noise.turn"
+          id="crumple-turn"
+          target="experimental.crumple.turn"
           label="Turn"
           value={params.turn ?? 0}
           min={0}
@@ -209,7 +209,7 @@ function NoiseGroup({ params, stats, pending, disabled, onChange }: GroupProps<N
           onChange={(turn) => update({ turn })}
         />
 
-        <EffectStats stats={stats} pending={pending} effect="noise" />
+        <EffectStats stats={stats} pending={pending} effect="crumple" />
       </div>
     </fieldset>
   )
@@ -234,7 +234,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
       <div className="group-body">
         <HintText hint={introHint}>
           Waves spread from a point as rings of straight-sided polygons. Each ring is pushed out or pulled in, in turn, so
-          the outline zigzags where it crosses them. Runs after Noise.
+          the outline zigzags where it crosses them. Runs after Crumple.
         </HintText>
 
         <div className="field field-toggle">
@@ -351,8 +351,8 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
   )
 }
 
-function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<CurlParams>) {
-  const update = (patch: Partial<CurlParams>) => onChange({ ...params, ...patch })
+function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<WhorlParams>) {
+  const update = (patch: Partial<WhorlParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const amountHint = useHint()
@@ -362,7 +362,7 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Curl <HintButton hint={introHint} topic="Curl" />
+        Whorl <HintButton hint={introHint} topic="Whorl" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
@@ -372,17 +372,17 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
         </HintText>
 
         <div className="field field-toggle">
-          <input id="curl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="curl-enabled">Use curl</label>
+          <input id="whorl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="whorl-enabled">Use whorl</label>
         </div>
 
         <RangeField
-          id="curl-amount"
-          target="experimental.curl.amount"
+          id="whorl-amount"
+          target="experimental.whorl.amount"
           label="Amount"
           value={params.amount}
-          min={-CURL_LIMITS.maxAmount}
-          max={CURL_LIMITS.maxAmount}
+          min={-WHORL_LIMITS.maxAmount}
+          max={WHORL_LIMITS.maxAmount}
           step={0.1}
           display={`${percent(params.amount)}%`}
           valueText={`${percent(params.amount)} percent`}
@@ -393,14 +393,14 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
         />
         <div className="field field-toggle">
           <input
-            id="curl-pinned"
+            id="whorl-pinned"
             type="checkbox"
             checked={params.pinned}
             disabled={off}
             aria-describedby={pinHint.id}
             onChange={(e) => update({ pinned: e.target.checked })}
           />
-          <label htmlFor="curl-pinned">Pin top and bottom</label>
+          <label htmlFor="whorl-pinned">Pin top and bottom</label>
           <HintButton hint={pinHint} topic="Pin top and bottom" />
         </div>
         <HintText hint={pinHint}>
@@ -408,12 +408,12 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
           turns, the top and bottom with it.
         </HintText>
         <RangeField
-          id="curl-rings"
-          target="experimental.curl.rings"
+          id="whorl-rings"
+          target="experimental.whorl.rings"
           label="Rings"
           value={params.rings}
-          min={CURL_LIMITS.minRings}
-          max={CURL_LIMITS.maxRings}
+          min={WHORL_LIMITS.minRings}
+          max={WHORL_LIMITS.maxRings}
           step={1}
           display={params.rings}
           valueText={`${params.rings} rings`}
@@ -423,12 +423,12 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
           onChange={(rings) => update({ rings })}
         />
         <RangeField
-          id="curl-sides"
-          target="experimental.curl.sides"
+          id="whorl-sides"
+          target="experimental.whorl.sides"
           label="Sides"
           value={params.sides}
-          min={CURL_LIMITS.minSides}
-          max={CURL_LIMITS.maxSides}
+          min={WHORL_LIMITS.minSides}
+          max={WHORL_LIMITS.maxSides}
           step={1}
           display={params.sides}
           valueText={`${params.sides} sides`}
@@ -436,14 +436,14 @@ function CurlGroup({ params, stats, pending, disabled, onChange }: GroupProps<Cu
           onChange={(sides) => update({ sides })}
         />
 
-        <EffectStats stats={stats} pending={pending} effect="curl" />
+        <EffectStats stats={stats} pending={pending} effect="whorl" />
       </div>
     </fieldset>
   )
 }
 
-function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<WindParams>) {
-  const update = (patch: Partial<WindParams>) => onChange({ ...params, ...patch })
+function SlipstreamGroup({ params, stats, pending, disabled, onChange }: GroupProps<SlipstreamParams>) {
+  const update = (patch: Partial<SlipstreamParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const directionHint = useHint()
@@ -454,24 +454,24 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Wind <HintButton hint={introHint} topic="Wind" />
+        Slipstream <HintButton hint={introHint} topic="Slipstream" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
           Draws the letters out in the wind’s direction. The side facing the wind stays put; the further downwind, the
           more the outline is pulled, and gusts pull some bands further than others, leaving ragged, straight-edged
-          streaks. Runs after Curl.
+          streaks. Runs after Whorl.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="wind-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="wind-enabled">Use wind</label>
+          <input id="slipstream-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="slipstream-enabled">Use slipstream</label>
         </div>
 
         <RangeField
-          id="wind-direction"
-          target="experimental.wind.direction"
+          id="slipstream-direction"
+          target="experimental.slipstream.direction"
           label="Direction"
           value={params.direction}
           min={0}
@@ -485,12 +485,12 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           onChange={(direction) => update({ direction })}
         />
         <RangeField
-          id="wind-strength"
-          target="experimental.wind.strength"
+          id="slipstream-strength"
+          target="experimental.slipstream.strength"
           label="Strength"
           value={params.strength}
           min={0}
-          max={WIND_LIMITS.maxStrength}
+          max={SLIPSTREAM_LIMITS.maxStrength}
           step={0.1}
           display={`${percent(params.strength)}%`}
           valueText={`${percent(params.strength)} percent`}
@@ -500,12 +500,12 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           onChange={(strength) => update({ strength })}
         />
         <RangeField
-          id="wind-gust"
-          target="experimental.wind.gust"
+          id="slipstream-gust"
+          target="experimental.slipstream.gust"
           label="Gust size"
           value={params.gust}
-          min={WIND_LIMITS.minGust}
-          max={WIND_LIMITS.maxGust}
+          min={SLIPSTREAM_LIMITS.minGust}
+          max={SLIPSTREAM_LIMITS.maxGust}
           step={0.02}
           display={percent(params.gust)}
           unit="% em"
@@ -516,12 +516,12 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           onChange={(gust) => update({ gust })}
         />
         <RangeField
-          id="wind-gustiness"
-          target="experimental.wind.gustiness"
+          id="slipstream-gustiness"
+          target="experimental.slipstream.gustiness"
           label="Gustiness"
           value={params.gustiness}
           min={0}
-          max={WIND_LIMITS.maxGustiness}
+          max={SLIPSTREAM_LIMITS.maxGustiness}
           step={0.1}
           display={`${percent(params.gustiness)}%`}
           valueText={`${percent(params.gustiness)} percent`}
@@ -531,20 +531,20 @@ function WindGroup({ params, stats, pending, disabled, onChange }: GroupProps<Wi
           onChange={(gustiness) => update({ gustiness })}
         />
 
-        <EffectStats stats={stats} pending={pending} effect="wind" />
+        <EffectStats stats={stats} pending={pending} effect="slipstream" />
       </div>
     </fieldset>
   )
 }
 
-function SpikesGroup({
+function ThornGroup({
   params,
   stats,
   pending,
   disabled,
   onChange,
-}: Omit<GroupProps<SpikeParams>, 'stats'> & { stats: SpikeStats | null }) {
-  const update = (patch: Partial<SpikeParams>) => onChange({ ...params, ...patch })
+}: Omit<GroupProps<ThornParams>, 'stats'> & { stats: ThornStats | null }) {
+  const update = (patch: Partial<ThornParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
   const countHint = useHint()
@@ -555,28 +555,28 @@ function SpikesGroup({
   return (
     <fieldset className="group experimental" disabled={disabled}>
       <legend>
-        Spikes <HintButton hint={introHint} topic="Spikes" />
+        Thorn <HintButton hint={introHint} topic="Thorn" />
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
           A few anchors on the outside of each letter jump out into the canvas, and their two edges stretch into long,
-          straight spikes. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump
-          somewhere new. Runs after Wind.
+          straight thorns. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump
+          somewhere new. Runs after Slipstream.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="spikes-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
-          <label htmlFor="spikes-enabled">Use spikes</label>
+          <input id="thorn-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="thorn-enabled">Use thorn</label>
         </div>
 
         <RangeField
-          id="spikes-count"
-          target="experimental.spikes.count"
+          id="thorn-count"
+          target="experimental.thorn.count"
           label="Anchors"
           value={params.count}
-          min={SPIKE_LIMITS.minCount}
-          max={SPIKE_LIMITS.maxCount}
+          min={THORN_LIMITS.minCount}
+          max={THORN_LIMITS.maxCount}
           step={1}
           display={params.count}
           valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
@@ -586,12 +586,12 @@ function SpikesGroup({
           onChange={(count) => update({ count })}
         />
         <RangeField
-          id="spikes-reach"
-          target="experimental.spikes.reach"
+          id="thorn-reach"
+          target="experimental.thorn.reach"
           label="Reach"
           value={params.reach}
           min={0}
-          max={SPIKE_LIMITS.maxReach}
+          max={THORN_LIMITS.maxReach}
           step={0.05}
           display={percent(params.reach)}
           unit="% em"
@@ -602,8 +602,8 @@ function SpikesGroup({
           onChange={(reach) => update({ reach })}
         />
         <RangeField
-          id="spikes-spread"
-          target="experimental.spikes.spread"
+          id="thorn-spread"
+          target="experimental.thorn.spread"
           label="Spread"
           value={params.spread}
           min={0}
@@ -617,8 +617,8 @@ function SpikesGroup({
           onChange={(spread) => update({ spread })}
         />
         <RangeField
-          id="spikes-width"
-          target="experimental.spikes.width"
+          id="thorn-width"
+          target="experimental.thorn.width"
           label="Width"
           value={params.width}
           min={0}
@@ -628,15 +628,15 @@ function SpikesGroup({
           valueText={`${percent(params.width)} percent`}
           disabled={off}
           hint={widthHint}
-          hintText="How wide each spike is where it leaves the letter. 0%: a thin needle. 100%: the jumping anchor pulls its whole edges along."
+          hintText="How wide each thorn is where it leaves the letter. 0%: a thin needle. 100%: the jumping anchor pulls its whole edges along."
           onChange={(width) => update({ width })}
         />
 
         {stats?.applied && (
           <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
             <div>
-              <dt>Spikes</dt>
-              <dd>{stats.spikes}</dd>
+              <dt>Thorns</dt>
+              <dd>{stats.thorns}</dd>
             </div>
             <div>
               <dt>Longest</dt>
@@ -654,7 +654,7 @@ function SpikesGroup({
 
 interface RangeFieldProps {
   id: string
-  /** The Sound target this slider is ("experimental.noise.amount"), for its live marker. */
+  /** The Sound target this slider is ("experimental.crumple.amount"), for its live marker. */
   target: string
   label: string
   value: number

@@ -139,15 +139,15 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 
 ### P2：实验效果（可叠加）
 
-创意效果统一放在 Geometry 旁边的 **Experimental** 标签页：**Noise**（揉皱的纸）、**Ripple**（从一点扩散的波纹）、**Wind**（沿某个方向被拉扯），按这个顺序开发，之后是 **Curl**（绕每个字母中心的漩涡）和 **Spikes**（几个锚点跳进画布）。详细计划见 [EXPERIMENTAL_PLAN.zh.md](EXPERIMENTAL_PLAN.zh.md)。
+创意效果统一放在 Geometry 旁边的 **Experimental** 标签页：**Crumple**（揉皱的纸）、**Ripple**（从一点扩散的波纹）、**Slipstream**（沿某个方向被拉扯），按这个顺序开发，之后是 **Whorl**（绕每个字母中心的漩涡）和 **Thorn**（几个锚点跳进画布）。详细计划见 [EXPERIMENTAL_PLAN.zh.md](EXPERIMENTAL_PLAN.zh.md)。
 
-- **没有曲线，眼睛看也没有：** 每个效果都是对平面的分段线性变形。边在每个网格三角形内部保持笔直，只在折痕处转折，新顶点也只加在折痕上。任何效果都不沿轮廓采样平滑函数；网格有最小单元尺寸，保证刻面看得见。Spikes 是唯一不是变形的效果：它让几个锚点沿直线移动，所以它的边同样是直的。
-- **可叠加：** 任意组合可以同时打开。它们在 Geometry 流程之后按固定顺序 Noise → Ripple → Curl → Wind → Spikes 运行，每个效果接收上一个的结果。
+- **没有曲线，眼睛看也没有：** 每个效果都是对平面的分段线性变形。边在每个网格三角形内部保持笔直，只在折痕处转折，新顶点也只加在折痕上。任何效果都不沿轮廓采样平滑函数；网格有最小单元尺寸，保证刻面看得见。Thorn 是唯一不是变形的效果：它让几个锚点沿直线移动，所以它的边同样是直的。
+- **可叠加：** 任意组合可以同时打开。它们在 Geometry 流程之后按固定顺序 Crumple → Ripple → Whorl → Slipstream → Thorn 运行，每个效果接收上一个的结果。
 - **始终有效：** 在 100% 以内，每种变形都是一一映射（网格三角形不会翻转），所以任意组合都不会让轮廓交叉，字腔始终留在字形内。每个效果之后仍会检查轮廓，并报告减弱情况。
-- **翻折，用于无法阅读的极端效果：** 超过 100%（Noise 最高 500%，Ripple 最高 400%，Curl 最高 ±400%，Wind 的 Gustiness 最高 200% 并出现反向阵风，Strength 最高 800%）时，字母可以折到自己身上。重叠部分会合并成非零规则所填充区域的干净、不交叉的轮廓，仍然只有直边，所以每个字形都还能导出。Spikes 在任何设置下都可能穿过字母，所以只要它打开，轮廓都会这样合并。
+- **翻折，用于无法阅读的极端效果：** 超过 100%（Crumple 最高 500%，Ripple 最高 400%，Whorl 最高 ±400%，Slipstream 的 Gustiness 最高 200% 并出现反向阵风，Strength 最高 800%）时，字母可以折到自己身上。重叠部分会合并成非零规则所填充区域的干净、不交叉的轮廓，仍然只有直边，所以每个字形都还能导出。Thorn 在任何设置下都可能穿过字母，所以只要它打开，轮廓都会这样合并。
 - **花瓣：** Ripple 可以把各圈弯成一朵花，每条边一片直边花瓣（0–300%）。任何深度下 Petals 都是一一映射，自己永远不会翻折；翻折仍然只来自超过 100% 的 Ripple Amount。
-- **漩涡：** Curl 让一圈圈直边多边形各自整体绕字母中心旋转，可以固定上下（中间被拧转），也可以整体旋转（顶和底也被甩过去）。正反方向在 100% 以内都是一一映射；超过之后和其他效果一样翻折。
-- **尖刺：** 每个字母外侧的几个锚点（字腔永远不会长出尖刺）笔直跳进画布，它们的边变成又长又直的尖刺。Anchors 决定每个字母跳出几个（1–12），Reach 决定跳多远（最多 em 的 200%），Spread 决定向旁边偏多少（两侧各最多 90°），Width 决定尖刺离开字母处有多宽（从一根细针到一个宽楔形）。共用的种子决定哪些锚点跳出、跳向哪里，所以 Next variant 或由 Sound 驱动的种子会让它们换地方。
+- **Whorl（漩涡）：** 一圈圈直边多边形各自整体绕字母中心旋转，可以固定上下（中间被拧转），也可以整体旋转（顶和底也被甩过去）。正反方向在 100% 以内都是一一映射；超过之后和其他效果一样翻折。
+- **Thorn（刺）：** 每个字母外侧的几个锚点（字腔永远不会长刺）笔直跳进画布，它们的边变成又长又直的刺。Anchors 决定每个字母跳出几个（1–12），Reach 决定跳多远（最多 em 的 200%），Spread 决定向旁边偏多少（两侧各最多 90°），Width 决定每根刺离开字母处有多宽（从一根细针到一个宽楔形）。共用的种子决定哪些锚点跳出、跳向哪里，所以 Next variant 或由 Sound 驱动的种子会让它们换地方。
 - **可重复：** 整个标签页共用一个种子；效果在字形自身坐标里计算，所以同一个字母的每次出现形状相同，也能导出字体。
 - Random anchors 不再标为实验功能，仍留在 Geometry 标签页。
 
@@ -176,7 +176,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 2. **几何与网格：** 网格吸附、网格大小、角度锁定、固定锚点行为。
 3. **扰动：** 噪声幅度、频率、法线偏向、随机种子（以及少数锚点模式，它没有控件：只有 Flicker 预设会设置它）。
 4. **导出：** SVG 设置、字体覆盖范围和字体元数据。
-5. **Experimental**（Geometry 旁边的独立标签页）：Noise、Ripple、Curl、Wind、Spikes，可叠加，共用一个种子。
+5. **Experimental**（Geometry 旁边的独立标签页）：Crumple、Ripple、Whorl、Slipstream、Thorn，可叠加，共用一个种子。
 
 ### 工具层级
 
@@ -208,7 +208,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 - 派生几何由原始曲线和当前参数生成；参数改变不应累积修改原始数据。
 - 随机扰动使用显式种子，保证预览结果可重复。
 - SVG 输出必须通过检查，确保路径数据不含 `C` 或 `Q` 等曲线命令。
-- 实验效果是分段线性变形，只在折痕处加顶点（Spikes 让几个锚点沿直线移动）；不得增加连续朝同一方向小幅转折、看起来像曲线的段落。
+- 实验效果是分段线性变形，只在折痕处加顶点（Thorn 让几个锚点沿直线移动）；不得增加连续朝同一方向小幅转折、看起来像曲线的段落。
 - 处理较大字体时避免阻塞界面；必要时在后台线程计算，并在计算期间维持控件响应。
 
 ## 8. 验收标准
@@ -225,7 +225,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 - 文件载入、预览和导出均在客户端完成。
 - 载入文件不会自动创建下载文件；导出只在用户明确触发后发生。
 - 若字体导出未覆盖某些字体特性，应用会在导出前明确说明。
-- 实验效果可以同时打开；100% 以内的任意组合都得到有效轮廓（不交叉，字腔在字形内），也不增加像曲线的段落。超过 100% 或打开 Spikes 时，翻折或长出尖刺的字母会合并成不交叉、可以导出的轮廓。
+- 实验效果可以同时打开；100% 以内的任意组合都得到有效轮廓（不交叉，字腔在字形内），也不增加像曲线的段落。超过 100% 或打开 Thorn 时，翻折或长出刺的字母会合并成不交叉、可以导出的轮廓。
 
 ## 9. 里程碑建议
 
@@ -264,7 +264,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 - **映射：** 最多 8 行，每行把一个特征连接到一个目标。
   - **连续：** 滑块位置（沿滑块的绘制方向，0–1）+ Depth × 特征，截断到滑块两端，再取整到滑块的档位；同一目标上的多个作用先相加再截断。普通滑块相当于 滑块值 + Depth × 特征 × 滑块的范围，而对数刻度的滑块（如 Tolerance）沿滑道均匀移动。
   - **事件**（Beat、Kick），分三种：
-    - **Jump：** 种子前进一个，让锚点、翻折、阵风或尖刺跳到新位置。三个种子都是目标，新的种子让每个锚点落到新的地方。在种子上，这一行的滑块显示为 **Rate**（0–100%）：配 Beat 或 Kick 时，每次起音种子前进一个（Rate 50% 是每隔一次起音，25% 是每四次）；配其他特征时，每秒最多跳 4.8 次 × Rate × 特征值。种子始终是字段范围内（0–999 999）的整数，超过最大值后回到 0。
+    - **Jump：** 种子前进一个，让锚点、翻折、阵风或刺跳到新位置。三个种子都是目标，新的种子让每个锚点落到新的地方。在种子上，这一行的滑块显示为 **Rate**（0–100%）：配 Beat 或 Kick 时，每次起音种子前进一个（Rate 50% 是每隔一次起音，25% 是每四次）；配其他特征时，每秒最多跳 4.8 次 × Rate × 特征值。种子始终是字段范围内（0–999 999）的整数，超过最大值后回到 0。
     - **Step：** 换到几个可选值中的下一个，例如 Allowed directions（角度步长）。
     - **Kick：** 跃起后再回落。Beat 或 Kick 用在任意滑块上就是这样，靠的是它们的脉冲。
   - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
@@ -275,10 +275,10 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
     - Grid size 打开 Snap to grid。
     - Distortion 的 Noise frequency、Normal bias 和 Seed 在 Noise amplitude 为 0 时把它设为 40。
     - Random anchors 的目标打开 Random anchors；Seed 还会在 Randomness 为 0% 时把它设为 100%。
-    - Experimental 的效果滑块打开各自的效果。Noise、Wind 和 Spikes 都没打开时，Experimental 的 Seed 会打开 Noise（Ripple 和 Curl 没有随机性）。
-  - **预设：** Flicker、Scatter、Pixel、Low poly、Block、Jitter、Facet、Bloom、Flare、Gale。每个预设除了映射，还会设好几个起始值。大多数只用 Geometry 标签页，所以安静时字母仍然清楚可读；每个最多一个 Experimental 效果（Bloom 用 Ripple，Flare 用 Spikes，Gale 用 Wind）。Flicker 会打开 Distortion 的少数锚点模式（P1）。一个 ⓘ 列出每个预设，各一行说明。
+    - Experimental 的效果滑块打开各自的效果。Crumple、Slipstream 和 Thorn 都没打开时，Experimental 的 Seed 会打开 Crumple（Ripple 和 Whorl 没有随机性）。
+  - **预设：** Flicker、Scatter、Pixel、Low poly、Block、Jitter、Facet、Bloom、Flare、Gale。每个预设除了映射，还会设好几个起始值。大多数只用 Geometry 标签页，所以安静时字母仍然清楚可读；每个最多一个 Experimental 效果（Bloom 用 Ripple，Flare 用 Thorn，Gale 用 Slipstream）。Flicker 会打开 Distortion 的少数锚点模式（P1）。一个 ⓘ 列出每个预设，各一行说明。
     - 在 **Preset** 列表中选择只是选中。
-    - **Load** 把 Geometry 和 Experimental 的每个设置恢复为默认值，保留三个种子；设好预设的起始值；用预设的映射替换当前映射；并在 Preset 一行下方显示提示，例如 “Loaded Bloom. Turned off Noise. Other Geometry and Experimental settings back to defaults (seeds kept).”。所以无论之前设了什么，每个预设都从同样的字母开始。
+    - **Load** 把 Geometry 和 Experimental 的每个设置恢复为默认值，保留三个种子；设好预设的起始值；用预设的映射替换当前映射；并在 Preset 一行下方显示提示，例如 “Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept).”。所以无论之前设了什么，每个预设都从同样的字母开始。
     - 手动选择目标仍然只会打开它所需的设置，不会恢复任何默认值。
 - **保留滑块值和种子：**
   - 滑块保留自己的值，并用标记显示实时值。种子字段保留自己的种子，被驱动的种子旁边用一个小数字显示实时种子；Distortion 和 Random anchors 的统计信息也显示实时种子。
@@ -313,7 +313,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 | P1 锚点与几何控制（间距、简化、网格、角度、扰动） | 已实现，顺序固定并公开 |
 | P1 填充与样张 | 已实现：可编辑多行文本，保留字宽与字体自带字偶距，缺字明确标示 |
 | P2 字体文件导出 | 已实现：OpenType（CFF，.otf），字形范围可选，导出后用 fontkit 与浏览器字体引擎校验 |
-| P2 实验效果 | 已实现：Noise、Ripple（含花瓣）、Curl、Wind、Spikes，可叠加，超过 100% 时可翻折 |
+| P2 实验效果 | 已实现：Crumple、Ripple（含花瓣）、Whorl、Slipstream、Thorn，可叠加，超过 100% 时可翻折 |
 | 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）、会自己打开所需设置的目标，以及十个预设（Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值并设好预设的起始值；Flicker 的少数锚点模式）已完成；Pitch 和 Balance（第 4 阶段）提前完成，特征共 20 个，电平表改为紧凑排列。尚未实现：Step 映射（Allowed directions、Sides、Rings），以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
 
 字体导出的边界（对应第 10 节待验证事项）：不输出 TTF / WOFF / WOFF2；不导出字偶距及其他 GPOS / GSUB 特性、hinting、变量轴（可变字体导出画布所示默认实例）；仅导出经字符映射可达的字形；U+FFFF 以上字符因写入器无法可靠映射而排除；坐标取整到字体单位。
