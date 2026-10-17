@@ -421,7 +421,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 流程不变；实时请求带 `live` 标记，Worker 会把它们的结果分开保存。
    - 实时帧使用单独的小缓存。
    - 只在 Sound 能驱动时统计种子的跳变。暂停、停止或关闭 Drive letters 时，种子完全回到字段中的值（再次播放时从这些值开始）；共用的闪烁额度在这期间保留，精确恢复本身也从中扣一次大变化。Freeze 把实时种子写入种子字段。
-   - 在 Worker 中测量（Arial，24 个不同字形）：种子跳一次会重新计算每个字形，用时约 2–3.5 ms；Level → Noise amplitude 每帧 2.4 ms，三个映射一起 12 ms，所有 Experimental 效果全开 37–41 ms（24–27 fps）。Experimental 的数字测于 Crumple、Slipstream 和 Thorn 重做之前，重做让它们都变重了。
+   - 在 Worker 中测量（Arial，24 个不同字形）：种子跳一次会重新计算每个字形，用时约 2–3.5 ms；Level → Noise amplitude 每帧 2.4 ms，三个映射一起 12 ms，所有 Experimental 效果全开 37–41 ms（24–27 fps）。Experimental 的数字测于 Crumple、Slipstream 和 Thorn 重做之前，重做让它们都变重了（其中 Crumple 的部分已被 NOCUR-60 撤销，见阶段 I 之后的说明）。
 5. **界面：** 第三个标签页 **Sound**，包含：
    - Source（File 或 Microphone）、电平表、Sensitivity、Smoothing（阶段 H 中改名为 Release 并移入 Response 组），以及 Drive letters 开关。电平表每个特征一行（名称、条、数值），分五组，每组有一个 ⓘ；Pan 从中间向两边填充，显示为 "L 40" / "R 40" / "C"，Pitch 以 Hz 显示，Beat 是脉冲条，取代了原来的指示灯（开启减少动态效果时仍然工作）。
    - 带预设的映射列表。Feature 列表与电平表分组相同；目标显示为 "Section · Label"，Experimental 的种子只显示 "Seed"；在种子上，Depth 显示为 Rate。选中一个设置处于关闭状态的目标时，会打开该设置并在这一行下面说明（"Turned on Ripple."）；不会再自动关闭任何东西。如果用户之后又关掉了设置，这一行会说明原因并提供 Enable。用键盘时，按 Enter 或焦点离开列表时才应用目标。Add mapping 优先选已经起作用的目标。在 Preset 列表中选择只是选中；Load 把 Geometry 和 Experimental 的设置恢复为默认值（保留种子），设好预设的起始值，用预设的映射替换当前映射，并在 Preset 一行下方说明关闭了什么，这些合起来是一个撤销步骤；一个 ⓘ 列出每个预设，各一行说明。映射在两次访问之间保存。
@@ -587,7 +587,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 被扭得比滑块形状更远的实时字母可能伸出画板边缘：画布上仍然显示它，预览和视频会在边缘把它截掉。Freeze 会改变滑块值，所以那时文字块可能移动一次。视频在同一位置画同一个场景，所以视频里的文字块也不动。关闭 Sound 时一切照旧。
 2. **稳定的刺锚点**（`src/geometry/thorn.ts` 中的 `ThornAnchors`、`src/geometry/experimental.ts`、`pipeline.ts`）：
    - `deriveGeometry` 把 Distortion 之前的字母（经过 Flatten 或 Random anchors、Squaring、Anchor spacing 与 reduction、Grid snapping 和 Angle lock 之后）交给 `applyExperimental`，作为 Thorn 的参考轮廓。Thorn 在参考轮廓上按种子、轮廓和锚点位置的哈希给候选锚点排序，每根刺的方向（锚点两侧各 0.06 em 范围内轮廓的走向，`THORN_WINDOW`）、偏转、长度和倾斜也都从参考轮廓取。
-   - 每个选中的锚点都跟着 Distortion、Crumple、Ripple、Whorl 和 Slipstream（以及预算的简化和 Slipstream 的重画）走到它变成的那个顶点，所以刺仍然从实际画出的轮廓上的一个顶点长出。它的方向经过同样的变形，而这些变形按没有 Distortion 时的墨迹框摆放，所以改变 Distortion 永远不会重新挑选，只会让刺稍稍转向（在测试中，Crumple 和 Ripple 之下最多 2.5°）；会指进实际画出的字母里的刺，会被镜像到墨迹之外。
+   - 每个选中的锚点都跟着 Distortion、Crumple、Ripple、Whorl 和 Slipstream（以及预算的简化和 Slipstream 的重画）走到它变成的那个顶点，所以刺仍然从实际画出的轮廓上的一个顶点长出。它的方向经过同样的变形，而这些变形按没有 Distortion 时的墨迹框摆放，所以改变 Distortion 永远不会重新挑选，只会让刺稍稍转向（在测试中，Crumple 和 Ripple 之下最多 2.5°；NOCUR-60 起为 2.6°，见阶段 I 之后的说明）；会指进实际画出的字母里的刺，会被镜像到墨迹之外。
    - 轮廓重叠的地方，锚点逐个挑选：取在其他轮廓之外的锚点，够多时还要离它们 0.1 em 以上（`THORN_CLEARANCE`），而不是整条轮廓跳过：Roboto 有些字母画成横在竖笔上的拱或碗，以前它们没有一个锚点算在外侧。
    - Whorl 缓存了它最大的环间转角（`largestStep`，只取决于参数），因为现在一个变形可能要建两次。
    - 同一个种子挑出的锚点与之前的版本不同，所以旧的保存会话会显示别的刺。Thorn 的滑块、范围和默认值都没有变；Anchors 仍然在一个固定列表的末尾增减刺，Reach 仍然只缩放刺的长度；每个输出仍然只有 `M`、`L` 和 `Z`。
@@ -602,7 +602,7 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
    - 关闭 Thorn 时没有轮次，调度器的输出与之前逐字节相同。
 4. **中性测试：** `tests/sound/neutral.test.ts` 中调度器的哈希现在覆盖起始设置会打开 Thorn 的预设之外的所有预设（只有 Flare，测试会检查这一点），因为 Thorn 轮次有意改变了 Flare 的实时帧。它的锁定值（`32a8121b`）从 4a54e5d 的导出取得，从不取自新代码，并在 arm64 和 x64（在 Rosetta 下运行的官方 x64 版 Node 22.23.3）上分别用导出和新代码检查过。其他锁定值不变。
 5. **测试：** 快速测试新增三个文件，现在共 34 个：
-   - `tests/geometry/thorn-anchors.test.ts`，在两种测试字体上用录屏中的设置：Distortion 的强度和种子（包括少数锚点模式）不改变任何挑选和方向；Distortion、Crumple 或 Ripple 走一档，至少 90% 的刺保留（根部沿轮廓 0.05 em 以内，方向 10° 以内），没有一个字母的刺全部换掉，而换一个 Experimental 种子保留的不到 25%；在 Crumple 和 Ripple 之下把 Distortion 从 46 改为 47、60 或 92，刺的转角中位数最多 0.05°，最大 2.5°；Anchors 在一个固定列表的末尾增减；用重叠轮廓画成的字母仍然长刺。
+   - `tests/geometry/thorn-anchors.test.ts`，在两种测试字体上用录屏中的设置：Distortion 的强度和种子（包括少数锚点模式）不改变任何挑选和方向；Distortion、Crumple 或 Ripple 走一档，至少 90% 的刺保留（根部沿轮廓 0.05 em 以内，方向 10° 以内），没有一个字母的刺全部换掉，而换一个 Experimental 种子保留的不到 25%；在 Crumple 和 Ripple 之下把 Distortion 从 46 改为 47、60 或 92，刺的转角中位数最多 0.05°，最大 2.5°（NOCUR-60 起在 STIX 上为 2.6°）；Anchors 在一个固定列表的末尾增减；用重叠轮廓画成的字母仍然长刺。
    - `tests/sound/turns.test.ts`：分组（五组，每组最多 ceil(N / 5) 个，分散在整段文字中，放得下时字形保持完整）、轮次状态和它包含哪些目标、档位不缩放轮次目标、每次一组且相隔 250 ms、被拒绝的一轮会等待、空组跳过时间、重新开始、新映射按轮次传递、Freeze 写入共享值、关闭 Thorn 时不变，以及在默认文字上用 Flare 加 Level 驱动 Distortion 的端到端测试：每 250 ms 最多五分之一的字母变化，每个字母最多每 1.25 s 变化一次。
    - `tests/specimen/placement.test.ts`：实时播放时按滑块字母摆放文字块，同一段排好的文字上一次的滑块字母暂时顶替，以及退回实时场景。
    - 修改：`tests/sound/neutral.test.ts`（见上）和 `tests/worker/geometryClient.test.ts`（每帧 15 组时保留两帧，帧变小后又回到 6 组）。
@@ -618,3 +618,5 @@ OTF 生成不只是写入路径：输出还需要有效的字形记录、度量�
 - Distortion、Crumple 或 Ripple 走一档，或 Distortion 换一个种子，至少 90% 的刺留在原处、指向不变；换一个 Experimental 种子仍会重新挑选。
 - 打开 Thorn 时，任意 250 ms 内最多约五分之一的字母换刺，每个字母最多每 1.25 s 换一次，并且都在闪烁限制之内。
 - 画布的绘制和点击都只用直线段：打开 Thorn 时，字母靠展平后的原始轮廓接收点击，从不靠它的刺。
+
+> **说明（2026-10-17，NOCUR-60）：** Crumple 回到了[实验效果计划](EXPERIMENTAL_PLAN.zh.md)第 9 阶段之前的单一格子（第 4.1 节），名字仍叫 Crumple：第 9 阶段在改名的同一次改动里把它换成了三张网格和一个 Detail 滑块，而那次本来只打算改名。Detail 和 Sound 目标 Crumple · Detail 都去掉了；载入时，保存的 Detail 值被忽略，指向它的 Sound 行被去掉。格子固定在字形坐标里，所以 Crumple 不再让墨迹框的中心保持不动。在 Crumple 和 Ripple 之下，改变 Distortion 现在会让刺在 STIX 上最多转 2.6°（测试允许 3°，原来是 2.5°）。`tests/sound/neutral.test.ts`（modulate 和调度器）和 `tests/sound/turns.test.ts` 的锁定值重新取过，只是因为参数少了 detail 字段；把它放回去就得到原来的值。上文中涉及 Crumple 的数字都是在三张网格下测的。

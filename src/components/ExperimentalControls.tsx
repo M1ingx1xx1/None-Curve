@@ -1,5 +1,4 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
-import { CRUMPLE_LIMITS } from '../geometry/crumple'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
 import type { SlipstreamStats } from '../geometry/slipstream'
 import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
@@ -27,7 +26,7 @@ interface ExperimentalControlsProps {
 
 export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   seed: 1,
-  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0, detail: 0.5 },
+  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
@@ -150,7 +149,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
   const off = disabled || !params.enabled
   const introHint = useHint()
   const amountHint = useHint()
-  const detailHint = useHint()
   const facetHint = useHint()
   const turnHint = useHint()
 
@@ -162,9 +160,8 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Crumples the letters like paper at three scales: large folds tilt and kink whole strokes, medium ones bend a
-          stroke end here and there, and small sharp creases gather in busy stretches between calm ones. The outline bends
-          only along straight creases; counters fold with the strokes around them.
+          Crumples the letters like paper: the plane is cut into triangles that each move a little, so the outline bends
+          only along straight creases. Counters and the strokes around them fold together.
         </HintText>
 
         <div className="field field-toggle">
@@ -185,18 +182,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           onChange={(amount) => update({ amount })}
         />
         <RangeField
-          id="crumple-detail"
-          target="experimental.crumple.detail"
-          label="Detail"
-          value={params.detail ?? CRUMPLE_LIMITS.defaultDetail}
-          display={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)}%`}
-          valueText={`${percent(params.detail ?? CRUMPLE_LIMITS.defaultDetail)} percent`}
-          disabled={off}
-          hint={detailHint}
-          hintText="How the crumpling is shared between the scales. At 0 only the large folds bend whole strokes; higher values move strength to bent stroke ends and small sharp creases, and make their busy stretches longer. Up to 100% Amount the letter stays valid at any detail."
-          onChange={(detail) => update({ detail })}
-        />
-        <RangeField
           id="crumple-facet"
           target="experimental.crumple.facet"
           label="Facet size"
@@ -206,7 +191,7 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           valueText={`${percent(params.facet)} percent of the em`}
           disabled={off}
           hint={facetHint}
-          hintText="Size of the medium triangles, as a share of the em; the large folds are 2.25 times as big, the small creases 0.4 times. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
+          hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
           onChange={(facet) => update({ facet })}
         />
         <RangeField

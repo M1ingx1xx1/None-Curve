@@ -119,17 +119,15 @@ export interface RandomAnchorParams {
   seed: number
 }
 
-/** Experimental Crumple: crumples the letter along straight creases of three seeded triangle meshes (large, medium, fine). */
+/** Experimental Crumple: crumples the letter along straight creases of a seeded triangle mesh. */
 export interface CrumpleParams {
   enabled: boolean
-  /** 0–5: how far lattice points move, as a share of the safe maximum (the most that keeps the warp one-to-one); above 1, facets fold. */
+  /** 0–5: how far lattice points move, as a share of the safe maximum (30% of the facet size); above 1, facets fold. */
   amount: number
-  /** The medium mesh's cell size as a fraction of the em; the large mesh's is 2.25 times it, the fine mesh's 0.4 times. */
+  /** Lattice cell size as a fraction of the em; creases fall about 40% of it apart along the outline. */
   facet: number
   /** Degrees every lattice point's movement is turned by (counter-clockwise). Missing in older saved settings: 0. */
   turn: number
-  /** 0–1: strength moved from the large mesh to the medium and fine ones, and how much of the letter is busy. Missing in older saved settings: 0.5. */
-  detail: number
 }
 
 /** Experimental Ripple: polygonal waves spreading from a point, along the straight creases of a ring mesh. */

@@ -32,10 +32,12 @@ import { analyse, drumHits, hiHat, hitTimes, mix, noise, reseed, sine, type Prob
 import { loadFixture } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
 
-// Pinned at 4a54e5d (features to 10 significant digits, on arm64 and x64; the scheduler without Flare). Never edit.
+// Pinned at 4a54e5d (features to 10 significant digits, on arm64 and x64; the scheduler without Flare). Never edit,
+// except for a change of the params' shape: modulate and scheduler hash whole params, so they were pinned again when
+// Crumple lost Detail (NOCUR-60); with that field put back they give the 4a54e5d values (ef59f235, 32a8121b).
 const PINNED = {
-  modulate: 'ef59f235',
-  scheduler: '32a8121b',
+  modulate: 'a0bbe805',
+  scheduler: 'c91cc307',
   features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',

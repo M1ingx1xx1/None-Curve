@@ -28,7 +28,6 @@ const bottom = (id: SliderId) => SLIDER_RANGES[id].min
 export const SLIDER_MAX: Record<Effect, EffectPatch> = {
   crumple: on('crumple', {
     amount: top('experimental.crumple.amount'),
-    detail: top('experimental.crumple.detail'),
     facet: bottom('experimental.crumple.facet'),
   }),
   ripple: on('ripple', {

@@ -151,14 +151,14 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 
 ### P2：实验效果（可叠加）
 
-创意效果统一放在 Geometry 旁边的 **Experimental** 标签页：**Crumple**（揉皱的纸）、**Ripple**（从一点扩散的波纹）、**Slipstream**（被气流卷住的字母），按这个顺序开发，之后是 **Whorl**（绕每个字母中心的漩涡）和 **Thorn**（几个锚点跳进画布，变成刺）。第 9 阶段给它们改了名（原来叫 Noise、Curl、Wind 和 Spikes），并重做了 Crumple、Slipstream 和 Thorn。详细计划见 [EXPERIMENTAL_PLAN.zh.md](EXPERIMENTAL_PLAN.zh.md)。
+创意效果统一放在 Geometry 旁边的 **Experimental** 标签页：**Crumple**（揉皱的纸）、**Ripple**（从一点扩散的波纹）、**Slipstream**（被气流卷住的字母），按这个顺序开发，之后是 **Whorl**（绕每个字母中心的漩涡）和 **Thorn**（几个锚点跳进画布，变成刺）。第 9 阶段给它们改了名（原来叫 Noise、Curl、Wind 和 Spikes），并重做了 Slipstream 和 Thorn；它也重做了 Crumple，但 NOCUR-60 恢复了 Noise 的单一方形格子，名字仍叫 Crumple。详细计划见 [EXPERIMENTAL_PLAN.zh.md](EXPERIMENTAL_PLAN.zh.md)。
 
 - **没有曲线，眼睛看也没有：** 每个效果都由对平面的分段线性变形构成。边在每个网格三角形内部保持笔直，只在折痕处转折，新顶点也只加在折痕上。任何效果都不沿轮廓采样平滑函数；网格有最小单元尺寸，保证刻面看得见。有三部分不是变形，它们各自只增加几条直边：Slipstream 的拖尾和切口，以及 Thorn 的刺尖。
 - **可叠加：** 任意组合可以同时打开。它们在 Geometry 流程之后按固定顺序 Crumple → Ripple → Whorl → Slipstream → Thorn 运行，每个效果接收上一个的结果。
 - **始终有效：** 在 100% 以内，每种变形都是一一映射（网格三角形不会翻转），所以任意组合都不会让轮廓交叉，字腔始终留在字形内。每个效果之后仍会检查轮廓，并报告减弱情况。
 - **翻折，用于无法阅读的极端效果：** 超过 100%（Crumple 最高 500%，Ripple 最高 400%，Whorl 最高 ±400%，Slipstream 的 Gustiness 最高 200% 并出现反向阵风，Strength 最高 800%）时，字母可以折到自己身上。重叠部分会合并成非零规则所填充区域的干净、不交叉的轮廓，仍然只有直边，所以每个字形都还能导出。合并会按输入自身的顶点和精确的交叉点重画每个轮廓，所以不会带来抖动。Thorn 的刺在任何设置下都可能穿过字母，所以只要加了刺，轮廓都会这样合并；Slipstream 的切口也由同样的合并切出。合并失败时，字形保持不合并（填充范围不变）并给出提示，而不会丢掉墨迹。
 - **代价有上限：** 每个字形都有一个顶点预算，只取决于字形和设置，与时间无关（每个效果之后，顶点最多比进入标签页时多 6,000 个；合并时最多多 30,000 个点）。几个密集效果一起超出预算时，字母会被简化，而不是拖慢页面（所有滑块都拉到最大时，字母会变成几块宽宽的墨块），面板和状态栏会说明这一点。默认设置、任何单个效果和声音预设都不会触发预算。
-- **Crumple：** 同时用三张网格揉皱（大的折痕让整根笔画倾斜，中等的让这里那里的笔画末端弯一下，细小尖锐的折痕聚在忙碌的段落里，与平静的段落交替）；Detail 在它们之间分配揉皱的力度。100% 以内是一一映射。每个字形揉得各不相同，同一个字母的每次出现都一样。
+- **Crumple：** 一张由刻面组成的方形格子（Facet size，em 的 8–100%），按种子旋转一个角度，每个正方形沿种子选定的对角线分成两个三角形，所以折痕不会排成规则的网格。每个格点按种子给出的随机向量移动，所有移动再一起按 Turn 旋转，格点之间的点随所在三角形线性移动。100% 以内是一一映射。格子固定在字形坐标中，所以同一个字母的每次出现都揉得一样。
 - **花瓣：** Ripple 可以把各圈弯成一朵花，每条边一片直边花瓣（0–300%）。任何深度下 Petals 都是一一映射，自己永远不会翻折；翻折仍然只来自超过 100% 的 Ripple Amount。
 - **Whorl（漩涡）：** 一圈圈直边多边形各自整体绕字母中心旋转，可以固定上下（中间被拧转），也可以整体旋转（顶和底也被甩过去）。正反方向在 100% 以内都是一一映射；超过之后和其他效果一样翻折。
 - **Slipstream：** 横穿气流的条带像切片一样彼此错开（Slip，一种错切，所以永远不会翻折），气流从面向它的一侧把字母拉长（Strength，带阵风），细长的楔形切口顺着气流切进字母（Cuts），细细的拖尾从字母的下风一侧拖出（Trails）。
@@ -292,7 +292,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
     - **Step：** 换到几个可选值中的下一个，例如 Allowed directions（角度步长）。
     - **脉冲：** 跃起后再回落。Beat 用在任意滑块上就是这样，靠的是它的脉冲。
   - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
-  - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 43 个。
+  - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 42 个。
   - 开关从不作为目标，Distortion 的少数锚点模式也不是。
   - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标选择则立即应用。**Add mapping** 优先选已经起作用的目标。
     - Curve flattening 的目标会关闭 Random anchors，并设置各自需要的：Tolerance 需要 Adaptive 模式，Segments per curve 需要 Fixed segments 模式，Corner angle 需要 Merge joined curves（两种模式下都可以）。
@@ -361,10 +361,10 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 | P1 锚点与几何控制（间距、简化、网格、角度、扰动） | 已实现，顺序固定并公开 |
 | P1 填充与样张 | 已实现：可编辑多行文本，保留字宽与字体自带字偶距，缺字在画布上明确标示；预览画的就是 SVG 导出本身 |
 | P2 字体文件导出 | 已实现：OpenType（CFF，.otf），字形范围可选，带原字体的成对字偶距（GPOS）和画布的行距（`USE_TYPO_METRICS`），在专用 Worker 中生成，带进度、大小估计和立即生效的 Cancel，超出字体限制的字形裁剪到能放下，导出后用 fontkit 与浏览器字体引擎校验 |
-| P2 实验效果 | 已实现：Crumple（含 Detail）、Ripple（含花瓣）、Whorl、Slipstream（含 Slip、Cuts、Trails）、Thorn（含 Root 和 Refraction，Reach 按画布计量，锚点在 Distortion 之前选出，所以 Distortion 和 Thorn 之前的效果做小幅变化时，刺留在原处），可叠加，超过 100% 时可翻折，每个字形有顶点预算 |
+| P2 实验效果 | 已实现：Crumple（含 Turn）、Ripple（含花瓣）、Whorl、Slipstream（含 Slip、Cuts、Trails）、Thorn（含 Root 和 Refraction，Reach 按画布计量，锚点在 Distortion 之前选出，所以 Distortion 和 Thorn 之前的效果做小幅变化时，刺留在原处），可叠加，超过 100% 时可翻折，每个字形有顶点预算 |
 | P2 视频导出 | 已实现：实时录制画布和它的声音，保存为 MP4 或 WebM（不支持 MP4 时保存为 WebM 并给出说明），可从 Sound 标签页的 Record 组或 Export → Video 开始，顶部栏有录制指示和 Stop；见第 11 节 |
 | 撤销、重做与会话保存（第 6、7 节） | 已实现：设置、文字、声音映射和 Sound 标签页的 Response 设置共用一份最多 100 步的历史；会话保存在 `localStorage` 中，下次访问时恢复 |
 | 后台计算（第 7 节） | 已实现：几何只在 Worker 中计算，有 60 秒看门狗并会重启 Worker（Worker 无法运行时画布给出提示）；字体导出在专用 Worker 中进行；CI 中运行自动测试 |
-| 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）、会自己打开所需设置的目标（共 43 个，包括重做后的 Experimental 效果的滑块），以及十个预设（Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值并设好预设的起始值；Flicker 的少数锚点模式）已完成；Pitch 和 Pan（第 4 阶段）提前完成，特征共 10 个，分五组，电平表改为紧凑排列；File 作为默认来源、没有 Off，Drive letters 改为开关；滑块和种子共用一个闪烁限制，Beat 忽略持续的低音，映射在两次访问之间保存；阶段 H 中，字母可以按不同幅度反应（Motion contrast、Pitch reactive），仍在同一个闪烁限制之内，加入了 Response 组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking；保存并可撤销）、作为第 11 个特征的 Melody，以及视频录制；阶段 I 中（已完成，尚未合并），声音播放时文字块保持不动，刺按轮次变化、每次只变少数几个字母。尚未实现：Step 映射（Allowed directions、Sides、Rings），以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
+| 第 11 节 声音驱动几何 | 进行中：第 1–2 阶段已完成（声音来源、特征、电平表；连续映射、带独立缓存的实时调度、滑块上的实时值标记、Freeze）；第 3 阶段中，三个种子上的 Jump 映射（带 Rate 和闪烁限制）、会自己打开所需设置的目标（共 42 个，包括重做后的 Experimental 效果的滑块），以及十个预设（Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值并设好预设的起始值；Flicker 的少数锚点模式）已完成；Pitch 和 Pan（第 4 阶段）提前完成，特征共 10 个，分五组，电平表改为紧凑排列；File 作为默认来源、没有 Off，Drive letters 改为开关；滑块和种子共用一个闪烁限制，Beat 忽略持续的低音，映射在两次访问之间保存；阶段 H 中，字母可以按不同幅度反应（Motion contrast、Pitch reactive），仍在同一个闪烁限制之内，加入了 Response 组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking；保存并可撤销）、作为第 11 个特征的 Melody，以及视频录制；阶段 I 中（已完成，尚未合并），声音播放时文字块保持不动，刺按轮次变化、每次只变少数几个字母。尚未实现：Step 映射（Allowed directions、Sides、Rings），以及实时 SVG 重绘的测量；见 [SOUND_PLAN.zh.md](SOUND_PLAN.zh.md) |
 
 字体导出的边界（对应第 10 节待验证事项）：不输出 TTF / WOFF / WOFF2；导出字形之间的成对字偶距会导出（GPOS `kern` 特性），但不导出上下文和特定语言的字偶距、连字、附加符号定位及其他 GPOS / GSUB 特性、hinting、变量轴（可变字体导出画布所示的实例，其中随变化而改变的字偶距取整到整数单位）；行距与画布一致（hhea 的上伸、下伸和行间隙，同时写成排版度量并设置 `USE_TYPO_METRICS`）；仅导出经字符映射可达的字形；U+FFFF 以上字符因写入器无法可靠映射而排除；坐标取整到字体单位。每个字形都必须放进一个边长 32,766 字体单位的正方形（每 em 2,048 单位时为 16 em，1,000 单位时为 32.8 em），每个方向上能放下时就是字形自身的范围，放不下时以它的 em 框为中心，必要时再移到字形自身的范围之内：超出的轮廓部分（例如很长的 Thorn 刺尖）在边缘被直线截掉，而不是排除整个字形，Export 对话框在 "Trimmed to fit" 下列出这些字形；只有字体文件会被裁剪，画布、SVG 和 PNG 里它们都保持完整。前进宽度超过 32,767 单位的字形会被排除并说明原因，列在 "Left out of the font file" 下。回读校验还会检查 head 和 CFF 的边界框，以及每个字形都在这些限制之内。
