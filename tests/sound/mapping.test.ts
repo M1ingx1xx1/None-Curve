@@ -1,13 +1,12 @@
 // The Sound targets and modulate (src/sound/mapping.ts): every slider target takes its range and step from
 // SLIDER_RANGES, as the panels' sliders do, so a live value is always one the slider itself can produce; silence and
-// switched-off rows restore the sliders' values exactly. The Response group's Strength and Melody tracking act in
-// modulate; at their neutral values it is exactly the call without them.
+// switched-off rows restore the sliders' values exactly.
 
 import { describe, expect, it } from 'vitest'
-import { FEATURES, featureValue, modulate, TARGETS, targetById, type Mapping } from '../../src/sound/mapping'
+import { FEATURES, modulate, TARGETS, targetById, type Mapping } from '../../src/sound/mapping'
 import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { MAPPING_LIMITS } from '../../src/sound/mappingStore'
-import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, SILENT_FRAME, type FeatureFrame, type ResponseSettings } from '../../src/sound/types'
+import { SILENT_FRAME, type FeatureFrame } from '../../src/sound/types'
 import { reachFromSlider, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId } from '../../src/state/sliderScales'
 import { BASE } from '../helpers/params'
 
@@ -116,93 +115,5 @@ describe('modulate', () => {
         expect(target!.inactive(params), `${preset.name}: ${m.target}`).toBeNull()
       }
     }
-  })
-})
-
-describe('modulate with the Response group', () => {
-  const row = (target: string, depth: number, feature: Mapping['feature'] = 'level', id = target): Mapping => ({ id, enabled: true, feature, target, depth })
-  const response = (patch: Partial<ResponseSettings>): ResponseSettings => ({ ...NEUTRAL_RESPONSE, ...patch })
-  /** A grid of sounding frames: every feature at a few values, Melody and Pan included, with and without an onset. */
-  const grid: FeatureFrame[] = []
-  for (const a of [0, 0.3, 1]) {
-    for (const b of [0.05, 0.6]) {
-      grid.push({
-        ...loud,
-        level: a,
-        swell: b,
-        bass: 1 - a,
-        mids: b,
-        treble: a * b,
-        brightness: b,
-        pitch: a,
-        melody: b,
-        beat: a,
-        activity: 1 - b,
-        pan: a * 2 - 1,
-        onset: a === 1,
-      })
-    }
-  }
-
-  it('is the call without it at the neutral values, for every preset, and the sliders themselves in silence', () => {
-    for (const preset of PRESETS) {
-      const { params } = presetSettings(BASE, preset)
-      const mappings = preset.mappings.map((m, i) => ({ ...m, id: `${preset.id} ${i}` }))
-      const seeds = new Map(mappings.filter((m) => targetById(m.target)?.kind === 'jump').map((m) => [m.target, 2]))
-      for (const frame of grid) {
-        for (const jumps of [undefined, seeds]) {
-          expect(modulate(params, frame, mappings, jumps, NEUTRAL_RESPONSE), preset.name).toEqual(modulate(params, frame, mappings, jumps))
-        }
-      }
-      expect(modulate(params, SILENT_FRAME, mappings, undefined, NEUTRAL_RESPONSE).params, preset.name).toBe(params)
-    }
-  })
-
-  it('scales the offset by Strength before it is clamped; 0 keeps the sliders exactly', () => {
-    const target = targetById('distortion.amount')!
-    const base = target.toSlider(target.get(BASE))
-    const frame = { ...loud, level: 0.5 }
-    for (const strength of [0.5, 2, 4]) {
-      const { params, positions } = modulate(BASE, frame, [row(target.id, 0.1)], undefined, response({ strength }))
-      const expected = target.fromSlider(base + 0.05 * strength)
-      expect(target.get(params), `Strength ${strength}`).toBeCloseTo(expected, 9)
-      expect(positions.get(target.id)).toBeCloseTo(target.toSlider(expected), 9)
-    }
-    // Past the slider's end it stops there.
-    expect(target.get(modulate(BASE, loud, [row(target.id, 0.5)], undefined, response({ strength: 4 })).params)).toBe(target.max)
-    const still = modulate(BASE, loud, [row(target.id, 1), row('anchors.spacing', -1)], undefined, response({ strength: 0 }))
-    expect(still.params).toBe(BASE)
-    expect(still.positions.get(target.id)).toBe(base)
-  })
-
-  it('adds the Melody pulse to every slider row but Pan and Melody rows; Melody tracking 0 adds nothing', () => {
-    const level = targetById('distortion.amount')!
-    const spacing = targetById('anchors.spacing')!
-    const squaring = targetById('squaring.amount')!
-    const at = (id: string, params: typeof BASE) => targetById(id)!.toSlider(targetById(id)!.get(params))
-    const frame = { ...loud, level: 0.2, pan: 0.4, melody: 0.6 }
-    const mappings = [row(level.id, 0.5), row(spacing.id, 0.5, 'pan'), row(squaring.id, 0.5, 'melody')]
-    const plain = modulate(BASE, frame, mappings)
-    expect(modulate(BASE, frame, mappings, undefined, response({ melody: 0 }))).toEqual(plain)
-
-    const melody = 1.5
-    const boosted = modulate(BASE, frame, mappings, undefined, response({ melody }))
-    const boost = RESPONSE_LIMITS.melodyBoost * melody * 0.6
-    expect(at(level.id, boosted.params)).toBeCloseTo(level.toSlider(level.fromSlider(at(level.id, BASE) + 0.5 * (0.2 + boost))), 9)
-    // Pan and the Melody row move as without it.
-    expect(spacing.get(boosted.params)).toBe(spacing.get(plain.params))
-    expect(squaring.get(boosted.params)).toBe(squaring.get(plain.params))
-    expect(squaring.get(plain.params)).not.toBe(squaring.get(BASE))
-    // The boosted feature caps at 1.
-    const capped = modulate(BASE, { ...frame, level: 0.9, melody: 1 }, [row(level.id, 0.5)], undefined, response({ melody: 2 }))
-    expect(at(level.id, capped.params)).toBeCloseTo(level.toSlider(level.fromSlider(at(level.id, BASE) + 0.5)), 9)
-  })
-
-  it('lists Melody as a Tone feature after Pitch, and reads it from the frame', () => {
-    const ids = FEATURES.map((f) => f.id)
-    expect(ids.indexOf('melody')).toBe(ids.indexOf('pitch') + 1)
-    expect(FEATURES.find((f) => f.id === 'melody')).toMatchObject({ label: 'Melody', group: 'Tone' })
-    expect(featureValue({ ...loud, melody: 0.7 }, 'melody')).toBe(0.7)
-    expect(featureValue({ ...loud, melody: 3 }, 'melody')).toBe(1)
   })
 })

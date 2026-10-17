@@ -3,8 +3,7 @@
 //
 // Per frame: Level (RMS of the samples, DC offset removed) and Swell (Level, slowly); Bass / Mids / Treble (band
 // energy against each band's own recent loudest value); Brightness (spectral centroid of 20 Hz – 20 kHz on a log
-// scale); Pitch (YIN, holding the last note while unvoiced), how sure it is (pitch confidence), Melody (a pulse
-// on each new note) and the recent melody's range (lowest to highest note); Activity (the larger of Change, the spectral flux's
+// scale); Pitch (YIN, holding the last note while unvoiced); Activity (the larger of Change, the spectral flux's
 // rise above its recent median against the largest such rise lately, and Pace, the onsets a second); Pan (from
 // the left and right channels), all smoothed, most with a fast attack and a slower release. And Beat: onsets from
 // two detectors, one on the spectral flux of the whole spectrum and one on the kick band only (a bass drum can
@@ -52,8 +51,6 @@ const RISE_BANDS = SOUND_LIMITS.onsetRiseBandsHz.map((lo, b, edges): [number, nu
 const KICK_RISE_BANDS = RISE_BANDS.filter(([lo]) => lo < SOUND_LIMITS.kickBand[1]).length
 /** Pitch: log2 of pitchHighHz / pitchLowHz, the octaves from 0 to 1. */
 const PITCH_OCTAVES = Math.log2(SOUND_LIMITS.pitchHighHz / SOUND_LIMITS.pitchLowHz)
-/** Semitones from Pitch 0 to Pitch 1. */
-const PITCH_SEMITONES = 12 * PITCH_OCTAVES
 /**
  * A YIN difference below this fraction of the window's energy is the FFT's rounding (about 1e-15 of it) and counts as 0.
  * Without it, a window that starts in digital silence gives ratios of rounding noise, which can read as a note.
@@ -118,36 +115,6 @@ export class FeatureExtractor {
   private pan = 0
   /** Pitch the smoothing heads for: the last voiced note's, or 0 after silence. */
   private pitchTarget = 0
-  /** How periodic detectPitch found the last samples, 0–1 (0 when unvoiced). */
-  private periodicity = 0
-  /** Pitch confidence, smoothed with attackMs and the release time. */
-  private confidence = 0
-  /**
-   * Melody: the note it settled on (Pitch units; null until a voiced frame, and after silence or melodyMemoryMs
-   * unvoiced), when it last moved to a new note (or started afresh), whether no new note has followed since it
-   * started afresh, a move waiting to hold (its first frame, the settled note it is measured from, when it began, and
-   * the sum and count of its frames), the last voiced frame's time, and the pulse.
-   */
-  private centre: number | null = null
-  private since = 0
-  private fresh = false
-  private pending: number | null = null
-  private pendingFrom = 0
-  private pendingAt = 0
-  private pendingSum = 0
-  private pendingCount = 0
-  private lastVoiced = -Infinity
-  private melodyPulse = 0
-  /**
-   * The melody's range (Pitch units): the lowest and highest settled notes lately, as followed so far (null before
-   * the first note), the last note it followed and when, and whether a note has settled since it began (until then
-   * the range is just that note).
-   */
-  private rangeLow: number | null = null
-  private rangeHigh = 0
-  private rangeNote = 0
-  private rangeAt = -Infinity
-  private rangeSettled = false
   /** Beat's pulses: one for the onsets, one for the kick detector's own; the frame shows the larger. */
   private onsetPulse = 0
   private kickPulse = 0
@@ -432,29 +399,20 @@ export class FeatureExtractor {
     }
 
     // Pitch: a voiced frame sets the target; an unvoiced one holds it; silence sends it to 0.
-    let voiced = false
     if (silent) {
       this.pitchTarget = 0
     } else {
       const hz = this.detectPitch(samples)
-      voiced = hz > 0
-      if (voiced) this.pitchTarget = clamp01(Math.log2(hz / SOUND_LIMITS.pitchLowHz) / PITCH_OCTAVES)
+      if (hz > 0) this.pitchTarget = clamp01(Math.log2(hz / SOUND_LIMITS.pitchLowHz) / PITCH_OCTAVES)
     }
-    // Pitch confidence: the periodicity of a voiced frame, less for a quiet one.
-    const confidenceTarget = voiced ? this.periodicity * clamp01(t[LEVEL] / SOUND_LIMITS.confidenceFullLevel) : 0
-    const melodyImpulse = this.followMelody(voiced, silent, time, dt, confidenceTarget)
-    this.followRange(voiced && !silent, time, dt)
-    const [pitchLow, pitchHigh] = this.melodyRange()
 
-    // Smoothing: one pole, fast attack, the release time from the settings (the Release slider), as the pitch
-    // confidence too (Swell, Pitch and Pan have their own).
+    // Smoothing: one pole, fast attack, release from the settings (Swell, Pitch and Pan have their own).
     // The first frame jumps to its targets.
     const s = this.smooth
     if (!this.primed) {
       s.set(t)
       this.swell = t[LEVEL]
       this.pitch = this.pitchTarget
-      this.confidence = confidenceTarget
       this.pan = panTarget
       this.primed = true
     } else {
@@ -466,17 +424,14 @@ export class FeatureExtractor {
       // Pitch moves both ways with pitchSmoothingMs, and falls to 0 on silence with the release time.
       const pitchMs = silent ? releaseMs : SOUND_LIMITS.pitchSmoothingMs
       this.pitch += (1 - Math.exp(-dt / pitchMs)) * (this.pitchTarget - this.pitch)
-      this.confidence += (confidenceTarget > this.confidence ? attack : release) * (confidenceTarget - this.confidence)
       this.pan += release * (panTarget - this.pan)
     }
 
     // Pulses: 1 on an onset, then falling with the release time. A kick within minBeatGapMs of the last onset is
-    // not a new onset, but its own pulse still restarts, so Beat shows the larger pulse. Melody's pulse falls the
-    // same way, and a new note restarts it when larger.
+    // not a new onset, but its own pulse still restarts, so Beat shows the larger pulse.
     const fall = Math.exp(-dt / releaseMs)
     this.onsetPulse = onset ? 1 : this.onsetPulse * fall
     this.kickPulse = kick ? 1 : this.kickPulse * fall
-    this.melodyPulse = Math.max(this.melodyPulse * fall, melodyImpulse)
 
     return {
       time,
@@ -488,10 +443,6 @@ export class FeatureExtractor {
       treble: s[FIRST_BAND + 2],
       brightness: s[BRIGHTNESS],
       pitch: this.pitch,
-      melody: this.melodyPulse,
-      pitchConfidence: this.confidence,
-      pitchLow,
-      pitchHigh,
       beat: Math.max(this.onsetPulse, this.kickPulse),
       activity: s[ACTIVITY],
       pan: this.pan,
@@ -510,23 +461,6 @@ export class FeatureExtractor {
     this.pitch = 0
     this.pan = 0
     this.pitchTarget = 0
-    this.periodicity = 0
-    this.confidence = 0
-    this.centre = null
-    this.since = 0
-    this.fresh = false
-    this.pending = null
-    this.pendingFrom = 0
-    this.pendingAt = 0
-    this.pendingSum = 0
-    this.pendingCount = 0
-    this.lastVoiced = -Infinity
-    this.melodyPulse = 0
-    this.rangeLow = null
-    this.rangeHigh = 0
-    this.rangeNote = 0
-    this.rangeAt = -Infinity
-    this.rangeSettled = false
     this.onsetPulse = 0
     this.kickPulse = 0
     this.lastExcess = 0
@@ -541,120 +475,11 @@ export class FeatureExtractor {
   }
 
   /**
-   * Melody, once per frame after Pitch's target: the size of a new note's pulse (0 for none). A voiced frame at least
-   * melodyStepSt semitones from the settled note, melodySettleMs or more after the last new note, starts a move; the
-   * move holds while every voiced frame stays at least melodyStepSt from where the note was settled and within
-   * melodyStepSt of the move's first frame (a frame further off starts it again). Once it has held for melodyHoldMs
-   * (on the frames' times, so the same at any frame rate, and longer than the analysis window, so neither an octave
-   * error nor a drum hit read as a pitch for a few overlapping windows pulses), the pulse is the move's share of
-   * melodyFullSt times the confidence, and the mean of the move's frames is the settled note. A frame back near the
-   * settled note drops the move. The settled note follows every voiced frame within melodyFullSt of it (time
-   * constant melodyCentreMs), a move's too, so it settles in the middle of a vibrato rather than on one side; during
-   * the first melodySettleMs of a note that started afresh it follows exactly, so a slide into the note settles where
-   * it arrives. Silence, or melodyMemoryMs without a voiced frame, forgets the note: the next one starts afresh,
-   * without a pulse.
-   */
-  private followMelody(voiced: boolean, silent: boolean, time: number, dt: number, confidence: number): number {
-    if (silent || !voiced) {
-      if (silent) this.centre = null
-      this.pending = null
-      return 0
-    }
-    const note = this.pitchTarget
-    let impulse = 0
-    if (this.centre === null || time - this.lastVoiced > SOUND_LIMITS.melodyMemoryMs) {
-      this.centre = note
-      this.since = time
-      this.fresh = true
-      this.pending = null
-      this.lastVoiced = time
-      return 0
-    }
-    // A move is measured from where the note was settled when it began.
-    const from = this.pending === null ? this.centre : this.pendingFrom
-    if (PITCH_SEMITONES * Math.abs(note - from) >= SOUND_LIMITS.melodyStepSt && time - this.since >= SOUND_LIMITS.melodySettleMs) {
-      if (this.pending === null || PITCH_SEMITONES * Math.abs(note - this.pending) >= SOUND_LIMITS.melodyStepSt) {
-        this.pending = note
-        this.pendingFrom = from
-        this.pendingAt = time
-        this.pendingSum = 0
-        this.pendingCount = 0
-      }
-      this.pendingSum += note
-      this.pendingCount++
-      if (time - this.pendingAt >= SOUND_LIMITS.melodyHoldMs) {
-        const settled = this.pendingSum / this.pendingCount
-        impulse = clamp01((PITCH_SEMITONES * Math.abs(settled - from)) / SOUND_LIMITS.melodyFullSt) * confidence
-        this.centre = settled
-        this.since = time
-        this.fresh = false
-        this.pending = null
-        this.lastVoiced = time
-        return impulse
-      }
-    } else {
-      this.pending = null
-    }
-    if (this.fresh && time - this.since < SOUND_LIMITS.melodySettleMs) this.centre = note
-    else if (PITCH_SEMITONES * Math.abs(note - this.centre) <= SOUND_LIMITS.melodyFullSt) {
-      this.centre += (1 - Math.exp(-dt / SOUND_LIMITS.melodyCentreMs)) * (note - this.centre)
-    }
-    this.lastVoiced = time
-    return impulse
-  }
-
-  /**
-   * The melody's range, once per frame after Melody, on the note Melody settled on: until the first note has settled
-   * (melodySettleMs) it is that note alone; then a note below or above it widens it with melodyRangeAttackMs, and
-   * both ends close in on the note heard (between notes, the last one) with melodyRangeReleaseMs. A note more than
-   * melodyRangeReleaseMs after the last starts it afresh, so after a long break the next tune sets its own range. A
-   * note still settling after starting afresh (a slide into it) is left out,
-   * as are the frames Melody leaves its settled note at (a drum hit, an octave error, vibrato) and notes within a
-   * semitone of either end of Pitch's scale or beyond (where a chord or a drum without a pitch in range reads).
-   */
-  private followRange(voiced: boolean, time: number, dt: number) {
-    const centre = this.centre
-    const edge = 1 / PITCH_SEMITONES
-    const note = voiced && centre !== null && centre > edge && centre < 1 - edge ? centre : null
-    const settled = note !== null && (!this.fresh || time - this.since >= SOUND_LIMITS.melodySettleMs)
-    // The first note, or the first after melodyRangeReleaseMs without one: the range starts afresh.
-    const stale = settled && time - this.rangeAt > SOUND_LIMITS.melodyRangeReleaseMs
-    if (note !== null && (this.rangeLow === null || !this.rangeSettled || stale)) {
-      this.rangeLow = this.rangeHigh = this.rangeNote = note
-      this.rangeSettled = settled
-      if (settled) this.rangeAt = time
-      return
-    }
-    if (this.rangeLow === null) return
-    const release = 1 - Math.exp(-dt / SOUND_LIMITS.melodyRangeReleaseMs)
-    if (!settled) {
-      this.rangeLow += release * (this.rangeNote - this.rangeLow)
-      this.rangeHigh += release * (this.rangeNote - this.rangeHigh)
-      return
-    }
-    const attack = 1 - Math.exp(-dt / SOUND_LIMITS.melodyRangeAttackMs)
-    this.rangeNote = note
-    this.rangeAt = time
-    this.rangeLow += (note < this.rangeLow ? attack : release) * (note - this.rangeLow)
-    this.rangeHigh += (note > this.rangeHigh ? attack : release) * (note - this.rangeHigh)
-  }
-
-  /** The melody's range as the frame gives it: at least melodyRangeMinSt wide around its notes, within 0–1; all of Pitch before a note. */
-  private melodyRange(): [low: number, high: number] {
-    if (this.rangeLow === null) return [0, 1]
-    const span = Math.min(1, Math.max(SOUND_LIMITS.melodyRangeMinSt / PITCH_SEMITONES, this.rangeHigh - this.rangeLow))
-    const low = Math.min(1 - span, Math.max(0, (this.rangeLow + this.rangeHigh - span) / 2))
-    return [low, low + span]
-  }
-
-  /**
    * The fundamental (Hz) of the samples by YIN, or 0 when no lag is periodic enough (unvoiced): the first lag
    * from minLag to maxLag whose cumulative-mean-normalised difference falls below pitchThreshold, walked on to
-   * its local minimum and refined by a parabola through its neighbours. Also sets `periodicity`: 1 − that
-   * minimum / pitchThreshold, or 0 when unvoiced.
+   * its local minimum and refined by a parabola through its neighbours.
    */
   private detectPitch(samples: Float32Array): number {
-    this.periodicity = 0
     const d = this.decimation
     const x = this.decimated
     const length = Math.min(x.length, Math.floor(samples.length / d))
@@ -695,7 +520,6 @@ export class FeatureExtractor {
       }
     }
     if (best < 0) return 0
-    this.periodicity = clamp01(1 - yin[best] / SOUND_LIMITS.pitchThreshold)
     let period = best
     // yin[best + 1] is known unless the walk ran into the last lag.
     if (best < limit) {

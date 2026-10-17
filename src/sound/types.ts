@@ -11,10 +11,9 @@ export const SOUND_LIMITS = {
   ceilingDb: 0,
   /** Below this level (dBFS, after Sensitivity) the sound counts as silence: continuous features read 0, no beats fire. */
   silenceDb: -60,
-  /** Sensitivity: dB added to the input before measuring, in steps of sensitivityStep. */
+  /** Sensitivity: dB added to the input before measuring. */
   minSensitivity: -24,
   maxSensitivity: 24,
-  sensitivityStep: 1,
   /** Band edges in Hz of Bass, Mids and Treble; Treble runs to Nyquist. */
   bassBand: [20, 250],
   midsBand: [250, 2000],
@@ -38,47 +37,12 @@ export const SOUND_LIMITS = {
   pitchMaxRate: 24000,
   pitchThreshold: 0.15,
   pitchSmoothingMs: 30,
-  /**
-   * Pitch confidence: how periodic the last voiced frame was (1 − its YIN value / pitchThreshold), times its Level
-   * against confidenceFullLevel (a quiet note counts less), smoothed like the other readings.
-   */
-  confidenceFullLevel: 0.45,
-  /**
-   * Melody: a pulse when the note moves at least melodyStepSt semitones from the note it settled on, full at
-   * melodyFullSt and scaled by the confidence. The settled note follows the frames within melodyFullSt of it slowly
-   * (time constant melodyCentreMs), so vibrato averages out; a move must hold (every frame within melodyStepSt of
-   * where it went) for melodyHoldMs, longer than the analysis window, and come at least melodySettleMs after the last
-   * note, so an octave error or a drum hit read as a pitch never pulses whatever the frame rate, nor does vibrato of
-   * up to about ±80 cents at 5 to 7 Hz. A new note settles on the mean of the frames that held it. After
-   * melodyMemoryMs unvoiced (or silence) the next note starts afresh, and settles on its pitch during its first
-   * melodySettleMs (a slide into it does not pulse).
-   */
-  melodyStepSt: 0.5,
-  melodyFullSt: 2,
-  melodyCentreMs: 400,
-  melodySettleMs: 100,
-  melodyHoldMs: 70,
-  melodyMemoryMs: 1000,
-  /**
-   * Melody range, where Pitch reactive places the pitch across the text: from the lowest to the highest note Melody
-   * settled on lately (a note that started afresh counts once it has settled, melodySettleMs). A new lowest or highest
-   * note widens it with time constant melodyRangeAttackMs, and both ends close in on the note heard (between notes,
-   * the last one) with melodyRangeReleaseMs, so it follows the melody of the last several seconds; the first note
-   * after melodyRangeReleaseMs without one starts it afresh. It spans at least
-   * melodyRangeMinSt semitones around the notes, within Pitch's 0–1, so a steady voice does not sweep the text with
-   * every wobble. Notes within a semitone of either end of Pitch's scale do not count (a chord or a drum without a
-   * pitch in range reads there).
-   */
-  melodyRangeAttackMs: 150,
-  melodyRangeReleaseMs: 8000,
-  melodyRangeMinSt: 12,
-  /** Release: rise time constant, and the default, range and slider step of the fall (release) time constant, in ms. */
+  /** Smoothing: rise time constant, and the default and range of the fall (release) time constant, in ms. */
   attackMs: 10,
   defaultReleaseMs: 150,
   minReleaseMs: 20,
   maxReleaseMs: 1000,
-  releaseStepMs: 10,
-  /** Swell: Level with these fixed rise and fall time constants (ms), whatever Release says. */
+  /** Swell: Level with these fixed rise and fall time constants (ms), whatever Smoothing says. */
   swellAttackMs: 300,
   swellReleaseMs: 2000,
   /** Activity's pace: Beat onsets counted over the last paceWindowMs, as onsets a second; paceMaxPerSecond reads as 1. */
@@ -190,25 +154,6 @@ export interface FeatureFrame {
   /** The fundamental by YIN, 55 Hz → 0 to 1760 Hz → 1 on a log scale; holds the last note while unvoiced. */
   pitch: number
   /**
-   * A pulse on each new note: when the pitch moves at least SOUND_LIMITS.melodyStepSt semitones and holds there for
-   * melodyHoldMs, it jumps to the move's size (full at melodyFullSt) times the confidence, then falls with the release
-   * time. A steady note, vibrato up to about ±80 cents, noise, an octave error or a drum hit under a held note, and the
-   * first note after silence (a short slide into it included) give none.
-   */
-  melody: number
-  /**
-   * How sure Pitch is, 0–1: the last voiced frame's periodicity times its Level (SOUND_LIMITS.confidenceFullLevel),
-   * smoothed; 0 while unvoiced or silent. Not a mappable feature; Pitch reactive weighs letters with it.
-   */
-  pitchConfidence: number
-  /**
-   * The recent melody's range on Pitch's scale (SOUND_LIMITS.melodyRangeAttackMs, melodyRangeReleaseMs,
-   * melodyRangeMinSt): the notes settled on over the last several seconds, at least an octave wide; 0 and 1 (all of
-   * Pitch) until a note is heard. Not mappable features; Pitch reactive places the pitch in this range across the text.
-   */
-  pitchLow: number
-  pitchHigh: number
-  /**
    * A pulse: 1 on a frame where either detector finds an onset (full-band flux or the kick band), then falling with
    * the release time. The larger of the two detectors' pulses. A steady sound, a buzzy bass included, gives none
    * (SOUND_LIMITS.onsetRiseDb).
@@ -245,10 +190,6 @@ export const SILENT_FRAME: FeatureFrame = {
   treble: 0,
   brightness: 0,
   pitch: 0,
-  melody: 0,
-  pitchConfidence: 0,
-  pitchLow: 0,
-  pitchHigh: 1,
   beat: 0,
   activity: 0,
   pan: 0,
@@ -265,69 +206,11 @@ export interface StereoSamples {
 export interface FeatureSettings {
   /** dB added to the input before measuring (SOUND_LIMITS.minSensitivity–maxSensitivity). */
   sensitivity: number
-  /** Release: fall time constant of the smoothing, in ms (SOUND_LIMITS.minReleaseMs–maxReleaseMs). */
+  /** Fall time constant of the smoothing, in ms (SOUND_LIMITS.minReleaseMs–maxReleaseMs). */
   releaseMs: number
 }
 
 export const DEFAULT_FEATURE_SETTINGS: FeatureSettings = { sensitivity: 0, releaseMs: SOUND_LIMITS.defaultReleaseMs }
-
-/**
- * How the letters answer the sound, over every mapping (the Response group). Neutral (NEUTRAL_RESPONSE) is Sound as
- * it was before these existed, exactly.
- */
-export interface ResponseSettings {
-  /** Multiplies every slider mapping's sum and every seed's Rate (0 holds the letters still, 1 is neutral). */
-  strength: number
-  /** Motion contrast, 0–1: each letter reacts by its own amount (letters.ts); 0 is neutral. */
-  contrast: number
-  /**
-   * Pitch reactive, 0–2: the low notes of the recent melody move the letters on the left more, its high notes those on
-   * the right (FeatureFrame.pitchLow, pitchHigh); 0 is neutral.
-   */
-  pitchReactive: number
-  /** Melody tracking, 0–2: adds the Melody pulse to every slider mapping's feature; 0 is neutral. */
-  melody: number
-}
-
-export const RESPONSE_LIMITS = {
-  strength: { min: 0, max: 4, step: 0.05 },
-  contrast: { min: 0, max: 1, step: 0.01 },
-  pitchReactive: { min: 0, max: 2, step: 0.05 },
-  melody: { min: 0, max: 2, step: 0.05 },
-  /** Melody tracking 1 adds this × Melody to a slider mapping's feature (capped at 1). */
-  melodyBoost: 0.5,
-} as const
-
-export const NEUTRAL_RESPONSE: ResponseSettings = { strength: 1, contrast: 0, pitchReactive: 0, melody: 0 }
-
-/** Everything the Response group sets: the engine's Sensitivity and Release, and the four response values. Saved and undone. */
-export type SoundSettings = FeatureSettings & ResponseSettings
-
-export const DEFAULT_SOUND_SETTINGS: SoundSettings = { ...DEFAULT_FEATURE_SETTINGS, ...NEUTRAL_RESPONSE }
-
-/** `value` rounded to a multiple of `step`, as the nearest double to the decimal (0.15, not 0.15000000000000002). */
-export function snapToStep(value: number, step: number): number {
-  if (step >= 1) return Math.round(value / step) * step
-  const inverse = Math.round(1 / step)
-  return Math.round(value * inverse) / inverse
-}
-
-const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody'] as const
-
-/**
- * `current` with `patch` applied: each patched value clamped to RESPONSE_LIMITS and snapped to its step; one that is
- * not a finite number keeps the current value.
- */
-export function clampResponse(patch: Partial<ResponseSettings>, current: ResponseSettings = NEUTRAL_RESPONSE): ResponseSettings {
-  const next = { ...current }
-  for (const key of RESPONSE_KEYS) {
-    const value = patch[key]
-    if (typeof value !== 'number' || !Number.isFinite(value)) continue
-    const { min, max, step } = RESPONSE_LIMITS[key]
-    next[key] = snapToStep(Math.min(max, Math.max(min, value)), step)
-  }
-  return next
-}
 
 /** Where the sound comes from. Stopping is Pause (file) or Stop listening (microphone); there is no "off" source. */
 export type SoundSource = 'file' | 'microphone'

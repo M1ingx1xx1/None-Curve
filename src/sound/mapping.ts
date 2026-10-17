@@ -16,14 +16,14 @@ import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { THORN_FALLBACK } from '../geometry/thorn'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
 import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
-import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, type FeatureFrame, type ResponseSettings } from './types'
+import type { FeatureFrame } from './types'
 
 const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
 
 // ---- Features ----
 
 /** The features a mapping can follow: numeric fields of FeatureFrame. */
-export type FeatureId = 'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'melody' | 'beat' | 'activity' | 'pan'
+export type FeatureId = 'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'beat' | 'activity' | 'pan'
 /** The old name, kept so existing imports keep working. */
 export type ContinuousFeature = FeatureId
 
@@ -50,7 +50,6 @@ export const FEATURES: readonly FeatureSpec[] = [
   { id: 'treble', label: 'Treble', group: 'Bands' },
   { id: 'brightness', label: 'Brightness', group: 'Tone' },
   { id: 'pitch', label: 'Pitch', group: 'Tone' },
-  { id: 'melody', label: 'Melody', group: 'Tone' },
   { id: 'beat', label: 'Beat', group: 'Rhythm', event: 'onset' },
   { id: 'activity', label: 'Activity', group: 'Rhythm' },
   { id: 'pan', label: 'Pan', group: 'Stereo', bipolar: true },
@@ -507,21 +506,13 @@ const NO_VALUES: ReadonlyMap<string, number> = new Map()
  *
  * A seed (jump target) driven the same way takes no part in the sum: its live seed is its field's
  * value moved on by `jumps` (by target id, from JumpTracker), listed in `seeds`.
- *
- * `response` applies the Response group: Melody tracking adds RESPONSE_LIMITS.melodyBoost × melody × the Melody
- * pulse to each slider mapping's feature (capped at 1; not Pan, not a Melody row), and Strength multiplies each
- * target's sum before it is clamped. Neutral (the default) gives exactly the same values as without it (a sum times
- * 1 is that sum, bit for bit). Motion
- * contrast and Pitch reactive act per letter (letters.ts), never here.
  */
 export function modulate(
   base: GeometryParams,
   frame: FeatureFrame,
   mappings: readonly Mapping[],
   jumps: ReadonlyMap<string, number> = NO_VALUES,
-  response: ResponseSettings = NEUTRAL_RESPONSE,
 ): Modulated {
-  const boost = response.melody > 0 ? RESPONSE_LIMITS.melodyBoost * response.melody * featureValue(frame, 'melody') : 0
   // Sum of depth × feature per slider target, in the order targets first appear in the mappings.
   let sums: Map<TargetSpec, number> | null = null
   let seeds: Map<string, number> | null = null
@@ -543,15 +534,12 @@ export function modulate(
       continue
     }
     sums ??= new Map()
-    let value = featureValue(frame, mapping.feature)
-    if (boost > 0 && mapping.feature !== 'melody' && !featuresById.get(mapping.feature)?.bipolar) value = Math.min(1, value + boost)
-    sums.set(spec, (sums.get(spec) ?? 0) + mapping.depth * value)
+    sums.set(spec, (sums.get(spec) ?? 0) + mapping.depth * featureValue(frame, mapping.feature))
   }
   if (!sums) return { params, positions: NO_VALUES, seeds: seeds ?? NO_VALUES }
 
   const positions = new Map<string, number>()
-  for (const [spec, added] of sums) {
-    const sum = added * response.strength
+  for (const [spec, sum] of sums) {
     const value = spec.get(base)
     const basePosition = spec.toSlider(value)
     // Nothing added this frame: keep the slider's value exactly, even when it lies off the step grid.

@@ -27,9 +27,6 @@ const paths = {
   // Undo and redo: an arrow turning back, drawn with straight edges.
   undo: 'M5.5 3.5 2.5 6.5l3 3M2.5 6.5h8.5l2 2v2l-2 2H7',
   redo: 'M10.5 3.5l3 3-3 3M13.5 6.5H5l-2 2v2l2 2h4',
-  // Record and Stop, as on a recorder: a circle and a square.
-  record: 'M8 3.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9z',
-  stop: 'M4.5 4.5h7v7h-7z',
 } as const
 
 export type IconName = keyof typeof paths

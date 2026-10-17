@@ -2486,61 +2486,6 @@ input[type='range']:disabled {
   color: var(--accent);
 }
 
-/* ---- Recording ---- */
-
-/* The canvas a take is drawn into: attached, so the browser keeps drawing and capturing it, but out of sight. */
-.recording-canvas {
-  position: fixed;
-  left: -100000px;
-  top: 0;
-  pointer-events: none;
-}
-
-/* "Recording 0:12" and Stop, in the header while a take runs. */
-.recording-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.recording-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* How the last take ended, in the header until dismissed. */
-.recording-message {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 480px;
-}
-
-.recording-message p {
-  margin: 0;
-  font-size: 0.8rem;
-}
-
-.recording-message [data-tone='error'] {
-  border-left-color: var(--danger);
-}
-
-/* The time recorded beside Record, and the take's length. */
-.record-time {
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-/* The last take ended with an error. */
-.record-message[data-tone='error'] {
-  border-left-color: var(--danger);
-}
-
 /* ---- Google Fonts dialog ---- */
 
 .gf-dialog {

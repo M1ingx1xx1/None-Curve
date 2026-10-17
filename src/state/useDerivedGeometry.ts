@@ -2,8 +2,6 @@ import { useCallback, useDeferredValue, useMemo } from 'react'
 import type { LoadedFont } from '../font/model'
 import { paramsKey } from '../geometry/cache'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
-import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
-import type { LiveView } from '../sound/live'
 import { layoutArtboard, type ArtboardLayout } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen, type SpecimenScene } from '../specimen/scene'
 import { geometryClient, useGlyphGeometry } from './geometryClient'
@@ -57,8 +55,6 @@ export interface GeometryState {
    * outlines (Fit text, Free, dragging the text in Free position), so a live frame never leaks into them.
    */
   loadSliderScene: () => Promise<SpecimenScene | null>
-  /** The letters of the shaped text (one per occurrence), for the live scheduler (useLiveLetters). */
-  letterSlots: LetterSlots
 }
 
 /**
@@ -67,19 +63,18 @@ export interface GeometryState {
  * glyph's previous shape until its new one arrives, so nothing waits on a long computation. Shaping
  * the text is deferred so typing and typography sliders stay responsive. `text` is the text as shown
  * (letter case applied). `params` is the sliders' geometry parameters as App builds them (with Thorn's
- * canvasEm), so the canvas, Sound's live frames and the exports share one key. `live` is the frame
- * Sound is driving (useLiveFrame): when its parameters differ from the sliders, the glyphs are computed
- * and shown with them, as live requests, and letters that react by other amounts show their own level.
+ * canvasEm), so the canvas, Sound's live frames and the exports share one key. `live` is the parameters
+ * Sound is driving (useLiveParams): when they differ from the sliders, the glyphs are computed and shown
+ * with them, as live requests.
  */
-export function useGeometry(state: AppState, text: string, params: GeometryParams, live?: LiveView): GeometryState {
+export function useGeometry(state: AppState, text: string, params: GeometryParams, live?: GeometryParams): GeometryState {
   const { font, selectedGlyph } = state.document
   const { typography, artboard } = state.params
   const key = useMemo(() => paramsKey(params), [params])
   // Live parameters equal to the sliders' change nothing: the sliders' own params and key are used, as without Sound.
-  const liveParams = live?.params
-  const liveKey = useMemo(() => (liveParams && liveParams !== params ? paramsKey(liveParams) : key), [liveParams, params, key])
+  const liveKey = useMemo(() => (live && live !== params ? paramsKey(live) : key), [live, params, key])
   const isLive = liveKey !== key
-  const shownParams = isLive && liveParams ? liveParams : params
+  const shownParams = isLive && live ? live : params
   const shownKey = isLive ? liveKey : key
 
   const deferredText = useDeferredValue(text)
@@ -99,25 +94,20 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     }
     return list
   }, [shaped, selectedGlyph])
-  // The letters on other levels belong to the letters they were assigned for: the same text set differently keeps
-  // them; after a text edit they wait for the next frame.
-  const slots = useMemo(() => (shaped ? letterSlots(shaped) : NO_SLOTS), [shaped])
-  const letters = isLive ? lettersOn(live?.letters, slots) : null
-  const geometry = useGlyphGeometry(font, shownParams, shownKey, indices, isLive, letters?.jobs)
+  const geometry = useGlyphGeometry(font, shownParams, shownKey, indices, isLive)
 
   const scene = useMemo(
     () =>
       shaped
-        ? placePolygons(shaped, (index, occurrence) => {
-            const levelKey = levelKeyAt(letters, occurrence, shownKey)
-            const found = levelKey === shownKey ? geometry.lookup(index) : geometryClient.lookup(levelKey, index)
+        ? placePolygons(shaped, (index) => {
+            const found = geometry.lookup(index)
             if (!found) return null
             // Live frames are shown one after another as they arrive: the newest is not "outdated", so the
             // canvas does not flash "Updating" at every frame.
             return 'error' in found.entry ? { error: found.entry.error } : { polygon: found.entry.geometry.polygon, stale: found.stale && !isLive }
           })
         : null,
-    [shaped, geometry, isLive, letters, shownKey],
+    [shaped, geometry, isLive],
   )
   const loadSliderScene = useCallback(async () => {
     if (!isLive || !font || !shaped) return scene
@@ -152,6 +142,5 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     layout,
     scenePending: deferredText !== text || deferredTypography !== typography || (scene?.pendingGlyphs ?? 0) > 0,
     loadSliderScene,
-    letterSlots: slots,
   }
 }

@@ -1,12 +1,10 @@
-// The Sound tab's mappings, the Response group's response values (Strength, Motion contrast, Pitch
-// reactive, Melody tracking) and the "Drive letters" switch: a small store outside React state, read
-// with hooks. The mappings and the response are saved between visits with the settings
-// (state/persist.ts) and their changes can be undone (state/history.ts); Drive letters is neither.
+// The Sound tab's mappings and the "Drive letters" switch: a small store outside React state, read
+// with hooks. The mappings are saved between visits with the settings (state/persist.ts) and their
+// changes can be undone (state/history.ts); Drive letters is neither.
 
 import { useSyncExternalStore } from 'react'
 import { undoHistory } from '../state/history'
 import type { FeatureId, Mapping } from './mapping'
-import { clampResponse, NEUTRAL_RESPONSE, type ResponseSettings } from './types'
 
 export const MAPPING_LIMITS = {
   /** Mappings the Sound tab holds at most. */
@@ -15,8 +13,6 @@ export const MAPPING_LIMITS = {
 
 export interface MappingState {
   mappings: readonly Mapping[]
-  /** How the letters answer the sound over every mapping; presets leave it alone, Reset sound sets it back. */
-  response: ResponseSettings
   /** Sound drives the letters only while this is on (and a source is playing or listening). */
   drive: boolean
   /**
@@ -44,7 +40,7 @@ class MappingStore {
   constructor() {
     const query = reducedMotionQuery()
     const reducedMotion = query?.matches ?? false
-    this.state = { mappings: [], response: NEUTRAL_RESPONSE, drive: !reducedMotion, reducedMotion }
+    this.state = { mappings: [], drive: !reducedMotion, reducedMotion }
     // Follow the system setting while the page is open (as ThemeToggle does): turning reduced motion on
     // switches Drive letters off and shows the note; turning it off leaves Drive letters as it is.
     query?.addEventListener?.('change', (e) => {
@@ -103,27 +99,6 @@ class MappingStore {
       if (n) this.nextId = Math.max(this.nextId, Number(n[1]) + 1)
     }
     this.set({ mappings: mappings.slice(0, MAPPING_LIMITS.maxMappings) })
-  }
-
-  /**
-   * Changes response values, clamped to RESPONSE_LIMITS and snapped to their steps. One undo step per field drag:
-   * changes to the same fields join (keys "sound:strength" and so on, as the Sensitivity and Release sliders').
-   */
-  setResponse(patch: Partial<ResponseSettings>) {
-    const current = this.state.response
-    const next = clampResponse(patch, current)
-    const changed = (Object.keys(next) as (keyof ResponseSettings)[]).filter((key) => next[key] !== current[key])
-    if (changed.length === 0) return
-    undoHistory.record(`sound:${changed.sort().join(',')}`)
-    this.set({ response: next })
-  }
-
-  /** Puts back response values as they were (undo and redo, or a saved session). Not recorded for undo. */
-  restoreResponse(response: Partial<ResponseSettings>) {
-    const next = clampResponse(response, NEUTRAL_RESPONSE)
-    const current = this.state.response
-    if ((Object.keys(next) as (keyof ResponseSettings)[]).every((key) => next[key] === current[key])) return
-    this.set({ response: next })
   }
 
   setDrive(drive: boolean) {

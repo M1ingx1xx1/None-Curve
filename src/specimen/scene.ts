@@ -73,10 +73,8 @@ export function specimenLines(text: string): string[] {
 }
 
 /** A glyph's final polygon, its failure, or null while it has not been computed yet. `stale` marks a
-    polygon from earlier settings, shown until the current one arrives. `occurrence` counts every glyph
-    of the text in reading order (lines, then glyphs; spaces and missing glyphs included), from 0 to
-    glyphCount − 1, so one occurrence of a glyph can have a polygon of its own. */
-export type PolygonLookup = (index: number, occurrence: number) => { polygon: PolygonGlyph; stale?: boolean } | { error: string } | null
+    polygon from earlier settings, shown until the current one arrives. */
+export type PolygonLookup = (index: number) => { polygon: PolygonGlyph; stale?: boolean } | { error: string } | null
 
 /** Shaped glyphs with positions, before polygons are attached (see placePolygons). */
 export interface ShapedSpecimen {
@@ -171,14 +169,12 @@ export function placePolygons(shaped: ShapedSpecimen, lookup: PolygonLookup): Sp
   let pendingGlyphs = 0
   const ink = emptyExtent()
   const body = emptyExtent()
-  let occurrence = 0
 
   const lines = shaped.lines.map((line) => {
     const lineInk = emptyExtent()
     const glyphs = line.glyphs.map((g): PlacedGlyph => {
-      const at = occurrence++
       if (g.missing) return { ...g, polygon: null, error: null, ink: null }
-      const found = lookup(g.index, at)
+      const found = lookup(g.index)
       if (!found) {
         pendingGlyphs++
         return { ...g, polygon: null, error: null, ink: null }

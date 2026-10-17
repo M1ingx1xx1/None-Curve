@@ -1,7 +1,6 @@
 import { UNDO_KEYS, type HistoryState } from '../state/history'
 import type { DocumentState } from '../state/types'
 import Icon from './Icon'
-import RecordingIndicator from './RecordingIndicator'
 
 interface HeaderProps {
   document: DocumentState
@@ -38,14 +37,13 @@ export default function Header({ document, history, onUndo, onRedo, onOpenExport
         {fileStatusLabel(document)}
       </p>
       <div className="header-actions">
-        <RecordingIndicator />
         <button type="button" className="icon-button" aria-label="Undo" title={`Undo (${UNDO_KEYS.undo})`} disabled={!history.canUndo} onClick={onUndo}>
           <Icon name="undo" />
         </button>
         <button type="button" className="icon-button" aria-label="Redo" title={`Redo (${UNDO_KEYS.redo})`} disabled={!history.canRedo} onClick={onRedo}>
           <Icon name="redo" />
         </button>
-        <button type="button" disabled={!document.font} onClick={onOpenExport} title={document.font ? 'Export SVG, PNG, a font file or a video' : 'Load a font to export'}>
+        <button type="button" disabled={!document.font} onClick={onOpenExport} title={document.font ? 'Export SVG or a font file' : 'Load a font to export'}>
           <Icon name="download" />
           Export…
         </button>

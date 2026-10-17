@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { encodeWav, renderTestTrack } from '../../scripts/test-track'
-import { analyse, between, mean, rises, type ProbedFrame, type Rig } from '../helpers/audio'
+import { analyse, between, mean, type ProbedFrame, type Rig } from '../helpers/audio'
 
 const RIGS: [string, Rig][] = [
   ['ideal analyser', { sr: 44100, fps: 60 }],
@@ -83,14 +83,6 @@ describe.each(RIGS)('test track: %s', (_, rig) => {
     const notes = expected.map((_, i) => mean(between(frames(), (26.15 + i / 2) * 1000, (26.45 + i / 2) * 1000).map((f) => f.pitch)))
     notes.forEach((pitch, i) => expect(pitch, `note ${i + 1}`).toBeCloseTo(expected[i], 1))
     expect(avg(26, 32, 'pan')).toBeCloseTo(0, 2)
-  })
-
-  it('26-32 s, the melody: a Melody pulse on each of the 11 note changes, and a sure pitch; none on the hats before', () => {
-    const changes = rises(between(frames(), 26000, 32000))
-    expect(Math.abs(changes.length - 11), changes.map((f) => (f.time / 1000).toFixed(2)).join(' ')).toBeLessThanOrEqual(1)
-    expect(mean(changes.map((f) => f.melody))).toBeGreaterThan(0.8)
-    expect(mean(section(26, 32).map((f) => f.pitchConfidence))).toBeGreaterThan(0.6)
-    expect(rises(between(frames(), 21500, 26000))).toEqual([])
   })
 
   it('32-38 s, hats switching side every half second: Pan about -0.45, +0.45 and so on', () => {

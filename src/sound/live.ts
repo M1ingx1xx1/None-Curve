@@ -8,40 +8,20 @@
 // budget (flash.ts). A new parameter set is sent to the geometry worker only when it differs from the last
 // one, the previous one's results have all arrived, and at least 1/30 s has passed: the frame rate follows
 // what the geometry can keep up with. It goes to React once its glyphs have arrived, so each frame renders
-// once, complete. While Sound is not driving (no source runs, Drive letters is off, Strength is 0, or no font
-// is loaded), the sliders' own parameters are used unchanged.
-//
-// With Motion contrast or Pitch reactive above 0, each letter of the text also takes one of three levels
-// (letters.ts): the shared live values, or a quieter or stronger set derived from them. One request per frame
-// asks for all of them (the shared set first, for every glyph shown). The flash limit counts every level that
-// letters show, and letters moving between levels count as a change of their own, from the same budget.
+// once, complete. While Sound is not driving (no source runs, Drive letters is off, or no font is loaded),
+// the sliders' own parameters are used unchanged.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type Dispatch } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore, type Dispatch } from 'react'
 import { paramsKey } from '../geometry/cache'
-import type { FrameJob, GeometryParams } from '../geometry/types'
+import type { GeometryParams } from '../geometry/types'
 import { withThornCanvasEm, type Action } from '../state/editorState'
 import { geometryClient } from '../state/geometryClient'
 import { getSoundEngine } from './engine'
 import { FLASH_LIMITS, FlashBudget } from './flash'
 import { JumpTracker } from './jumps'
-import {
-  assignLevels,
-  buildLetterFrame,
-  letterLevels,
-  levelPosition,
-  levelSets,
-  NO_SLOTS,
-  QUIET,
-  STRONG,
-  switchSwing,
-  type LetterFrame,
-  type LetterLevels,
-  type LetterSlots,
-  type LevelSet,
-} from './letters'
 import { modulate, targetById, type Mapping, type Modulated } from './mapping'
 import { mappingStore } from './mappingStore'
-import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame, type ResponseSettings, type SoundState } from './types'
+import { SILENT_FRAME, type FeatureFrame, type SoundState } from './types'
 
 export interface LiveStatus {
   /**
@@ -70,11 +50,6 @@ export const LIVE_LIMITS = {
   markerRate: 15,
   /** The status line's frame rate changes at most this often (per second). */
   statusRate: 4,
-  /**
-   * Letters moving between levels over the frames shown within this many ms count as one move for the flash
-   * limit: a note change reaches the screen over a few frames (the pitch is smoothed), and shows as one change.
-   */
-  switchSpanMs: 250,
 } as const
 
 const MIN_COMMIT_MS = 1000 / LIVE_LIMITS.maxFps
@@ -103,19 +78,7 @@ const NO_JUMPS: Jumps = new Map()
 /** A frame as shown: its key, the frame, jumps and held values it came from, and whether it is the sliders' own. */
 type Shown = { key: string; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; isBase: boolean }
 /** A frame waiting to be committed to React: its glyphs are being computed. */
-type Next = { shown: Shown; params: GeometryParams | null; letters: LetterFrame | null }
-
-/** The levels letters show besides the shared one, for the flash limit: every level's offset is measured from `base`. */
-export interface LevelSpread {
-  /** The sliders' own values. */
-  base: GeometryParams
-  /** The gains (other than 1) of the levels some letter shows or is about to. */
-  gains: readonly number[]
-}
-
-/** How far a slider moving to `position` moves back from its swing's extreme (≤ 0: not back). */
-const backMove = (dir: number, extreme: number, position: number) =>
-  dir > 0 ? extreme - position : dir < 0 ? position - extreme : Math.abs(position - extreme)
+type Next = { shown: Shown; params: GeometryParams | null }
 
 /**
  * Keeps the driven sliders to the flash limit (SOUND_PLAN §10, flash.ts). Each slider has a direction and the
@@ -127,10 +90,6 @@ const backMove = (dir: number, extreme: number, position: number) =>
  * positions as shown (after rounding to the step), so a coarse slider flipping one step back and forth counts
  * too. A held value is one the slider produced a moment ago (§2), and the markers and Freeze use the same values
  * as the screen.
- *
- * With letters on other levels (`spread`), a slider's move back is the largest of its shared move and each such
- * level's move (levelPosition): a level is a monotone image of the shared position, so it turns only when the
- * shared value does, and holding the shared value holds every level. Every letter on screen keeps to the limit.
  */
 export class FlashLimiter {
   /** Per target: the value and position last passed on, the extreme of its current swing, and its direction (−1, 0, 1). */
@@ -144,26 +103,17 @@ export class FlashLimiter {
   /**
    * The modulated parameters with held values put back, and the held values (null when none).
    * @param time the measured frame's time (ms), as JumpTracker uses it, so one frame's slider turns and jumps are one edge
-   * @param spread the other levels letters show (none: the shared values alone)
    */
-  limit(modulated: Modulated, time: number, spread?: LevelSpread): { modulated: Modulated; holds: Holds | null } {
+  limit(modulated: Modulated, time: number): { modulated: Modulated; holds: Holds | null } {
     for (const id of this.targets.keys()) if (!modulated.positions.has(id)) this.targets.delete(id)
     const back = this.back
     back.clear()
-    const levels = spread && spread.gains.length > 0 ? spread : null
     let total = 0
     for (const [id, position] of modulated.positions) {
       const state = this.targets.get(id)
       if (!state) continue
       const { dir, extreme } = state
-      let amount = backMove(dir, extreme, position)
-      const spec = levels && targetById(id)
-      if (levels && spec) {
-        for (const gain of levels.gains) {
-          const level = backMove(dir, levelPosition(spec, levels.base, extreme, gain), levelPosition(spec, levels.base, position, gain))
-          if (level > amount) amount = level
-        }
-      }
+      const amount = dir > 0 ? extreme - position : dir < 0 ? position - extreme : Math.abs(position - extreme)
       if (amount > 0) {
         back.set(id, amount)
         total += amount
@@ -220,11 +170,9 @@ function applyHolds(params: GeometryParams, holds: Holds | null): GeometryParams
   return params
 }
 
-/** One frame handed to React: the live parameters, or null for the sliders' own. */
+/** One parameter set handed to React: the live parameters, or null for the sliders' own. */
 export interface LiveCommit {
   params: GeometryParams | null
-  /** The letters that show another level than `params` (null: every letter shows `params`). */
-  letters: LetterFrame | null
   /** Counts commits, so each one renders and its render can be recognised. */
   seq: number
 }
@@ -237,12 +185,11 @@ export interface LiveDeps {
   /** The geometry client has a request in flight. */
   isComputing(): boolean
   /**
-   * Asks the geometry worker for a live frame's glyphs before it is committed, in one request: the shared
-   * parameter set first (every glyph shown), then the letters' other levels. True while they are computed
-   * (idle() follows when the request ends), false when there is nothing to wait for.
+   * Asks the geometry worker for a live parameter set's glyphs before it is committed: true while they are
+   * computed (idle() follows when the request ends), false when there is nothing to wait for.
    */
-  request(jobs: readonly FrameJob[]): boolean
-  /** Hands a frame to React (null: the sliders' own parameters). */
+  request(params: GeometryParams, key: string): boolean
+  /** Hands a parameter set to React (null: the sliders' own). */
   commit(commit: LiveCommit | null): void
   /** Pauses the file or stops listening (Freeze). */
   pauseSound(): void
@@ -349,10 +296,9 @@ class StatusStore {
 
 /**
  * The live scheduler (see the file comment). Exported for tests/sound; the page uses the hooks below.
- * Inputs: the slider values and whether a font is loaded (setBase), the mappings and response settings
- * (setMappings), the letters of the text (setSlots), each measured frame (setFrame), source changes
- * (sourceChanged), renders of its commits (rendered), and the geometry client going idle (idle). Outputs:
- * commits (deps.commit), positions, seeds, status, latency.
+ * Inputs: the slider values and whether a font is loaded (setBase), the mappings (setMappings), each
+ * measured frame (setFrame), source changes (sourceChanged), renders of its commits (rendered), and the
+ * geometry client going idle (idle). Outputs: commits (deps.commit), positions, seeds, status.
  */
 export class LiveScheduler {
   readonly positions: LiveValueStore
@@ -371,47 +317,12 @@ export class LiveScheduler {
   private frame: FeatureFrame = SILENT_FRAME
   private mappings: readonly Mapping[] = []
   private drive = false
-  private response: ResponseSettings = NEUTRAL_RESPONSE
-  /** The letters' levels for the response settings; null while every letter reacts alike. */
-  private levels: LetterLevels | null = null
-  /** The letters of the text on the canvas. */
-  private slots: LetterSlots = NO_SLOTS
-  /** The level each letter took in the last update (for hysteresis); null after a reset. */
-  private shownAssign: Uint8Array | null = null
-  /**
-   * The levels of the frame the screen shows or is about to (the last one started), for the flash limit: updates
-   * come every animation frame, frames reach the screen at most 30 times a second, so a move between levels is
-   * measured from what the screen shows, not from the last update. Null after a reset.
-   */
-  private screenAssign: Uint8Array | null = null
-  /**
-   * The levels of the frames shown within the last LIVE_LIMITS.switchSpanMs (`at`, deps.now()), oldest first; the
-   * last is `screenAssign`. A move between levels spread over several frames (the pitch is smoothed, frames come up to
-   * 30 times a second) is measured from each of them, so it counts as the one change it shows as. Starts afresh from
-   * the frame that shows a large move that took from the budget, and on a reset.
-   */
-  private screenTrail: { at: number; assign: Uint8Array }[] = []
-  /** A large move between levels from `screenAssign` has taken from the budget since that frame started. */
-  private switchCharged = false
   /** The driven seeds' jumps so far (from jumpTracker). */
   private jumps: Jumps = NO_JUMPS
 
   private driving = false
-  /**
-   * The newest modulated parameters (after the flash limit), the frame, jumps and held values they came from, the
-   * key of the whole frame (letters included) and of the shared parameters, and the letters on other levels.
-   */
-  private latest: {
-    modulated: Modulated
-    frame: FeatureFrame
-    jumps: Jumps
-    holds: Holds | null
-    key: string
-    sharedKey: string
-    letters: LetterFrame | null
-    /** The level each letter takes (before levels equal to the shared one are folded in); null without levels. */
-    assign: Uint8Array | null
-  } | null = null
+  /** The newest modulated parameters (after the flash limit), the frame, jumps and held values they came from, and their key. */
+  private latest: { modulated: Modulated; frame: FeatureFrame; jumps: Jumps; holds: Holds | null; key: string } | null = null
   /** What React shows (or is about to): its key, the frame, jumps and held values it came from, and whether it is the sliders' own. */
   private committed: Shown | null = null
   /** React holds a live commit (not null), so stopping must hand it null. */
@@ -429,8 +340,6 @@ export class LiveScheduler {
   /** Smoothed milliseconds per shown result (never under 1/30 s). */
   private period = MIN_COMMIT_MS
   private slowSince: number | null = null
-  /** Smoothed milliseconds from a measured frame to its commit; null before the first. Kept when Sound stops. */
-  private latency: number | null = null
 
   constructor(private readonly deps: LiveDeps) {
     this.positions = new LiveValueStore(deps, (position) => Math.round(position * POSITION_GRID) / POSITION_GRID)
@@ -446,47 +355,17 @@ export class LiveScheduler {
     this.update()
   }
 
-  /** The mappings, Drive letters, and the Response group's settings (Strength, Motion contrast, Pitch reactive, Melody tracking). */
-  setMappings(mappings: readonly Mapping[], drive: boolean, response: ResponseSettings = NEUTRAL_RESPONSE) {
+  setMappings(mappings: readonly Mapping[], drive: boolean) {
     this.mappings = mappings
     this.drive = drive
-    const r = this.response
-    if (response.contrast !== r.contrast || response.pitchReactive !== r.pitchReactive) {
-      this.levels = letterLevels(response)
-      // New levels: the letters start afresh (no hysteresis from the old ones, no switch edge).
-      this.shownAssign = null
-      this.screenAssign = null
-      this.screenTrail = []
-    }
-    this.response = response
     this.update()
-  }
-
-  /**
-   * The letters of the text on the canvas (letterSlots). Another number of letters (a text edit) starts the
-   * levels afresh; the same text set differently keeps them.
-   */
-  setSlots(slots: LetterSlots) {
-    if (slots === this.slots) return
-    if (slots.count !== this.slots.count) {
-      this.shownAssign = null
-      this.screenAssign = null
-      this.screenTrail = []
-    }
-    this.slots = slots
-    if (this.levels && this.driving) this.update()
   }
 
   setFrame(frame: FeatureFrame) {
     this.frame = frame
     // Jumps are counted only while Sound can drive; stop() forgets them.
-    if (this.base && this.canDrive()) this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base, this.response.strength)
+    if (this.base && this.canDrive()) this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base)
     this.update()
-  }
-
-  /** Smoothed milliseconds from a measured frame to React getting it; null before the first live commit. */
-  latencyMs(): number | null {
-    return this.latency
   }
 
   /** The source started or stopped (playing, paused, listening, stopped listening, switched). */
@@ -508,14 +387,14 @@ export class LiveScheduler {
 
   /**
    * The groups Freeze writes into the sliders and seed fields, each as a whole group object: the frame
-   * and jumps on screen applied to the current slider values, mappings and response (what is shown,
-   * unless a slider moved since). Letters on other levels take these shared values. Null when nothing
-   * differs. Without Thorn's derived canvasEm, which never goes into the state.
+   * and jumps on screen applied to the current slider values and mappings (what is shown, unless a
+   * slider moved since). Null when nothing differs. Without Thorn's derived canvasEm, which never goes
+   * into the state.
    */
   freezeChanges(): Partial<GeometryParams> | null {
     const { base, committed } = this
     if (!this.driving || !base || !committed || committed.isBase) return null
-    const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps, this.response).params, committed.holds)
+    const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps).params, committed.holds)
     if (params === base) return null
     const changes: Partial<GeometryParams> = {}
     let any = false
@@ -538,15 +417,15 @@ export class LiveScheduler {
     this.stop()
   }
 
-  /** A font is loaded, the slider values are known, Drive letters is on, Strength is above 0, and a source runs. */
+  /** A font is loaded, the slider values are known, Drive letters is on, and a source runs. */
   private canDrive(): boolean {
-    return this.base !== null && this.hasFont && this.drive && this.response.strength > 0 && this.deps.sourceRunning()
+    return this.base !== null && this.hasFont && this.drive && this.deps.sourceRunning()
   }
 
   private update() {
     const base = this.base
     if (!base || !this.canDrive()) return this.stop()
-    const unlimited = modulate(base, this.frame, this.mappings, this.jumps, this.response)
+    const unlimited = modulate(base, this.frame, this.mappings, this.jumps)
     // No enabled mapping with a Depth acts on an active target: Sound changes nothing.
     if (unlimited.positions.size === 0 && unlimited.seeds.size === 0) return this.stop()
     if (!this.driving) {
@@ -556,107 +435,18 @@ export class LiveScheduler {
       // The canvas shows the sliders' own parameters until the first live commit.
       this.committed = { key: this.baseKey, frame: SILENT_FRAME, jumps: NO_JUMPS, holds: null, isBase: true }
     }
-    // Where each letter would go this frame, and the levels letters show or are about to (for the flash limit).
-    const { levels, slots } = this
-    const wanted = levels && slots.activeCount > 0 ? assignLevels(slots, this.response, this.frame, levels, this.validShown()) : null
-    const spread = levels && wanted ? { base, gains: this.presentGains(levels, wanted) } : undefined
     // On the frame's time, as the jumps: one frame's turns and jumps are one edge of the flash budget.
-    const limited = this.flash.limit(unlimited, this.frame.time, spread)
+    const limited = this.flash.limit(unlimited, this.frame.time)
     const { holds } = limited
     let { modulated } = limited
     const key = modulated.params === base ? this.baseKey : paramsKey(modulated.params)
     // A held value can put every target back on its slider value: then it is the sliders' own (exact restore).
     if (key === this.baseKey && modulated.params !== base) modulated = { ...modulated, params: base }
-    const letters = levels && wanted ? this.letterFrame(base, levels, modulated, key, wanted) : null
-    // letterFrame keeps the levels letters take this frame as shownAssign.
-    const assign = levels && wanted ? this.shownAssign : null
-    this.latest = { modulated, frame: this.frame, jumps: this.jumps, holds, key: letters?.key ?? key, sharedKey: key, letters, assign }
+    this.latest = { modulated, frame: this.frame, jumps: this.jumps, holds, key }
     this.positions.set(modulated.positions)
     this.seeds.set(modulated.seeds)
     this.pump()
     this.publishStatus()
-  }
-
-  /** The levels letters took in the last update, when they belong to the current text. */
-  private validShown(): Uint8Array | null {
-    const shown = this.shownAssign
-    return shown && shown.length === this.slots.count ? shown : null
-  }
-
-  /** The levels of the frame the screen shows or is about to, when they belong to the current text. */
-  private validScreen(): Uint8Array | null {
-    const screen = this.screenAssign
-    return screen && screen.length === this.slots.count ? screen : null
-  }
-
-  /** The gains (other than 1) of the levels an active letter shows now (on screen or in the last update) or is about to. */
-  private presentGains(levels: LetterLevels, wanted: Uint8Array): number[] {
-    const { active } = this.slots
-    const shown = this.validShown()
-    const screen = this.validScreen()
-    let quiet = false
-    let strong = false
-    for (let j = 0; j < wanted.length && !(quiet && strong); j++) {
-      if (!active[j]) continue
-      const a = wanted[j]
-      const b = shown ? shown[j] : a
-      const c = screen ? screen[j] : a
-      if (a === QUIET || b === QUIET || c === QUIET) quiet = true
-      if (a === STRONG || b === STRONG || c === STRONG) strong = true
-    }
-    const gains: number[] = []
-    if (quiet) gains.push(levels.gains[QUIET])
-    if (strong) gains.push(levels.gains[STRONG])
-    return gains
-  }
-
-  /**
-   * The letters of this frame on other levels than the shared values `shared` (key `sharedKey`), or null when
-   * none is. Letters moving between levels are a change of their own (switchSwing), measured from the levels of
-   * the frame the screen shows or is about to: several updates can pass before the next frame starts, and only
-   * the move between two frames on screen shows. A move spread over several frames shows as one change, so it is
-   * also measured from each frame shown within LIVE_LIMITS.switchSpanMs (screenTrail). When the move is large it
-   * takes from the flash budget once per frame; when the budget is spent, every letter keeps the level on screen.
-   */
-  private letterFrame(base: GeometryParams, levels: LetterLevels, shared: Modulated, sharedKey: string, wanted: Uint8Array): LetterFrame | null {
-    const slots = this.slots
-    // The sliders' own values: every level is the same, so letters can change levels unseen (no edge).
-    if (shared.params === base) {
-      this.shownAssign = wanted
-      return null
-    }
-    const ref = this.validScreen() ?? this.validShown()
-    const keyOf = (p: GeometryParams) => (p === base ? this.baseKey : p === shared.params ? sharedKey : paramsKey(p))
-    const sets = levelSets(base, shared, levels, keyOf)
-    let assign = wanted
-    // A hair under the swing, as the sliders' edges; an edge in the same frame as theirs counts once.
-    if (ref && !this.switchCharged && this.switchFrom(ref, wanted, sets) >= FLASH_LIMITS.swing - 1e-9) {
-      if (this.budget.take(this.frame.time)) this.switchCharged = true
-      else assign = ref
-    }
-    this.shownAssign = assign
-    return buildLetterFrame(sets, assign, slots, sharedKey)
-  }
-
-  /**
-   * How far letters move between levels going to `wanted`: from `ref` (the screen's levels) or from any frame
-   * shown within LIVE_LIMITS.switchSpanMs, whichever is larger (switchSwing).
-   */
-  private switchFrom(ref: Uint8Array, wanted: Uint8Array, sets: readonly [LevelSet, LevelSet, LevelSet]): number {
-    const slots = this.slots
-    let swing = switchSwing(ref, wanted, slots, sets)
-    const trail = this.trimTrail(this.deps.now())
-    for (let i = 0; i < trail.length - 1 && swing < FLASH_LIMITS.swing - 1e-9; i++) {
-      if (trail[i].assign.length === slots.count) swing = Math.max(swing, switchSwing(trail[i].assign, wanted, slots, sets))
-    }
-    return swing
-  }
-
-  /** Drops the frames that left the screen more than LIVE_LIMITS.switchSpanMs before `now` (the newest stays). */
-  private trimTrail(now: number) {
-    const trail = this.screenTrail
-    while (trail.length > 1 && trail[1].at <= now - LIVE_LIMITS.switchSpanMs) trail.shift()
-    return trail
   }
 
   /**
@@ -673,7 +463,6 @@ export class LiveScheduler {
     // Back to the sliders' own parameters while React already shows them: nothing to render.
     if (isBase && !this.holdsCommit) {
       this.committed = shown
-      this.showLevels(latest.assign)
       return
     }
     if (this.deps.isComputing()) return // idle() pumps again
@@ -684,29 +473,11 @@ export class LiveScheduler {
       return
     }
     const params = isBase ? null : latest.modulated.params
-    const letters = isBase ? null : latest.letters
-    this.awaiting = { seq: ++this.seq, at: now, next: { shown, params, letters }, committedAt: now, rendered: false }
+    this.awaiting = { seq: ++this.seq, at: now, next: { shown, params }, committedAt: now, rendered: false }
     this.lastStartAt = now
-    this.showLevels(latest.assign)
     // The sliders' own results are kept from normal editing; a live frame's glyphs are computed first, so
-    // React renders the frame once, with every glyph (idle() commits it). One request: the shared set for
-    // every glyph shown, then the glyphs of the letters on other levels.
-    const jobs: FrameJob[] | null = params ? [{ params, key: latest.sharedKey }, ...(letters?.jobs ?? [])] : null
-    if (!jobs || !this.deps.request(jobs)) this.finish()
-  }
-
-  /**
-   * A frame with these levels is on its way to the screen: moves between levels are measured from them now, and
-   * from the frames before it within LIVE_LIMITS.switchSpanMs, unless the move to it took from the budget.
-   */
-  private showLevels(assign: Uint8Array | null) {
-    if (!assign || this.switchCharged) this.screenTrail = []
-    if (assign) {
-      this.screenTrail.push({ at: this.deps.now(), assign })
-      this.trimTrail(this.deps.now())
-    }
-    this.screenAssign = assign
-    this.switchCharged = false
+    // React renders the frame once, with every glyph (idle() commits it).
+    if (!params || !this.deps.request(params, latest.key)) this.finish()
   }
 
   /** Calls pump (through settle) after `ms`, unless a call is already due. */
@@ -727,11 +498,7 @@ export class LiveScheduler {
     this.lastCommitAt = now
     this.committed = next.shown
     this.holdsCommit = !next.shown.isBase
-    if (next.params && next.shown.frame !== SILENT_FRAME) {
-      const delay = now - next.shown.frame.time
-      this.latency = this.latency === null ? delay : this.latency + SMOOTHING * (delay - this.latency)
-    }
-    this.deps.commit({ params: next.params, letters: next.letters, seq: awaiting.seq })
+    this.deps.commit({ params: next.params, seq: awaiting.seq })
   }
 
   /**
@@ -766,8 +533,6 @@ export class LiveScheduler {
     // Exact restore: the seeds go back to their fields' values, and playing again starts from them.
     this.jumpTracker.reset()
     this.jumps = NO_JUMPS
-    this.shownAssign = null
-    this.showLevels(null)
     if (!this.driving && !this.holdsCommit && !this.awaiting) {
       if (this.status.get().driving) this.publishStatus()
       return
@@ -811,7 +576,7 @@ export class LiveScheduler {
 
 const isRunning = (s: SoundState) => s.playing || s.listening
 
-/** Where the current commit goes: the mounted useLiveFrame's state setter. */
+/** Where the current commit goes: the mounted useLiveParams' state setter. */
 let commitTo: ((commit: LiveCommit | null) => void) | null = null
 let scheduler: LiveScheduler | null = null
 
@@ -820,7 +585,7 @@ function getScheduler(): LiveScheduler {
     now: () => performance.now(),
     sourceRunning: () => isRunning(getSoundEngine().getState()),
     isComputing: () => geometryClient.isComputing(),
-    request: (jobs) => geometryClient.prefetchJobs(jobs),
+    request: (params, key) => geometryClient.prefetch(params, key),
     commit: (commit) => commitTo?.(commit),
     pauseSound: () => {
       const engine = getSoundEngine()
@@ -840,8 +605,8 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
   const engine = getSoundEngine()
   commitTo = setCommit
   const syncMappings = () => {
-    const { mappings, drive, response } = mappingStore.getState()
-    live.setMappings(mappings, drive, response)
+    const { mappings, drive } = mappingStore.getState()
+    live.setMappings(mappings, drive)
   }
   syncMappings()
   const unsubscribe = [
@@ -858,19 +623,12 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
   }
 }
 
-/** What the canvas should show: the live parameters, and the letters that show other levels of them. */
-export interface LiveView {
-  params: GeometryParams
-  /** Null while every letter shows `params` (always while Sound is not driving). */
-  letters: LetterFrame | null
-}
-
 /**
- * The frame the canvas should show: `base` itself while Sound is not driving (exact restore), or live
- * parameters (and letters on other levels) updated as fast as the geometry keeps up (capped at 30 fps).
- * Without a font Sound does not drive (no commits, no markers): pass whether one is loaded. Call once, in App.
+ * The parameters the canvas should use: `base` itself while Sound is not driving (exact restore), or
+ * live parameters updated as fast as the geometry keeps up (capped at 30 fps). Without a font Sound does
+ * not drive (no commits, no markers): pass whether one is loaded. Call once, in App.
  */
-export function useLiveFrame(base: GeometryParams, hasFont = true): LiveView {
+export function useLiveParams(base: GeometryParams, hasFont = true): GeometryParams {
   const [commit, setCommit] = useState<LiveCommit | null>(null)
   const live = getScheduler()
   // Layout effect: the scheduler has the new slider values before the next frame can arrive.
@@ -882,18 +640,7 @@ export function useLiveFrame(base: GeometryParams, hasFont = true): LiveView {
     const { seq } = commit
     queueMicrotask(() => live.rendered(seq))
   }, [live, commit])
-  const params = commit?.params ?? base
-  const letters = commit?.params ? commit.letters : null
-  return useMemo(() => ({ params, letters }), [params, letters])
-}
-
-/**
- * Tells the scheduler the letters of the text on the canvas (letterSlots of the shaped text). Call once, in
- * App, after the hooks that show the glyphs (useGlyphGeometry), so a new text's first frame asks for its glyphs.
- */
-export function useLiveLetters(slots: LetterSlots): void {
-  const live = getScheduler()
-  useLayoutEffect(() => live.setSlots(slots), [live, slots])
+  return commit?.params ?? base
 }
 
 /** The live position (0–1) of this target on its slider while Sound drives it, else null. Re-renders at most ~15×/s. */
@@ -942,12 +689,4 @@ export function freezeLive(dispatch: Dispatch<Action>): void {
   // In the same event as the dispatches, so React shows the frozen sliders and drops the live
   // parameters in one render (the frame's results are already kept, so nothing is computed again).
   live.pauseSound()
-}
-
-/**
- * The smoothed delay (ms) from a measured sound frame to its letters reaching React; null before the first
- * live frame. The last value is kept while Sound is not driving.
- */
-export function liveLatencyMs(): number | null {
-  return scheduler?.latencyMs() ?? null
 }

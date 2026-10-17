@@ -27,25 +27,18 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 
 ## 测试
 
-- 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`）；慢的测试放在 `tests/slow`。
+- 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/state`、`tests/worker`）；慢的测试放在 `tests/slow`。
 - `npm test` 运行快速测试（约 15 秒）。`npm run test:slow` 运行慢速测试（完整的 42 秒 Sound 测试音轨，以及两种测试字体的全部字形；约 3 分钟），只有点名要求时才运行。
 - `npm run build` 也会对测试和脚本做类型检查（`tsconfig.test.json`）。
 - 向 `develop` 提交 pull request 之前先运行 `npm test`。CI 在每个提交到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm test` 和 `npm run build`；Pages 部署也会先运行 `npm test` 再构建。
 - 测试字体只用开源授权的字体（OFL：STIX Two Text 和 Roboto），每个字体旁边都放着它的 `OFL-*.txt`，位于 `tests/fixtures/fonts`。不要加入不允许再分发的字体。
 - 发现 `src/` 里 bug 的测试要保留下来，写成 `it.skip`，并加一条 `BUG:` 注释说明问题，直到 bug 修好为止。
 - 生成的文件不提交。Sound 测试音轨由 `npm run test-track`（来自 `scripts/test-track.ts`）渲染为 `test-audio/sound-test.wav`，git 会忽略它；有一个测试检查它每次渲染出的采样都相同。
-- 需要测试里跑不了的浏览器 API（MediaRecorder、画布捕获、Web Audio、标签页是否可见）的代码，要拆成纯模块和一个控制器：控制器通过注入的依赖拿到这些 API，上面再加一层很薄的页面单例。视频录制就是范例：`RecordingController`（`src/export/recorder.ts`）把时钟和计时器、声音引擎、画布、MediaRecorder、标签页可见性以及 `save` 作为 `RecorderDeps` 接收，`tests/export/recorder.test.ts` 用它们的假实现跑完每一次录制，完全不碰 DOM。画布绘制接收一个绘制器（`src/export/drawArtboard.ts`），所以一个记录调用的假绘制器就能拿它和 SVG 导出对照。
-- 绝不真的下载文件。测试传入假的 `save`（或其他注入的接收方），从不调用 `downloadFile`。要导出或录制的浏览器检查，先把 `HTMLAnchorElement.prototype.click` 换成只收集链接、不打开它的函数，并让 `URL.revokeObjectURL` 什么都不做，这样收集到的 blob 仍然能读。
-- `tests/sound/neutral.test.ts` 把 Response 设置为中性值（Strength 100%，Motion contrast、Pitch reactive 和 Melody tracking 为 0）时的 Sound 固定为提交 4a54e5d（这些设置出现之前）时的输出：除分析器的读数外都是精确值，读数按 10 位有效数字计算哈希（见下一条）。永远不要修改它，包括其中的哈希值：它失败时，说明某处改动影响到了中性路径，应该修正那处改动。
-- 来自 `Math` 函数（`log`、`exp`、`sin` 等）的数值要先取整再计算哈希，不要用精确值。V8 的 x64 版和 arm64 版在最后一位上可能不同（`Math.log2` 和 `Math.log10` 就是这样），而 CI 运行在 Linux x64 上，Apple 芯片的 Mac 是 arm64，所以在一边锁定的精确哈希到另一边会失败。`neutral.test.ts` 把这类数值取到 10 位有效数字：两边结果一致，而千万分之一的改动仍能被发现。锁定哈希前要在两边都核对过，例如在 Rosetta 下运行官方的 x64 版 Node。
-- 按屏幕显示的样子计算闪烁。`tests/sound/flash.test.ts` 中的 `lettersOnScreen` 把档位之间的移动从最近 250 ms 内显示过的任何一帧算起（`SPREAD_MS`，与 `LIVE_LIMITS.switchSpanMs` 是同一个时长），一帧里的变化只算一次；这样分几帧到达屏幕的一次变化只算一次，而摊薄在几帧里的变化也不会漏掉。
-- 在浏览器中检查 Sound 时让标签页保持可见。声音在 `requestAnimationFrame` 上读取，所以标签页被隐藏或被遮住时（包括隐藏起来的浏览器面板）没有帧，或只有一阵一阵的帧，字母也就不再跟随声音；"Live · N fps" 显示的是几何计算的速率，而不是读取声音的频率，所以看不出这一点。
 
 ## 几何计算与 Worker
 
-- 字形几何只在几何 Worker 里计算（`src/geometry/geometry.worker.ts`，逻辑在 `workerCore.ts`），从不在页面上计算。画布、文字预览、Sound 的实时帧以及 SVG 和 PNG 导出，都通过页面端的客户端（`src/state/geometryClient.ts`）请求：导出用 `ensure()`，实时帧用 `prefetchJobs()`。不要加主线程的后备方案；Worker 无法运行时，画布会说明并请用户刷新页面。
-- 协议（`src/geometry/protocol.ts`）：每个计算请求都有一个 id，并且在任何路径上（包括 Worker 没有这个字体时）都以恰好一个回答结束：`done`（如果被更新的请求或 `cancel` 在字形之间停下，则带 `stopped`）或 `failed`（带原因）。一个请求带一个或多个任务（一个参数键和它的字形），按顺序执行；每条 `results` 消息只含一个任务的键。Worker 在每个字形之前发送 `glyph`：这是页面的心跳，也写明参数键和出问题时该怪的字形。新增的消息类型也要遵守这些规则。
-- 一个实时帧就是一个请求。帧里的字母可能反应幅度不同，所以最多需要三组参数（共享值，以及安静和强烈两个档位）：`prefetchJobs()` 把它们都作为同一个请求的任务发出，共享值排在最前，覆盖画面上的每个字形；全部到齐后才提交这一帧。不要把一帧的几组参数拆成几个请求发送：较新的请求会取代正在处理的请求。实时结果与编辑时的结果分开保存，按最近最少使用的顺序淘汰，最多保留 `LIVE_KEPT_KEYS`（6）组参数，所以下一帧计算时，画面上那一帧的各个档位仍然保留。
+- 字形几何只在几何 Worker 里计算（`src/geometry/geometry.worker.ts`，逻辑在 `workerCore.ts`），从不在页面上计算。画布、文字预览、Sound 的实时帧以及 SVG 和 PNG 导出，都通过页面端的客户端（`src/state/geometryClient.ts`）请求：导出用 `ensure()`，实时帧用 `prefetch()`。不要加主线程的后备方案；Worker 无法运行时，画布会说明并请用户刷新页面。
+- 协议（`src/geometry/protocol.ts`）：每个计算请求都有一个 id，并且在任何路径上（包括 Worker 没有这个字体时）都以恰好一个回答结束：`done`（如果被更新的请求或 `cancel` 在字形之间停下，则带 `stopped`）或 `failed`（带原因）。Worker 在每个字形之前发送 `glyph`：这是页面的心跳，也说明出问题时该怪哪个字形。新增的消息类型也要遵守这些规则。
 - 客户端：Worker 在一个字形上 60 秒没有消息时，这个字形被标为失败（"Took longer than 60 s; try lighter settings"），Worker 重启并重新发送字体；60 秒内重启超过 3 次时，几何计算停止，直到换下一个字体，画布会说明原因。新的设置会替换卡在一个已不需要的字形上 750 毫秒以上的 Worker（每 2 秒最多一次，实时帧除外）。要让重度设置变快，应像 Experimental 的顶点预算那样在流程内部解决（EXPERIMENTAL_PLAN 第 4.10 节），而不是放宽这些限制。
 - 字体导出每次构建都在自己的 Worker 里运行（`src/export/fontExport.worker.ts`）。Cancel 会立即终止它，一分钟没有进度时也会终止。只有这个 Worker 无法启动时，构建才在页面上运行。
 - 不用浏览器测试 Worker 的逻辑和客户端：`tests/worker` 用假的 `post` 运行 `workerCore`，用假 Worker 和假计时器测试客户端。
@@ -55,15 +48,12 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 每个 Geometry 和 Experimental 滑块的范围和档位只写一次，写在 `src/state/sliderScales.ts` 里：`SLIDER_RANGES`，按滑块的 Sound 目标 id 索引（`"group.key"`、`"experimental.effect.key"`）；对数刻度的 Tolerance 滑块用 `TOLERANCE`。
 - 面板把这一项展开到它的 range 输入上（或在 `RangeField` 上写明目标），Sound（`src/sound/mapping.ts`）和保存会话的检查也读同一项，所以实时值和恢复的值总是滑块自己能给出的值。
 - 不要在别处再写滑块的最小值、最大值或档位；要改范围，就改这一项。新滑块先在这里加一项。`sliderRange(id)` 遇到没有的 id 会抛错，所以拼写错误会立刻暴露。
-- Sound 标签页自己的滑块也遵守同样的规则，范围来自 `src/sound/types.ts`：Sensitivity 和 Release 来自 `SOUND_LIMITS`（`minSensitivity`、`maxSensitivity`、`sensitivityStep`；`minReleaseMs`、`maxReleaseMs`、`releaseStepMs`），Strength、Motion contrast、Pitch reactive 和 Melody tracking 来自 `RESPONSE_LIMITS`。存储中这四个值是小数（Strength 1 即 100%），面板按同一项以百分比显示；`clampResponse` 和保存会话的检查（`persist.ts` 中的 `SOUND_RANGES`）也读这些项。
-- 视频的限制只写一次，写在 `VIDEO_LIMITS`（`src/export/videoFormat.ts`）里：最长边和面积、10 分钟上限、码率范围、音频延迟的范围，以及录制器的各个时间。Record 的选项和录制器都从那里读取。
 
 ## 保存设置与撤销
 
-- 会话（设置、画布视图按钮、文字、预览的外观、导出精度、Sound 映射、Sound 标签页的 Response 组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking），以及打开的字体和字形）在每次修改后稍等片刻，保存在 `localStorage` 的一个带版本号的键 `none-curve:session` 下（`src/state/persist.ts`）。第一次绘制恢复的设置时会设置 `none-curve:restoring`，所以如果上一次访问在这时崩溃了，下一次会从默认设置开始。浏览器端的小便利（选中的标签页、面板分栏、Show all explanations）各用自己的 `none-curve:` 键。
-- 不保存的：Drive letters、音频来源、录制选项（Format、Length、Include audio、Use the preview look）、实时值、对话框、主题，以及缩放和平移。Sensitivity、Release 和四个响应值会保存。
-- 保存的会话在启动时读取一次，逐项对照默认值检查：类型不对或选项未知时用默认值，数值超出范围时限制到范围之内，未知的键会被丢弃，所以损坏的或旧的记录绝不会让应用出错。新设置需要在 `initialState` 里有默认值，并在 `persist.ts` 里写明范围或可选值（`RANGES`、`CHOICES`、`ENUMS`）；如果它是 `SLIDER_RANGES` 里的滑块，则直接使用那一项。Sound 的设置是一个可选的 `sound` 块，由 `readSound` 对照 `SOUND_LIMITS` 和 `RESPONSE_LIMITS` 读取。
-- 新增一个设置，或新增一个以前的会话没有的块，不需要迁移：缺少的值按默认值读取。`sound` 块就是这样加入的，会话版本仍是 2。
+- 会话（设置、画布视图按钮、文字、预览的外观、导出精度、Sound 映射，以及打开的字体和字形）在每次修改后稍等片刻，保存在 `localStorage` 的一个带版本号的键 `none-curve:session` 下（`src/state/persist.ts`）。第一次绘制恢复的设置时会设置 `none-curve:restoring`，所以如果上一次访问在这时崩溃了，下一次会从默认设置开始。浏览器端的小便利（选中的标签页、面板分栏、Show all explanations）各用自己的 `none-curve:` 键。
+- 不保存的：Drive letters、音频来源、实时值、对话框、主题，以及缩放和平移。
+- 保存的会话在启动时读取一次，逐项对照默认值检查：类型不对或选项未知时用默认值，数值超出范围时限制到范围之内，未知的键会被丢弃，所以损坏的或旧的记录绝不会让应用出错。新设置需要在 `initialState` 里有默认值，并在 `persist.ts` 里写明范围或可选值（`RANGES`、`CHOICES`、`ENUMS`）；如果它是 `SLIDER_RANGES` 里的滑块，则直接使用那一项。
 - 重命名或移动已保存的设置，或重命名 Sound 的特征或目标 id，都需要迁移：提高 `SESSION_VERSION`，并在 `MIGRATIONS` 里加一步，把旧名称改成新名称，这样以前的会话能保留它们的值（从没有版本号的会话迁移的那一步，会改第 9 阶段的效果名和合并后的 Sound 特征名）。不要把旧名称挪作他用。旧版应用读到新版本的会话时，能读多少就读多少。
 - 每次访问 `localStorage` 都要用 `try`/`catch` 包起来：存储可能被禁用或已满，这时应用照常工作，只是不保存。
-- 撤销（`src/state/history.ts`）：修改在发生的地方记录（App 的 `edit` 和文字的设置函数、映射存储，以及 Response 组：它先记录 Sensitivity 和 Release，再把它们设到引擎上），从不在 reducer 里记录，reducer 保持纯函数。设置通过 `edit` 修改；画布视图、字形选择、导出设置和导入使用 `dispatch`，不能撤销。记录每个修改时都带一个说明改了什么的键（`edit` 会根据改变的设置自动得出），这样一次滑块拖动是一步；由多个更新组成的修改（预设的 Load、Freeze、一个目标连同它打开的设置、Reset sound）要包在 `undoHistory.transaction` 里。Sound 的实时帧从不 dispatch，所以从不进入历史；录制选项和录制本身也不进入历史。
+- 撤销（`src/state/history.ts`）：修改在发生的地方记录（App 的 `edit` 和文字的设置函数、映射存储），从不在 reducer 里记录，reducer 保持纯函数。设置通过 `edit` 修改；画布视图、字形选择、导出设置和导入使用 `dispatch`，不能撤销。记录每个修改时都带一个说明改了什么的键（`edit` 会根据改变的设置自动得出），这样一次滑块拖动是一步；由多个更新组成的修改（预设的 Load、Freeze、一个目标连同它打开的设置）要包在 `undoHistory.transaction` 里。Sound 的实时帧从不 dispatch，所以从不进入历史。
