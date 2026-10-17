@@ -13,6 +13,9 @@ interface GlyphLayersProps {
   showMarkers: boolean
 }
 
+/** Vertex dots are this share of the marker radius: about 3 px across, small enough to tell crowded corners apart. */
+const VERTEX_SCALE = 0.4
+
 /**
  * The outline layers of one glyph in its own font units (y up). The caller positions it and flips y.
  * Shared by the single-glyph inspector and the text specimen so both show the same layers.
@@ -66,7 +69,7 @@ function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers }: Gl
       {vertices.length > 0 && (
         <g className="vertices">
           {vertices.map((p, i) => (
-            <circle key={i} className="polygon-vertex" cx={p.x} cy={p.y} r={r * 0.7} />
+            <circle key={i} className="polygon-vertex" cx={p.x} cy={p.y} r={r * VERTEX_SCALE} />
           ))}
         </g>
       )}
