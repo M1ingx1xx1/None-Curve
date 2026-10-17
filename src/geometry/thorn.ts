@@ -33,7 +33,7 @@
 //      other way, with the same base, as if the thorn had been driven through the stroke. One that would land on or
 //      beside another tip, or within either's base, is left out.
 //    - Dent: the outline either side of the thorn sinks into the stroke along the ray's direction, deepest at the base
-//      (Dent × 55% of the thickness) and less to nothing a few bases along (at most three thicknesses). A side stops at
+//      (Dent × 85% of the thickness) and less to nothing a few bases along (at most three thicknesses). A side stops at
 //      another thorn, or where the outline turns so far that the ray from it no longer leads into the ink; where two
 //      dents meet, a vertex sinks by both. All is measured on the outline before the dents: no vertex sinks more than
 //      three quarters of its way to the next edge, and no edge from a sunk vertex crosses an edge it did not (a thorn's
@@ -146,16 +146,16 @@ const BACKLASH = {
   /** A back thorn's site this close (× the em) to a vertex moves onto it, so no sliver of an edge is left. */
   snap: 0.005,
   /** The deepest dent, at its thorn's base at Dent 100%, as a share of the stroke's thickness. */
-  depth: 0.55,
+  depth: 0.85,
   /**
    * How far along the outline a dent reaches: this many of its thorn's bases, or this share of the thickness if more,
    * but at most `maxReach` × the thickness.
    */
   reachBases: 2.5,
-  reachThickness: 1.2,
+  reachThickness: 1.6,
   maxReach: 3,
   /** No vertex sinks more than this share of its own way across the stroke (to the outline's next edge, the way it moves). */
-  maxShare: 0.75,
+  maxShare: 0.9,
   /** A dented edge that would cross the outline has the moves of its ends halved, at most this many times (then none). */
   halvings: 6,
   /** Dents look up the edges near their vertices and edges this many at a time. */
