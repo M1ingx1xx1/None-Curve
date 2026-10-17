@@ -41,7 +41,7 @@ export function describePipeline(params: GeometryParams): string[] {
     const r = experimental.ripple
     const pct = (v: number) => `${Math.round(v * 100)}%`
     steps.push(
-      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}`,
+      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}${r.reverse === true ? ', reversed' : ''}`,
     )
   }
   if (whorlIsOn(experimental.whorl)) {
@@ -67,7 +67,7 @@ export function describePipeline(params: GeometryParams): string[] {
     // As the Reach slider shows it, and its length in em the same way.
     const reach = `${reachPercent(s.canvasReach)}% canvas${s.canvasEm !== undefined ? ` (about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm))} em)` : ''}`
     steps.push(
-      `thorn ×${s.count}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
+      `thorn ×${s.count}${s.reverse === true ? ', reversed' : ''}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
     )
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')

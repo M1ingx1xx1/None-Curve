@@ -248,6 +248,23 @@ describe('saved session', () => {
     expect('canvasEm' in readSession({ version: 2, params: { experimental: { thorn: { canvasEm: 12 } } } })!.params.experimental.thorn).toBe(false)
   })
 
+  it('round-trips Ripple and Thorn Reverse, and reads it as off where it is missing or not a boolean', () => {
+    const storage = new MemoryStorage()
+    const session = changedSession()
+    const { ripple, thorn } = session.params.experimental
+    session.params = { ...session.params, experimental: { ...session.params.experimental, ripple: { ...ripple, reverse: true }, thorn: { ...thorn, reverse: true } } }
+    saveSession(session, storage)
+    expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.ripple.reverse).toBe(true)
+    expect(loadSession(storage)).toEqual({ session, crashed: false })
+    // Saved before Reverse existed (same session version), or damaged: off, the other settings kept.
+    const { reverse: _ripple, ...oldRipple } = { ...ripple, amount: 0.8 }
+    const { reverse: _thorn, ...oldThorn } = { ...thorn, count: 5 }
+    const old = readSession({ version: SESSION_VERSION, params: { experimental: { ripple: oldRipple, thorn: oldThorn } } })!.params.experimental
+    expect([old.ripple.reverse, old.ripple.amount, old.thorn.reverse, old.thorn.count]).toEqual([false, 0.8, false, 5])
+    const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { ripple: { reverse: 'yes' }, thorn: { reverse: 1 } } } })!.params.experimental
+    expect([damaged.ripple.reverse, damaged.thorn.reverse]).toEqual([false, false])
+  })
+
   it('clamps numbers to their sliders and drops wrong types, enums and choices', () => {
     const amount = SLIDER_RANGES['experimental.crumple.amount']
     const session = readSession({
