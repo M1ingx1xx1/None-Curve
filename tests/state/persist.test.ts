@@ -159,6 +159,30 @@ describe('saved session', () => {
     expect(session.view).toEqual({ ...DEFAULT_VIEW, outline: 'source' })
   })
 
+  it('reads settings and configs saved before Dissolve with it off at its defaults, and a saved Dissolve clamped to its sliders', () => {
+    const before = { version: SESSION_VERSION, params: { experimental: { seed: 7, thorn: { enabled: true } } } }
+    const old = readSession(before)!
+    expect(old.params.experimental.dissolve).toEqual(DEFAULT_SETTINGS.experimental.dissolve)
+    expect(old.params.experimental.dissolve.enabled).toBe(false)
+    expect([old.params.experimental.seed, old.params.experimental.thorn.enabled]).toEqual([7, true])
+    const config = parseConfig(JSON.stringify({ ...CONFIG_MARKER, ...before }))
+    expect(config).toEqual({ ok: true, session: old, newer: false })
+
+    const saved = readSession({
+      version: SESSION_VERSION,
+      params: { experimental: { dissolve: { enabled: true, amount: 3, grain: 0.01, spread: 'wide', specks: -1, curl: 0.25, facets: 0.7 } } },
+    })!
+    expect(saved.params.experimental.dissolve).toEqual({
+      enabled: true,
+      amount: SLIDER_RANGES['experimental.dissolve.amount'].max,
+      grain: SLIDER_RANGES['experimental.dissolve.grain'].min,
+      spread: DEFAULT_SETTINGS.experimental.dissolve.spread,
+      specks: 0,
+      curl: 0.25,
+      facets: 0.7,
+    })
+  })
+
   it('reads a session from before versions, with the old effect and feature names', () => {
     const session = readSession({
       params: { experimental: { noise: { enabled: true, amount: 1.5 }, curl: { enabled: true }, wind: { enabled: true }, spikes: { enabled: true } } },
@@ -246,6 +270,44 @@ describe('saved session', () => {
     expect(loadSession(storage)).toEqual({ session, crashed: false })
     // Nor is one read back from storage.
     expect('canvasEm' in readSession({ version: 2, params: { experimental: { thorn: { canvasEm: 12 } } } })!.params.experimental.thorn).toBe(false)
+  })
+
+  it('round-trips Ripple and Thorn Reverse, and reads it as off where it is missing or not a boolean', () => {
+    const storage = new MemoryStorage()
+    const session = changedSession()
+    const { ripple, thorn } = session.params.experimental
+    session.params = { ...session.params, experimental: { ...session.params.experimental, ripple: { ...ripple, reverse: true }, thorn: { ...thorn, reverse: true } } }
+    saveSession(session, storage)
+    expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.ripple.reverse).toBe(true)
+    expect(loadSession(storage)).toEqual({ session, crashed: false })
+    // Saved before Reverse existed (same session version), or damaged: off, the other settings kept.
+    const { reverse: _ripple, ...oldRipple } = { ...ripple, amount: 0.8 }
+    const { reverse: _thorn, ...oldThorn } = { ...thorn, count: 5 }
+    const old = readSession({ version: SESSION_VERSION, params: { experimental: { ripple: oldRipple, thorn: oldThorn } } })!.params.experimental
+    expect([old.ripple.reverse, old.ripple.amount, old.thorn.reverse, old.thorn.count]).toEqual([false, 0.8, false, 5])
+    const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { ripple: { reverse: 'yes' }, thorn: { reverse: 1 } } } })!.params.experimental
+    expect([damaged.ripple.reverse, damaged.thorn.reverse]).toEqual([false, false])
+  })
+
+  it('round-trips Thorn Burst, and reads its keys at their defaults where missing or damaged, clamped to the sliders', () => {
+    const storage = new MemoryStorage()
+    const session = changedSession()
+    const { thorn } = session.params.experimental
+    session.params = { ...session.params, experimental: { ...session.params.experimental, thorn: { ...thorn, burst: true, spikes: 72, dent: 0.35, count: 12 } } }
+    saveSession(session, storage)
+    expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.thorn).toMatchObject({ burst: true, spikes: 72, dent: 0.35, count: 12 })
+    expect(loadSession(storage)).toEqual({ session, crashed: false })
+    // Saved before Burst existed (same session version): off, at 40 spikes and Dent 80%, the other settings kept.
+    const { burst: _burst, spikes: _spikes, dent: _dent, ...oldThorn } = { ...thorn, count: 5, reverse: true }
+    const old = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: oldThorn } } })!.params.experimental.thorn
+    expect([old.burst, old.spikes, old.dent, old.count, old.reverse]).toEqual([false, 40, 0.8, 5, true])
+    const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { burst: 'yes', spikes: '9', dent: null } } } })!.params.experimental.thorn
+    expect([damaged.burst, damaged.spikes, damaged.dent]).toEqual([false, 40, 0.8])
+    // Out of range: Burst's Anchors to 4–80 in whole spikes, Dent to 0–1, and Anchors without Burst to 1–12, apart.
+    const wild = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 500, dent: -2, count: 80 } } } })!.params.experimental.thorn
+    expect([wild.spikes, wild.dent, wild.count]).toEqual([80, 0, 12])
+    expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 2.4 } } } })!.params.experimental.thorn.spikes).toBe(4)
+    expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 33.6 } } } })!.params.experimental.thorn.spikes).toBe(34)
   })
 
   it('clamps numbers to their sliders and drops wrong types, enums and choices', () => {

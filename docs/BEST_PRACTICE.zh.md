@@ -28,7 +28,7 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 ## 测试
 
 - 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`，以及测试 `scripts/` 中 Jira 同步的 `tests/scripts`）；慢的测试放在 `tests/slow`。
-- `npm test` 运行快速测试（约 15 秒）。`npm run test:slow` 运行慢速测试（完整的 42 秒 Sound 测试音轨，以及两种测试字体的全部字形；约 3 分钟），只有点名要求时才运行。
+- `npm test` 运行快速测试（约 15 秒）。`npm run test:slow` 运行慢速测试（完整的 42 秒 Sound 测试音轨，以及两种测试字体的全部字形；约 5 分钟），只有点名要求时才运行。
 - `npm run build` 也会对测试和脚本做类型检查（`tsconfig.test.json`）。
 - 向 `develop` 提交 pull request 之前先运行 `npm test`。CI 在每个提交到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm test` 和 `npm run build`；Pages 部署也会先运行 `npm test` 再构建。
 - 测试字体只用开源授权的字体（OFL：STIX Two Text 和 Roboto），每个字体旁边都放着它的 `OFL-*.txt`，位于 `tests/fixtures/fonts`。不要加入不允许再分发的字体。
@@ -77,4 +77,4 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 新增一个设置，或新增一个以前的会话没有的块，不需要迁移：缺少的值按默认值读取。`sound` 块就是这样加入的，会话版本仍是 2。
 - 重命名或移动已保存的设置，或重命名 Sound 的特征或目标 id，都需要迁移：提高 `SESSION_VERSION`，并在 `MIGRATIONS` 里加一步，把旧名称改成新名称，这样以前的会话能保留它们的值（从没有版本号的会话迁移的那一步，会改第 9 阶段的效果名和合并后的 Sound 特征名）。不要把旧名称挪作他用。旧版应用读到新版本的会话时，能读多少就读多少。
 - 每次访问 `localStorage` 都要用 `try`/`catch` 包起来：存储可能被禁用或已满，这时应用照常工作，只是不保存。
-- 撤销（`src/state/history.ts`）：修改在发生的地方记录（App 的 `edit` 和文字的设置函数、映射存储，以及 Response 组：它先记录 Sensitivity 和 Release，再把它们设到引擎上），从不在 reducer 里记录，reducer 保持纯函数。设置通过 `edit` 修改；画布视图、字形选择、导出设置和导入使用 `dispatch`，不能撤销。记录每个修改时都带一个说明改了什么的键（`edit` 会根据改变的设置自动得出），这样一次滑块拖动是一步；由多个更新组成的修改（预设的 Load、Freeze、一个目标连同它打开的设置、Reset sound）要包在 `undoHistory.transaction` 里。替换整个状态的修改（Reset all settings，`src/state/reset.ts`）走 `undoHistory.apply`：它是一步，像撤销一样恢复。Sound 的实时帧从不 dispatch，所以从不进入历史；录制选项和录制本身也不进入历史。
+- 撤销（`src/state/history.ts`）：修改在发生的地方记录（App 的 `edit` 和文字的设置函数、映射存储，以及 Response 组：它先记录 Sensitivity 和 Release，再把它们设到引擎上），从不在 reducer 里记录，reducer 保持纯函数。设置通过 `edit` 修改；画布视图、字形选择、导出设置和导入使用 `dispatch`，不能撤销。记录每个修改时都带一个说明改了什么的键（`edit` 会根据改变的设置自动得出），这样一次滑块拖动是一步；由多个更新组成的修改（预设的 Load、Freeze、一个目标连同它打开的设置、Reset sound）要包在 `undoHistory.transaction` 里。Reset all（`src/state/reset.ts`）不算一步：`resetHistory` 通过 `UndoHistory.startOver` 把历史所管的部分恢复为 `START_SNAPSHOT`，同时清空历史，所以它不能撤销；reducer 的 `resetAll` 动作返回 `initialState`，`src/App.tsx` 中的 `resetAll` 重置历史之外的部分。Sound 的实时帧从不 dispatch，所以从不进入历史；录制选项和录制本身也不进入历史。

@@ -146,6 +146,11 @@ export interface RippleParams {
   fade: number
   /** 0–3: how far each ring is bent into a flower, one petal per side (1 = notches at 10% of their distance). Missing in older saved settings: 0. */
   petals: number
+  /**
+   * Swaps out and in: rings that were pushed out are pulled in and the other way round, and petals point at the middle
+   * of each side instead of the corners. Missing in older saved settings: false.
+   */
+  reverse: boolean
 }
 
 /** Experimental Whorl: a swirl around the middle of each letter, along the straight creases of a ring mesh. */
@@ -205,6 +210,41 @@ export interface ThornParams {
   refraction: number
   /** Width of each glass strip, as a share of the em (0.04–0.3). Missing in older saved settings: 10%. */
   flute: number
+  /**
+   * Thorns shoot into the letter, along the inward normal, instead of out of it: through strokes they cut a slit, and
+   * across counters and past the far side they show as ink. Missing in older saved settings: false.
+   */
+  reverse: boolean
+  /**
+   * Burst: instead of a few thorns, many straight spikes all round every contour (counters included, pointing into the
+   * counter), with the outline between them sunk into the stroke. Count, Root and the anchors' picks are not used; Reach
+   * sets the longest spike. Missing in older saved settings: false.
+   */
+  burst: boolean
+  /** Spikes per letter in Burst (4–80), spread evenly round all its contours; the Anchors slider shows it in Burst. Missing in older saved settings: 40. */
+  spikes: number
+  /** 0–1: in Burst, how deep the outline between spikes sinks into the stroke (1 = up to 60% of the stroke). Missing in older saved settings: 80%. */
+  dent: number
+}
+
+/**
+ * Experimental Dissolve: the letter rebuilt as photocopied ink, broken into faceted islands and rings with loose specks
+ * just outside, all of straight edges.
+ */
+export interface DissolveParams {
+  enabled: boolean
+  /** 0–1: how much ink is eaten (0: a nearly solid letter with a ragged edge; 1: only thin squiggles are left). */
+  amount: number
+  /** 0.15–1: the size of the islands and rings (one noise period), as a share of the stroke width. */
+  grain: number
+  /** 0–1.5: how far the ragged edge reaches past the outline, in half-strokes. */
+  spread: number
+  /** 0–1: how many loose specks lie just outside the strokes. */
+  specks: number
+  /** 0–1: how far the noise is curled (0: plain blobs; 1: wandering loops and rings). */
+  curl: number
+  /** 0–1: how long the straight facets are (0: short, still clear corners; 1: long, chunky shards). */
+  facets: number
 }
 
 /** The Experimental tab: effects that run after Geometry and can all be on at once. */
@@ -217,6 +257,8 @@ export interface ExperimentalParams {
   slipstream: SlipstreamParams
   /** Missing in older saved settings: off. */
   thorn: ThornParams
+  /** Missing in older saved settings: off. */
+  dissolve: DissolveParams
 }
 
 export interface GeometryParams {

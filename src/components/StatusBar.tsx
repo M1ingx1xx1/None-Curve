@@ -6,7 +6,7 @@ import { getSoundEngine } from '../sound/engine'
 import { useLiveStatus } from '../sound/live'
 import { useMappingState } from '../sound/mappingStore'
 import type { SpecimenScene } from '../specimen/scene'
-import { isDefaultExtras, isDefaultSnapshot, resetSettings, type ResetExtras } from '../state/reset'
+import { isAtStart, type ResetExtras } from '../state/reset'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
 import Icon from './Icon'
@@ -18,9 +18,11 @@ interface StatusBarProps {
   /** The geometry parameters the canvas shows (live while Sound drives the letters), which the View line describes. */
   shownParams: GeometryParams
   scene: SpecimenScene | null
-  /** The preview look and export precision, which Reset also restores (they live in App, outside the history). */
+  /** The text, preview look and export precision, which Reset all looks at (they live in App). */
+  text: string
   extras: ResetExtras
-  onResetExtras: () => void
+  /** Reset all (App's resetAll): back to how the editor first opens. */
+  onReset: () => void
 }
 
 const statusText: Record<AppState['document']['status']['kind'], string> = {
@@ -43,15 +45,18 @@ const micStatus = (): MicStatus => {
 // Sensitivity and Release, for whether Reset has anything to do: the same object until they change.
 const soundSettings = () => getSoundEngine().getState().settings
 
-export default function StatusBar({ state, glyphGeometry, shownParams, scene, extras, onResetExtras }: StatusBarProps) {
+export default function StatusBar({ state, glyphGeometry, shownParams, scene, text, extras, onReset }: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
   const mic = useSyncExternalStore(subscribeSound, micStatus)
   const live = useLiveStatus()
-  const { mappings, response } = useMappingState()
+  const { mappings, response, drive, reducedMotion } = useMappingState()
   const sound = useSyncExternalStore(subscribeSound, soundSettings)
   const { view: _view, ...settings } = state.params
-  const atDefaults = isDefaultSnapshot({ params: settings, mappings, sound: { ...sound, ...response } }) && isDefaultExtras(extras)
+  const atStart = isAtStart(
+    { params: settings, text, mappings, sound: { ...sound, ...response } },
+    { document: state.document, view, extras, drive, defaultDrive: !reducedMotion },
+  )
   let glyphInfo = '—'
   let advance: number | null = null
   let viewing = '—'
@@ -96,19 +101,17 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene, ex
       <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}
       </span>
-      {/* Every setting back to its default, as one undo step, and the preview look and export precision with it
-          (not undone); the font, glyph and text stay (state/reset.ts).
-          aria-disabled, not disabled: the button keeps keyboard focus when its own click disables it (at the
-          defaults resetSettings does nothing). */}
+      {/* Back to how the editor first opens: the font closes, the text and every setting return to the start,
+          and the undo history is cleared (state/reset.ts).
+          aria-disabled, not disabled: the button keeps keyboard focus when its own click disables it. */}
       <button
         type="button"
         className="statusbar-reset"
-        aria-label="Reset all settings"
-        title={atDefaults ? 'All settings are at their defaults' : 'Reset all settings (the font and text stay)'}
-        aria-disabled={atDefaults || undefined}
+        aria-label="Reset all"
+        title={atStart ? 'Everything is as the editor first opens' : 'Reset all: closes the font and puts the text and every setting back to the start. Cannot be undone.'}
+        aria-disabled={atStart || undefined}
         onClick={() => {
-          resetSettings()
-          onResetExtras()
+          if (!atStart) onReset()
         }}
       >
         <Icon name="reset" />

@@ -17,6 +17,11 @@
 // their order along each ray: Petals is one-to-one at any depth. Beyond the last ring the same scaling
 // goes on, linear in each slice, so the plane stays continuous.
 //
+// Reverse swaps out and in: the rings that moved out move in and the other way round, and the petal profile is
+// negated, so the corners and shoulders are pulled in (the corners keep at least 10% of their distance, the shoulders
+// 37%) and the middle of each side is pushed out by the full depth: the petal tips sit mid-side. Every factor stays
+// positive, so reversed Petals is one-to-one too, and the ring movements are as large as before.
+//
 // Up to 100% Amount, rings never pass each other (each moves less than 45% of the ring spacing, so
 // neighbouring rings stay at least 10% of it apart), which keeps every triangle the same way round:
 // the warp is one-to-one, so Ripple never needs to be weakened to keep the letter valid. Above 100%
@@ -102,6 +107,8 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   const sides = Math.round(clamp(finite(params.sides, 8), RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides))
   const amplitude = clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) * RIPPLE_LIMITS.maxMove * spacing * scale
   const fade = clamp(finite(params.fade, 0), 0, 1)
+  // Older saved settings have no Reverse; off runs exactly the expressions it always did.
+  const reverse = params.reverse === true
   const centre = {
     x: box.minX + (box.maxX - box.minX) * clamp(finite(params.centerX, 0.5), RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter),
     y: box.minY + (box.maxY - box.minY) * clamp(finite(params.centerY, 0.5), RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter),
@@ -122,9 +129,11 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   // through points evenly spaced along the side. Slice i lies between x = slope[i] × s and slope[i + 1] × s.
   const slices = depth > 0 ? PETAL_PROFILE.length : 1
   const slope = Array.from({ length: slices + 1 }, (_, i) => -1 + (2 * i) / slices)
+  // Reversed, the profile is negated: in at the corners and shoulders, out at the middle of each side.
+  const profile = reverse ? PETAL_PROFILE.map((v) => -v) : PETAL_PROFILE
   /** How far the rings along the ray at slope[i] are scaled: out at tips and shoulders, in at the notch. */
   const petal = slope.map((_, i) => {
-    const share = PETAL_PROFILE[i % PETAL_PROFILE.length]
+    const share = profile[i % profile.length]
     return 1 + share * (share > 0 ? depth : Math.min(depth, RIPPLE_LIMITS.maxPetal))
   })
 
@@ -132,7 +141,8 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   const shift = (k: number) => {
     if (k <= 0 || k >= last) return 0
     const size = amplitude * Math.max(0, 1 - (fade * k * spacing) / reach)
-    return k % 2 === 1 ? size : -size
+    // Odd rings move out and even rings in; reversed, the other way round.
+    return (k % 2 === 1) !== reverse ? size : -size
   }
   /** Ring k after moving, as a ring index: k + its shift in ring spacings. */
   const level = (k: number) => k + shift(k) / spacing

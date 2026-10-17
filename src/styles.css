@@ -1178,7 +1178,7 @@ input[type='range']:disabled {
 
 .canvas-size-row {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) 76px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
 }
@@ -1269,7 +1269,7 @@ input[type='range']:disabled {
 
 .slider-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
 }
@@ -1279,12 +1279,22 @@ input[type='range']:disabled {
   font-size: 0.75rem;
 }
 
-.number-field {
-  width: 100%;
+/* As wide as its widest value (--chars, from NumberField) and no wider: padding and border are the 14px.
+   No spin buttons: the arrow keys and the slider beside it step the value. input. outranks the base
+   input[type='number'] padding. */
+input.number-field {
+  width: calc((var(--chars, 4) + 0.5) * 1ch + 14px);
   min-width: 0;
   padding: 3px 6px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+
+.number-field::-webkit-inner-spin-button,
+.number-field::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 /* A slider's number box in its head, where the readout was (SliderNumber): readout-sized, its unit after it. */
@@ -1295,7 +1305,7 @@ input[type='range']:disabled {
 }
 
 .slider-number .number-field {
-  width: 5.5em;
+  width: calc((var(--chars, 4) + 0.5) * 1ch + 10px);
   padding: 1px 4px;
   font-family: var(--mono);
   font-size: 0.85rem;

@@ -175,9 +175,16 @@ interface Requirement {
   meet(params: GeometryParams): { patch: ParamPatch; notice: string }
 }
 
-type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
+type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn' | 'dissolve'
 
-const EFFECT_NAMES: Record<EffectKey, string> = { crumple: 'Crumple', ripple: 'Ripple', whorl: 'Whorl', slipstream: 'Slipstream', thorn: 'Thorn' }
+const EFFECT_NAMES: Record<EffectKey, string> = {
+  crumple: 'Crumple',
+  ripple: 'Ripple',
+  whorl: 'Whorl',
+  slipstream: 'Slipstream',
+  thorn: 'Thorn',
+  dissolve: 'Dissolve',
+}
 
 /** Noise amplitude set by turning Distortion on for one of its targets: clearly visible, a fifth of the slider. */
 const ACTIVE_DISTORTION_AMOUNT = 40
@@ -226,6 +233,15 @@ const effectOn = (effect: EffectKey): Requirement => ({
     notice: `Turned on ${EFFECT_NAMES[effect]}.`,
   }),
 })
+// Thorn's Burst (applyThorn) spreads its own number of spikes, sunk by Dent, and grows no roots: Anchors and Root act
+// with Burst off, Burst's Anchors and Dent with it on.
+const burst = (on: boolean): Requirement => ({
+  unmet: (p) => ((p.experimental.thorn?.burst === true) === on ? null : `Turn ${on ? 'on' : 'off'} Burst to hear this.`),
+  meet: (p) => ({
+    patch: { group: 'experimental', patch: { thorn: { ...p.experimental.thorn, burst: on } } as Partial<ExperimentalParams> },
+    notice: `Turned ${on ? 'on' : 'off'} Burst.`,
+  }),
+})
 // Refraction 0 turns Thorn's fluted glass off (applyThorn), so its Flute width does nothing.
 const refractionOn: Requirement = {
   unmet: (p) => ((p.experimental.thorn?.refraction ?? 0) > 0 ? null : 'Set Refraction above 0% to hear this.'),
@@ -234,13 +250,13 @@ const refractionOn: Requirement = {
     notice: `Set Refraction to ${Math.round(ACTIVE_REFRACTION * 100)}%.`,
   }),
 }
-// The shared seed picks Crumple's folds, Slipstream's gusts, slips, cuts and trails, and Thorn's anchors and
-// flutes; Ripple and Whorl have no randomness.
+// The shared seed picks Crumple's folds, Slipstream's gusts, slips, cuts and trails, Thorn's anchors and flutes, and
+// Dissolve's ink; Ripple and Whorl have no randomness.
 const seededEffectOn: Requirement = {
   unmet: (p) =>
-    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled
+    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled || p.experimental.dissolve?.enabled
       ? null
-      : 'Turn on Crumple, Slipstream or Thorn to hear this.',
+      : 'Turn on Crumple, Slipstream, Thorn or Dissolve to hear this.',
   meet: effectOn('crumple').meet,
 }
 
@@ -292,7 +308,7 @@ function groupField<G extends GroupKey>(group: G, key: NumericKeys<GeometryParam
 function effectField<E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    // Older saved settings may lack a whole effect (Thorn).
+    // Older saved settings may lack a whole effect (Thorn, Dissolve).
     read: (p) => p.experimental[effect]?.[key],
     write: (p, value) => ({
       ...p,
@@ -324,7 +340,7 @@ interface TargetDef {
   scale?: Scale
   /**
    * Value when the field is missing, as the panel shows it (older saved settings lack Crumple Turn,
-   * Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction and Flute width).
+   * Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction, Flute width, Burst anchors and Dent).
    * Defaults to min.
    */
   fallback?: number
@@ -431,7 +447,7 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('slipstream', 'gustiness', 'Gustiness'),
   experimental('slipstream', 'cuts', 'Cuts', { fallback: 0 }),
   experimental('slipstream', 'trails', 'Trails', { fallback: 0 }),
-  experimental('thorn', 'count', 'Anchors'),
+  experimental('thorn', 'count', 'Anchors', { requires: [effectOn('thorn'), burst(false)] }),
   // Cubic slider: min and max are its values, step roundReach's unit; the scale holds the slider's real steps.
   target({
     field: effectField('thorn', 'canvasReach'),
@@ -444,7 +460,7 @@ export const TARGETS: readonly TargetSpec[] = [
     scale: reachScale,
     requires: [effectOn('thorn')],
   }),
-  experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root }),
+  experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root, requires: [effectOn('thorn'), burst(false)] }),
   experimental('thorn', 'spread', 'Spread'),
   experimental('thorn', 'width', 'Width'),
   experimental('thorn', 'refraction', 'Refraction', { fallback: 0 }),
@@ -453,6 +469,15 @@ export const TARGETS: readonly TargetSpec[] = [
     fallback: THORN_FALLBACK.flute,
     requires: [effectOn('thorn'), refractionOn],
   }),
+  // Burst's own sliders: the panel shows its Anchors in place of Anchors, and disables Dent with Burst off.
+  experimental('thorn', 'spikes', 'Burst anchors', { fallback: THORN_FALLBACK.spikes, requires: [effectOn('thorn'), burst(true)] }),
+  experimental('thorn', 'dent', 'Dent', { fallback: THORN_FALLBACK.dent, requires: [effectOn('thorn'), burst(true)] }),
+  experimental('dissolve', 'amount', 'Amount'),
+  experimental('dissolve', 'grain', 'Grain'),
+  experimental('dissolve', 'spread', 'Spread'),
+  experimental('dissolve', 'specks', 'Specks'),
+  experimental('dissolve', 'curl', 'Curl'),
+  experimental('dissolve', 'facets', 'Facets'),
   seed('experimental', 'Seed', experimentalField('seed'), EXPERIMENTAL_LIMITS.maxSeed, [seededEffectOn]),
 ]
 

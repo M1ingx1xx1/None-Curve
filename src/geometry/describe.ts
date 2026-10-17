@@ -1,9 +1,10 @@
 import { reachPercent, reachReadout } from '../state/sliderScales'
 import { crumpleIsOn } from './crumple'
+import { dissolveIsOn } from './dissolve'
 import { experimentalFolds } from './experimental'
 import { rippleIsOn } from './ripple'
 import { slipstreamIsOn } from './slipstream'
-import { THORN_FALLBACK, THORN_LIMITS, thornIsOn } from './thorn'
+import { BURST_REACH, THORN_FALLBACK, THORN_LIMITS, thornIsOn } from './thorn'
 import type { GeometryParams } from './types'
 import { whorlIsOn } from './whorl'
 
@@ -41,7 +42,7 @@ export function describePipeline(params: GeometryParams): string[] {
     const r = experimental.ripple
     const pct = (v: number) => `${Math.round(v * 100)}%`
     steps.push(
-      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}`,
+      `ripple ${pct(r.amount)}, wavelength ${pct(r.wavelength)} em, ${r.sides} sides, center ${pct(r.centerX)} / ${pct(r.centerY)}${r.fade > 0 ? `, fade ${pct(r.fade)}` : ''}${r.petals > 0 ? `, petals ${pct(r.petals)}` : ''}${r.reverse === true ? ', reversed' : ''}`,
     )
   }
   if (whorlIsOn(experimental.whorl)) {
@@ -66,8 +67,25 @@ export function describePipeline(params: GeometryParams): string[] {
     const refraction = s.refraction ?? 0
     // As the Reach slider shows it, and its length in em the same way.
     const reach = `${reachPercent(s.canvasReach)}% canvas${s.canvasEm !== undefined ? ` (about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm))} em)` : ''}`
+    const glass = refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''
+    if (s.burst === true) {
+      // Burst: its own spike count and Dent, no roots; its longest spike is BURST_REACH of Reach's length.
+      const spikes = s.spikes ?? THORN_FALLBACK.spikes
+      const longest = s.canvasEm !== undefined ? ` (longest about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm) * BURST_REACH)} em)` : ''
+      steps.push(
+        `thorn burst ×${spikes}${s.reverse === true ? ', reversed' : ''}, reach ${reachPercent(s.canvasReach)}% canvas${longest}, dent ${pct(s.dent ?? THORN_FALLBACK.dent)}, spread ${pct(s.spread)}, width ${pct(s.width)}${glass}, seed ${experimental.seed}`,
+      )
+    } else {
+      steps.push(
+        `thorn ×${s.count}${s.reverse === true ? ', reversed' : ''}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${glass}, seed ${experimental.seed}`,
+      )
+    }
+  }
+  if (dissolveIsOn(experimental.dissolve)) {
+    const d = experimental.dissolve
+    const pct = (v: number) => `${Math.round(v * 100)}%`
     steps.push(
-      `thorn ×${s.count}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
+      `dissolve ${pct(d.amount)}, grain ${pct(d.grain)} stroke, spread ${pct(d.spread)}, specks ${pct(d.specks)}, curl ${pct(d.curl)}, facets ${pct(d.facets)}, seed ${experimental.seed}`,
     )
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')
