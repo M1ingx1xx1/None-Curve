@@ -12,13 +12,15 @@ import { applyThorn, ThornAnchors } from '../../src/geometry/thorn'
 import type { ExperimentalParams, GeometryParams, Point, PolygonGlyph, ThornParams } from '../../src/geometry/types'
 import { targetById } from '../../src/sound/mapping'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { contoursOf, sameContours, winding, type Contours } from '../helpers/outline'
+import { contoursOf, sameContours, signedArea2, winding, type Contours } from '../helpers/outline'
 import { BASE, GEOMETRY, on, paramsWith } from '../helpers/params'
 
 const THORN = on('thorn').thorn!
 /** No root, no glass and no turn: each thorn is only added on, straight along its anchor's normal. */
 const PLAIN: ThornParams = { ...THORN, count: 6, canvasReach: 0.05, root: 0, spread: 0, refraction: 0 }
 const GLYPHS = 'AHbgmo&'
+/** Dents are checked on these too: bowls, terminals and curving strokes. */
+const DENTED = 'AHbgmo&acsuS'
 
 /** The settings with Thorn's `back` and `dent` keys taken out, as saved before they existed. */
 function withoutBacklash(params: GeometryParams): GeometryParams {
@@ -30,6 +32,20 @@ function withoutBacklash(params: GeometryParams): GeometryParams {
 function added(a: Contours, b: Contours): { contour: number; p: Point }[] {
   const known = new Set(a.flatMap((c) => c.map((p) => `${p.x},${p.y}`)))
   return b.flatMap((c, contour) => c.filter((p) => !known.has(`${p.x},${p.y}`)).map((p) => ({ contour, p })))
+}
+
+/** How many edges of the contours the segment from p to q crosses (properly: touching does not count). */
+function crossings(contours: Contours, p: Point, q: Point): number {
+  const side = (o: Point, u: Point, v: Point) => Math.sign((u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x))
+  let count = 0
+  for (const ring of contours) {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i]
+      const b = ring[(i + 1) % ring.length]
+      if (side(p, q, a) * side(p, q, b) < 0 && side(a, b, p) * side(a, b, q) < 0) count++
+    }
+  }
+  return count
 }
 
 /** The distance from `p` to the nearest edge of the contours. */
@@ -130,6 +146,31 @@ describe.each(FIXTURE_FONTS)('Back thorns: %s', (fontName) => {
     expect(backThorns).toBeGreaterThan(20)
   })
 
+  it('grow through the stroke, not along it, from turned thorns too: in an o, always into its counter', async () => {
+    const font = await loadFixture(fontName)
+    const upm = font.metrics.unitsPerEm
+    let backThorns = 0
+    for (const glyph of sampleGlyphs(font, 'oO')) {
+      const letter = deriveGeometry(font.getGlyph(glyph.index), BASE).polygon
+      const ink = contoursOf(letter)
+      expect(ink.length).toBe(2)
+      // Thorns grow only from the outer contour, so each ray crosses the bowl into the counter: a ray that ran on round
+      // the bowl and out of the outer contour again would put its back thorn there instead.
+      const counter = Math.abs(signedArea2(ink[0])) < Math.abs(signedArea2(ink[1])) ? 0 : 1
+      for (const spread of [0.5, 1]) {
+        for (let seed = 1; seed <= 8; seed++) {
+          const params = { ...PLAIN, count: 8, spread }
+          const plain = applyThorn(letter, params, seed, upm).polygon
+          const lashed = applyThorn(letter, { ...params, back: 1 }, seed, upm).polygon
+          const found = added(contoursOf(plain), contoursOf(lashed)).filter(({ p }) => distanceToOutline(ink, p) > 1e-6 * upm)
+          for (const { contour } of found) expect(contour, `"${glyph.char}", spread ${spread}, seed ${seed}`).toBe(counter)
+          backThorns += found.length
+        }
+      }
+    }
+    expect(backThorns).toBeGreaterThan(10)
+  })
+
   it('are as long as Back thorn says: half their thorn at 100%', async () => {
     const font = await loadFixture(fontName)
     const upm = font.metrics.unitsPerEm
@@ -155,43 +196,72 @@ describe.each(FIXTURE_FONTS)('Back thorns: %s', (fontName) => {
 
 describe.each(FIXTURE_FONTS)('Dents: %s', (fontName) => {
   for (const reverse of [false, true]) {
-    it(`sink the outline beside each thorn into the stroke, never through it${reverse ? ', reversed' : ''}`, async () => {
-      const font = await loadFixture(fontName)
-      const upm = font.metrics.unitsPerEm
-      let moved = 0
-      for (const seed of [1, 7]) {
-        for (const glyph of sampleGlyphs(font, GLYPHS)) {
-          const label = `seed ${seed}, "${glyph.char}"`
-          const letter = deriveGeometry(font.getGlyph(glyph.index), BASE).polygon
-          const ink = contoursOf(letter)
-          const params = { ...PLAIN, reverse }
-          const picks = new ThornAnchors(letter, letter, params, seed, upm).located(letter)
-          const a = contoursOf(applyThorn(letter, params, seed, upm).polygon)
-          const b = contoursOf(applyThorn(letter, { ...params, dent: 1 }, seed, upm).polygon)
-          // Dents only move vertices.
-          expect(b.map((c) => c.length), label).toEqual(a.map((c) => c.length))
-          a.forEach((points, contour) =>
-            points.forEach((p, i) => {
-              const q = b[contour][i]
-              if (p.x === q.x && p.y === q.y) return
-              moved++
-              const move = Math.hypot(q.x - p.x, q.y - p.y)
-              // Against a thorn's outward normal (into the stroke): straight against it, or between two where the dents
-              // of neighbouring thorns meet; each at most 55% of the thickest stroke measured.
-              const against = picks.map((pick) => ((q.x - p.x) * pick.normal.x + (q.y - p.y) * pick.normal.y) / move)
-              expect(Math.min(...against), label).toBeLessThan(0)
-              expect(move, label).toBeLessThanOrEqual(2 * 0.55 * 0.6 * upm)
-              // In the letter's ink all the way (its overlapping contours count as ink): short of the stroke's other side.
-              for (let k = 1; k <= 16; k++) {
-                const at = { x: p.x + ((q.x - p.x) * k) / 16, y: p.y + ((q.y - p.y) * k) / 16 }
-                expect(winding(ink, at), `${label}, vertex ${i} of contour ${contour}`).not.toBe(0)
-              }
-            }),
-          )
+    // Turned thorns too: a slanted ray meets a curving stroke along it rather than across, as in a bowl or a terminal.
+    for (const spread of [0, 0.5, 1]) {
+      it(`sink the outline beside each thorn into the stroke, never through it, at spread ${spread}${reverse ? ', reversed' : ''}`, async () => {
+        const font = await loadFixture(fontName)
+        const upm = font.metrics.unitsPerEm
+        let moved = 0
+        for (const seed of [1, 7]) {
+          for (const glyph of sampleGlyphs(font, DENTED)) {
+            const label = `seed ${seed}, "${glyph.char}"`
+            const letter = deriveGeometry(font.getGlyph(glyph.index), BASE).polygon
+            const ink = contoursOf(letter)
+            const params = { ...PLAIN, spread, reverse }
+            const picks = new ThornAnchors(letter, letter, params, seed, upm).located(letter)
+            const a = contoursOf(applyThorn(letter, params, seed, upm).polygon)
+            const b = contoursOf(applyThorn(letter, { ...params, dent: 1 }, seed, upm).polygon)
+            // Dents only move vertices.
+            expect(b.map((c) => c.length), label).toEqual(a.map((c) => c.length))
+            a.forEach((points, contour) =>
+              points.forEach((p, i) => {
+                const q = b[contour][i]
+                if (p.x === q.x && p.y === q.y) return
+                moved++
+                const move = Math.hypot(q.x - p.x, q.y - p.y)
+                // Against a thorn's outward normal (into the stroke): against it, or between two where the dents of
+                // neighbouring thorns meet; each at most 55% of the thickest stroke measured.
+                const against = picks.map((pick) => ((q.x - p.x) * pick.normal.x + (q.y - p.y) * pick.normal.y) / move)
+                expect(Math.min(...against), label).toBeLessThan(0)
+                expect(move, label).toBeLessThanOrEqual(2 * 0.55 * 0.6 * upm)
+                // In the letter's ink all the way (its overlapping contours count as ink): short of the stroke's other side.
+                for (let k = 1; k <= 16; k++) {
+                  const at = { x: p.x + ((q.x - p.x) * k) / 16, y: p.y + ((q.y - p.y) * k) / 16 }
+                  expect(winding(ink, at), `${label}, vertex ${i} of contour ${contour}`).not.toBe(0)
+                }
+              }),
+            )
+            // Every edge from a moved vertex. Between two vertices of the outline it stays in the letter's ink all the way;
+            // a thorn's side (to its tip, off the outline) crosses the outline as drawn without dents and tips (each
+            // thorn's bases joined straight) at most once more than it did, where it now leaves the ink: never through
+            // the stroke's other side into a counter or out of the letter.
+            const tip = (p: Point) => distanceToOutline(ink, p) > 1e-6 * upm
+            const drawn = a.map((points) => points.filter((p) => !tip(p)))
+            b.forEach((points, contour) =>
+              points.forEach((q, i) => {
+                const j = (i + 1) % points.length
+                const [p0, p1] = [a[contour][i], a[contour][j]]
+                const q1 = points[j]
+                const edge = `${label}, edge ${i} of contour ${contour}`
+                if (p0.x === q.x && p0.y === q.y && p1.x === q1.x && p1.y === q1.y) return
+                if (tip(p1) || tip(p0)) {
+                  // From the base (moved) to the tip (not); the original side starts a hair off its base on the outline.
+                  const [base, from, to] = tip(p1) ? [q, p0, p1] : [q1, p1, p0]
+                  const start = { x: from.x + (to.x - from.x) * 1e-6, y: from.y + (to.y - from.y) * 1e-6 }
+                  expect(crossings(drawn, base, to), edge).toBeLessThanOrEqual(crossings(drawn, start, to) + 1)
+                  return
+                }
+                for (let k = 1; k < 16; k++) {
+                  const at = { x: q.x + ((q1.x - q.x) * k) / 16, y: q.y + ((q1.y - q.y) * k) / 16 }
+                  expect(winding(ink, at), edge).not.toBe(0)
+                }
+              }),
+            )
+          }
         }
-      }
-      expect(moved).toBeGreaterThan(20)
-    })
+        expect(moved).toBeGreaterThan(20)
+      })
+    }
   }
 
   it('sink deeper as Dent rises', async () => {

@@ -21,17 +21,24 @@
 //    anchor; all pulls run as one warp, their composition.
 // 2. Tip: the anchor jumps the rest of its thorn's length, a sharp straight thorn. Its base (Width) reaches along the
 //    outline on either side, up to the root's inner ring, so the thorn narrows on from the root.
-// 3. Backlash (optional): a ray from the anchor straight into the ink (against its thorn) finds where the stroke behind
-//    it ends: where the ray leaves the ink, past contours that overlap inside it, so into a counter or out of the
-//    letter. Its length is the stroke's thickness there. A thorn turned so far that the ray starts out of the ink,
-//    or one whose ray runs more than 60% of the em (along a stroke rather than across it), gets neither of:
+// 3. Backlash (optional): the stroke behind each thorn is measured twice. Across it: from the anchor before its root,
+//    straight into the ink along the outline's normal to where that ray leaves it (past contours that overlap inside
+//    it), but at most twice the way from the middle of that run to the nearest edge, so a ray from a corner or into a
+//    terminal measures the stroke, not its length; this is the stroke's thickness. And along the thorn: a ray from the
+//    anchor into the ink against its thorn finds where the stroke behind it ends, into a counter or out of the letter. A
+//    thorn turned more than 60° from the normal, or whose ray starts out of the ink, runs more than 60% of the em, runs
+//    more than twice the thickness at its slant, or leaves the ink through an edge turned more than 60° from the
+//    anchor's side (the ray ran along a curving stroke, round a bowl, rather than through it), gets neither of:
 //    - Back thorn: where the ray leaves the ink, a shorter thorn (Back × half its thorn's length) shoots on the
 //      other way, with the same base, as if the thorn had been driven through the stroke. One that would land on or
 //      beside another tip, or within either's base, is left out.
-//    - Dent: the outline either side of the thorn sinks into the stroke, deepest at the base (Dent × 55% of the
-//      thickness) and less to nothing a few bases along. A side stops at another thorn, or where the outline turns so
-//      far that the ray from it no longer leads into the ink; no vertex sinks more than three quarters of its own way
-//      across, so a dent never reaches the stroke's other side.
+//    - Dent: the outline either side of the thorn sinks into the stroke along the ray's direction, deepest at the base
+//      (Dent × 55% of the thickness) and less to nothing a few bases along (at most three thicknesses). A side stops at
+//      another thorn, or where the outline turns so far that the ray from it no longer leads into the ink; where two
+//      dents meet, a vertex sinks by both. All is measured on the outline before the dents: no vertex sinks more than
+//      three quarters of its way to the next edge, and no edge from a sunk vertex crosses an edge it did not (a thorn's
+//      side one more, where it now leaves the ink), its ends sinking less until none does, so a dent stays in the
+//      stroke and never reaches its other side.
 // 4. Refraction (optional): the letter as seen through fluted glass. Vertical strips (Flute width), each
 //    showing its part of the letter magnified about its middle, slid sideways and lifted or dropped, with the
 //    seams between them squeezed into steep breaks. x moves by a rising piecewise-linear function and y by a
@@ -127,16 +134,31 @@ const BACKLASH = {
   length: 0.5,
   /** The thickest stroke measured, as a share of the em: a ray that runs farther went along a stroke, not across it. */
   maxThickness: 0.6,
+  /** A thorn turned further than this from the outline's normal (its cosine: 60°) gets neither: its ray runs along the stroke. */
+  minSlant: 0.5,
+  /**
+   * A ray that runs farther than this many times the stroke's thickness at its slant (thickness / cosine of its turn)
+   * went along a curving stroke, not through it: its thorn gets neither.
+   */
+  slack: 2,
+  /** Nor one whose ray leaves the ink through an edge turned further than this from the anchor's side (its cosine: 60°). */
+  minFacing: 0.5,
   /** A back thorn's site this close (× the em) to a vertex moves onto it, so no sliver of an edge is left. */
   snap: 0.005,
   /** The deepest dent, at its thorn's base at Dent 100%, as a share of the stroke's thickness. */
   depth: 0.55,
-  /** How far along the outline a dent reaches: this many of its thorn's bases, or this share of the thickness if more. */
+  /**
+   * How far along the outline a dent reaches: this many of its thorn's bases, or this share of the thickness if more,
+   * but at most `maxReach` × the thickness.
+   */
   reachBases: 2.5,
   reachThickness: 1.2,
-  /** No vertex sinks more than this share of its own way across the stroke (to the outline's next edge inward). */
+  maxReach: 3,
+  /** No vertex sinks more than this share of its own way across the stroke (to the outline's next edge, the way it moves). */
   maxShare: 0.75,
-  /** A dent looks up the edges near its vertices this many at a time. */
+  /** A dented edge that would cross the outline has the moves of its ends halved, at most this many times (then none). */
+  halvings: 6,
+  /** Dents look up the edges near their vertices and edges this many at a time. */
   batch: 32,
 } as const
 
@@ -482,6 +504,8 @@ interface Thorn {
   anchor: Point
   /** Unit vector along the thorn. */
   direction: Point
+  /** The outward normal it was turned from (not negated by Reverse): square to the outline at the anchor. */
+  normal: Point
   length: number
   /** -1 to 1: which side of the root follows more, and how much. */
   lean: number
@@ -534,6 +558,7 @@ export function applyThorn(
       index,
       anchor: contours[contour][index],
       direction: { x: n.x * cos - n.y * sin, y: n.x * sin + n.y * cos },
+      normal,
       length: maxLength * share,
       lean,
     })
@@ -601,7 +626,7 @@ export function applyThorn(
     // 3. Backlash: each back thorn's site is put into the outline with its tip, and each dent is given to its thorn's
     // tip; the dents sink the outline once the tips have grown, from their bases.
     if (stats.thorns > 0 && (back > 0 || dent > 0)) {
-      const lashed = backlash(result, resultMarks, thorns, anchorAt, tips, { back, dent, reverse }, unitsPerEm)
+      const lashed = backlash(result, resultMarks, contours, thorns, anchorAt, tips, { back, dent, reverse }, unitsPerEm)
       result = lashed.polygon
       resultMarks = lashed.marks
       stats.backThorns = lashed.backThorns
@@ -742,14 +767,16 @@ function shorterEdge(points: readonly Point[], index: number): number {
 // ---- Backlash ----
 
 /**
- * Step 3 (see the header), before the tips grow: measures the stroke behind each thorn. With `back`, each back thorn's
- * site goes into its contour as a new vertex (or onto the vertex it nearly falls on), its tip into `tips`, whose indices
- * move along; with `dent`, each measured thorn's tip gets its dent. Returns the outline, its crease marks (the new
- * vertices are no creases), and how many back thorns grew.
+ * Step 3 (see the header), before the tips grow: measures the stroke behind each thorn, across it on `before` (the
+ * outline before the roots, where each thorn's index points) and along the ray on `polygon`. With `back`, each back
+ * thorn's site goes into its contour as a new vertex (or onto the vertex it nearly falls on), its tip into `tips`, whose
+ * indices move along; with `dent`, each measured thorn's tip gets its dent. Returns the outline, its crease marks (the
+ * new vertices are no creases), and how many back thorns grew.
  */
 function backlash(
   polygon: PolygonGlyph,
   marks: CreaseMarks | undefined,
+  before: readonly (readonly Point[])[],
   thorns: readonly Thorn[],
   anchorAt: readonly number[],
   tips: Map<number, Tip>[],
@@ -768,15 +795,30 @@ function backlash(
     const index = anchorAt[t]
     const tip = index >= 0 ? tips[thorn.contour].get(index) : undefined
     if (!tip) return
-    const n = contours[thorn.contour].length
+    // Turned too far from the outline's normal: the ray would run along the stroke rather than into it.
+    const slant = Math.abs(thorn.direction.x * thorn.normal.x + thorn.direction.y * thorn.normal.y)
+    if (slant < BACKLASH.minSlant) return
+    // The stroke's thickness: across it, from the anchor before its root along the inward normal.
+    const edgesAt = (k: number, i: number, m: number) => (c: number, e: number) => c === k && (e === i || e === (i - 1 + m) % m)
+    const across = thickness(before, thorn.anchor, { x: -thorn.normal.x, y: -thorn.normal.y }, limit, edgesAt(thorn.contour, thorn.index, before[thorn.contour].length))
+    if (across === null) return
     // Into the stroke: against the thorn, or along it when reversed (the inward normal as the thorn was turned).
     const inward = reverse ? thorn.direction : { x: -thorn.direction.x, y: -thorn.direction.y }
-    const anchorEdges = (k: number, e: number) => k === thorn.contour && (e === index || e === (index - 1 + n) % n)
-    const far = farSide(contours, contours[thorn.contour][index], inward, limit, anchorEdges)
+    const anchor = contours[thorn.contour][index]
+    const far = farSide(contours, anchor, inward, limit, edgesAt(thorn.contour, index, contours[thorn.contour].length))
     if (!far) return
+    // A slanted ray crosses a straight stroke in thickness / slant, plus the way the root pulled the anchor along it;
+    // much farther, and it ran along a curving stroke (round a bowl, into a terminal), not through it.
+    const pulled = Math.abs((anchor.x - thorn.anchor.x) * thorn.direction.x + (anchor.y - thorn.anchor.y) * thorn.direction.y)
+    if (far.distance > pulled + (BACKLASH.slack * across) / slant) return
+    // The stroke's far side faces back at the anchor's side, as across a stem or a bowl, not round a turn of the stroke.
+    const ring = contours[far.contour]
+    const exit = ring[(far.edge + 1) % ring.length]
+    const side = unit(exit.y - ring[far.edge].y, ring[far.edge].x - exit.x)
+    if (!side || Math.abs(side.x * thorn.normal.x + side.y * thorn.normal.y) < BACKLASH.minFacing) return
     if (dent > 0) {
-      const reach = Math.max(BACKLASH.reachBases * tip.base, BACKLASH.reachThickness * far.distance)
-      tip.dent = { inward, depth: dent * BACKLASH.depth * far.distance, reach }
+      const reach = Math.min(Math.max(BACKLASH.reachBases * tip.base, BACKLASH.reachThickness * across), BACKLASH.maxReach * across)
+      tip.dent = { inward, depth: dent * BACKLASH.depth * across, reach }
     }
     if (back <= 0) return
     // On a vertex, or so near one that the new vertex would leave a sliver of an edge: that vertex is the site.
@@ -832,11 +874,15 @@ function backlash(
 /**
  * Sinks the outline on either side of each thorn with a dent (step 3, see the header), once the tips have grown. From
  * the thorn's base on, each vertex moves along the dent's inward direction, by its depth at the base, linearly less to
- * nothing at its reach (along the outline as it was before this dent). A side stops at another thorn's tip or base, or
- * at a vertex the inward direction does not lead into its contour's ink from (the outline has turned a corner). The
- * stroke is measured on the outline without its tips (each thorn's bases joined straight), so a thorn crossing it does
- * not count: no vertex moves more than BACKLASH.maxShare of its way to the stroke's next edge inward, so a dent never
- * reaches the stroke's other side, and each dent sees the ones before it.
+ * nothing at its reach (along the outline). A side stops at another thorn's tip or base, or at a vertex the inward
+ * direction does not lead into its contour's ink from (the outline has turned a corner). Where the dents of two thorns
+ * meet, a vertex moves by both. All is measured on the outline as it was, without its tips (each thorn's bases joined
+ * straight, so a thorn crossing the stroke does not count), so the dents do not stack:
+ * - no vertex moves more than BACKLASH.maxShare of its way to that outline's next edge in the direction it moves;
+ * - no edge drawn from a moved vertex crosses more of that outline's edges than it did, nor more of the dented outline's
+ *   (a thorn's side, from its base out, may cross one more: the edge it now leaves the ink through). Where one would,
+ *   the moves of its ends are halved, at most BACKLASH.halvings times before they are left out.
+ * So a dent stays inside the stroke and never reaches its other side.
  */
 function sinkDents(grown: readonly { points: Point[]; spans: readonly Span[] }[]): void {
   // The outline without its tips, and where each vertex of the grown outline is in it (-1 for a tip).
@@ -847,11 +893,12 @@ function sinkDents(grown: readonly { points: Point[]; spans: readonly Span[] }[]
     strokes[k] = []
     inStroke[k] = points.map((p, i) => (tips.has(i) ? -1 : strokes[k].push(p) - 1))
   })
+  // How far each vertex of the outline without tips moves, summed over the dents that reach it.
+  const moves = strokes.map((stroke) => stroke.map((): Point => ({ x: 0, y: 0 })))
   grown.forEach(({ points, spans }, k) => {
     if (!spans.some((span) => span.dent)) return
     const n = points.length
     const stroke = strokes[k]
-    const m = stroke.length
     const side = inkSide(strokes, k)
     // Which thorn each vertex is drawn for (its tip and bases), or -1.
     const owner = new Array<number>(n).fill(-1)
@@ -860,23 +907,12 @@ function sinkDents(grown: readonly { points: Point[]; spans: readonly Span[] }[]
     })
     spans.forEach(({ tip, dent }, s) => {
       if (!dent) return
-      // Only edges within depth / maxShare of a vertex can cap its move.
-      const within = dent.depth / BACKLASH.maxShare
       for (const step of [1, -1]) {
         const at = (walked: number) => (((tip + step * walked) % n) + n) % n
-        // Every vertex this side moves lies within its reach of the first (its base), and the dent moves edges by at
-        // most its depth on the way.
-        const near = edgesNear(strokes, [points[at(1)]], dent.reach + dent.depth + within)
         let arc = 0
         let previous: Point | null = null
-        // The edges near the next BACKLASH.batch vertices along, from `near`: a few, where `near` can be thousands.
-        let nearBatch: [number, number][] = []
         for (let walked = 1; walked < n; walked++) {
           const j = at(walked)
-          if ((walked - 1) % BACKLASH.batch === 0) {
-            const batch = Array.from({ length: Math.min(BACKLASH.batch, n - walked) }, (_, b) => points[at(walked + b)])
-            nearBatch = edgesNear(strokes, batch, dent.depth + within, near)
-          }
           if (owner[j] !== -1 && (owner[j] !== s || j === tip)) break
           const q = points[j]
           if (previous) arc += Math.hypot(q.x - previous.x, q.y - previous.y)
@@ -884,13 +920,142 @@ function sinkDents(grown: readonly { points: Point[]; spans: readonly Span[] }[]
           if (arc >= dent.reach) break
           const own = inStroke[k][j]
           if (!leadsInto(stroke, own, dent.inward, side)) break
-          const clear = clearance(strokes, q, dent.inward, nearBatch, within, (c, e) => c === k && (e === own || e === (own - 1 + m) % m))
-          const move = Math.min(dent.depth * (1 - arc / dent.reach), BACKLASH.maxShare * clear)
-          points[j] = stroke[own] = { x: q.x + move * dent.inward.x, y: q.y + move * dent.inward.y }
+          const by = dent.depth * (1 - arc / dent.reach)
+          moves[k][own] = { x: moves[k][own].x + by * dent.inward.x, y: moves[k][own].y + by * dent.inward.y }
         }
       }
     })
   })
+  const moved: [number, number][] = []
+  moves.forEach((list, k) =>
+    list.forEach((m, i) => {
+      if (m.x !== 0 || m.y !== 0) moved.push([k, i])
+    }),
+  )
+  if (moved.length === 0) return
+  const length = ([k, i]: readonly [number, number]) => Math.hypot(moves[k][i].x, moves[k][i].y)
+  const ownEdges = (k: number, i: number) => {
+    const m = strokes[k].length
+    return (c: number, e: number) => c === k && (e === i || e === (i - 1 + m) % m)
+  }
+  // 1. Each move at most its share of the way ahead: only edges within its length / maxShare can cap it, looked up
+  // BACKLASH.batch moves at a time.
+  let longest = 0
+  for (let b = 0; b < moved.length; b += BACKLASH.batch) {
+    const batch = moved.slice(b, b + BACKLASH.batch)
+    const near = edgesNear(strokes, batch.map(([k, i]) => strokes[k][i]), Math.max(...batch.map(length)) / BACKLASH.maxShare)
+    for (const [k, i] of batch) {
+      const by = length([k, i])
+      const m = moves[k][i]
+      const clear = clearance(strokes, strokes[k][i], { x: m.x / by, y: m.y / by }, near, by / BACKLASH.maxShare, ownEdges(k, i))
+      const share = Math.min(1, (BACKLASH.maxShare * clear) / by)
+      moves[k][i] = { x: m.x * share, y: m.y * share }
+      longest = Math.max(longest, by * share)
+    }
+  }
+  // 2. The drawn edges from a moved vertex, each with how many edges it crossed before the dents. A tip's side is
+  // checked against every edge (it can be long); an edge of the outline against those near it, which move by at most
+  // `longest`, looked up BACKLASH.batch edges at a time.
+  const scale: number[][] = moves.map((list) => list.map((m) => (m.x !== 0 || m.y !== 0 ? 1 : 0)))
+  const halvings = moves.map((list) => list.map(() => 0))
+  const original = (k: number, i: number) => strokes[k][i]
+  const dented = (k: number, i: number) => {
+    const s = scale[k][i]
+    return s > 0 ? { x: strokes[k][i].x + s * moves[k][i].x, y: strokes[k][i].y + s * moves[k][i].y } : strokes[k][i]
+  }
+  const all: [number, number][] = []
+  strokes.forEach((ring, k) => ring.length >= 3 && ring.forEach((_, e) => all.push([k, e])))
+  interface Check {
+    k: number
+    a: number
+    /** The next vertex of the outline without tips, or -1 for a tip's side (to `tip`). */
+    b: number
+    tip: Point | null
+    near: [number, number][]
+    crossed: number
+  }
+  const checks: Check[] = []
+  grown.forEach(({ points }, k) => {
+    const n = points.length
+    if (strokes[k].length < 3) return
+    for (let j = 0; j < n; j++) {
+      const a = inStroke[k][j]
+      const b = inStroke[k][(j + 1) % n]
+      if (a >= 0 && b >= 0 && (scale[k][a] > 0 || scale[k][b] > 0)) checks.push({ k, a, b, tip: null, near: [], crossed: 0 })
+      else if (a >= 0 && b < 0 && scale[k][a] > 0) checks.push({ k, a, b: -1, tip: points[(j + 1) % n], near: all, crossed: 0 })
+      else if (a < 0 && b >= 0 && scale[k][b] > 0) checks.push({ k, a: b, b: -1, tip: points[j], near: all, crossed: 0 })
+    }
+  })
+  const sides = checks.filter((check) => check.tip === null)
+  for (let c = 0; c < sides.length; c += BACKLASH.batch) {
+    const batch = sides.slice(c, c + BACKLASH.batch)
+    const ends = (check: Check) => [original(check.k, check.a), original(check.k, check.b), dented(check.k, check.a), dented(check.k, check.b)]
+    const near = edgesNear(strokes, batch.flatMap(ends), longest)
+    for (const check of batch) check.near = edgesNear(strokes, ends(check), longest, near)
+  }
+  // The edges a drawn edge meets at its ends on the outline without tips (its own included): they never cross it.
+  const touching = ({ k, a, b }: Check) => {
+    const m = strokes[k].length
+    return (c: number, e: number) => c === k && (e === (a - 1 + m) % m || e === a || (b >= 0 && e === b))
+  }
+  for (const check of checks) {
+    const { k, a, b, tip } = check
+    check.crossed = crossings(original(k, a), tip ?? original(k, b), strokes, check.near, original, touching(check))
+  }
+  // A side of the outline crosses no more of either outline's edges than it did: only those at its ends that did not
+  // move are left out, as the edge still meets them there. A tip's side may cross one more of the outline as it was.
+  const fails = (check: Check) => {
+    const { k, a, b, tip } = check
+    if (tip) return crossings(dented(k, a), tip, strokes, check.near, original) > check.crossed + 1
+    const m = strokes[k].length
+    const still = (c: number, e: number) =>
+      c === k && ((scale[k][a] === 0 && (e === (a - 1 + m) % m || e === a)) || (scale[k][b] === 0 && (e === a || e === b)))
+    const p = dented(k, a)
+    const q = dented(k, b)
+    return crossings(p, q, strokes, check.near, original, still) > check.crossed || crossings(p, q, strokes, check.near, dented, touching(check)) > check.crossed
+  }
+  // 3. Halve the moves at the ends of every edge that fails, until none does: each end at most BACKLASH.halvings times,
+  // then not at all, as before the dents.
+  for (;;) {
+    const halve = checks.filter((check) => (scale[check.k][check.a] > 0 || (check.b >= 0 && scale[check.k][check.b] > 0)) && fails(check))
+    if (halve.length === 0) break
+    const ends = new Set<string>()
+    for (const { k, a, b } of halve) for (const i of b >= 0 ? [a, b] : [a]) if (scale[k][i] > 0) ends.add(`${k}:${i}`)
+    for (const end of ends) {
+      const [k, i] = end.split(':').map(Number)
+      halvings[k][i]++
+      scale[k][i] = halvings[k][i] > BACKLASH.halvings ? 0 : 0.5 ** halvings[k][i]
+    }
+  }
+  grown.forEach(({ points }, k) =>
+    points.forEach((_, j) => {
+      const own = inStroke[k][j]
+      if (own >= 0 && scale[k][own] > 0) points[j] = dented(k, own)
+    }),
+  )
+}
+
+/**
+ * How many of `edges` (as [contour, first vertex] of `contours`, their ends where `end` puts each vertex) the segment
+ * from p to q crosses, other than those `skip` leaves out. Only proper crossings count: an edge it merely touches does not.
+ */
+function crossings(
+  p: Point,
+  q: Point,
+  contours: readonly (readonly Point[])[],
+  edges: readonly (readonly [number, number])[],
+  end: (contour: number, index: number) => Point,
+  skip?: (contour: number, edge: number) => boolean,
+): number {
+  const side = (o: Point, u: Point, v: Point) => Math.sign((u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x))
+  let count = 0
+  for (const [contour, edge] of edges) {
+    if (skip?.(contour, edge)) continue
+    const a = end(contour, edge)
+    const b = end(contour, (edge + 1) % contours[contour].length)
+    if (side(p, q, a) * side(p, q, b) < 0 && side(a, b, p) * side(a, b, q) < 0) count++
+  }
+  return count
 }
 
 /**
@@ -957,6 +1122,20 @@ function edgesNear(contours: readonly (readonly Point[])[], points: readonly Poi
     if (ring.length >= 3) for (let edge = 0; edge < ring.length; edge++) if (meets(contour, edge)) out.push([contour, edge])
   })
   return out
+}
+
+/**
+ * The thickness of the stroke a ray from `from` along `direction` crosses (see farSide; null where it finds none): how
+ * far the ray runs in the ink, but at most twice the way from the middle of that run to the nearest edge, so a ray that
+ * meets the stroke at a slant (from a corner, or into a terminal) measures it across rather than along.
+ */
+function thickness(contours: readonly (readonly Point[])[], from: Point, direction: Point, limit: number, skip: (contour: number, edge: number) => boolean): number | null {
+  const far = farSide(contours, from, direction, limit, skip)
+  if (!far) return null
+  const middle = { x: from.x + (far.distance / 2) * direction.x, y: from.y + (far.distance / 2) * direction.y }
+  let half = Infinity
+  for (const points of contours) if (points.length >= 3) half = Math.min(half, distanceToOutline(points, middle))
+  return Math.min(far.distance, 2 * half)
 }
 
 /** Where a ray crosses an edge: the edge (from its vertex `edge`, at `t` along it), how far along the ray, and the point. */
