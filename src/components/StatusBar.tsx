@@ -4,9 +4,12 @@ import { describePipeline } from '../geometry/describe'
 import type { GeometryParams } from '../geometry/types'
 import { getSoundEngine } from '../sound/engine'
 import { useLiveStatus } from '../sound/live'
+import { useMappingState } from '../sound/mappingStore'
 import type { SpecimenScene } from '../specimen/scene'
+import { isDefaultSnapshot, resetSettings } from '../state/reset'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
+import Icon from './Icon'
 import ThemeToggle from './ThemeToggle'
 
 interface StatusBarProps {
@@ -34,12 +37,18 @@ const micStatus = (): MicStatus => {
   const kind = s.error?.kind
   return s.source === 'microphone' && (kind === 'no-device' || kind === 'mic-ended') ? 'lost' : 'off'
 }
+// Sensitivity and Release, for whether Reset has anything to do: the same object until they change.
+const soundSettings = () => getSoundEngine().getState().settings
 
 export default function StatusBar({ state, glyphGeometry, shownParams, scene }: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
   const mic = useSyncExternalStore(subscribeSound, micStatus)
   const live = useLiveStatus()
+  const { mappings, response } = useMappingState()
+  const sound = useSyncExternalStore(subscribeSound, soundSettings)
+  const { view: _view, ...settings } = state.params
+  const atDefaults = isDefaultSnapshot({ params: settings, mappings, sound: { ...sound, ...response } })
   let glyphInfo = '—'
   let advance: number | null = null
   let viewing = '—'
@@ -84,6 +93,19 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene }: 
       <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}
       </span>
+      {/* Every setting back to its default, as one undo step; the font, glyph and text stay (state/reset.ts).
+          aria-disabled, not disabled: the button keeps keyboard focus when its own click disables it (at the
+          defaults resetSettings does nothing). */}
+      <button
+        type="button"
+        className="statusbar-reset"
+        aria-label="Reset all settings"
+        title={atDefaults ? 'All settings are at their defaults' : 'Reset all settings (the font and text stay)'}
+        aria-disabled={atDefaults || undefined}
+        onClick={() => resetSettings()}
+      >
+        <Icon name="reset" />
+      </button>
       <ThemeToggle />
     </footer>
   )

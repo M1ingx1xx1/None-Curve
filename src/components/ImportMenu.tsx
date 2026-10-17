@@ -6,16 +6,19 @@ interface ImportMenuProps {
   busy: boolean
   onLocalFile: (file: File) => void
   onOpenGoogleFonts: () => void
+  /** A config file (Export → Config) chosen to load. */
+  onConfigFile: (file: File) => void
 }
 
-/** Primary import action at the top of the sidebar: choose a local file or Google Fonts. */
-export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts }: ImportMenuProps) {
+/** Primary import action at the top of the sidebar: choose a local file or Google Fonts, or load a config file. */
+export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts, onConfigFile }: ImportMenuProps) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const firstOptionRef = useRef<HTMLButtonElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const configRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -60,7 +63,7 @@ export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts }: Imp
       {busy && <span className="visually-hidden">An import is in progress.</span>}
 
       {open && (
-        <div id={menuId} className="import-options" role="group" aria-label="Font source">
+        <div id={menuId} className="import-options" role="group" aria-label="Import from">
           <button
             ref={firstOptionRef}
             type="button"
@@ -84,10 +87,22 @@ export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts }: Imp
             <span className="import-option-title">Google Fonts</span>
             <span className="import-option-hint">Download a family's font file to edit it</span>
           </button>
+          <button
+            type="button"
+            className="import-option"
+            onClick={() => {
+              close(false)
+              configRef.current?.click()
+            }}
+          >
+            <span className="import-option-title">Config file</span>
+            <span className="import-option-hint">.json saved with Export → Config · settings, text, Sound, font</span>
+          </button>
         </div>
       )}
 
       <LocalFileInput ref={fileRef} onFile={onLocalFile} />
+      <LocalFileInput ref={configRef} onFile={onConfigFile} accept=".json,application/json" />
     </div>
   )
 }

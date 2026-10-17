@@ -23,7 +23,7 @@
 | 导出画布的 SVG 与 PNG，可选带上预览的模糊与反色 | ✅ 已实现 |
 | 导出 OpenType 字体（CFF，.otf），带原字体的成对字偶距和与画布一致的行距，在后台生成，Cancel 可立即停止，导出后自动校验；伸得太远、字体存不下的轮廓部分（很长的 Thorn 刺尖）会被裁到能存下的范围内 | ✅ 已实现——见[限制](#字体文件) |
 | 画布随声音变化的视频，实时录制并带上声音（MP4；浏览器不能写 MP4 时为 WebM），可从 Export 对话框或 Sound 标签页开始 | 🧪 实验性——见[视频](#视频) |
-| 设置、文字、声音映射和 Sound 标签页的 Response 设置保存在浏览器中，下次打开时恢复；撤销与重做 | ✅ 已实现——见[保存与撤销](#保存与撤销) |
+| 设置、文字、声音映射和 Sound 标签页的 Response 设置保存在浏览器中，下次打开时恢复，也可以导出为配置文件再导入；撤销与重做；**Reset all settings**（重置所有设置）算一步撤销 | ✅ 已实现——见[保存与撤销](#保存与撤销)和[配置文件](#配置文件) |
 | TTF / WOFF / WOFF2 输出；上下文字偶距、附加符号定位及其他 OpenType 排版特性 | ❌ 不支持 |
 | Sound 标签页：本地音频文件或麦克风，实时测量（11 个特征：响度与缓变响度，低音、中音与高音，亮度、音高与旋律（每个新音一次脉冲），节拍脉冲与活跃度，以及文件的立体声声像）并以紧凑的电平表显示；最多 8 个映射实时移动 Geometry 和 Experimental 的滑块，并让三个种子跳变（锚点随声音跳到新位置），选择目标时会打开它需要的设置；十个可载入的预设；Response 分组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking）调节动作的幅度，并能让每个字母按自己的幅度反应；声音从不移动文字块，还有 Thorn 轮换（开启 Thorn 时，刺每次只在少数几个字母上变化）；带滑块上的实时值标记、实时种子、实时帧率、闪烁限制、Freeze 和视频录制 | 🧪 实验性——开发中，见[声音](#声音) |
 | 声音事件：Step 映射（Allowed directions、Sides、Rings） | ⏳ 规划中，尚未实现 |
@@ -71,7 +71,7 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 - **左下——文字工具：** 三个标签页（会记在浏览器里，可用方向键切换；始终保持加载，切换时不会丢失局部状态）：**Typography（排版）**——文字在画布上如何排布（见[排版](#排版)）；**Glyphs（字形）**——见下条；**Color（颜色）**——文字与背景的颜色。
 - **Glyphs 标签页：** 可搜索的字符网格，列出字体映射的所有字符，用作插入器：点击字符会把它插入到文字输入框的光标处（有选中文字时替换选中部分），并选中该字形。输入框从未获得焦点时，字符追加到末尾。没有对应字符的字形（连字、替代字形）和控制字符无法输入，因此不列出。字形列表窄于 280 像素时，格子会缩小并只显示字符本身；超过这个宽度时重新显示 Unicode 编码（编码始终保留在每个格子的悬停提示里）。
 - **右下——输入与预览：** 左边是紧凑的多行文字输入（Text 标题右边的大小写开关 **AA** / **Aa** / **aa**、示例文本菜单、Clear、字符数、字偶距状态、缺字提示）；右边是缩小显示的 SVG 导出结果本身（裁到画布边缘；见[文字预览](#文字预览)），带独立的 **Blur（模糊）** 滑块（0–12 像素，每档 0.1）和 **Invert（反色）** 按钮（交换文字与背景的颜色）。除非勾选 **Export the preview look**，模糊和反色只作用于这个视图，相当于“眯眼看整体字形”。两部分之间有一个拖动手柄，可以移动分界线（默认 40 / 60）。
-- **状态栏：** 字体状态、选中的字形和当前视图（其中有选中字形的顶点数；实验效果的顶点预算简化过这个字形时，后面跟着 “(simplified)”，见[翻折](#实验效果crumpleripplewhorlslipstream-与-thorn)）；Sound 驱动字母期间显示 **Live · N fps**（实时帧率）；麦克风收音期间显示 **Microphone on**（在任何标签页都能看到），麦克风自己停止时（被拔出或权限被收回）显示 **No microphone**；最右端是一个小小的界面亮色 / 暗色切换。每次打开都先按系统设置（`prefers-color-scheme`），系统设置改变时也会跟随；在这里的选择只在本次访问有效，不会保存。主题色是 CSS `light-dark()` 值，由 `<html data-theme>` 上的 `color-scheme` 切换。画布在两种主题下都使用颜色设置里的配色。
+- **状态栏：** 字体状态、选中的字形和当前视图（其中有选中字形的顶点数；实验效果的顶点预算简化过这个字形时，后面跟着 “(simplified)”，见[翻折](#实验效果crumpleripplewhorlslipstream-与-thorn)）；Sound 驱动字母期间显示 **Live · N fps**（实时帧率）；麦克风收音期间显示 **Microphone on**（在任何标签页都能看到），麦克风自己停止时（被拔出或权限被收回）显示 **No microphone**；最右端是 **Reset all settings**（重置所有设置，一个画着回转箭头的图标按钮；见[保存与撤销](#保存与撤销)）和一个小小的界面亮色 / 暗色切换。每次打开都先按系统设置（`prefers-color-scheme`），系统设置改变时也会跟随；在这里的选择只在本次访问有效，不会保存。主题色是 CSS `light-dark()` 值，由 `<html data-theme>` 上的 `color-scheme` 切换。画布在两种主题下都使用颜色设置里的配色。
 - **滑块与数字框：** 每个滑块都带一个数字框，按标签所示的单位（%、°、% em、u、px、ms、dB）显示当前值：在 Geometry、Experimental 和 Sound 标签页里位于滑块的标题行，在 Typography 和 Canvas size 里位于滑块旁边，预览的 Blur 也有一个。输入的值在按回车或离开数字框时生效（按 Escape 恢复原值），并限制在滑块的范围内、取整到它的档位（`src/components/` 中的 `SliderNumber` 和 `NumberField`）。档位都很细（NOCUR-63）：比例 1%，尺寸为 em 的 1%，角度 1°，距离 1 个字体单位（Anchor reduction 和 Noise frequency 为 0.1），计数为 1；要精确设定某个值就用数字框。Tolerance 和 Thorn 的 Reach 保留各自的对数和立方滑块；它们的数字框直接输入值本身（字体单位，精确到 0.01，并按滑块的方式取整；画布的百分比，精确到 0.01%）。
 - 只面向桌面浏览器：没有手机或窄屏布局。窗口变窄时布局不变：各区域先缩到各自的最小尺寸，再窄就按比例一起缩小。
 
@@ -124,12 +124,13 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 
 ### 保存与撤销
 
-`src/state/persist.ts` 与 `src/state/history.ts`。
+`src/state/persist.ts`、`src/state/history.ts` 与 `src/state/reset.ts`。
 
 - **在两次访问之间保存**在 `localStorage` 里（键名 `none-curve:session`，带版本号；约 2 KB），每次改动后半秒、以及页面被隐藏或关闭时写入：所有设置（Geometry、Experimental、Typography、Color 和 Canvas size）、画布视图的轮廓和图层按钮（不含缩放和平移）、文字（最多 10,000 个字符）、预览的 Blur 和 Invert、导出精度、声音映射、Sound 标签页的 Response 分组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive 和 Melody tracking；在它们出现之前保存的记录读作默认值）、选中的字形（只在同一字体族和样式中恢复），以及字体。Google 字体会在页面打开时重新下载；本地文件无法重新打开，所以画布会写出它的名字（“Last font: X. Import it again to continue.”）。读取时，每个值都会对照默认值检查，所以损坏的或旧版本的记录不会让应用出错（旧的效果名和特征名会改成新名字）。当前版本是 2：版本 1 记录里的 Thorn **Reach**（em 的比例）会按该记录保存的字号和画布，换算成同样长度在画布对角线中所占的比例（对角线最多按 256 em 计，与 Thorn 的算法相同），最多 100%，保留 4 位小数；大于 0 的 Reach 换算后不会低于滑块的第一档（0.01%），所以原来长着刺的 Thorn 仍然长刺（`src/state/persist.ts` 中的 `fromV1`）；作用在 Thorn · Reach 上的声音映射保留原来的 Depth。Thorn 用到的“画布对角线有多少 em”由设置算出，从不保存。
 - **不保存：** Drive letters、音频文件或麦克风、声音的实时值、视频录制选项（Format、Length、Include audio、Use the preview look）、打开的对话框，以及亮色 / 暗色主题。（各区域的分隔比例、选中的标签页和 Show all explanations 本来就各自记在浏览器里。）清除网站数据即可从头开始。保存只针对当前浏览器：同时开着两个标签页时，最后保存的那个为准；Safari 在 7 天没有访问后可能会清掉它。
 - **崩溃保护：** 第一次画出恢复的设置时，会写入一个标记（`none-curve:restoring`）。如果下次启动时标记还在，说明上次访问在绘制时关闭了（可能是崩溃），这次设置和视图就从默认值开始，画布显示 “The last visit closed while drawing, so its settings were not restored.”；文字、映射和字体照常恢复。
-- **撤销与重做：** Mac 上用 ⌘Z 和 ⇧⌘Z；其他系统用 Ctrl+Z，以及 Ctrl+Shift+Z 或 Ctrl+Y；也可以用顶部栏的 **Undo** 和 **Redo** 按钮。所有设置、文字、声音映射和 Sound 标签页的 Response 分组共用一份历史。拖动一次滑块是一步（Response 的滑块也一样）；连续打字在停顿一秒之前算一步；Clear、示例文本和插入的字形各算一步，预设的 Load、Freeze、**Reset sound**，以及选择目标连同它打开的设置也各算一步。声音的实时帧从不成为撤销步骤。不能撤销的：画布视图、缩放和平移、字形选择、预览的 Blur 和 Invert、导出精度、导入字体、Drive letters，以及视频录制选项。在文字输入框和其他文本框里使用的是输入框自己的撤销；对话框打开时快捷键不起作用。最多 100 步；历史不会在两次访问之间保存。
+- **撤销与重做：** Mac 上用 ⌘Z 和 ⇧⌘Z；其他系统用 Ctrl+Z，以及 Ctrl+Shift+Z 或 Ctrl+Y；也可以用顶部栏的 **Undo** 和 **Redo** 按钮。所有设置、文字、声音映射和 Sound 标签页的 Response 分组共用一份历史。拖动一次滑块是一步（Response 的滑块也一样）；连续打字在停顿一秒之前算一步；Clear、示例文本和插入的字形各算一步，预设的 Load、Freeze、**Reset sound**、**Reset all settings**、导入配置文件，以及选择目标连同它打开的设置也各算一步。声音的实时帧从不成为撤销步骤。不能撤销的：画布视图、缩放和平移、字形选择、预览的 Blur 和 Invert、导出精度、导入字体、Drive letters，以及视频录制选项。在文字输入框和其他文本框里使用的是输入框自己的撤销；对话框打开时快捷键不起作用。最多 100 步；历史不会在两次访问之间保存。
+- **Reset all settings**（重置所有设置；状态栏里紧挨在亮色 / 暗色切换左边的图标按钮）：不经确认，一次把历史所管的一切恢复为默认值：所有设置（Geometry、包括种子在内的 Experimental、Typography、Color 和 Canvas size）、Sound 映射（全部移除）以及 Response 组。字体、选中的字形和文字保持不变，撤销不管的内容也都不变（画布视图、缩放和平移、预览的 Blur 和 Invert、导出精度、Drive letters 和界面主题）。它是一步撤销（`UndoHistory.apply`）：Undo 恢复它改动的一切，Redo 再次重置。没有可重置的内容时按钮不可用，提示文字为 “All settings are at their defaults”。
 
 ### 性能
 
@@ -147,7 +148,7 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 
 - 格式：`.ttf`、`.otf`（TrueType 与 CFF 轮廓）、`.woff`、`.woff2`，以及字体集合（`.ttc` / `.otc`，例如 macOS 的 Helvetica Neue、Avenir Next 或 Futura），按文件内容识别而不是扩展名。
 - **字体集合：** 字体信息里的样式名会变成一个字面菜单（“Face”）。打开集合时显示最接近 Regular 的正体字面（字重 400、正常宽度；相同时取靠前的字面）。macOS 隐藏的系统字面（PostScript 名以点开头）不列出。选中的字面记在字体来源里，所以几何 Worker 打开的是同一个字面。换到同一文件的另一个字面时，画布的缩放和平移保持不变，新字面有当前选中的字符时也保持选中；其他导入会重置缩放和平移，并选一个默认字母。不支持用 WOFF 或 WOFF2 包装的字体集合。
-- 通过 **Import font** 选择文件，或直接拖到画布上。文件只在浏览器内读取，不会上传。上限 50 MB，字体集合也一样（Apple Color Emoji 的 `.ttc` 超过这个大小）。
+- 通过 **Import font** 选择文件，或直接拖到画布上（拖进来的 `.json` 文件按[配置文件](#配置文件)读取）。文件只在浏览器内读取，不会上传。上限 50 MB，字体集合也一样（Apple Color Emoji 的 `.ttc` 超过这个大小）。
 - 空文件、无法识别的文件和损坏的文件会给出不同的错误提示和 **Retry**；之前载入的字体保持显示。
 
 ### Google Fonts
@@ -291,7 +292,7 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 ## 导出
 
-从顶部栏右上角打开 **Export…**（提示文字为 “Export SVG, PNG, a font file or a video”）。只有点击下载按钮才会下载；视频在一次录制结束时保存。SVG、PNG 和字体文件使用与画布相同、按滑块值算出的最终多边形；画布还没按滑块值算好的字形会先补算：SVG 和 PNG 在几何 Worker 中补算，字体文件在导出自己的 Worker 中补算。视频录下的是画布当前显示的样子，包括实时帧（见[视频](#视频)）。
+从顶部栏右上角打开 **Export…**（提示文字为 “Export SVG, PNG, a font file, a video or the config”）。没有载入字体时只提供配置文件。只有点击下载按钮才会下载；视频在一次录制结束时保存。SVG、PNG 和字体文件使用与画布相同、按滑块值算出的最终多边形；画布还没按滑块值算好的字形会先补算：SVG 和 PNG 在几何 Worker 中补算，字体文件在导出自己的 Worker 中补算。视频录下的是画布当前显示的样子，包括实时帧（见[视频](#视频)）。
 
 ### SVG 与 PNG
 
@@ -334,6 +335,14 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - **文件里的声音：** 声音引擎的录音分支（`engine.ts` 中的 `startRecordingAudio`）把正在运行的来源（听到的文件声音，或麦克风）经过一个延迟送进一个 MediaStream 目标。这条支路不接扬声器，所以你听到的声音不变。延迟让声音和字母对齐：实时延迟（从测得一帧声音到它的字母交给 React 的平滑耗时；`live.ts` 中的 `liveLatencyMs`）加 37 ms（分析窗口的一半加一个显示帧），限制在 40–400 ms；还没有实时帧时为 90 ms；在录制开始时设定一次。
 - **录制结束于：** 到达设定的时长或 10 分钟上限（“Stopped at the 10-minute limit.”）；声音暂停、停止、切换或结束（“The sound stopped, so the recording ended.”）；标签页被隐藏（“Recording stopped because the tab was hidden.”）；画布尺寸或倍数改变（“Recording stopped because the canvas size changed.”）；字体被关闭；你按下 Stop；或录制器出错（“Recording failed: …”，保留已录下的部分）。录制会多延续一点，让最后一帧进入文件：按 Stop、到达上限或麦克风停止后再继续 100 ms；时长用完、文件暂停或播完时再继续音频延迟加 100 ms，让还在延迟中的声音结尾也进入文件。标签页被隐藏、出错、画布或字体改变时立即停止。什么都没录到时不保存（“Nothing was recorded.”）。录制期间关闭页面会先询问。录制期间的其他改动，例如编辑文字，会按画布显示的样子录下来。
 - **实测**（Chromium 浏览器、Roboto、测试音轨）：1200 × 800 的 5 秒录制保存为 WebM（`video/webm`，266 KB，4.92 秒）和 MP4（398 KB，4.97 秒），帧都正确；Export 对话框的 Record、MP4 → WebM 的退回和标签页被隐藏时的停止都如上所述；录制期间没有长任务。视频的流畅程度取决于实时帧率：连续 2 秒低于 8 fps 时，Record 分组提示 “Too slow for a smooth video: try fewer effects or a shorter text.”。WebM 文件不带时长。音频延迟是估计值。其他浏览器尚未测试。
+
+### 配置文件
+
+`src/state/persist.ts` 中的 `serializeConfig` 和 `parseConfig`；对话框里的 **Config — settings (.json)** 和 **Import font → Config file**。
+
+- **Download config** 保存 `none-curve-Family-config.json`（没有字体时为 `none-curve-config.json`）：内容就是[在两次访问之间保存](#保存与撤销)的那份会话，键名和版本号都相同，另外加上 `"app": "none-curve"` 和 `"kind": "config"`，并带缩进。里面是滑块自己的值（从不包含声音的实时值），不写 Thorn 由设置算出的画布对角线，文字和存储时一样最多 10,000 个字符。对话框会写出这个文件将要求的字体。保存不需要字体。
+- **Import font → Config file**（或拖到画布上的 `.json` 文件）按读取已保存会话的方式读取：从旧版本迁移，并逐项检查，所以损坏的值变回默认值，不认识的键被丢弃。不是 JSON 的文件（“The file is not valid JSON.”）、没有标记的文件、或大于 1 MB 的文件会被拒绝，菜单下方显示 “Config not imported”，什么都不改变。新版本保存的文件尽量读取能识别的部分，提示里会说明。
+- **应用的内容：** 设置、文字、声音映射和 Response 分组作为一个撤销步骤；画布视图的轮廓和图层按钮、预览的 Blur 和 Invert、导出精度也会应用，但和其他地方一样不能撤销。字体：Google Fonts 的字体会重新下载（已经打开时不重复下载）；本地文件无法重新打开，所以提示里会写出文件名（“Its font is the local file X: import it to see the config as it was saved.”）。当前字体（或之后载入的下一个字体）是同一字体族和样式时，恢复选中的字形。菜单下方的提示在点它的 × 按钮（Dismiss）或下一次导入字体时消失。
 
 ## 声音
 
