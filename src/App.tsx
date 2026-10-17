@@ -18,17 +18,16 @@ import { mappingStore } from './sound/mappingStore'
 import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from './specimen/artboard'
 import { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './specimen/previewLook'
 import { DEFAULT_TEXT } from './specimen/samples'
-import { editorReducer, initialState, thornCanvasEm, withThornCanvasEm, type Action } from './state/editorState'
+import { editorReducer, initialState, type Action } from './state/editorState'
 import { changedSettings, listenForUndo, undoHistory, useHistoryState } from './state/history'
 import { clearRestoring, createSessionSaver, markRestoring, savedFont, type RestoredSession, type SavedGlyph, type Session } from './state/persist'
 import type { AppState, EditorParams, SettingsParams, ViewParams } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
 
-/** Every parameter group but the canvas view: what undo restores and the session saves (never Thorn's derived canvasEm). */
+/** Every parameter group but the canvas view: what undo restores. */
 function settingsOf({ view: _view, ...settings }: EditorParams): SettingsParams {
-  const experimental = withThornCanvasEm(settings.experimental, null)
-  return experimental === settings.experimental ? settings : { ...settings, experimental }
+  return settings
 }
 
 /** The editor's first state: the defaults, with the last visit's settings, view buttons and export precision. */
@@ -59,16 +58,13 @@ export default function App({ restored }: AppProps) {
   const displayText = useMemo(() => applyTextCase(text, typography.textCase), [text, typography.textCase])
   // While Sound drives the letters, the canvas shows live parameters; the sliders (and exports) keep their own.
   const { flatten, random, squaring, anchors, grid, distortion, experimental } = state.params
-  // Thorn's Reach is a share of the canvas diagonal: the diagonal in em rides on the geometry parameters, a
-  // number (null while Thorn is off), so the text size and canvas change the geometry only when it changes.
-  const canvasEm = thornCanvasEm(state.params)
   const baseParams = useMemo<GeometryParams>(
-    () => ({ flatten, random, squaring, anchors, grid, distortion, experimental: withThornCanvasEm(experimental, canvasEm) }),
-    [flatten, random, squaring, anchors, grid, distortion, experimental, canvasEm],
+    () => ({ flatten, random, squaring, anchors, grid, distortion, experimental }),
+    [flatten, random, squaring, anchors, grid, distortion, experimental],
   )
   // Without a font there are no letters to move: Sound does not drive.
   const liveParams = useLiveParams(baseParams, font !== null)
-  const { derived, scene, layout, scenePending, loadSliderScene } = useGeometry(state, displayText, baseParams, liveParams)
+  const { derived, scene, layout, scenePending, loadSliderScene } = useGeometry(state, displayText, liveParams)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.

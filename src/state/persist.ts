@@ -7,7 +7,6 @@ import { ANGLE_STEPS } from '../geometry/constraints'
 import type { BreakRule } from '../geometry/curveRuns'
 import type { FlattenMode } from '../geometry/types'
 import type { SquaringScope } from '../geometry/squaring'
-import { THORN_LIMITS } from '../geometry/thorn'
 import type { GoogleFontRequest } from '../font/google'
 import type { LoadedFont } from '../font/model'
 import { featureById, targetById, type FeatureId, type Mapping } from '../sound/mapping'
@@ -23,14 +22,13 @@ import {
 } from '../specimen/artboard'
 import { DEFAULT_TEXT } from '../specimen/samples'
 import { DEFAULT_PREVIEW_LOOK, MAX_PREVIEW_BLUR, type PreviewLook } from '../specimen/previewLook'
-import { initialState, withThornCanvasEm } from './editorState'
-import { reachFromSlider, roundReach, THORN_REACH } from './sliderScales'
+import { initialState } from './editorState'
 import type { OutlineView, SettingsParams, ViewToggles } from './types'
 
 const SESSION_KEY = 'none-curve:session'
 /** Set while settings restored from the last visit are first drawn; still set on the next start means that visit never finished. */
 const RESTORING_KEY = 'none-curve:restoring'
-export const SESSION_VERSION = 2
+export const SESSION_VERSION = 1
 /** Characters of text saved at most. */
 export const MAX_SAVED_TEXT = 10_000
 /** Wait this long after a change before saving (changes during a slider drag are saved once). */
@@ -127,32 +125,8 @@ function fromUnversioned(raw: Raw): Raw {
   return { ...raw, params, mappings, version: 1 }
 }
 
-/**
- * Version 2 measures Thorn's Reach on the canvas diagonal (canvasReach, 0–1) instead of the em (reach, 0–2):
- * the old reach becomes the same length on the saved text size and canvas (read as sanitize reads them, and
- * capped at THORN_LIMITS.maxReachEm, as Thorn caps it), and Sound rows on Reach keep their depth.
- */
-function fromV1(raw: Raw): Raw {
-  const params = isObject(raw.params) ? { ...raw.params } : raw.params
-  if (isObject(params) && isObject(params.experimental) && isObject(params.experimental.thorn)) {
-    const { reach, ...thorn } = params.experimental.thorn
-    if (typeof reach === 'number' && Number.isFinite(reach)) {
-      const { size } = sanitize(DEFAULT_SETTINGS.typography, params.typography, 'typography')
-      const { width, height } = sanitize(DEFAULT_SETTINGS.artboard, params.artboard, 'artboard')
-      const canvasEm = Math.min(Math.hypot(width, height) / size, THORN_LIMITS.maxReachEm)
-      // A reach that was on stays on: at least the slider's first step.
-      thorn.canvasReach = reach > 0 ? Math.max(roundReach(clamp(reach / canvasEm, 0, 1)), reachFromSlider(THORN_REACH.slider.step)) : 0
-    }
-    params.experimental = { ...params.experimental, thorn }
-  }
-  const mappings = Array.isArray(raw.mappings)
-    ? raw.mappings.map((m) => (isObject(m) && m.target === 'experimental.thorn.reach' ? { ...m, target: 'experimental.thorn.canvasReach' } : m))
-    : raw.mappings
-  return { ...raw, params, mappings, version: 2 }
-}
-
 /** Steps from each older version to the next; the last one reaches SESSION_VERSION. */
-const MIGRATIONS: Record<number, (raw: Raw) => Raw> = { 0: fromUnversioned, 1: fromV1 }
+const MIGRATIONS: Record<number, (raw: Raw) => Raw> = { 0: fromUnversioned }
 
 function migrate(raw: Raw): Raw {
   let version = typeof raw.version === 'number' && Number.isInteger(raw.version) ? raw.version : 0
@@ -322,8 +296,7 @@ export function loadSession(storage: Storage | null = browserStorage()): Restore
 export function saveSession(session: Session, storage: Storage | null = browserStorage()): boolean {
   if (!storage) return false
   try {
-    const params = { ...session.params, experimental: withThornCanvasEm(session.params.experimental, null) }
-    storage.setItem(SESSION_KEY, JSON.stringify({ version: SESSION_VERSION, ...session, params, text: capText(session.text) }))
+    storage.setItem(SESSION_KEY, JSON.stringify({ version: SESSION_VERSION, ...session, text: capText(session.text) }))
     return true
   } catch {
     return false

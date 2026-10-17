@@ -1030,16 +1030,9 @@ input[type='range']:disabled {
 }
 
 /* Each glyph's click target (its advance by its line): invisible, but painted, so it catches clicks
-   on small text and inside counters; the outlines catch the rest of the letter. A glyph with thorns
-   (.specimen-glyph-thorned) is selected and dragged (Free) only by that box and an invisible copy of
-   its original outline: its drawn outlines ignore the pointer, so thorns reaching across the canvas
-   leave clicks and drags there to the canvas. */
+   on small text and inside counters. */
 .glyph-box {
   fill: transparent;
-}
-
-.specimen-view .specimen-glyph-thorned > :not(.glyph-box) {
-  pointer-events: none;
 }
 
 /* The canvas fills the view with the background colour. The screen grid sits above it; its colour

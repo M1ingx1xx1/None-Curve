@@ -19,25 +19,20 @@ export interface PlacedGlyph {
   /** Final polygon in font units (y up), or null for missing, empty, or failed glyphs. */
   polygon: PolygonGlyph | null
   error: string | null
-  /** Where the polygon is drawn in scene units (y down), slant and thorns included; null without one. */
-  ink: Extent | null
 }
 
 export interface SpecimenScene {
-  /** Each line's `ink` covers its glyphs' ink (null when nothing on it is drawn). */
-  lines: { glyphs: PlacedGlyph[]; width: number; baseline: number; ink: Extent | null }[]
+  lines: { glyphs: PlacedGlyph[]; width: number; baseline: number }[]
   lineHeight: number
   ascender: number
   descender: number
   /** Height of a capital letter (the font's cap height, or 0.7 em when the font does not say). */
   capHeight: number
+  /** Scene bounds (y down) covering every line's ascender/descender and every outline (slant included). */
+  bounds: { minX: number; minY: number; maxX: number; maxY: number }
   /** Bounds (y down) of the drawn outlines alone, slant included: where the ink is. Null when nothing
       is drawn (only spaces or missing characters). */
-  ink: Extent | null
-  /** Bounds (y down) of the letters the text is placed by: the ink, except that a glyph with a layout
-      box (Thorn) counts its outline before the thorns grew (slanted exactly by its layout hull). Equal
-      to `ink` when no glyph has one. */
-  body: Extent | null
+  ink: { minX: number; minY: number; maxX: number; maxY: number } | null
   /** Width of the longest line; lines are aligned inside this width. */
   blockWidth: number
   /** First line's ascender and last line's descender (y down). */
@@ -78,7 +73,7 @@ export type PolygonLookup = (index: number) => { polygon: PolygonGlyph; stale?: 
 
 /** Shaped glyphs with positions, before polygons are attached (see placePolygons). */
 export interface ShapedSpecimen {
-  lines: { glyphs: Omit<PlacedGlyph, 'polygon' | 'error' | 'ink'>[]; width: number; baseline: number }[]
+  lines: { glyphs: Omit<PlacedGlyph, 'polygon' | 'error'>[]; width: number; baseline: number }[]
   /** Glyphs to compute, each once, in reading order. */
   indices: number[]
   lineHeight: number
@@ -167,35 +162,46 @@ export function placePolygons(shaped: ShapedSpecimen, lookup: PolygonLookup): Sp
   const shear = Math.tan((slant * Math.PI) / 180)
   let failedGlyphs = 0
   let pendingGlyphs = 0
-  const ink = emptyExtent()
-  const body = emptyExtent()
+  let minX = 0
+  let maxX = 0
+  let minY = -ascender
+  let maxY = -descender
+  const ink = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
 
   const lines = shaped.lines.map((line) => {
-    const lineInk = emptyExtent()
     const glyphs = line.glyphs.map((g): PlacedGlyph => {
-      if (g.missing) return { ...g, polygon: null, error: null, ink: null }
+      if (g.missing) return { ...g, polygon: null, error: null }
       const found = lookup(g.index)
       if (!found) {
         pendingGlyphs++
-        return { ...g, polygon: null, error: null, ink: null }
+        return { ...g, polygon: null, error: null }
       }
       if ('error' in found) {
         failedGlyphs++
-        return { ...g, polygon: null, error: found.error, ink: null }
+        return { ...g, polygon: null, error: found.error }
       }
       if (found.stale) pendingGlyphs++
       const extent = slantedExtent(found.polygon, shear)
-      if (!extent) return { ...g, polygon: found.polygon, error: null, ink: null }
-      const placed = offset(extent, g.x, g.y)
-      include(lineInk, placed)
-      const layoutBox = validBox(found.polygon.layoutBox)
-      include(body, layoutBox ? offset(slantedBody(found.polygon, layoutBox, shear), g.x, g.y) : placed)
-      return { ...g, polygon: found.polygon, error: null, ink: placed }
+      if (extent) {
+        ink.minX = Math.min(ink.minX, g.x + extent.minX)
+        ink.maxX = Math.max(ink.maxX, g.x + extent.maxX)
+        ink.minY = Math.min(ink.minY, g.y + extent.minY)
+        ink.maxY = Math.max(ink.maxY, g.y + extent.maxY)
+      }
+      return { ...g, polygon: found.polygon, error: null }
     })
-    const drawn = lineInk.minX <= lineInk.maxX ? lineInk : null
-    if (drawn) include(ink, drawn)
-    return { glyphs, width: line.width, baseline: line.baseline, ink: drawn }
+    // The longest line spans the whole block width; aligned lines stay inside it.
+    maxX = Math.max(maxX, blockWidth)
+    maxY = Math.max(maxY, line.baseline - descender)
+    return { glyphs, width: line.width, baseline: line.baseline }
   })
+
+  if (ink.minX <= ink.maxX) {
+    minX = Math.min(minX, ink.minX)
+    maxX = Math.max(maxX, ink.maxX)
+    minY = Math.min(minY, ink.minY)
+    maxY = Math.max(maxY, ink.maxY)
+  }
 
   return {
     lines,
@@ -203,8 +209,8 @@ export function placePolygons(shaped: ShapedSpecimen, lookup: PolygonLookup): Sp
     ascender,
     descender,
     capHeight: shaped.capHeight,
+    bounds: { minX, minY, maxX, maxY },
     ink: ink.minX <= ink.maxX ? ink : null,
-    body: body.minX <= body.maxX ? body : null,
     blockWidth,
     textTop: -ascender,
     textBottom: (shaped.lines.length - 1) * lineHeight - descender,
@@ -220,65 +226,11 @@ export function placePolygons(shaped: ShapedSpecimen, lookup: PolygonLookup): Sp
 
 const extents = new WeakMap<PolygonGlyph, { shear: number; extent: Extent | null }>()
 
-export interface Extent {
+interface Extent {
   minX: number
   minY: number
   maxX: number
   maxY: number
-}
-
-const emptyExtent = (): Extent => ({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity })
-
-function include(into: Extent, e: Extent) {
-  into.minX = Math.min(into.minX, e.minX)
-  into.maxX = Math.max(into.maxX, e.maxX)
-  into.minY = Math.min(into.minY, e.minY)
-  into.maxY = Math.max(into.maxY, e.maxY)
-}
-
-const offset = (e: Extent, x: number, y: number): Extent => ({ minX: x + e.minX, minY: y + e.minY, maxX: x + e.maxX, maxY: y + e.maxY })
-
-/** A layout box that can be measured (finite, not inverted), or null. */
-function validBox(box: Extent | undefined): Extent | null {
-  if (!box) return null
-  const { minX, minY, maxX, maxY } = box
-  return [minX, minY, maxX, maxY].every(Number.isFinite) && minX <= maxX && minY <= maxY ? box : null
-}
-
-/**
- * A box in font units (y up) slanted like the outlines, relative to the glyph origin in scene
- * coordinates (y down): its four corners, so it covers every outline that fits in the box.
- */
-function slantedBox(box: Extent, shear: number): Extent {
-  const low = shear * box.minY
-  const high = shear * box.maxY
-  return { minX: box.minX + Math.min(low, high), minY: -box.maxY, maxX: box.maxX + Math.max(low, high), maxY: -box.minY }
-}
-
-const bodies = new WeakMap<PolygonGlyph, { shear: number; extent: Extent }>()
-
-/**
- * The letter before its thorns grew, slanted like the outlines, relative to the glyph origin in scene
- * coordinates (y down): the slanted layout hull, which reaches exactly as far as the slanted letter,
- * within the layout box's height. Its slanted corners stand in when unslanted (where they are exact)
- * or without a hull that can be measured. Cached per polygon.
- */
-function slantedBody(polygon: PolygonGlyph, box: Extent, shear: number): Extent {
-  const corners = slantedBox(box, shear)
-  const hull = polygon.layoutHull
-  if (shear === 0 || !hull?.length) return corners
-  const cached = bodies.get(polygon)
-  if (cached && cached.shear === shear) return cached.extent
-  let minX = Infinity
-  let maxX = -Infinity
-  for (const p of hull) {
-    const x = p.x + shear * p.y
-    minX = Math.min(minX, x)
-    maxX = Math.max(maxX, x)
-  }
-  const extent = Number.isFinite(minX) && Number.isFinite(maxX) && minX <= maxX ? { ...corners, minX, maxX } : corners
-  bodies.set(polygon, { shear, extent })
-  return extent
 }
 
 /**

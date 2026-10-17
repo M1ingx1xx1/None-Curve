@@ -18,7 +18,7 @@ import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, layoutArtboard }
 import { placePolygons, shapeSpecimen } from '../../src/specimen/scene'
 import { LATIN_SAMPLE, loadFixture, sampleGlyphs, type FixtureFont } from './fonts'
 import { allFinite, contoursOf, outlineCrossings, sameContours } from './outline'
-import { ALL_DEFAULT, EFFECTS, GEOMETRY, on, paramsWith, SLIDER_MAX, THORN_FARTHEST, withoutEffects } from './params'
+import { ALL_DEFAULT, EFFECTS, GEOMETRY, on, paramsWith, SLIDER_MAX, withoutEffects } from './params'
 
 /** Path data of the SVG export: moves, lines and closes, with plain decimal numbers. */
 export const STRAIGHT_PATH = /^[MLZ0-9 .-]+$/
@@ -38,9 +38,6 @@ export const CONFIGS: Config[] = [
   { name: 'all five default, heavy Geometry', params: paramsWith(GEOMETRY.heavy, ALL_DEFAULT), recheckEvery: 6 },
   { name: 'Anchor spacing 1, Crumple at max', params: paramsWith(GEOMETRY.spacing1, SLIDER_MAX.crumple), recheckEvery: 10 },
   { name: 'Anchor spacing 1, Thorn default', params: paramsWith(GEOMETRY.spacing1, on('thorn')), recheckEvery: 10 },
-  // Thorns across a large canvas: far beyond the letter, where the merge works with the largest coordinates.
-  { name: 'Thorn default, Reach 100% of a 150 em canvas', params: paramsWith(GEOMETRY.plain, on('thorn', { canvasReach: 1, canvasEm: 150 })), recheckEvery: 3 },
-  { name: 'Thorn at slider max, reaching 256 em', params: paramsWith(GEOMETRY.plain, THORN_FARTHEST), recheckEvery: 6 },
 ]
 
 /** What went wrong with one glyph under one configuration, as readable lines (empty when nothing did). */

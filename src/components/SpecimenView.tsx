@@ -1,6 +1,5 @@
 import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import type { LoadedFont } from '../font/model'
-import { sourceGlyphToPath } from '../geometry/sourcePath'
 import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
 import {
@@ -11,7 +10,7 @@ import {
   isDarkColor,
   SNAP_GRID_CONTRAST,
 } from '../specimen/color'
-import type { Extent, SpecimenScene } from '../specimen/scene'
+import type { SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
 import GlyphLayers from './GlyphLayers'
@@ -62,22 +61,16 @@ interface SpecimenGlyphProps {
  * One glyph of the text. Memoised: when results for other glyphs arrive, or the view pans, the
  * glyphs whose shape and place did not change are not drawn again.
  */
-export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
+const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
   const { index, text, x, y, advance, skew, ascender, descender, source, polygon, view, markerRadius, showMarkers, selected, onSelect } = props
-  // The click target: the advance by the line (so small text and the inside of letters like "o" are
-  // easy to hit) and the drawn outlines. With Thorn, the drawn outlines ignore the pointer (see
-  // .specimen-glyph-thorned in styles.css), so thorns reaching across the canvas never catch clicks or
-  // drags; an invisible copy of the original outline takes the letter's clicks instead.
-  const thorned = polygon?.layoutBox !== undefined
   return (
     <g
-      className={`specimen-glyph${selected ? ' specimen-glyph-selected' : ''}${thorned ? ' specimen-glyph-thorned' : ''}`}
+      className={selected ? 'specimen-glyph specimen-glyph-selected' : 'specimen-glyph'}
       transform={`translate(${x} ${y})${skew} scale(1 -1)`}
       onClick={() => onSelect(index, text)}
     >
       <title>{text}</title>
       <rect className="glyph-box" x={0} y={descender} width={advance} height={ascender - descender} />
-      {thorned && <path className="glyph-box" d={sourceGlyphToPath(source)} />}
       <GlyphLayers source={source} polygon={polygon} view={view} markerRadius={markerRadius} showMarkers={showMarkers} />
     </g>
   )
@@ -112,6 +105,8 @@ export default function SpecimenView({
   onMoveText,
 }: SpecimenViewProps) {
   const { unitsPerEm, ascender, descender } = font.metrics
+  // Each glyph's invisible click target: its advance by the line (ascender to descender), so small
+  // text and the inside of letters like "o" are easy to hit.
 
   // Scene coordinates are y down (first baseline at 0); the canvas works in y up. Zoom 1 fits the artboard.
   const frame = useMemo(() => artboardViewFrame(layout), [layout])
@@ -259,9 +254,6 @@ export default function SpecimenView({
   const sceneTop = -top
   const sceneBottom = -bottom
   const margin = unitsPerEm
-  // A line or glyph is drawn when its metric box (advance by line, plus an em for overhangs and the
-  // original outlines) or its ink is in view, so thorns reaching in from far away do not pop in and out.
-  const inView = (b: Extent | null) => b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
   const firstVisibleLine = scene.lines.findIndex((line) => line.baseline - descender >= sceneTop)
   // Metric guides span the artboard (or the visible part of it), not the whole view.
   const guideLeft = Math.max(left, layout.x)
@@ -369,13 +361,11 @@ export default function SpecimenView({
 
             <g>
               {scene.lines.map((line, l) => {
-                const band = line.baseline - ascender - margin <= sceneBottom && line.baseline - descender + margin >= sceneTop
-                if (!band && !inView(line.ink)) return null
+                if (line.baseline - ascender - margin > sceneBottom || line.baseline - descender + margin < sceneTop) return null
                 return (
                   <g key={l}>
                     {line.glyphs.map((g, i) => {
-                      const near = band && g.x + g.advance + margin >= left && g.x - margin <= right
-                      if (!near && !inView(g.ink)) return null
+                      if (g.x + g.advance + margin < left || g.x - margin > right) return null
                       if (g.missing) {
                         return (
                           <rect

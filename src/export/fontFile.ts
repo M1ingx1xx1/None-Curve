@@ -9,7 +9,6 @@ import { signedArea } from '../geometry/flatten'
 import { deriveGeometry } from '../geometry/pipeline'
 import type { GeometryParams, GlyphRef, Point, PolygonGlyph } from '../geometry/types'
 import { specimenLines } from '../specimen/scene'
-import { FONT_BOX_LIMITS, fitToFontBox, glyphFontBox } from './fitGlyph'
 import { exportKerning, kerningDifferences, writeGpos } from './gpos'
 import { ExportError, quantizePolygon } from './quantize'
 import { patchFont } from './sfnt'
@@ -28,7 +27,6 @@ export const FONT_EXPORT_LIMITS = [
   'Pair kerning between the exported glyphs is exported (GPOS kern feature). Contextual and language-specific kerning, ligatures, mark positioning, and all other OpenType layout features are not.',
   'Hinting, color, and vertical-layout tables are not exported.',
   'A file holds at most 1,000,000 outline points; very dense settings (Anchor spacing near 1) reach that with a whole font.',
-  'Each glyph must fit in a square 32,766 font units across (16 em at 2048 units per em, 32.8 em at 1000), placed around the glyph; outline parts beyond it, such as long Thorn tips, are cut off at its edge.',
   'Variable fonts are exported as the default instance shown on the canvas; variation axes are dropped.',
   'Only glyphs reached through the character map are exported; glyphs used only by layout features are left out.',
   'Characters above U+FFFF (outside the Basic Multilingual Plane) are left out: the font writer cannot map them reliably, which read-back verification confirmed.',
@@ -158,8 +156,6 @@ export interface FontExportResult {
   kerning: boolean
   /** Glyphs left out because their outline could not be stored safely, with the reason. */
   excluded: { label: string; reason: string }[]
-  /** Glyphs written cut off at the edge of the square a font stores a glyph in (see fitGlyph.ts), by label. */
-  trimmed: string[]
 }
 
 export type FontExportStage = 'outlines' | 'writing' | 'verifying'
@@ -216,7 +212,6 @@ export async function buildFontFile(
   const glyphs = [notdefGlyph(opentype, font)]
   const usedNames = new Set(['.notdef'])
   const excluded: { label: string; reason: string }[] = []
-  const trimmed: string[] = []
   let points = 0
   const polygonOf = (index: number): PolygonGlyph => {
     const found = known?.(index)
@@ -244,16 +239,9 @@ export async function buildFontFile(
     const entry = plan.glyphs[i]
     let contours: Point[][]
     let advance: number
-    let cut: boolean
     try {
       const polygon = polygonOf(entry.index)
-      // The advance is written into the outline as one of its numbers (CFF), which hold at most 32767.
-      advance = Math.round(polygon.metrics.advanceWidth)
-      if (!Number.isFinite(advance) || advance < 0) throw new ExportError(`invalid advance width (${polygon.metrics.advanceWidth})`)
-      if (advance > INT16_MAX) throw new ExportError(`the advance width (${advance}) is more than ${INT16_MAX} units, more than a font can store`)
-      const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
-      cut = fitted.trimmed
-      contours = cffDirection(quantizePolygon(fitted.polygon, 0, `Glyph ${entry.label}`))
+      contours = cffDirection(quantizePolygon(polygon, 0, `Glyph ${entry.label}`))
       let xMin = Infinity
       let yMin = Infinity
       let xMax = -Infinity
@@ -266,13 +254,16 @@ export async function buildFontFile(
           if (p.y > yMax) yMax = p.y
         }
       }
-      // Fitting keeps glyphs inside these limits; checked again here, as nothing beyond them can be stored.
       if (xMin < INT16_MIN || xMax > INT16_MAX || yMin < INT16_MIN || yMax > INT16_MAX) {
         throw new ExportError('coordinates fall outside the range a font can store (±32767)')
       }
       // Outlines are stored as steps from point to point, each at most 32767 units along either axis.
       if (xMin <= xMax && Math.max(xMax - xMin, yMax - yMin) > INT16_MAX) {
         throw new ExportError(`the glyph is more than ${INT16_MAX} units across, more than a font can store`)
+      }
+      advance = Math.round(polygon.metrics.advanceWidth)
+      if (!Number.isFinite(advance) || advance < 0 || advance > 65535) {
+        throw new ExportError(`invalid advance width (${polygon.metrics.advanceWidth})`)
       }
     } catch (error) {
       const reason = (error instanceof Error ? error.message : String(error)).replace(`Glyph ${entry.label}: `, '')
@@ -296,7 +287,6 @@ export async function buildFontFile(
     glyphs.push(new opentype.Glyph({ name: glyphName(font, entry, usedNames), unicodes: entry.unicodes, advanceWidth: advance, path }))
     expected.push({ unicodes: entry.unicodes, advance, contours })
     newGid.set(entry.index, expected.length)
-    if (cut) trimmed.push(entry.label)
   }
 
   if (expected.length === 0) {
@@ -359,7 +349,7 @@ export async function buildFontFile(
   onProgress(plan.glyphs.length, plan.glyphs.length, 'verifying')
   await nextTask()
   signal.throwIfAborted()
-  await verifyFont(bytes, naming, expected, bounds, kerning, {
+  await verifyFont(bytes, naming, expected, kerning, {
     weightClass: style.weightClass,
     lineGap: Math.round(info.lineGap),
     typo: [Math.round(ascender), Math.round(descender), Math.round(font.metrics.lineGap)],
@@ -373,7 +363,6 @@ export async function buildFontFile(
     contourCount: expected.reduce((n, g) => n + g.contours.length, 0),
     kerning: kerning !== null,
     excluded,
-    trimmed,
   }
 }
 
@@ -532,14 +521,13 @@ function glyphName(font: LoadedFont, entry: PlannedGlyph, used: Set<string>): st
 /**
  * Reopens the written bytes with fontkit and compares them with what was meant to be written:
  * OpenType/CFF signature, family name, glyph count, line spacing, every character mapping, every
- * advance width, every contour point by point, including direction, each glyph within what a font
- * can store, the font's bounding box (head and CFF), and the kerning. Throws if anything differs.
+ * advance width, every contour point by point, including direction, and the kerning. Throws if
+ * anything differs.
  */
 async function verifyFont(
   bytes: ArrayBuffer,
   naming: FontNaming,
   expected: { unicodes: number[]; advance: number; contours: Point[][] }[],
-  bounds: Bounds,
   kerning: SourceKerning | null,
   meta: { weightClass: number; lineGap: number; typo: [number, number, number]; postScriptName: string },
 ) {
@@ -558,12 +546,10 @@ async function verifyFont(
   const problems: string[] = []
   if (parsed.familyName !== naming.familyName) problems.push(`family name reads back as “${parsed.familyName}”`)
   if (parsed.postscriptName !== meta.postScriptName) problems.push(`PostScript name reads back as “${parsed.postscriptName}”`)
-  // OS/2, hhea, head and CFF are part of fontkit's runtime API but not typed.
+  // OS/2 and hhea are part of fontkit's runtime API but not typed.
   const tables = parsed as unknown as {
     'OS/2'?: { version: number; usWeightClass: number; fsSelection: { useTypoMetrics: boolean }; typoAscender: number; typoDescender: number; typoLineGap: number }
     hhea?: { lineGap: number }
-    head?: { xMin: number; yMin: number; xMax: number; yMax: number }
-    'CFF '?: { topDict?: { FontBBox?: number[] } }
   }
   const os2 = tables['OS/2']
   if (os2?.usWeightClass !== meta.weightClass) problems.push(`weight class reads back as ${os2?.usWeightClass}`)
@@ -572,14 +558,6 @@ async function verifyFont(
   if (typo.some((v, i) => v !== meta.typo[i])) problems.push(`typographic metrics read back as ${typo.join(' / ')}`)
   if (!os2 || os2.version < 4 || !os2.fsSelection?.useTypoMetrics) problems.push('USE_TYPO_METRICS is not set')
   if (parsed.numGlyphs !== expected.length + 1) problems.push(`glyph count is ${parsed.numGlyphs}, expected ${expected.length + 1}`)
-  // The union of every glyph's points, .notdef included, in head and as the CFF FontBBox.
-  const box = [bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax]
-  if (!(bounds.xMin <= bounds.xMax && bounds.yMin <= bounds.yMax)) problems.push(`the font's bounding box is empty (${box.join(' ')})`)
-  const head = tables.head
-  const headBox = [head?.xMin, head?.yMin, head?.xMax, head?.yMax]
-  if (headBox.some((v, i) => v !== box[i])) problems.push(`the bounding box in head reads back as ${headBox.join(' ')}, expected ${box.join(' ')}`)
-  const cffBox = tables['CFF ']?.topDict?.FontBBox ?? []
-  if (box.some((v, i) => cffBox[i] !== v)) problems.push(`the CFF FontBBox reads back as ${cffBox.join(' ')}, expected ${box.join(' ')}`)
 
   expected.forEach((glyph, i) => {
     const id = i + 1
@@ -587,26 +565,12 @@ async function verifyFont(
       const mapped = parsed.glyphForCodePoint(cp)
       if (mapped.id !== id) problems.push(`${codePointLabel(cp)} maps to glyph ${mapped.id}, expected ${id}`)
     }
-    let advance: number
-    let contours: Point[][] | null
-    try {
-      const written = parsed.getGlyph(id)
-      advance = written.advanceWidth
-      contours = readContours(written.path.commands)
-    } catch (error) {
-      problems.push(`glyph ${id} could not be read back (${error instanceof Error ? error.message : error})`)
-      return
-    }
-    if (advance !== glyph.advance) problems.push(`glyph ${id} advance is ${advance}, expected ${glyph.advance}`)
+    const written = parsed.getGlyph(id)
+    if (written.advanceWidth !== glyph.advance) problems.push(`glyph ${id} advance is ${written.advanceWidth}, expected ${glyph.advance}`)
+    const contours = readContours(written.path.commands)
     if (!contours) {
       problems.push(`glyph ${id} contains curve commands or an unclosed contour`)
       return
-    }
-    const read = outlineBounds([contours.flat()])
-    const limit = FONT_BOX_LIMITS.maxCoordinate
-    if (Math.min(read.xMin, read.yMin) < -limit || Math.max(read.xMax, read.yMax) > limit) problems.push(`glyph ${id} has points beyond ±${limit}`)
-    else if (Math.max(read.xMax - read.xMin, read.yMax - read.yMin) > FONT_BOX_LIMITS.span) {
-      problems.push(`glyph ${id} is more than ${FONT_BOX_LIMITS.span} units across`)
     }
     if (contours.length !== glyph.contours.length) {
       problems.push(`glyph ${id} has ${contours.length} contours, expected ${glyph.contours.length}`)

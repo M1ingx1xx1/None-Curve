@@ -14,41 +14,26 @@
 //    Every mesh triangle is checked: while one would flip or flatten, the pull is halved, so each pull is
 //    one-to-one and keeps the glyph valid. Later thorns centre their mesh where earlier pulls moved their
 //    anchor; all pulls run as one warp, their composition.
-// 2. Tip: the anchor jumps the rest of its thorn's length, a sharp straight thorn. Its base (Width) reaches along the
+// 2. Tip: the anchor jumps the rest of the reach, a sharp straight thorn. Its base (Width) reaches along the
 //    outline on either side, up to the root's inner ring, so the thorn narrows on from the root.
 // 3. Refraction (optional): the letter as seen through fluted glass. Vertical strips (Flute width), each
 //    showing its part of the letter magnified about its middle, slid sideways and lifted or dropped, with the
 //    seams between them squeezed into steep breaks. x moves by a rising piecewise-linear function and y by a
-//    shift that depends on x alone, so the map is one-to-one at any strength. The glass covers only the letter
-//    (and a strip either side): a thorn's far end, which can reach across the canvas, is left as it is.
-// Reach is a share of the canvas diagonal: the app gives that diagonal in em (canvasEm), so at Reach 100% a thorn
-// can span the whole canvas whatever the text size.
+//    shift that depends on x alone, so the map is one-to-one at any strength.
 // A thorn may cross the letter or another thorn; the outlines are then merged at the end of the Experimental
 // effects (overlaps.ts), as when an effect folds.
 
 import type { GlyphBudget } from './budget'
 import { hashInts } from './distortion'
 import { signedArea } from './flatten'
-import { inkBox, type Box } from './ripple'
 import type { Point, PolygonGlyph, ThornParams } from './types'
 import { applyWarp, breakRuns, WARP_LIMITS, type CreaseMarks, type Warp, type WarpStats } from './warp'
-
-/** A canvas's diagonal over the text size: the diagonal in em, to 0.01 em. */
-const diagonalEm = (width: number, height: number, size: number) => Math.round((Math.hypot(width, height) / size) * 100) / 100
 
 export const THORN_LIMITS = {
   minCount: 1,
   maxCount: 12,
-  /**
-   * The canvas diagonal in em that Reach is a share of when the app gives none (ThornParams.canvasEm): the default
-   * canvas, 1200 × 800 px, at the default 48 px text (about 30 em).
-   */
-  defaultCanvasEm: diagonalEm(1200, 800, 48),
-  /**
-   * The longest jump in em, whatever the canvas (small text on a large canvas spans over 1000 em): a safety cap that
-   * keeps every merge within its exact grid (see OVERLAP_LIMITS.maxCoordinate).
-   */
-  maxReachEm: 256,
+  /** Longest jump, as a share of the em. */
+  maxReach: 2,
   /** Each anchor jumps at least this share of Reach (the rest is random, up to all of it). */
   minShare: 0.35,
   /** The narrowest base (Width 0), as a share of how far a base may reach: the root's inner ring, or the anchor's shorter edge. */
@@ -122,17 +107,7 @@ const CHANNEL = { pick: 0x5a1, direction: 0x5a2, distance: 0x5a3, lean: 0x5a4, s
 const UINT = 0x1_0000_0000
 
 export function thornIsOn(params: ThornParams | undefined): params is ThornParams {
-  return !!params && params.enabled && finite(params.count, 0) >= THORN_LIMITS.minCount && finite(params.canvasReach, 0) > 0
-}
-
-/**
- * The canvas diagonal in em (ThornParams.canvasEm): the artboard's diagonal over the text size, both in px, to 0.01 em.
- * The default canvas's (THORN_LIMITS.defaultCanvasEm) for sizes that are not finite and positive.
- */
-export function canvasDiagonalEm(width: number, height: number, size: number): number {
-  if (![width, height, size].every((v) => Number.isFinite(v) && v > 0)) return THORN_LIMITS.defaultCanvasEm
-  const em = diagonalEm(width, height, size)
-  return Number.isFinite(em) && em > 0 ? em : THORN_LIMITS.defaultCanvasEm
+  return !!params && params.enabled && finite(params.count, 0) >= THORN_LIMITS.minCount && finite(params.reach, 0) > 0
 }
 
 /** A chosen anchor: where it is, which way and how far its thorn goes. */
@@ -164,9 +139,7 @@ export function applyThorn(
 ): { polygon: PolygonGlyph; stats: ThornStats } {
   const stats = emptyThornStats()
   const count = Math.round(clamp(finite(params.count, 3), THORN_LIMITS.minCount, THORN_LIMITS.maxCount))
-  // The longest a thorn may be: a share of the canvas diagonal, in em up to the safety cap.
-  const canvasEm = Math.min(positive(params.canvasEm, THORN_LIMITS.defaultCanvasEm), THORN_LIMITS.maxReachEm)
-  const maxLength = clamp(finite(params.canvasReach, 0), 0, 1) * canvasEm * unitsPerEm
+  const reach = clamp(finite(params.reach, 0.5), 0, THORN_LIMITS.maxReach) * unitsPerEm
   const spread = clamp(finite(params.spread, 0.5), 0, 1)
   const width = clamp(finite(params.width, 1), THORN_LIMITS.minWidth, 1)
   const radius = clamp(finite(params.root, THORN_FALLBACK.root), 0, 1) * THORN_LIMITS.maxRoot * unitsPerEm
@@ -185,7 +158,7 @@ export function applyThorn(
   candidates.sort((a, b) => a.rank - b.rank || a.contour - b.contour || a.index - b.index)
 
   const thorns: Thorn[] = []
-  for (const { contour, index } of maxLength > 0 ? candidates.slice(0, count) : []) {
+  for (const { contour, index } of reach > 0 ? candidates.slice(0, count) : []) {
     const points = contours[contour]
     const p = points[index]
     const normal = outwardNormal(points, index)
@@ -200,7 +173,7 @@ export function applyThorn(
       index,
       anchor: p,
       direction: { x: normal.x * cos - normal.y * sin, y: normal.x * sin + normal.y * cos },
-      length: maxLength * share,
+      length: reach * share,
       lean: (hashInts(seed, CHANNEL.lean, ...key) / UINT) * 2 - 1,
     })
   }
@@ -213,8 +186,6 @@ export function applyThorn(
     stats.tooComplex ||= s.tooComplex
   }
   const maxPoints = budget?.maxWarpPoints ?? Infinity
-  // The letter's ink box before the tips grow: refraction covers only it (see fluteWarp).
-  let letter: Box | null = null
 
   if (thorns.length > 0) {
     // 1. Roots, all at once as one warp. Each anchor is kept as an input vertex, so tidying never removes it.
@@ -247,7 +218,6 @@ export function applyThorn(
       })
     }
 
-    if (refraction > 0) letter = inkBox(result)
     // 2. Tips: each anchor jumps the rest of its thorn's length. Its base reaches Width × the root's inner ring
     // (or × the anchor's shorter edge, if that is longer) along the outline on either side.
     const tips = result.contours.map(() => new Map<number, Tip>())
@@ -275,9 +245,8 @@ export function applyThorn(
   }
 
   // 3. Refraction. Once a thorn is added, the outlines may cross, so nothing is checked: they are merged next.
-  const glass = refraction > 0 ? (letter ?? inkBox(result)) : null
-  if (glass) {
-    const refracted = applyWarp(result, (scale) => fluteWarp(refraction * scale, flute, seed, glass), unitsPerEm, resultMarks, folds || stats.applied, maxPoints)
+  if (refraction > 0 && result.contours.length > 0) {
+    const refracted = applyWarp(result, (scale) => fluteWarp(refraction * scale, flute, seed), unitsPerEm, resultMarks, folds || stats.applied, maxPoints)
     warpStats(refracted.stats)
     result = refracted.polygon
     resultMarks = refracted.marks
@@ -537,38 +506,20 @@ function barycentric(p: Point, a: Point, b: Point, c: Point): [number, number, n
 // ---- Refraction ----
 
 /**
- * Fluted glass at `strength` (0–1): vertical strips `width` wide from the glyph's origin, over `letter` (its ink box
- * before the tips grow) and one strip either side; beyond them the glass is plain and leaves every point where it is,
- * so a thorn's far end gains no points however far it reaches. The middle of strip k shows its part of the letter
- * magnified about the strip's middle, slid sideways and moved up or down (seeded); the seams between strips are
- * squeezed to join them up, so the strips look cut apart. Every piece is linear, so straight edges bend only at the
- * seams' sides.
- *
- * y moves by a shift that depends on x alone, so the map is one-to-one while x keeps rising. With half a seam s each
- * side of a strip's edge, magnification m and room r = 2s - (m - 1)(w - 2s) (r ≥ 0.09w, as s = 0.15w and m - 1 ≤ 0.3),
- * every slide lies within ±0.4r, and:
- * - inside a strip, x rises by m (fluted) or 1 (plain);
- * - a seam between fluted strips sliding by a (left) and b (right) is r + b - a ≥ 0.2r wide on the image;
- * - a seam between a fluted strip sliding by a and plain glass is r + (m - 1)(w/2 - s) ∓ a ≥ 0.6r wide (- with the
- *   fluted strip on the left): the plain side does not magnify, which only widens it;
- * - a seam between plain strips is plain.
- * The letter lies in fluted strips and the seams between them, a whole strip from plain glass, so it looks exactly as
- * through glass that goes on forever.
+ * Fluted glass at `strength` (0–1): vertical strips `width` wide from the glyph's origin. The middle of strip k
+ * shows its part of the letter magnified about the strip's middle, slid sideways and moved up or down (seeded);
+ * the seams between strips are squeezed to join them up, so the strips look cut apart. Every piece is linear, so
+ * straight edges bend only at the seams' sides.
  */
-function fluteWarp(strength: number, width: number, seed: number, letter: { minX: number; maxX: number }): Warp {
+function fluteWarp(strength: number, width: number, seed: number): Warp {
   const seam = (FLUTE.seam * width) / 2
   const magnify = 1 + FLUTE.magnify * strength
   // How wide a seam's image is when its two strips do not slide: x keeps rising while they slide apart by less.
   const room = 2 * seam - (magnify - 1) * (width - 2 * seam)
-  // The fluted strips: the letter's, and one either side.
-  const first = Math.floor(letter.minX / width) - 1
-  const last = Math.floor(letter.maxX / width) + 1
-  const fluted = (k: number) => k >= first && k <= last
   const slide = (k: number) => strength * FLUTE.slide * (room / 2) * ((hashInts(seed, CHANNEL.slide, k) / UINT) * 2 - 1)
   const lift = (k: number) => strength * FLUTE.lift * width * ((hashInts(seed, CHANNEL.lift, k) / UINT) * 2 - 1)
-  /** The image of x (and the lift there) inside the middle of strip k: where plain, x itself. */
+  /** The image of x (and the lift there) inside the middle of strip k. */
   const middle = (k: number, x: number) => {
-    if (!fluted(k)) return { x, lift: 0 }
     const centre = (k + 0.5) * width
     return { x: centre + slide(k) + magnify * (x - centre), lift: lift(k) }
   }
@@ -578,8 +529,6 @@ function fluteWarp(strength: number, width: number, seed: number, letter: { minX
       const u = p.x - k * width
       // In a seam: between the middles of the strips on either side of it.
       const seamOf = u < seam ? k : u > width - seam ? k + 1 : null
-      // Plain glass, in a strip or a seam between two.
-      if (seamOf === null ? !fluted(k) : !fluted(seamOf - 1) && !fluted(seamOf)) return p
       if (seamOf === null) {
         const m = middle(k, p.x)
         return { x: m.x, y: p.y + m.lift }
@@ -595,8 +544,7 @@ function fluteWarp(strength: number, width: number, seed: number, letter: { minX
       const lo = Math.min(a.x, b.x)
       const hi = Math.max(a.x, b.x)
       const ts: number[] = []
-      // Only the seams beside a fluted strip bend: from the first fluted strip's left edge to the last one's right.
-      for (let k = Math.max(Math.floor((lo - seam) / width), first); k * width - seam < hi && k <= last + 1; k++) {
+      for (let k = Math.floor((lo - seam) / width); k * width - seam < hi; k++) {
         for (const x of [k * width - seam, k * width + seam]) {
           if (x > lo && x < hi) ts.push((x - a.x) / (b.x - a.x))
         }
@@ -673,10 +621,6 @@ function outwardNormal(points: readonly Point[], index: number): Point | null {
 
 function finite(value: number | undefined, fallback: number): number {
   return Number.isFinite(value) ? (value as number) : fallback
-}
-
-function positive(value: number | undefined, fallback: number): number {
-  return Number.isFinite(value) && (value as number) > 0 ? (value as number) : fallback
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
 import { formatCodePoint } from '../font/model'
-import { canvasDiagonalEm, THORN_LIMITS } from '../geometry/thorn'
 import type { GlyphRef } from '../geometry/types'
 import { useLiveDriving } from '../sound/live'
 import type { Action } from '../state/editorState'
@@ -66,9 +65,6 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
   const common = { pending: derived.pending || driving, disabled: !font, dispatch }
   // The same element while the glyph stays, so the memoized Experimental controls skip live frames.
   const statistics = useMemo(() => font && <StatisticsTarget glyph={selectedGlyph} />, [font, selectedGlyph])
-  // Thorn's Reach at 100%, in em, for its explanation: a number, so the Experimental controls skip renders while it holds.
-  const { typography, artboard } = state.params
-  const reachEm = Math.min(canvasDiagonalEm(artboard.width, artboard.height, typography.size), THORN_LIMITS.maxReachEm)
   const ids = useId()
   const [tab, setTab] = useState<Tab>(readTab)
   // The tabs opened so far: a lazy panel mounts on its first visit and stays mounted afterwards.
@@ -161,7 +157,6 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
               params={state.params.experimental}
               stats={geometry?.experimental ?? null}
               statistics={statistics}
-              reachEm={reachEm}
               {...common}
             />
           </Suspense>

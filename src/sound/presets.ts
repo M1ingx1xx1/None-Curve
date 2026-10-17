@@ -122,11 +122,10 @@ export const PRESETS: readonly Preset[] = [
     name: 'Flare',
     description: 'Thorns shoot out of a few anchors per letter as it gets louder; on every beat they jump somewhere new and briefly multiply.',
     // Reach 0: no thorns (and no root pull) while it is quiet. A shallower root keeps the strokes readable.
-    start: [effect('thorn', { enabled: true, count: 1, canvasReach: 0, root: 0.25 })],
+    start: [effect('thorn', { enabled: true, count: 1, reach: 0, root: 0.25 })],
     mappings: [
       map('beat', 'experimental.seed', 1),
-      // Half the cubic Reach slider at full level: an eighth of the canvas diagonal (about 4 em on the default canvas).
-      map('level', 'experimental.thorn.canvasReach', 0.5),
+      map('level', 'experimental.thorn.reach', 0.3),
       map('beat', 'experimental.thorn.count', 0.15),
     ],
   },
