@@ -25,7 +25,7 @@ import {
   type TextPosition,
 } from '../specimen/artboard'
 import { DEFAULT_TEXT } from '../specimen/samples'
-import { DEFAULT_PREVIEW_LOOK, MAX_PREVIEW_BLUR, type PreviewLook } from '../specimen/previewLook'
+import { DEFAULT_PREVIEW_LOOK, MAX_PREVIEW_BLUR, PREVIEW_BLUR_STEP, type PreviewLook } from '../specimen/previewLook'
 import { initialState, withThornCanvasEm } from './editorState'
 import { reachFromSlider, roundReach, THORN_REACH } from './sliderScales'
 import type { OutlineView, SettingsParams, ViewToggles } from './types'
@@ -305,7 +305,7 @@ export function readSession(raw: unknown): Session | null {
   if (!isObject(raw)) return null
   const saved = migrate(raw)
   const look = isObject(saved.previewLook) ? saved.previewLook : {}
-  const blur = typeof look.blur === 'number' && Number.isFinite(look.blur) ? Math.round(clamp(look.blur, 0, MAX_PREVIEW_BLUR) * 2) / 2 : DEFAULT_PREVIEW_LOOK.blur
+  const blur = typeof look.blur === 'number' && Number.isFinite(look.blur) ? snapToStep(clamp(look.blur, 0, MAX_PREVIEW_BLUR), PREVIEW_BLUR_STEP) : DEFAULT_PREVIEW_LOOK.blur
   const precision = saved.precision
   return {
     params: sanitize(DEFAULT_SETTINGS, saved.params),

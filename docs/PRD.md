@@ -210,7 +210,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 
 - Use a dark, high-contrast, minimal visual language that supports outline inspection and form-making.
 - Prefer designer-friendly labels such as “Curve approximation,” “Lines per curve,” and “Anchor spacing.”
-- Show both a slider and numeric input for key parameters, supporting exploration and precise values.
+- Show a number box beside every slider, in the unit of its label, supporting exploration and precise values; sliders move in fine steps (1% for shares, 1% of the em for sizes, 1° for angles).
 - Use distinct markers or colors for source skeleton points and polygon vertices.
 - Give each core control a short explanation; explain specialized terms in tooltips.
 - Cover empty, loading, parsing-error, and export-complete states.

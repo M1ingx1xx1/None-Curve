@@ -23,7 +23,7 @@ export const JUMP_LIMITS = {
 } as const
 
 const NO_JUMPS: ReadonlyMap<string, number> = new Map()
-/** Progress this close under a whole number counts as reaching it (Rate steps of 5% do not add up exactly). */
+/** Progress this close under a whole number counts as reaching it (Rate steps of 1% do not add up exactly). */
 const EPSILON = 1e-9
 
 /**

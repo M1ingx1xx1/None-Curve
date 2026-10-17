@@ -7,6 +7,7 @@ import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
+import SliderNumber from './SliderNumber'
 import LiveSeed from './LiveSeed'
 import { sameControlProps } from './sameControlProps'
 
@@ -98,10 +99,14 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
               <label htmlFor="random-density">Density</label>
               <HintButton hint={densityHint} topic="Density" />
             </span>
-            <output htmlFor="random-density">
-              {params.density}
-              <span className="unit">/1000 u</span>
-            </output>
+            <SliderNumber
+              {...SLIDER_RANGES['random.density']}
+              value={params.density}
+              unit="/1000 u"
+              label="Density"
+              disabled={off}
+              onCommit={(density) => update({ density })}
+            />
           </div>
           <span className="live-slider">
             <input
@@ -128,7 +133,15 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
               <label htmlFor="random-randomness">Randomness</label>
 
             </span>
-            <output htmlFor="random-randomness">{percent}%</output>
+            <SliderNumber
+              {...SLIDER_RANGES['random.randomness']}
+              value={params.randomness}
+              scale={100}
+              unit="%"
+              label="Randomness"
+              disabled={off}
+              onCommit={(randomness) => update({ randomness })}
+            />
           </div>
           <span className="live-slider">
             <input
