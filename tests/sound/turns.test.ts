@@ -791,8 +791,9 @@ describe('the live scheduler with Thorn turns', () => {
     // again when Crumple lost Detail (NOCUR-60); with that field put back it gives the f4483b5 value (12b619b8).
     // Pinned again when the sliders got finer steps (NOCUR-63): live values snap to the finer steps; with the old
     // steps put back in SLIDER_RANGES it gives 50d3f31c. Pinned again when Ripple and Thorn got Reverse (NOCUR-68);
-    // with the reverse fields taken out it gives 82cf3338.
-    expect(hash.hex).toBe('01f752f0')
+    // with the reverse fields taken out it gives 82cf3338. Pinned again when Thorn got Burst (NOCUR-70); with the burst,
+    // spikes and dent fields taken out it gives 01f752f0.
+    expect(hash.hex).toBe('d9ba287f')
   })
 
   it('every letter shows slider values and seeds the panel could set, the same turn state across its group and levels', () => {

@@ -1,7 +1,7 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
 import type { SlipstreamStats } from '../geometry/slipstream'
-import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
+import { BURST_REACH, THORN_LIMITS, type ThornStats } from '../geometry/thorn'
 import type { CrumpleParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import type { Action } from '../state/editorState'
@@ -31,7 +31,7 @@ export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false },
+  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false, burst: false, spikes: 40, dent: 0.8 },
 }
 
 const percent = (v: number) => Math.round(v * 100)
@@ -597,7 +597,12 @@ function ThornGroup({
   const root = params.root ?? DEFAULT_EXPERIMENTAL.thorn.root
   const refraction = params.refraction ?? 0
   const flute = params.flute ?? DEFAULT_EXPERIMENTAL.thorn.flute
+  const burst = params.burst === true
+  const spikes = params.spikes ?? DEFAULT_EXPERIMENTAL.thorn.spikes
+  const dent = params.dent ?? DEFAULT_EXPERIMENTAL.thorn.dent
   const introHint = useHint()
+  const burstHint = useHint()
+  const dentHint = useHint()
   const countHint = useHint()
   const reachHint = useHint()
   const reverseHint = useHint()
@@ -618,25 +623,56 @@ function ThornGroup({
           A few anchors on the outside of each letter jump out into the canvas as long, straight thorns and pull the letter
           along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows the letter through fluted
           glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump somewhere new.
-          Runs after Slipstream.
+          Burst instead grows many spikes all round each letter. Runs after Slipstream.
         </HintText>
 
         <div className="field field-toggle">
           <input id="thorn-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="thorn-enabled">Use thorn</label>
         </div>
+        <div className="field field-toggle">
+          <input
+            id="thorn-burst"
+            type="checkbox"
+            checked={burst}
+            disabled={off}
+            aria-describedby={burstHint.id}
+            onChange={(e) => update({ burst: e.target.checked })}
+          />
+          <label htmlFor="thorn-burst">Burst</label>
+          <HintButton hint={burstHint} topic="Burst" />
+        </div>
+        <HintText hint={burstHint}>
+          The letter explodes: many straight spikes grow all round it, into its counters too, and the outline between them
+          sinks into the strokes, so they look thin and broken. Anchors then counts spikes (up to{' '}
+          {THORN_LIMITS.maxSpikes}), Dent sets how deep the outline sinks, and Root is not used.
+        </HintText>
 
-        <RangeField
-          id="thorn-count"
-          target="experimental.thorn.count"
-          label="Anchors"
-          value={params.count}
-          valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
-          disabled={off}
-          hint={countHint}
-          hintText="How many anchors of each letter jump."
-          onChange={(count) => update({ count })}
-        />
+        {burst ? (
+          <RangeField
+            id="thorn-spikes"
+            target="experimental.thorn.spikes"
+            label="Anchors"
+            value={spikes}
+            valueText={`${spikes} spikes`}
+            disabled={off}
+            hint={countHint}
+            hintText="How many spikes grow from each letter, spread evenly round all its outlines, counters included."
+            onChange={(spikes) => update({ spikes })}
+          />
+        ) : (
+          <RangeField
+            id="thorn-count"
+            target="experimental.thorn.count"
+            label="Anchors"
+            value={params.count}
+            valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
+            disabled={off}
+            hint={countHint}
+            hintText="How many anchors of each letter jump."
+            onChange={(count) => update({ count })}
+          />
+        )}
         <RangeField
           id="thorn-reach"
           target="experimental.thorn.canvasReach"
@@ -648,7 +684,11 @@ function ThornGroup({
           valueText={`${reachPercent(params.canvasReach)} percent of the canvas`}
           disabled={off}
           hint={reachHint}
-          hintText={`How far the anchors jump, as a share of the canvas diagonal: at 100% a thorn can cross the whole canvas. Each goes a random 35–100% of it. At this text size and canvas, 100% is about ${ems(reachEm)} em.`}
+          hintText={
+            burst
+              ? `How long the spikes are, as a share of the canvas diagonal: the longest is ${percent(BURST_REACH)}% of that share, most are much shorter. At this text size and canvas, 100% gives spikes up to about ${ems(reachEm * BURST_REACH)} em.`
+              : `How far the anchors jump, as a share of the canvas diagonal: at 100% a thorn can cross the whole canvas. Each goes a random 35–100% of it. At this text size and canvas, 100% is about ${ems(reachEm)} em.`
+          }
           onChange={(canvasReach) => update({ canvasReach })}
         />
         <div className="field field-toggle">
@@ -665,8 +705,21 @@ function ThornGroup({
         </div>
         <HintText hint={reverseHint}>
           Thorns shoot into the letter instead of out of it. Through strokes they cut a slit; across counters and past the
-          far side they show as ink.
+          far side they show as ink. In Burst, the outline between spikes bulges out instead of sinking in.
         </HintText>
+        <RangeField
+          id="thorn-dent"
+          target="experimental.thorn.dent"
+          label="Dent"
+          value={dent}
+          scale={100}
+          unit="%"
+          valueText={`${percent(dent)} percent`}
+          disabled={off || !burst}
+          hint={dentHint}
+          hintText="In Burst: how deep the outline between spikes sinks into the strokes, in a few straight cuts. 0%: the outline stays as it was."
+          onChange={(dent) => update({ dent })}
+        />
         <RangeField
           id="thorn-root"
           target="experimental.thorn.root"
@@ -675,9 +728,9 @@ function ThornGroup({
           scale={100}
           unit="%"
           valueText={`${percent(root)} percent`}
-          disabled={off}
+          disabled={off || burst}
           hint={rootHint}
-          hintText={`How much of the letter around each anchor its thorn pulls along, up to ${percent(THORN_LIMITS.maxRoot)}% of the em away. The thorn grows from a wide root that narrows to its tip, and the strokes and counters inside the root lean and bend with it. 0%: the thorns are only added on.`}
+          hintText={`How much of the letter around each anchor its thorn pulls along, up to ${percent(THORN_LIMITS.maxRoot)}% of the em away. The thorn grows from a wide root that narrows to its tip, and the strokes and counters inside the root lean and bend with it. 0%: the thorns are only added on. Not used in Burst.`}
           onChange={(root) => update({ root })}
         />
         <RangeField
@@ -736,13 +789,15 @@ function ThornGroup({
         {stats?.applied && (
           <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
             <div>
-              <dt>Thorns</dt>
+              <dt>{burst ? 'Spikes' : 'Thorns'}</dt>
               <dd>{stats.thorns}</dd>
             </div>
-            <div>
-              <dt>Roots</dt>
-              <dd>{stats.roots}</dd>
-            </div>
+            {!burst && (
+              <div>
+                <dt>Roots</dt>
+                <dd>{stats.roots}</dd>
+              </div>
+            )}
             <div>
               <dt>Longest</dt>
               <dd>
