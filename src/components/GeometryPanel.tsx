@@ -171,7 +171,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
       <div {...panel('sound')}>
         {opened.has('sound') && (
           <Suspense fallback={null}>
-            <SoundControls params={state.params} dispatch={dispatch} />
+            <SoundControls params={state.params} dispatch={dispatch} axes={font?.axes} />
           </Suspense>
         )}
       </div>

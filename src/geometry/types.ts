@@ -269,6 +269,11 @@ export interface GeometryParams {
   grid: GridParams
   distortion: DistortionParams
   experimental: ExperimentalParams
+  /**
+   * Variable font axis values to read the outlines at, by axis tag, while Sound drives an axis (LoadedFont.at);
+   * missing, the font's own instance. Only on live parameters: never in the state, undo history or saved sessions.
+   */
+  variation?: Readonly<Record<string, number>>
 }
 
 /** Glyphs to compute under one parameter set (`key` stands for `params`), most important first. */

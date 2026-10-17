@@ -11,6 +11,7 @@ import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import LiveMarker from './LiveMarker'
 import LiveSeed from './LiveSeed'
+import { LiveSwitch } from './LiveValue'
 import SliderNumber from './SliderNumber'
 import { sameControlProps } from './sameControlProps'
 
@@ -184,6 +185,7 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
         <div className="field field-toggle">
           <input id="crumple-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="crumple-enabled">Use crumple</label>
+          <LiveSwitch target="experimental.crumple.enabled" />
         </div>
 
         <RangeField
@@ -257,6 +259,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
         <div className="field field-toggle">
           <input id="ripple-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="ripple-enabled">Use ripple</label>
+          <LiveSwitch target="experimental.ripple.enabled" />
         </div>
 
         <RangeField
@@ -283,6 +286,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           />
           <label htmlFor="ripple-reverse">Reverse</label>
           <HintButton hint={reverseHint} topic="Reverse" />
+          <LiveSwitch target="experimental.ripple.reverse" />
         </div>
         <HintText hint={reverseHint}>
           Swaps out and in: rings that were pushed out are pulled in, and petals point at the middle of each side instead of
@@ -390,6 +394,7 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
         <div className="field field-toggle">
           <input id="whorl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="whorl-enabled">Use whorl</label>
+          <LiveSwitch target="experimental.whorl.enabled" />
         </div>
 
         <RangeField
@@ -486,6 +491,7 @@ function SlipstreamGroup({
         <div className="field field-toggle">
           <input id="slipstream-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="slipstream-enabled">Use slipstream</label>
+          <LiveSwitch target="experimental.slipstream.enabled" />
         </div>
 
         <RangeField
@@ -639,6 +645,7 @@ function ThornGroup({
         <div className="field field-toggle">
           <input id="thorn-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="thorn-enabled">Use thorn</label>
+          <LiveSwitch target="experimental.thorn.enabled" />
         </div>
         <div className="field field-toggle">
           <input
@@ -651,6 +658,7 @@ function ThornGroup({
           />
           <label htmlFor="thorn-burst">Burst</label>
           <HintButton hint={burstHint} topic="Burst" />
+          <LiveSwitch target="experimental.thorn.burst" />
         </div>
         <HintText hint={burstHint}>
           The letter explodes: many straight spikes grow all round it, into its counters too, and the outline between them
@@ -712,6 +720,7 @@ function ThornGroup({
           />
           <label htmlFor="thorn-reverse">Reverse</label>
           <HintButton hint={reverseHint} topic="Reverse" />
+          <LiveSwitch target="experimental.thorn.reverse" />
         </div>
         <HintText hint={reverseHint}>
           Thorns shoot into the letter instead of out of it. Through strokes they cut a slit; across counters and past the
@@ -865,6 +874,7 @@ function DissolveGroup({
         <div className="field field-toggle">
           <input id="dissolve-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
           <label htmlFor="dissolve-enabled">Use dissolve</label>
+          <LiveSwitch target="experimental.dissolve.enabled" />
         </div>
 
         <RangeField

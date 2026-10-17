@@ -60,9 +60,9 @@ export async function parseFont(bytes: Uint8Array, source: FontSource, signal: A
   if (weight !== null && axis && weight !== axis.default) {
     const value = Math.min(axis.max, Math.max(axis.min, weight))
     const instance = instanceAt(fontkit, font, bytes, { wght: value })
-    if (instance) return buildLoadedFont(instance, format, source, bytes, { wght: value }, null)
+    if (instance) return buildLoadedFont(fontkit, instance, format, source, bytes, { wght: value }, null)
   }
-  return buildLoadedFont(font, format, source, bytes, null, collection)
+  return buildLoadedFont(fontkit, font, format, source, bytes, null, collection)
 }
 
 interface Collection {
@@ -114,19 +114,31 @@ function describeFace(font: Font, index: number): CollectionFace & { hidden: boo
 
 /**
  * The font with these axis values applied, or null if fontkit cannot apply them. fontkit can only vary
- * TrueType files, so a WOFF2 file is first rebuilt as TrueType.
+ * TrueType files, so a WOFF2 file is first rebuilt as TrueType (`base`: rebuilt once by the caller).
  */
-function instanceAt(fontkit: typeof import('fontkit'), font: Font, bytes: Uint8Array, settings: Record<string, number>): Font | null {
+function instanceAt(
+  fontkit: typeof import('fontkit'),
+  font: Font,
+  bytes: Uint8Array,
+  settings: Record<string, number>,
+  base = variableBase(fontkit, font, bytes),
+): Font | null {
   try {
-    let base = font
-    if (font.type === 'WOFF2') {
-      const trueType = woff2ToTrueType(fontkit.create(bytes as unknown as Buffer))
-      if (!trueType) return null
-      base = fontkit.create(trueType as unknown as Buffer) as Font
-    }
+    if (!base) return null
     const instance = base.getVariation(settings)
     void instance.getGlyph(0).path // fails here, not later, if the variation data cannot be read
     return instance
+  } catch {
+    return null
+  }
+}
+
+/** The font fontkit can vary: the font itself, or a WOFF2 file rebuilt as TrueType; null if that fails. */
+function variableBase(fontkit: typeof import('fontkit'), font: Font, bytes: Uint8Array): Font | null {
+  try {
+    if (font.type !== 'WOFF2') return font
+    const trueType = woff2ToTrueType(fontkit.create(bytes as unknown as Buffer))
+    return trueType ? (fontkit.create(trueType as unknown as Buffer) as Font) : null
   } catch {
     return null
   }
@@ -145,6 +157,7 @@ const WEIGHT_NAMES: Record<number, string> = {
 }
 
 function buildLoadedFont(
+  fontkit: typeof import('fontkit'),
   colourFont: Font,
   format: FontFormat,
   source: FontSource,
@@ -193,8 +206,6 @@ function buildLoadedFont(
     axis ? [{ tag, name: axis.name, min: axis.min, default: axis.default, max: axis.max }] : [],
   )
 
-  const outlineCache = new Map<number, SourceGlyph>()
-  const previewCache = new Map<number, string>()
   let kerning: SourceKerning | null | undefined
 
   const refFor = (index: number): GlyphRef => ({
@@ -219,7 +230,7 @@ function buildLoadedFont(
     info.macStyle = instance.wght >= 700 ? info.macStyle | 1 : info.macStyle & ~1
   }
 
-  return {
+  const loaded: LoadedFont = {
     id: `font-${++loadId}`,
     source,
     format,
@@ -241,6 +252,64 @@ function buildLoadedFont(
       if (kerning === undefined) kerning = readKerning(font)
       return kerning
     },
+    ...glyphAccess(font, metrics, refFor),
+  }
+  // Sound driving an axis: the same font at other axis values, for its outlines and shaping alone.
+  if (axes.length) loaded.at = instances(fontkit, font, bytes, axes, instance, loaded, metrics, refFor)
+  return loaded
+}
+
+/** How many instances at other axis values a font keeps (the most recently used). */
+const MAX_INSTANCES = 24
+
+/**
+ * `LoadedFont.at` for a variable font: the font at these axis values, merged over its own instance and clamped to each
+ * axis; unknown tags are ignored. The font itself when they are its own values (or fontkit cannot vary it). The
+ * instance shares everything with the font (id, metrics, characters, kerning) but its outlines and shaping.
+ */
+function instances(
+  fontkit: typeof import('fontkit'),
+  font: Font,
+  bytes: Uint8Array,
+  axes: VariationAxis[],
+  own: Record<string, number> | null,
+  loaded: LoadedFont,
+  metrics: FontMetrics,
+  refFor: (index: number) => GlyphRef,
+): NonNullable<LoadedFont['at']> {
+  const made = new Map<string, LoadedFont>()
+  let base: Font | null | undefined
+  return (coords) => {
+    const settings: Record<string, number> = {}
+    let differs = false
+    for (const axis of axes) {
+      const ownValue = own?.[axis.tag] ?? axis.default
+      const asked = coords[axis.tag]
+      const value = typeof asked === 'number' && Number.isFinite(asked) ? Math.min(axis.max, Math.max(axis.min, asked)) : ownValue
+      if (value !== ownValue) differs = true
+      settings[axis.tag] = value
+    }
+    if (!differs) return loaded
+    const key = JSON.stringify(settings)
+    let instance = made.get(key)
+    if (instance) {
+      made.delete(key)
+    } else {
+      if (base === undefined) base = variableBase(fontkit, font, bytes)
+      const varied = instanceAt(fontkit, font, bytes, settings, base)
+      instance = varied ? { ...loaded, instance: settings, ...glyphAccess(useOutlineGlyphs(varied), metrics, refFor) } : loaded
+    }
+    made.set(key, instance)
+    while (made.size > MAX_INSTANCES) made.delete(made.keys().next().value!)
+    return instance
+  }
+}
+
+/** Shaping, outlines and previews read from `font`, each kept once read. */
+function glyphAccess(font: Font, metrics: FontMetrics, refFor: (index: number) => GlyphRef): Pick<LoadedFont, 'shapeLine' | 'getGlyph' | 'getPreviewPath'> {
+  const outlineCache = new Map<number, SourceGlyph>()
+  const previewCache = new Map<number, string>()
+  return {
     shapeLine(text) {
       const chars = [...text]
       let run: ReturnType<Font['layout']>

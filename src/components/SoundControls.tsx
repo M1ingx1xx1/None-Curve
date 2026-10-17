@@ -1,6 +1,6 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { getRecorder } from '../export/recorder'
-import type { GeometryParams } from '../geometry/types'
+import type { VariationAxis } from '../font/model'
 import type { SoundEngine } from '../sound/engine'
 import { FLASH_LIMITS } from '../sound/flash'
 import { JUMP_LIMITS } from '../sound/jumps'
@@ -13,12 +13,15 @@ import {
   SHAPING_LIMITS,
   TARGETS,
   applyPatches,
+  axisTargets,
   featureById,
   featureValue,
   shapingOf,
   sharedRange,
   targetById,
+  whileSwitchesFire,
   type Activation,
+  type DrivenParams,
   type FeatureGroup,
   type FeatureId,
   type FeatureSpec,
@@ -129,6 +132,8 @@ interface SoundControlsProps {
   params: EditorParams
   /** For Freeze, which copies the live values into the sliders. */
   dispatch: Dispatch<Action>
+  /** The loaded font's variable axes, which are targets too (axisTargets); a new font re-renders the target lists. */
+  axes?: readonly VariationAxis[]
 }
 
 /**
@@ -138,7 +143,7 @@ interface SoundControlsProps {
  * that let the measurements move the Geometry and Experimental sliders live, see docs/SOUND_PLAN.md) and
  * Record. Nothing depends on a font, so no control is disabled without one.
  */
-function SoundControls({ params, dispatch }: SoundControlsProps) {
+function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
   const engine = useSoundEngine()
   const state = useSoundState()
   const introHint = useHint()
@@ -222,7 +227,7 @@ function SoundControls({ params, dispatch }: SoundControlsProps) {
       />
       <InputGroup engine={engine} settings={state.settings} />
       <ResponseGroup engine={engine} settings={state.settings} />
-      <ModulationGroup params={params} notices={notices} onActivate={activate} onRemove={(id) => setNotice(id, null)} />
+      <ModulationGroup params={params} axes={axes} notices={notices} onActivate={activate} onRemove={(id) => setNotice(id, null)} />
       <RecordGroup artboard={params.artboard} transparent={params.palette.transparent} collapsible />
     </>
   )
@@ -988,20 +993,33 @@ function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
 const DEFAULT_TARGET = 'distortion.amount'
 const DEFAULT_DEPTH = 0.5
 
-function nextTarget(mappings: readonly Mapping[], params: GeometryParams): string | undefined {
+function nextTarget(mappings: readonly Mapping[], params: DrivenParams): string | undefined {
   const used = new Set(mappings.map((m) => m.target))
   if (!used.has(DEFAULT_TARGET) && targetById(DEFAULT_TARGET)) return DEFAULT_TARGET
   const free = TARGETS.filter((t) => !used.has(t.id))
   return (free.find((t) => t.inactive(params) === null) ?? free[0] ?? TARGETS[0])?.id
 }
 
-/** The targets of one tab as options, "Section · Label" (e.g. "Distortion · Noise amplitude"), or the label alone when both are the same ("Seed"). */
-const targetOptions = (tab: TargetSpec['tab']) =>
-  TARGETS.filter((t) => t.tab === tab).map((t) => (
-    <option key={t.id} value={t.id}>
-      {t.section === t.label ? t.label : `${t.section} · ${t.label}`}
-    </option>
-  ))
+/** A target as an option, "Section · Label" (e.g. "Distortion · Noise amplitude"), or the label alone when both are the same ("Seed"). */
+const targetOption = (t: TargetSpec) => (
+  <option key={t.id} value={t.id}>
+    {t.section === t.label ? t.label : `${t.section} · ${t.label}`}
+  </option>
+)
+
+/** The groups of the target select, by tab; the switches (checkboxes) of every tab have a group of their own. */
+const TARGET_GROUPS: readonly { label: string; targets: readonly TargetSpec[] }[] = [
+  { label: 'Geometry', targets: TARGETS.filter((t) => t.tab === 'geometry' && t.kind !== 'switch') },
+  { label: 'Experimental', targets: TARGETS.filter((t) => t.tab === 'experimental' && t.kind !== 'switch') },
+  { label: 'Switches', targets: TARGETS.filter((t) => t.kind === 'switch') },
+  { label: 'Typography', targets: TARGETS.filter((t) => t.tab === 'typography') },
+  { label: 'Color', targets: TARGETS.filter((t) => t.tab === 'color') },
+]
+const targetGroups = TARGET_GROUPS.map(({ label, targets }) => (
+  <optgroup key={label} label={label}>
+    {targets.map(targetOption)}
+  </optgroup>
+))
 
 /** The features as options, grouped as the meters' explanation groups them. */
 const featureOptions = FEATURE_GROUPS.map((group) => (
@@ -1015,7 +1033,9 @@ const featureOptions = FEATURE_GROUPS.map((group) => (
 ))
 
 interface ModulationGroupProps {
-  params: GeometryParams
+  params: DrivenParams
+  /** The loaded font's variable axes (see SoundControlsProps). */
+  axes: readonly VariationAxis[] | undefined
   /** What picking each row's target switched on, by mapping id. */
   notices: ReadonlyMap<string, string>
   /** Switches on what `target` needs to act and sets the row's notice (see SoundControls). */
@@ -1029,12 +1049,14 @@ interface ModulationGroupProps {
  * behind its expand button (one row open at a time), and Add mapping. The mappings live in their own store
  * (mappingStore), so the sliders keep their values; the live values reach the canvas through useLiveFrame in App.
  */
-function ModulationGroup({ params, notices, onActivate, onRemove }: ModulationGroupProps) {
+function ModulationGroup({ params, axes, notices, onActivate, onRemove }: ModulationGroupProps) {
   const { mappings } = useMappingState()
   const limitId = useId()
   // The row whose details are open; null with none.
   const [expanded, setExpanded] = useState<string | null>(null)
   const full = mappings.length >= MAPPING_LIMITS.maxMappings
+  // The settings while the switch rows fire: a row they make act says so.
+  const switched = useMemo(() => whileSwitchesFire(params, mappings), [params, mappings])
   const addBlocked = full || TARGETS.length === 0
 
   const addMapping = () => {
@@ -1058,6 +1080,8 @@ function ModulationGroup({ params, notices, onActivate, onRemove }: ModulationGr
               mapping={mapping}
               index={index}
               params={params}
+              switched={switched}
+              axes={axes}
               open={expanded === mapping.id}
               notice={notices.get(mapping.id) ?? null}
               span={sharedRange(mappings, mapping.target)}
@@ -1107,7 +1131,9 @@ const shapingHelp =
   'sound, Exp keeps it low until it gets loud. Smooth: slows this mapping on top of Release. Range: the part of the ' +
   'slider this mapping may move the target within; mappings on one slider share the outer edges of their Ranges. On a ' +
   'seed there is no Range, Curve and Smooth act only in Follow, and with Beat Gate, Curve and Smooth do nothing; with ' +
-  "Beat in Trigger or Toggle every hit fires, so there is no Gate. Knobs that do nothing are not shown."
+  'Beat in Trigger or Toggle every hit fires, so there is no Gate. A switch (a checkbox such as Burst) only flips: ' +
+  'Trigger turns it the other way for as long as Smooth, Toggle at one rise and back at the next; it has no Depth, ' +
+  "Range or Curve. Knobs that do nothing are not shown."
 
 /** Curve as read under its knob: "Lin", "Log 40", "Exp 40" (percent of the way to the strongest curve). */
 function formatCurve(percent: number): string {
@@ -1122,7 +1148,11 @@ function curveText(percent: number): string {
 interface MappingRowProps {
   mapping: Mapping
   index: number
-  params: GeometryParams
+  params: DrivenParams
+  /** The settings while every switch row fires (whileSwitchesFire). */
+  switched: DrivenParams
+  /** The loaded font's variable axes: their targets join the select. */
+  axes: readonly VariationAxis[] | undefined
   /** The row's details are on view. */
   open: boolean
   /** What picking this row's target switched on ("Turned on Ripple."), or null. */
@@ -1142,7 +1172,7 @@ interface MappingRowProps {
  * The details below it hold the rest (what Rate means, Remove) and are where more of a mapping's settings go.
  * Under the row, what picking the target switched on; or, while the target does nothing now, why, with Enable.
  */
-function MappingRow({ mapping, index, params, open, notice, span, onToggle, onActivate, onRemove }: MappingRowProps) {
+function MappingRow({ mapping, index, params, switched, axes, open, notice, span, onToggle, onActivate, onRemove }: MappingRowProps) {
   const id = useId()
   const rateHint = useHint()
   const shapingHint = useHint()
@@ -1150,10 +1180,21 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
   const n = index + 1
   const feature = featureById(mapping.feature)
   const target = targetById(mapping.target)
-  const inactive = target?.inactive(params) ?? null
+  // Off on the sliders but turned on by a switch row while it fires: still offered Enable, and told it acts meanwhile.
+  const off = target?.inactive(params) ?? null
+  const bySwitch = off !== null && switched !== params && target?.inactive(switched) === null
+  const inactive = off && bySwitch ? `${off} Until then, it acts only while a switch mapping turns it on.` : off
   const canEnable = inactive !== null && (target?.activate(params) ?? null) !== null
   // A seed jumps at a Rate (0–100%) instead of moving by a signed Depth.
   const jump = target?.kind === 'jump'
+  // A switch (a checkbox) only flips, at each rise (Trigger, for as long as its pulse lasts) or from one rise to the
+  // next (Toggle): it has no Depth, Range or Curve, and Follow is not offered (but listed, checked, for a switch row
+  // restored or imported in Follow, which still flips at half the level, so the Mode group always shows its mode).
+  const flip = target?.kind === 'switch'
+  // The font's axes as targets; an axis target the font lacks still shows, so the select stays truthful.
+  const axisOptions = axes?.length ? axisTargets() : []
+  const missingAxis = target?.tab === 'axes' && !axisOptions.some((t) => t.id === target.id)
+  const modes = flip && shapingOf(mapping).mode !== 'follow' ? MAPPING_MODES.filter((mode) => mode !== 'follow') : MAPPING_MODES
   const amountPercent = Math.round((jump ? Math.abs(mapping.depth) : mapping.depth) * 100)
   const amountLabel = jump ? 'Rate' : 'Depth'
   // The notice fills its status region only once the row is in the document, so a notice from Add
@@ -1169,9 +1210,10 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
   const event = feature?.event !== undefined
   const showGate = !event || (!jump && shaping.mode === 'follow')
   const showCurveSmooth = !jump || (!event && shaping.mode === 'follow')
+  const showCurve = showCurveSmooth && !flip
   // Another mapping on the target widens this row's Range (they share the outer edges): say so under the Range.
   const widened =
-    !jump && mapping.enabled && mapping.depth !== 0 && span !== undefined && (span[0] < shaping.rangeMin || span[1] > shaping.rangeMax)
+    !jump && !flip && mapping.enabled && mapping.depth !== 0 && span !== undefined && (span[0] < shaping.rangeMin || span[1] > shaping.rangeMax)
       ? span
       : undefined
   // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
@@ -1235,8 +1277,15 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
             const value = e.target.value
             // The new target and what it switches on are one undo step.
             undoHistory.transaction(() => {
-              // A seed's Rate is never negative: a negative Depth turns positive in the same update.
-              update(next?.kind === 'jump' && mapping.depth < 0 ? { target: value, depth: -mapping.depth } : { target: value })
+              // A seed's Rate is never negative: a negative Depth turns positive in the same update. A switch has no
+              // Follow (it becomes Toggle) and no Depth to set, so a Depth of 0, which would leave it off, becomes the default.
+              const patch: Partial<Omit<Mapping, 'id'>> = { target: value }
+              if (next?.kind === 'jump' && mapping.depth < 0) patch.depth = -mapping.depth
+              if (next?.kind === 'switch') {
+                if (shaping.mode === 'follow') patch.mode = 'toggle'
+                if (mapping.depth === 0) patch.depth = DEFAULT_DEPTH
+              }
+              update(patch)
               if (keyboard.current) {
                 pendingTarget.current = true
                 // Nothing to switch on yet; this only clears the last target's notice.
@@ -1253,27 +1302,40 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
               {mapping.target}
             </option>
           )}
-          <optgroup label="Geometry">{targetOptions('geometry')}</optgroup>
-          <optgroup label="Experimental">{targetOptions('experimental')}</optgroup>
+          {targetGroups}
+          {(axisOptions.length > 0 || missingAxis) && (
+            <optgroup label="Variable axes">
+              {axisOptions.map(targetOption)}
+              {missingAxis && target && (
+                <option value={target.id} disabled>
+                  {`${target.label} (not in this font)`}
+                </option>
+              )}
+            </optgroup>
+          )}
         </select>
-        <Knob
-          size="small"
-          label={amountLabel}
-          name={`${amountLabel}, mapping ${n}`}
-          hideLabel
-          title={amountLabel}
-          value={amountPercent}
-          min={jump ? 0 : -100}
-          max={100}
-          step={1}
-          defaultValue={DEFAULT_DEPTH * 100}
-          format={(v) => formatPercent(v, !jump)}
-          valueText={`${amountPercent} percent`}
-          unit="%"
-          bipolar={!jump}
-          describedBy={jump ? rateHint.id : undefined}
-          onChange={(next) => update({ depth: next / 100 })}
-        />
+        {flip ? (
+          <span className="mapping-depth-none" aria-hidden="true" />
+        ) : (
+          <Knob
+            size="small"
+            label={amountLabel}
+            name={`${amountLabel}, mapping ${n}`}
+            hideLabel
+            title={amountLabel}
+            value={amountPercent}
+            min={jump ? 0 : -100}
+            max={100}
+            step={1}
+            defaultValue={DEFAULT_DEPTH * 100}
+            format={(v) => formatPercent(v, !jump)}
+            valueText={`${amountPercent} percent`}
+            unit="%"
+            bipolar={!jump}
+            describedBy={jump ? rateHint.id : undefined}
+            onChange={(next) => update({ depth: next / 100 })}
+          />
+        )}
         <button
           type="button"
           className="button-small button-icon mapping-expand"
@@ -1293,7 +1355,7 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
           <HintButton hint={shapingHint} topic="Shaping" />
         </span>
         <div className="segmented segmented-small mapping-mode" role="radiogroup" aria-labelledby={`${id}-mode`} aria-describedby={shapingHint.id}>
-          {MAPPING_MODES.map((mode) => (
+          {modes.map((mode) => (
             <label key={mode} className="segment-option">
               <input
                 type="radio"
@@ -1326,7 +1388,7 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
                 onChange={(next) => update({ gate: next / 100 })}
               />
             )}
-            {showCurveSmooth && (
+            {showCurve && (
               <Knob
                 size="small"
                 label="Curve"
@@ -1360,7 +1422,7 @@ function MappingRow({ mapping, index, params, open, notice, span, onToggle, onAc
             )}
           </div>
         )}
-        {!jump && (
+        {!jump && !flip && (
           <div className="mapping-range">
             <span className="field-title">Range</span>
             <RangeControl

@@ -498,7 +498,7 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
 - 每一行从左到右包括：
   - 一个小方灯，用来打开（亮）或关闭这一行而不删除它；关闭的行会变暗。
   - **Feature**（特征）——驱动它的读数：上面 11 个读数中的任意一个，按同样的五组列出。
-  - **Target**（目标）——它移动的东西（面板很窄时，Feature 和 Target 之间的箭头会省略）。名称太长时会被截短，鼠标指着它可以看到全名。滑块的名称是“分组 · 标签”，例如 “Ripple · Petals”。另外还有三个种子：“Distortion · Seed”、“Random anchors · Seed”，以及 Experimental 标签页的种子，名称就是 “Seed”。列表分为 **Geometry** 和 **Experimental** 两部分，顺序与两个标签页相同。
+  - **Target**（目标）——它移动的东西（面板很窄时，Feature 和 Target 之间的箭头会省略）。名称太长时会被截短，鼠标指着它可以看到全名。滑块的名称是“分组 · 标签”，例如 “Ripple · Petals”。另外还有三个种子：“Distortion · Seed”、“Random anchors · Seed”，以及 Experimental 标签页的种子，名称就是 “Seed”。列表分为几部分：**Geometry** 和 **Experimental**，顺序与两个标签页相同，然后是 **Switches**、**Typography**、**Color**，载入可变字体时还有 **Variable axes**（见下文的 **声音还能移动的东西**）。
   - **Depth**（深度）——那个小旋钮，数值显示在它下面。对滑块而言：它移动多远，从 −100% 到 +100%。+100% 时，最强的声音会把滑块带过整条轨道；+50% 时走一半。负值让它往反方向移动，所以声音越响，数值越小。0% 时不起作用。**Pan** 可以往两个方向走：Depth 为正时，声音偏右让数值变大，偏左让数值变小。
   - **Rate**（速率）——对种子而言，同一个旋钮改为 **Rate**，从 0% 到 100%：种子跳动得有多频繁（见下文的**种子**）。0% 时不起作用。
   - 最右边的箭头按钮，在这一行下面展开它的详情；再点一次收起。同一时间只展开一行。详情里有这一行的**塑形**设置（见下文的“**给一行塑形**”）、**Remove**（删除这一行），种子还有 **Rate** 和它的 **ⓘ**。
@@ -513,7 +513,14 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
   - Curve flattening 的滑块会关闭随机锚点（随机锚点取代了曲线展平），并设好自己需要的设置：**Tolerance** 把 **Mode** 设为 Adaptive，**Segments per curve** 把它设为 Fixed segments，**Corner angle** 会打开 **Merge joined curves**——例如 “Turned off Random anchors. Set Mode to Adaptive.”（已关闭随机锚点。已把 Mode 设为 Adaptive）。（Corner angle 单独使用时变化不大，见 Curve flattening 一节。）
 - 把某一行换成别的目标，或者删除这一行，都不会再把任何设置关掉。这条提示会一直保留，直到你再次更换这一行的目标或删除这一行。如果你用方向键在 **Target** 列表里逐个浏览，只有你最后停下的那个目标才会打开设置：在你按回车或转到其他控件时生效；用鼠标选择则立即生效。
 - 如果之后那个设置又被关掉了——你自己关掉了它，或者另一行需要不同的 Mode（Tolerance 需要 Adaptive，Segments per curve 需要 Fixed segments）——该行下方会有一条灰色提示说明原因，例如 “Turn on Ripple to hear this.”（打开 Ripple 才能听到效果），旁边的 **Enable**（启用）按钮可以把它重新打开。
-- **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Crumple、Ripple、Whorl、Slipstream、Thorn 的全部滑块（包括 Burst 自己的 Anchors 和 Dent）——以及三个种子，一共 44 个。开关和选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
+- **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Crumple、Ripple、Whorl、Slipstream、Thorn 的全部滑块（包括 Burst 自己的 Anchors 和 Dent）——以及三个种子，一共 44 个。选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
+- **声音还能移动的东西：**
+  - **开关**——各个效果的 **Use …** 勾选框、Ripple 的 **Reverse**，以及 Thorn 的 **Burst** 和 **Reverse**。声音会翻转它们：用 **Trigger** 时，声音每次升起都会让开关短暂地变成相反状态（持续 **Smooth** 设定的时间）；用 **Toggle** 时，声音每次升起都让它变成相反状态，直到下一次升起。开关行没有 Depth 旋钮（打开的行就会翻转它的开关），也没有 **Range** 和 **Curve**，并且不提供 **Follow**。在被声音翻转的勾选框旁边，有一个小方块显示字母此刻用的状态：填满表示开，空心表示关。Burst 和 Reverse 只在它们的效果打开时起作用；**Enable** 会打开效果。
+  - **Typography**——**Size**、**Tracking**、**Line height** 和 **Slant**，范围与它们的滑块相同。这些滑块上也会显示实时细线。
+  - **Color**——文字颜色和背景颜色的 **Hue**（色相）和 **Lightness**（明度）。色相沿色环在 0° 到 360° 之间移动，到两端就停住（不会绕回：接近 0° 的红色再往下移仍是红色）；明度从黑到白；颜色的浓淡保持你设定的样子。灰色没有色相，所以 Hue 对它不起作用（先选一个有颜色的颜色）。背景的目标需要有背景：**Enable** 会关闭 **Transparent background**。颜色旁边的小方块显示实时颜色。
+  - **Variable axes**（可变轴）——载入可变字体时，它的每个轴（比如 **Weight** 或 **Width**）也是目标，从字体自己的值出发，在整个轴上移动。实时值显示在字体详情里该轴的旁边。如果载入的字体没有这个轴，这一行会保留并说明原因；载入带有这个轴的字体后，它会重新起作用。
+  - 在你给它们建立映射之前，这些都不会改变任何东西：没有它们时，字母的动作和以前完全一样。
+
 - 映射会和你的其他设置一起保存，下次打开程序时会恢复（见[下次打开时](#下次打开时)）；**Drive letters** 不会保存。添加、修改或删除一行，都可以像其他改动一样撤销。
 
 **给一行塑形**——这一行的详情里还能改变它*如何*回应声音。不去动它们时，这一行的表现和上面说的完全一样；**Mode** 旁边的 **ⓘ** 会简要说明它们。
@@ -581,7 +588,7 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
 - **Live · N fps**（实时 · 每秒 N 帧）——显示在 **Transport**（以及 **Record**）和底部状态栏里：程序每秒能跟上多少个新形状（fps 即每秒帧数）。上一个形状算好，程序就立刻画下一个，每秒最多 30 个，所以设置越重、文字越长，帧数越少。Motion contrast 和 Pitch reactive 会让程序为每个字母最多计算三个版本，所以也会让这个数字变小。它数的是新形状，而不是程序多久听一次声音（程序按屏幕自己的节奏听，而且只在标签页可见时听）。
 - **不会闪烁：** 所有被带动的滑块和种子共用一个上限，加在一起每秒最多让字母闪烁 3 次。一次闪烁是一次大变化再加上变回去，所以相当于每秒大约 5 次大变化。大变化指的是：一个滑块往回摆动了轨道的十分之一或更多（几个滑块同时往回摆、加起来达到十分之一时，合起来也算），或者一次种子跳动（见上文的**种子**）。如果音乐会让变化更频繁（比如鼓点很快、**Release** 又很短），滑块会稍等片刻再往回摆，种子的跳动则会被跳过。这个上限看着屏幕上的每个字母：开启 Motion contrast 或 Pitch reactive 时，动得最远的那些字母也算在内，一个字母在“动得少”和“动得多”之间切换也算一次变化。一次分几步很快到达屏幕的变化（比如旋律换到一个新的音时）只算一次。一组字母轮到换刺（见“**刺轮流变化**”）时，如果刺变化很大，也算一次大变化；达到上限时，这次轮换会稍等片刻。
 - 如果每秒低于大约 8 个，标签页会显示 “Too slow to follow the sound: try fewer effects or a shorter text.”（太慢，跟不上声音：试试少开几个效果或缩短文字）；开启 Motion contrast 或 Pitch reactive 时显示 “Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive.”（还建议调低 Motion contrast 和 Pitch reactive）。关掉一些 Experimental 效果、换一段更短的文字、用更轻的设置，或者调低这两个旋钮，都会有帮助。
-- **Freeze**（冻结，在 **Transport** 里）——把字母此刻的样子复制到滑块和种子输入框里，并让声音暂停（文件暂停，或麦克风停止收音）。这一刻会作为普通设置留在屏幕上，你可以继续调整，也可以导出。按 **Play** 或 **Start listening** 继续。声音没有在带动字母时，以及正在录制视频时（“Freeze is off while recording.”，即录制期间 Freeze 不可用），Freeze 是灰色的。如果按下时共同值（滑块上的细线和实时种子）正好和滑块、种子一致（例如两次鼓点之间），它只会暂停声音。撤销（Mac 上是 ⌘Z，其他系统是 Ctrl+Z）可以让滑块和种子回到 Freeze 之前的样子（声音保持暂停）。
+- **Freeze**（冻结，在 **Transport** 里）——把字母此刻的样子复制到滑块和种子输入框里，并让声音暂停（文件暂停，或麦克风停止收音）。这一刻会作为普通设置留在屏幕上，你可以继续调整，也可以导出。按 **Play** 或 **Start listening** 继续。声音没有在带动字母时，以及正在录制视频时（“Freeze is off while recording.”，即录制期间 Freeze 不可用），Freeze 是灰色的。如果按下时共同值（滑块上的细线和实时种子）正好和滑块、种子一致（例如两次鼓点之间），它只会暂停声音。撤销（Mac 上是 ⌘Z，其他系统是 Ctrl+Z）可以让滑块和种子回到 Freeze 之前的样子（声音保持暂停）。 Freeze 也会保留实时的开关、Typography 和颜色。可变字体的轴没有滑块，所以 Freeze 之后字体回到它自己的值。
   - 开启 Motion contrast、Pitch reactive 或 Thorn 轮流变化时，Freeze 写入的是共同值（滑块上细线显示的那些值）。之后每个字母都使用这些值，所以原来比别的字母动得多或少的字母，以及刺还没轮到的字母，又和其他字母一样了。
 - **SVG、PNG 和字体导出始终使用滑块和种子输入框**，从不使用正在移动的字母。想保存音乐中的某一刻，先按 **Freeze**，再点 **Export…**。声音正在移动字母时，导出对话框也会提醒这一点。想留住动态本身，就录一段视频：它会按字母移动的样子原样记录，每个字母都带着自己的幅度（见[录制视频](#录制视频)）。和导出一样，Typography 标签页里的 **Fit text** 和 **Free** 也按你的滑块设置下的字母来测量。
 

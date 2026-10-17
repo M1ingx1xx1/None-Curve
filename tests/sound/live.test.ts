@@ -12,6 +12,7 @@ import { LIVE_LIMITS, LiveScheduler, type LiveCommit, type LiveDeps } from '../.
 import type { Mapping } from '../../src/sound/mapping'
 import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame, type ResponseSettings } from '../../src/sound/types'
 import { BASE as DEFAULTS } from '../helpers/params'
+import { DEFAULT_TYPOGRAPHY } from '../../src/specimen/artboard'
 
 const BASE: GeometryParams = { ...DEFAULTS, distortion: { ...DEFAULTS.distortion, amount: 10 } }
 
@@ -499,5 +500,33 @@ describe('live scheduler: letters on their own levels', () => {
     r.live.pauseSound()
     expect(r.last).toBeNull()
     expect(paramsKey({ ...BASE, ...changes })).toBe(paramsKey(shown))
+  })
+})
+
+describe('live scheduler: the canvas look and switches', () => {
+  const driven = { ...BASE, typography: DEFAULT_TYPOGRAPHY, palette: { ink: '#b03a2e', paper: '#f4efe6', transparent: false } }
+
+  it('commits typography and colours as the look, with the geometry of the sliders, and restores them', () => {
+    const r = rig()
+    r.live.setBase(driven)
+    r.live.setMappings([row('typography.size', 0.2), row('palette.inkHue', 0.5)], true)
+    r.play(500, loud)
+    const commit = r.last!
+    expect(commit.params && paramsKey(commit.params)).toBe(paramsKey(BASE))
+    expect(commit.look?.typography?.size).toBeGreaterThan(DEFAULT_TYPOGRAPHY.size)
+    expect(commit.look?.palette?.ink).not.toBe(driven.palette.ink)
+    // Nothing new to compute: the glyphs of the sliders' geometry serve every frame.
+    expect(r.asked.every((a) => a.computed === 0 || a.jobs[0].key === paramsKey(BASE))).toBe(true)
+    r.play(1500, () => 0)
+    expect(r.last).toMatchObject({ params: null, look: null })
+  })
+
+  it('commits a flipped switch, and no look without look targets', () => {
+    const r = rig()
+    r.live.setBase(driven)
+    r.live.setMappings([row('experimental.ripple.enabled', 0.5)], true)
+    r.play(500, loud)
+    expect(r.last?.params?.experimental.ripple.enabled).toBe(true)
+    expect(r.last?.look).toBeNull()
   })
 })

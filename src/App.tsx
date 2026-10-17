@@ -18,6 +18,7 @@ import type { LoadedFont } from './font/model'
 import type { GeometryParams, GlyphRef } from './geometry/types'
 import { getSoundEngine } from './sound/engine'
 import { useLiveFrame, useLiveLetters } from './sound/live'
+import { setTargetFont, type DrivenParams } from './sound/mapping'
 import { mappingStore } from './sound/mappingStore'
 import type { SoundSettings } from './sound/types'
 import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from './specimen/artboard'
@@ -107,9 +108,24 @@ export default function App({ restored }: AppProps) {
     () => ({ flatten, random, squaring, anchors, grid, distortion, experimental: withThornCanvasEm(experimental, canvasEm) }),
     [flatten, random, squaring, anchors, grid, distortion, experimental, canvasEm],
   )
+  // The loaded font's variable axes are Sound targets: set in render, before the panels below read the targets in the
+  // same pass (setTargetFont does nothing for the font it already has). A render React throws away can leave them on a
+  // font it never showed, so every commit sets them again, before the live scheduler's layout effect reads them.
+  setTargetFont(font)
+  useLayoutEffect(() => setTargetFont(font))
+  // Sound drives the canvas's typography and colours too: the scheduler gets them with the geometry (never in its key).
+  const drivenBase = useMemo<DrivenParams>(() => ({ ...baseParams, typography, palette }), [baseParams, typography, palette])
   // Without a font there are no letters to move: Sound does not drive.
-  const live = useLiveFrame(baseParams, font !== null)
-  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots } = useGeometry(state, displayText, baseParams, live)
+  const live = useLiveFrame(drivenBase, font !== null)
+  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } = useGeometry(state, displayText, baseParams, live)
+  // The colours as shown and recorded: Sound's over the sliders'. Exports keep the sliders' own.
+  const livePalette = live.look?.palette
+  const shownPalette = useMemo(() => (livePalette ? { ...palette, ...livePalette } : palette), [palette, livePalette])
+  // While Sound drives an axis, the canvas reads the outlines it draws over (Original, Compare) from the live instance.
+  const canvasDocument = useMemo(
+    () => (shownFont === state.document.font ? state.document : { ...state.document, font: shownFont }),
+    [shownFont, state.document],
+  )
   // After useGeometry, so a new text's first live frame asks for the glyphs the canvas now shows.
   useLiveLetters(letterSlots)
 
@@ -508,12 +524,13 @@ export default function App({ restored }: AppProps) {
           }
           canvas={
             <CanvasViewport
-              document={state.document}
+              document={canvasDocument}
               view={state.params.view}
               scene={scene}
               layout={layout}
               placement={placement}
-              palette={palette}
+              palette={shownPalette}
+              ownPalette={palette}
               artboard={artboard}
               onArtboardChange={setArtboard}
               gridSize={gridSize}
@@ -532,6 +549,7 @@ export default function App({ restored }: AppProps) {
             <TextTools
               typography={typography}
               palette={palette}
+              livePalette={livePalette}
               artboard={artboard}
               font={state.document.font}
               scene={scene}
@@ -561,7 +579,7 @@ export default function App({ restored }: AppProps) {
                   font={state.document.font}
                   scene={scene}
                   layout={layout}
-                  palette={palette}
+                  palette={shownPalette}
                   artboard={artboard}
                   precision={precision}
                   look={previewLook}
@@ -610,7 +628,7 @@ export default function App({ restored }: AppProps) {
         scene={scene}
         layout={layout}
         artboard={artboard}
-        palette={palette}
+        palette={shownPalette}
         previewLook={previewLook}
         previewScale={previewScale}
         fill={state.params.view.showFill}

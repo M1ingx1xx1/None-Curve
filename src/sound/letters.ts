@@ -218,20 +218,34 @@ const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.rippl
 const AFTER_THORN = 'experimental.dissolve.'
 
 /**
- * Whether a target reaches the letters by Thorn turns while Thorn is on (THORN_TURNS): it decides where the thorns sit
- * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders and the Experimental seed; every
- * Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every slider of Crumple, Ripple,
- * Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor those two Amounts: the thorns keep their
- * anchors and directions through their moves (thorn.ts), so they stay with the shared values and levels. Nor
- * Dissolve's sliders: it runs after Thorn.
+ * The targets that act on the whole canvas, never on one letter: the Typography sliders and the colours. Every letter
+ * shows their shared live values; levels never scale them and turns never carry them.
  */
-export const isTurnTarget = (id: string): boolean => !id.startsWith('distortion.') && !KEPT_THROUGH.has(id) && !id.startsWith(AFTER_THORN)
+export const isCanvasTarget = (id: string): boolean => id.startsWith('typography.') || id.startsWith('palette.')
+
+/** A variable font's axes: the turn state does not carry them, so turn groups show them as the shared values do. */
+const isAxisTarget = (id: string): boolean => id.startsWith('axis.')
+
+/**
+ * Whether a target reaches the letters by Thorn turns while Thorn is on (THORN_TURNS): it decides where the thorns sit
+ * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders and switches and the Experimental
+ * seed; every Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every slider and
+ * switch of Crumple, Ripple, Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor those two
+ * Amounts: the thorns keep their anchors and directions through their moves (thorn.ts), so they stay with the shared
+ * values and levels. Nor Dissolve's: it runs after Thorn. Nor the canvas targets (isCanvasTarget) or the font's axes.
+ */
+export const isTurnTarget = (id: string): boolean =>
+  !id.startsWith('distortion.') && !KEPT_THROUGH.has(id) && !id.startsWith(AFTER_THORN) && !isCanvasTarget(id) && !isAxisTarget(id)
 
 /** Whether Thorn is on, so the turn targets come from the letters' turn groups (with Thorn off, levels scale them). */
 const turnsOn = (params: GeometryParams): boolean => params.experimental.thorn?.enabled === true
 
-/** Whether levels leave this target at its shared position: Thorn's sliders always, the other turn targets while Thorn is on. */
-const unscaled = (id: string, params: GeometryParams): boolean => isThornTarget(id) || (turnsOn(params) && isTurnTarget(id))
+/**
+ * Whether levels leave this target at its shared position: Thorn's sliders always, the canvas targets always (they act
+ * on every letter alike), the other turn targets while Thorn is on.
+ */
+const unscaled = (id: string, params: GeometryParams): boolean =>
+  isThornTarget(id) || isCanvasTarget(id) || (turnsOn(params) && isTurnTarget(id))
 
 /** A level's value and slider position for a target whose shared live position is `position` (see levelPosition). */
 function scaled(
@@ -253,9 +267,10 @@ function scaled(
 /**
  * The slider position letters at `gain` show for a target whose shared live position is `position`: the offset from
  * the slider's own position scaled by `gain`, clamped and snapped to the step. Monotone in `position`, so a level
- * turns back only when the shared value does. The identity at gain 1, for Thorn's sliders (isThornTarget), and for
- * the other turn targets while Thorn is on in `base` (isTurnTarget; no slider switches Thorn, so it is on in the
- * shared values too). `bounds`: the span the mappings' Range keeps the target to (Modulated.bounds); missing, the slider.
+ * turns back only when the shared value does. The identity at gain 1, for Thorn's sliders (isThornTarget), the canvas
+ * targets (isCanvasTarget), and the other turn targets while Thorn is on in the shared values `shared` (isTurnTarget;
+ * `base` unless a switch flips Thorn). `bounds`: the span the mappings' Range keeps the target to (Modulated.bounds);
+ * missing, the slider.
  */
 export function levelPosition(
   spec: TargetSpec,
@@ -263,8 +278,9 @@ export function levelPosition(
   position: number,
   gain: number,
   bounds?: readonly [number, number],
+  shared: GeometryParams = base,
 ): number {
-  return gain === 1 || unscaled(spec.id, base) ? position : scaled(spec, base, position, gain, bounds).position
+  return gain === 1 || unscaled(spec.id, shared) ? position : scaled(spec, base, position, gain, bounds).position
 }
 
 /** One level's live parameters: their key and the driven sliders' positions. */

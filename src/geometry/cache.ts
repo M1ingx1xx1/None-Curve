@@ -35,9 +35,13 @@ const LIVE_LIMITS: Limits = { entries: MAX_LIVE_ENTRIES_PER_FONT, points: MAX_LI
 const caches = new WeakMap<LoadedFont, FontCache>()
 const liveCaches = new WeakMap<LoadedFont, FontCache>()
 
-/** Stable key for a parameter set; JSON of a plain object with a fixed key order. */
+/**
+ * Stable key for a parameter set; JSON of a plain object with a fixed key order. Axis values (`variation`) join it
+ * only when there are any, so every key without them is what it always was.
+ */
 export function paramsKey(params: GeometryParams): string {
-  return JSON.stringify([params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion, params.experimental])
+  const groups = [params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion, params.experimental]
+  return JSON.stringify(params.variation ? [...groups, params.variation] : groups)
 }
 
 /**
@@ -121,7 +125,9 @@ function insert(cache: FontCache, cacheKey: string, entry: Entry, limits: Limits
 
 function derive(font: LoadedFont, index: number, params: GeometryParams): Entry {
   try {
-    const geometry = deriveGeometry(font.getGlyph(index), params)
+    // With axis values, the outline of the font's instance at them (the key holds them too).
+    const source = params.variation && font.at ? font.at(params.variation) : font
+    const geometry = deriveGeometry(source.getGlyph(index), params)
     // With Thorn, the result also keeps the letter's click outline.
     const click = geometry.polygon.clickOutline
     const clickPoints = click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
