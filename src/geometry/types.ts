@@ -207,6 +207,26 @@ export interface ThornParams {
   flute: number
 }
 
+/**
+ * Experimental Dissolve: the letter rebuilt as photocopied ink, broken into faceted islands and rings with loose specks
+ * just outside, all of straight edges.
+ */
+export interface DissolveParams {
+  enabled: boolean
+  /** 0–1: how much ink is eaten (0: a nearly solid letter with a ragged edge; 1: only thin squiggles are left). */
+  amount: number
+  /** 0.15–1: the size of the islands and rings (one noise period), as a share of the stroke width. */
+  grain: number
+  /** 0–1.5: how far the ragged edge reaches past the outline, in half-strokes. */
+  spread: number
+  /** 0–1: how many loose specks lie just outside the strokes. */
+  specks: number
+  /** 0–1: how far the noise is curled (0: plain blobs; 1: wandering loops and rings). */
+  curl: number
+  /** 0–1: how long the straight facets are (0: short, still clear corners; 1: long, chunky shards). */
+  facets: number
+}
+
 /** The Experimental tab: effects that run after Geometry and can all be on at once. */
 export interface ExperimentalParams {
   /** Integer seed shared by every effect; the same seed always gives the same result. */
@@ -217,6 +237,8 @@ export interface ExperimentalParams {
   slipstream: SlipstreamParams
   /** Missing in older saved settings: off. */
   thorn: ThornParams
+  /** Missing in older saved settings: off. */
+  dissolve: DissolveParams
 }
 
 export interface GeometryParams {

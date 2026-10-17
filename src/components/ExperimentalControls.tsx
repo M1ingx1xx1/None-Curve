@@ -1,8 +1,9 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
 import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
+import type { DissolveStats } from '../geometry/dissolve'
 import type { SlipstreamStats } from '../geometry/slipstream'
 import { THORN_LIMITS, type ThornStats } from '../geometry/thorn'
-import type { CrumpleParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
+import type { CrumpleParams, DissolveParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import type { Action } from '../state/editorState'
 import { reachFromSlider, reachPercent, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId, type SliderRange } from '../state/sliderScales'
@@ -32,6 +33,7 @@ export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
   thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1 },
+  dissolve: { enabled: false, amount: 0.5, grain: 0.4, spread: 0.8, specks: 0.4, curl: 0.6, facets: 0.3 },
 }
 
 const percent = (v: number) => Math.round(v * 100)
@@ -63,7 +65,7 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
     <>
       <div className="panel-notice panel-intro">
         <p className="field-title">
-          <span>Runs after Geometry: Crumple → Ripple → Whorl → Slipstream → Thorn. Effects can be on together.</span>
+          <span>Runs after Geometry: Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve. Effects can be on together.</span>
           <HintButton hint={introHint} topic="Experimental effects" />
         </p>
         {statistics}
@@ -71,8 +73,9 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
           Each effect folds the letters along straight creases, so it adds corners but never curves. Up to 100%, any
           combination keeps every letter as it was arranged. Beyond that, parts of a letter fold over other parts; the
           overlaps are merged into one clean outline, so the letters still export. Slipstream’s cuts and Thorn’s thorns
-          are merged the same way. Where several dense effects together would add too many vertices, the letter is
-          simplified, so it stays quick to draw and export. Statistics are for the selected glyph.
+          are merged the same way. Dissolve redraws the result as straight-edged islands of ink. Where several dense
+          effects together would add too many vertices, the letter is simplified, so it stays quick to draw and export.
+          Statistics are for the selected glyph.
         </HintText>
         {(experimentalMerges(params) || stats?.budget.applied) && <FoldStats stats={stats} pending={pending} />}
       </div>
@@ -88,6 +91,13 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
         disabled={disabled}
         reachEm={reachEm}
         onChange={(thorn) => update({ thorn })}
+      />
+      <DissolveGroup
+        params={params.dissolve ?? DEFAULT_EXPERIMENTAL.dissolve}
+        stats={stats?.dissolve ?? null}
+        pending={pending}
+        disabled={disabled}
+        onChange={(dissolve) => update({ dissolve })}
       />
 
       <fieldset className="group experimental" disabled={disabled}>
@@ -123,8 +133,8 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
               </button>
             </div>
             <HintText hint={seedHint}>
-              Picks Crumple’s folds, Slipstream’s gusts, slips, cuts and trails, and Thorn’s anchors and flutes; Ripple and Whorl have
-              no randomness. The same seed and settings always produce the same letters.
+              Picks Crumple’s folds, Slipstream’s gusts, slips, cuts and trails, Thorn’s anchors and flutes, and Dissolve’s
+              ink; Ripple and Whorl have no randomness. The same seed and settings always produce the same letters.
             </HintText>
           </div>
 
@@ -728,6 +738,146 @@ function ThornGroup({
           <p className="font-warning">This glyph is left without roots or refraction: no strength kept it valid.</p>
         )}
         {stats?.tooComplex && <p className="font-warning">This glyph is left without roots or refraction: too complex.</p>}
+      </div>
+    </fieldset>
+  )
+}
+
+function DissolveGroup({
+  params,
+  stats,
+  pending,
+  disabled,
+  onChange,
+}: Omit<GroupProps<DissolveParams>, 'stats'> & { stats: DissolveStats | null }) {
+  const update = (patch: Partial<DissolveParams>) => onChange({ ...params, ...patch })
+  const off = disabled || !params.enabled
+  const introHint = useHint()
+  const amountHint = useHint()
+  const grainHint = useHint()
+  const spreadHint = useHint()
+  const specksHint = useHint()
+  const curlHint = useHint()
+  const facetsHint = useHint()
+
+  return (
+    <fieldset className="group experimental" disabled={disabled}>
+      <legend>
+        Dissolve <HintButton hint={introHint} topic="Dissolve" />
+      </legend>
+      {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
+      <div className="group-body">
+        <HintText hint={introHint}>
+          Dissolves the letters like worn photocopied ink: islands and rings of ink, dense along the strokes, with loose
+          specks just outside. Every island, ring and speck is a polygon of straight edges and sharp corners. The seed
+          picks the pattern. Runs last, after Thorn.
+        </HintText>
+
+        <div className="field field-toggle">
+          <input id="dissolve-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <label htmlFor="dissolve-enabled">Use dissolve</label>
+        </div>
+
+        <RangeField
+          id="dissolve-amount"
+          target="experimental.dissolve.amount"
+          label="Amount"
+          value={params.amount}
+          scale={100}
+          unit="%"
+          valueText={`${percent(params.amount)} percent`}
+          disabled={off}
+          hint={amountHint}
+          hintText="How much ink is eaten away. 0%: a nearly solid letter with a ragged edge. 100%: only thin squiggles and rings are left."
+          onChange={(amount) => update({ amount })}
+        />
+        <RangeField
+          id="dissolve-grain"
+          target="experimental.dissolve.grain"
+          label="Grain"
+          value={params.grain}
+          scale={100}
+          unit="% stroke"
+          valueText={`${percent(params.grain)} percent of the stroke`}
+          disabled={off}
+          hint={grainHint}
+          hintText="Size of the islands and rings, as a share of the stroke width. Small grain gives fine, busy ink; large grain gives a few coarse blobs."
+          onChange={(grain) => update({ grain })}
+        />
+        <RangeField
+          id="dissolve-spread"
+          target="experimental.dissolve.spread"
+          label="Spread"
+          value={params.spread}
+          scale={100}
+          unit="%"
+          valueText={`${percent(params.spread)} percent`}
+          disabled={off}
+          hint={spreadHint}
+          hintText="How far the ragged edge reaches past the outline, in half-strokes: at 100% it reaches half a stroke out."
+          onChange={(spread) => update({ spread })}
+        />
+        <RangeField
+          id="dissolve-specks"
+          target="experimental.dissolve.specks"
+          label="Specks"
+          value={params.specks}
+          scale={100}
+          unit="%"
+          valueText={`${percent(params.specks)} percent`}
+          disabled={off}
+          hint={specksHint}
+          hintText="How many loose specks lie just outside the strokes. 0%: none."
+          onChange={(specks) => update({ specks })}
+        />
+        <RangeField
+          id="dissolve-curl"
+          target="experimental.dissolve.curl"
+          label="Curl"
+          value={params.curl}
+          scale={100}
+          unit="%"
+          valueText={`${percent(params.curl)} percent`}
+          disabled={off}
+          hint={curlHint}
+          hintText="0%: plain blobs. 100%: the ink wanders into loops and rings."
+          onChange={(curl) => update({ curl })}
+        />
+        <RangeField
+          id="dissolve-facets"
+          target="experimental.dissolve.facets"
+          label="Facets"
+          value={params.facets}
+          scale={100}
+          unit="%"
+          valueText={`${percent(params.facets)} percent`}
+          disabled={off}
+          hint={facetsHint}
+          hintText="How long the straight edges are. 0%: short edges, still with clear corners. 100%: long edges, chunky shards; small rings close up."
+          onChange={(facets) => update({ facets })}
+        />
+
+        {stats?.applied && (
+          <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+            <div>
+              <dt>Islands</dt>
+              <dd>{stats.islands}</dd>
+            </div>
+            <div>
+              <dt>Holes</dt>
+              <dd>{stats.holes}</dd>
+            </div>
+            <div>
+              <dt>Facet</dt>
+              <dd>
+                {stats.facet.toFixed(0)}
+                <span className="unit">u</span>
+              </dd>
+            </div>
+          </dl>
+        )}
+        {stats?.coarser && <p className="font-warning">This glyph is too large for the grain: it is dissolved more coarsely.</p>}
+        {stats?.reduced && <p className="font-warning">Longer facets on this glyph: these settings make too many vertices.</p>}
       </div>
     </fieldset>
   )

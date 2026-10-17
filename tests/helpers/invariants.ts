@@ -1,5 +1,5 @@
 // The geometry invariants, run per fixture font by tests/geometry/invariants-*.test.ts (one file per font, so the
-// fonts run in parallel). For every sample glyph under every configuration:
+// fonts run in parallel) and over every glyph by tests/slow/audit-*.test.ts (see auditPart). For every sample glyph under every configuration:
 // - deriving never throws, and every coordinate is finite;
 // - no proper crossings where the same Geometry with Experimental off has none and nothing touches (fonts may overlap
 //   their own contours, STIX Two Text does in many glyphs; edges that already cross or touch may cross after a warp,
@@ -33,15 +33,24 @@ export interface Config {
 export const CONFIGS: Config[] = [
   { name: 'Experimental off', params: paramsWith(GEOMETRY.plain, {}), recheckEvery: 3 },
   ...EFFECTS.map((effect) => ({ name: `${effect} default`, params: paramsWith(GEOMETRY.plain, on(effect)), recheckEvery: 3 })),
-  { name: 'all five default', params: paramsWith(GEOMETRY.plain, ALL_DEFAULT), recheckEvery: 3 },
-  { name: 'all five default, dense Geometry', params: paramsWith(GEOMETRY.dense, ALL_DEFAULT), recheckEvery: 6 },
-  { name: 'all five default, heavy Geometry', params: paramsWith(GEOMETRY.heavy, ALL_DEFAULT), recheckEvery: 6 },
+  { name: 'all six default', params: paramsWith(GEOMETRY.plain, ALL_DEFAULT), recheckEvery: 3 },
+  { name: 'all six default, dense Geometry', params: paramsWith(GEOMETRY.dense, ALL_DEFAULT), recheckEvery: 6 },
+  { name: 'all six default, heavy Geometry', params: paramsWith(GEOMETRY.heavy, ALL_DEFAULT), recheckEvery: 6 },
   { name: 'Anchor spacing 1, Crumple at max', params: paramsWith(GEOMETRY.spacing1, SLIDER_MAX.crumple), recheckEvery: 10 },
   { name: 'Anchor spacing 1, Thorn default', params: paramsWith(GEOMETRY.spacing1, on('thorn')), recheckEvery: 10 },
   // Thorns across a large canvas: far beyond the letter, where the merge works with the largest coordinates.
   { name: 'Thorn default, Reach 100% of a 150 em canvas', params: paramsWith(GEOMETRY.plain, on('thorn', { canvasReach: 1, canvasEm: 150 })), recheckEvery: 3 },
   { name: 'Thorn at slider max, reaching 256 em', params: paramsWith(GEOMETRY.plain, THORN_FARTHEST), recheckEvery: 6 },
 ]
+
+/**
+ * Which part of the slow audit runs a configuration: those with Dissolve on take the longest, so they run in two files
+ * of their own per font (on plain Geometry, and on dense and heavy), and the files run in parallel.
+ */
+export function auditPart(config: Config): 'main' | 'dissolve' | 'dissolve-geometry' {
+  if (config.params.experimental.dissolve?.enabled !== true) return 'main'
+  return /dense|heavy/.test(config.name) ? 'dissolve-geometry' : 'dissolve'
+}
 
 /** What went wrong with one glyph under one configuration, as readable lines (empty when nothing did). */
 /** What the same glyph has with Experimental off: proper crossings, and places where edges touch or pinch. */

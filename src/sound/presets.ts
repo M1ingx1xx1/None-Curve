@@ -22,7 +22,7 @@ const RESET_GROUPS = ['flatten', 'random', 'squaring', 'anchors', 'grid', 'disto
 
 const DEFAULTS: GeometryParams = initialState.params
 
-type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
+type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn' | 'dissolve'
 
 /** The Experimental effects, in panel order, with their names in the Experimental tab. */
 const EFFECTS: readonly [EffectKey, string][] = [
@@ -31,6 +31,7 @@ const EFFECTS: readonly [EffectKey, string][] = [
   ['whorl', 'Whorl'],
   ['slipstream', 'Slipstream'],
   ['thorn', 'Thorn'],
+  ['dissolve', 'Dissolve'],
 ]
 
 const map = (feature: Mapping['feature'], target: string, depth: number): Omit<Mapping, 'id'> => ({

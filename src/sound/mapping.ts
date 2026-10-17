@@ -175,9 +175,16 @@ interface Requirement {
   meet(params: GeometryParams): { patch: ParamPatch; notice: string }
 }
 
-type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
+type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn' | 'dissolve'
 
-const EFFECT_NAMES: Record<EffectKey, string> = { crumple: 'Crumple', ripple: 'Ripple', whorl: 'Whorl', slipstream: 'Slipstream', thorn: 'Thorn' }
+const EFFECT_NAMES: Record<EffectKey, string> = {
+  crumple: 'Crumple',
+  ripple: 'Ripple',
+  whorl: 'Whorl',
+  slipstream: 'Slipstream',
+  thorn: 'Thorn',
+  dissolve: 'Dissolve',
+}
 
 /** Noise amplitude set by turning Distortion on for one of its targets: clearly visible, a fifth of the slider. */
 const ACTIVE_DISTORTION_AMOUNT = 40
@@ -234,13 +241,13 @@ const refractionOn: Requirement = {
     notice: `Set Refraction to ${Math.round(ACTIVE_REFRACTION * 100)}%.`,
   }),
 }
-// The shared seed picks Crumple's folds, Slipstream's gusts, slips, cuts and trails, and Thorn's anchors and
-// flutes; Ripple and Whorl have no randomness.
+// The shared seed picks Crumple's folds, Slipstream's gusts, slips, cuts and trails, Thorn's anchors and flutes, and
+// Dissolve's ink; Ripple and Whorl have no randomness.
 const seededEffectOn: Requirement = {
   unmet: (p) =>
-    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled
+    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled || p.experimental.dissolve?.enabled
       ? null
-      : 'Turn on Crumple, Slipstream or Thorn to hear this.',
+      : 'Turn on Crumple, Slipstream, Thorn or Dissolve to hear this.',
   meet: effectOn('crumple').meet,
 }
 
@@ -292,7 +299,7 @@ function groupField<G extends GroupKey>(group: G, key: NumericKeys<GeometryParam
 function effectField<E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    // Older saved settings may lack a whole effect (Thorn).
+    // Older saved settings may lack a whole effect (Thorn, Dissolve).
     read: (p) => p.experimental[effect]?.[key],
     write: (p, value) => ({
       ...p,
@@ -453,6 +460,12 @@ export const TARGETS: readonly TargetSpec[] = [
     fallback: THORN_FALLBACK.flute,
     requires: [effectOn('thorn'), refractionOn],
   }),
+  experimental('dissolve', 'amount', 'Amount'),
+  experimental('dissolve', 'grain', 'Grain'),
+  experimental('dissolve', 'spread', 'Spread'),
+  experimental('dissolve', 'specks', 'Specks'),
+  experimental('dissolve', 'curl', 'Curl'),
+  experimental('dissolve', 'facets', 'Facets'),
   seed('experimental', 'Seed', experimentalField('seed'), EXPERIMENTAL_LIMITS.maxSeed, [seededEffectOn]),
 ]
 

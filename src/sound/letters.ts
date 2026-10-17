@@ -214,14 +214,18 @@ export const isThornTarget = (id: string): boolean => id.startsWith('experimenta
 /** The Amounts the thorns keep through (thorn.ts), as they keep through Distortion: they stay with the shared values. */
 const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount'])
 
+/** Dissolve runs after Thorn (experimental.ts), so its sliders never move a thorn. */
+const AFTER_THORN = 'experimental.dissolve.'
+
 /**
  * Whether a target reaches the letters by Thorn turns while Thorn is on (THORN_TURNS): it decides where the thorns sit
  * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders and the Experimental seed; every
  * Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every slider of Crumple, Ripple,
  * Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor those two Amounts: the thorns keep their
- * anchors and directions through their moves (thorn.ts), so they stay with the shared values and levels.
+ * anchors and directions through their moves (thorn.ts), so they stay with the shared values and levels. Nor
+ * Dissolve's sliders: it runs after Thorn.
  */
-export const isTurnTarget = (id: string): boolean => !id.startsWith('distortion.') && !KEPT_THROUGH.has(id)
+export const isTurnTarget = (id: string): boolean => !id.startsWith('distortion.') && !KEPT_THROUGH.has(id) && !id.startsWith(AFTER_THORN)
 
 /** Whether Thorn is on, so the turn targets come from the letters' turn groups (with Thorn off, levels scale them). */
 const turnsOn = (params: GeometryParams): boolean => params.experimental.thorn?.enabled === true

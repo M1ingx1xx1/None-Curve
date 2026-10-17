@@ -28,7 +28,7 @@ Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_G
 ## Tests
 
 - Tests live in `tests/`, by area (`tests/geometry`, `tests/export`, `tests/font`, `tests/sound`, `tests/specimen`, `tests/state`, `tests/worker`, and `tests/scripts` for the Jira sync in `scripts/`); slow ones go in `tests/slow`.
-- `npm test` runs the fast suite (about 15 s). `npm run test:slow` runs the slow one (the whole 42 s Sound test track, and every glyph of both fixture fonts; about 3 minutes); it runs only when asked for by name.
+- `npm test` runs the fast suite (about 15 s). `npm run test:slow` runs the slow one (the whole 42 s Sound test track, and every glyph of both fixture fonts; about 5 minutes); it runs only when asked for by name.
 - `npm run build` type-checks the tests and scripts as well (`tsconfig.test.json`).
 - Run `npm test` before opening a pull request into `develop`. CI runs `npm test` and `npm run build` on every pull request into `develop` and every push to it, and the Pages deploy runs `npm test` before it builds.
 - Fixture fonts are open-licensed only (OFL: STIX Two Text and Roboto), each with its `OFL-*.txt` beside it in `tests/fixtures/fonts`. Never add a font that may not be redistributed.

@@ -37,9 +37,11 @@ import { BASE } from '../helpers/params'
 // Crumple lost Detail (NOCUR-60); with that field put back they give the 4a54e5d values (ef59f235, 32a8121b).
 // Pinned again when the sliders got finer steps (NOCUR-63): Sound snaps a live value to its slider's step, so
 // modulate and scheduler moved; with the old steps put back in SLIDER_RANGES they give a0bbe805 and c91cc307.
+// Pinned again when Dissolve was added (NOCUR-69, off by default): with its default left out of the params they give
+// a02149f5 and cf6faa50.
 const PINNED = {
-  modulate: 'a02149f5',
-  scheduler: 'cf6faa50',
+  modulate: '4b75ecd5',
+  scheduler: 'aa7d54e0',
   features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',
