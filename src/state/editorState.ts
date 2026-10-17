@@ -32,7 +32,7 @@ export const initialState: AppState = {
     distortion: { amount: 0, frequency: 8, normalBias: 0.7, seed: 1, sparse: false },
     experimental: {
       seed: 1,
-      crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0, detail: 0.5 },
+      crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
       ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0 },
       whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
       slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },

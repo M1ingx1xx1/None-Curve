@@ -1,5 +1,5 @@
 import { reachPercent, reachReadout } from '../state/sliderScales'
-import { CRUMPLE_LIMITS, crumpleIsOn } from './crumple'
+import { crumpleIsOn } from './crumple'
 import { experimentalFolds } from './experimental'
 import { rippleIsOn } from './ripple'
 import { slipstreamIsOn } from './slipstream'
@@ -35,7 +35,7 @@ export function describePipeline(params: GeometryParams): string[] {
   }
   if (crumpleIsOn(experimental.crumple)) {
     const c = experimental.crumple
-    steps.push(`crumple ${Math.round(c.amount * 100)}%, detail ${Math.round((c.detail ?? CRUMPLE_LIMITS.defaultDetail) * 100)}%, facets ${Math.round(c.facet * 100)}% em${c.turn ? `, turn ${Math.round(c.turn)}°` : ''}, seed ${experimental.seed}`)
+    steps.push(`crumple ${Math.round(c.amount * 100)}%, facets ${Math.round(c.facet * 100)}% em${c.turn ? `, turn ${Math.round(c.turn)}°` : ''}, seed ${experimental.seed}`)
   }
   if (rippleIsOn(experimental.ripple)) {
     const r = experimental.ripple

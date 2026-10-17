@@ -108,11 +108,8 @@ export function applyExperimental(
     return warped.stats
   }
   if (crumpleIsOn(params.crumple)) {
-    // Crumple holds the middle of each glyph's ink box in place, so letters bend without drifting.
-    stats.crumple = warp(inkBox(result), (scale, box) => {
-      const anchor = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : undefined
-      return crumpleWarp(params.crumple, seed, unitsPerEm, scale, polygon.ref.index, anchor)
-    })
+    // Crumple's lattice is fixed in glyph coordinates, so it needs no box and every copy of a letter gets the same shape.
+    stats.crumple = warp(null, (scale) => crumpleWarp(params.crumple, seed, unitsPerEm, scale))
   }
   // Ripple, Whorl, and Slipstream place themselves by the ink box of what they receive, so the same letter
   // always looks alike.

@@ -170,9 +170,9 @@ Sound 驱动字母且 Thorn 打开时，会移动刺的设置每次只传到少�
 | **Grid** size | Bass，按档 | 低音时吸附到更粗的网格 |
 | Grid & angles · **Allowed directions**（角度步长） | Beat → Step（尚待完成） | 边依次锁定到 15°、30°、45°、90° |
 
-以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 43 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
+以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 42 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
 
-**Experimental 标签页**：Crumple 的 Amount / Detail / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Refraction / Flute width（Reach 是画布对角线的比例，沿面板上的三次方滑块移动）；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Crumple 的 Detail 为 50%，Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。Reach 还是 em 比例时保存的 Thorn · Reach 映射行保留它们的 Depth，现在它移动的是三次方滑块。
+**Experimental 标签页**：Crumple 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Refraction / Flute width（Reach 是画布对角线的比例，沿面板上的三次方滑块移动）；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。Crumple 带 Detail 时（第 9 阶段起，到 NOCUR-60 为止）保存的设置，读取时忽略这个值，并丢弃 Crumple · Detail 上的映射行。Reach 还是 em 比例时保存的 Thorn · Reach 映射行保留它们的 Depth，现在它移动的是三次方滑块。
 
 **目标起作用需要什么**（即它的未生效说明，以及选择它时会打开什么，见第 5 节）：
 
@@ -271,7 +271,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 - **实测耗时：**
   - 只有 Geometry 时，每个字形约 0.1 ms。
   - 所有 Experimental 效果同时翻折时，每个字形最多约 20 ms，对较长的文字来说太重，无法实时使用。
-  - 实时帧（在 worker 中测量；Node、Arial、默认文字的 24 个不同字形，特征扫动时取 30 帧）：Level → Distortion 的 Noise amplitude 约 2.6 ms，Level → Crumple Amount 7.4 ms，Bass → Ripple Petals 6.2 ms，三者同时 12.3 ms，都达到 30 fps 上限。Crumple、Ripple、Whorl、Slipstream 全开时每帧约 41 ms（约 24 fps）。重复的值命中缓存，不到 0.1 ms；页面上排布字形和画板每次渲染约 0.3 ms。第 3 阶段完成后重新测量，结果在每次运行的波动范围内相同：2.4 ms，三者同时 12 ms，全部打开 37–41 ms（24–27 fps）。Experimental 的这些数字早于 Crumple、Slipstream 和 Thorn 的重做（EXPERIMENTAL_PLAN 第 4.9 节），重做让它们都变重了（默认设置下每个字形约 0.6–0.9 毫秒）；下面 H 阶段的表重新测量了它们。
+  - 实时帧（在 worker 中测量；Node、Arial、默认文字的 24 个不同字形，特征扫动时取 30 帧）：Level → Distortion 的 Noise amplitude 约 2.6 ms，Level → Crumple Amount 7.4 ms，Bass → Ripple Petals 6.2 ms，三者同时 12.3 ms，都达到 30 fps 上限。Crumple、Ripple、Whorl、Slipstream 全开时每帧约 41 ms（约 24 fps）。重复的值命中缓存，不到 0.1 ms；页面上排布字形和画板每次渲染约 0.3 ms。第 3 阶段完成后重新测量，结果在每次运行的波动范围内相同：2.4 ms，三者同时 12 ms，全部打开 37–41 ms（24–27 fps）。Experimental 的这些数字早于 Crumple、Slipstream 和 Thorn 的重做（EXPERIMENTAL_PLAN 第 4.9 节），重做让它们都变重了（默认设置下每个字形约 0.6–0.9 毫秒）；下面 H 阶段的表重新测量了它们。NOCUR-60 撤回了 Crumple 的重做，所以这里 Crumple 的数字又对应现在的 Crumple。
   - **H 阶段，逐字母级别**（Node、单线程、每一帧都不命中缓存；Roboto、默认文字：226 个字母，其中 196 个要绘制，24 个字形 id；10 帧的每帧耗时中位数，最重的一项取 5 帧；"Flare" 是该预设的起始值，只带它的 Reach 那一行；不含闪烁限制）：
 
     | 负载 | 中性 | Motion contrast 100% | Pitch reactive 200% | 两者都开 |
@@ -287,6 +287,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
     - 所以轻负载和 Flare 都在 30 fps 上限之内，Thorn 大约正好在上限上；四个重效果同时打开时，从每秒约 13 帧降到 2–3 帧。这时会显示变慢的提示；不会自动降低任何设置。
     - 声音持续不变时，各级别的值保持不动，所以字母在级别之间漂移不需要新的字形。
     - Thorn 和 Flare 两行早于 Thorn 轮换（第 5.3 节）；此后级别不再缩放 Thorn 的滑块。
+    - 打开 Crumple 的那一行是用第 9 阶段重做后的 Crumple 测量的，早于 NOCUR-60 恢复单一方形格子。
   - **Thorn 轮换与静止的文字块**（H 阶段之后测得；箭头表示之前 → 之后）：
     - Node 端到端（EB Garamond 187 像素，"Hello / This is / Ming"，中性 Response，类似 Flare 的一组设置）：字母的刺每秒变化 283.9 → 7.2 次（算上 Distortion 和两个 Amount 在内的所有形状变化，299.7 → 7.4 次）；任意 250 ms 内刺变化的字母最多 15 → 3 个；同一字母两次刺变化的最短间隔 33 → 1,331 ms；文字块移动 0 px；每秒几何计算耗时 340 → 135 ms；没有曲线。
     - Headless Chrome（Roboto，"Hello / This is / Ming"，15 个字母；打开 Thorn（Anchors 3）、Crumple、Ripple 和 Distortion；Beat → Seed、Level → Thorn · Reach、Beat → Thorn · Anchors，以及 Level → Distortion · Noise amplitude；42 s 测试音轨）：8 s 内文字块只有一个位置，任意 250 ms 内最多 3 个字母变化，同一字母两次变化的最短间隔为 1,533 ms，每秒 7.9 次字母变化，没有曲线，Live 为 30 fps。
@@ -377,7 +378,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 - **调制：** Depth 为 0 或映射关闭时得到滑块值；值会被截断；多个作用相加；已关闭组里的目标不起作用；Beat 在释放时间内回落；Step 循环切换；频率限制有效；每秒 4 次的节拍在满 Depth 下，任意一秒内最多让滑块折返 6 次，每个值都落在滑块的档位上。
   - 共用的闪烁预算（已检查）：一个滑块、三个或五个同步或不同步的滑块、五个同步各摆 4% 的滑块、单独一个 Beat 种子，以及滑块加 Beat 种子，在任意一秒内都最多 6 次大变化（按帧和按屏幕分别测量），而只要音乐要求，每秒仍至少有 4 次通过。
   - 每个滑块目标的范围和档位都取自 `SLIDER_RANGES`（Tolerance 和 Thorn · Reach 取自它们各自的非线性刻度），并且只给出滑块自己能给出的值；Thorn · Reach 沿着与面板相同的三次方滑块移动。
-  - 第 3 阶段（已检查）：10 个特征及其分组；43 个目标中的每一个，在 3000 组随机参数上（Refraction 也随机变化），都是恰好在起作用时不需要打开任何设置，它的修改能让它起作用，并且不改动其他任何东西；旧设置缺少重做后效果的七个字段时，这七个目标按面板显示的值读取，Thorn 和 Refraction 处于任何状态时 Flute width 的提示都正确；种子超过最大值后回到 0，而且从不移动滑块；Beat 在 Rate 100%、50% 和 25% 时分别在每个、每隔一个和每四个节拍跳变；Level 为 1、Rate 100% 时每秒约 4.8 次跳变；每秒 16 个节拍时，任意 1.25 秒内的跳变帧从不超过 6 个；2 秒的卡顿最多带来一次跳变；暂停后回到输入框的种子，Freeze 写入屏幕上显示的实时种子。
+  - 第 3 阶段（已检查）：10 个特征及其分组；42 个目标中的每一个，在 3000 组随机参数上（Refraction 也随机变化），都是恰好在起作用时不需要打开任何设置，它的修改能让它起作用，并且不改动其他任何东西；旧设置缺少重做后效果的六个字段时（NOCUR-60 去掉 Crumple 的 Detail 之前是七个），这六个目标按面板显示的值读取，Thorn 和 Refraction 处于任何状态时 Flute width 的提示都正确；种子超过最大值后回到 0，而且从不移动滑块；Beat 在 Rate 100%、50% 和 25% 时分别在每个、每隔一个和每四个节拍跳变；Level 为 1、Rate 100% 时每秒约 4.8 次跳变；每秒 16 个节拍时，任意 1.25 秒内的跳变帧从不超过 6 个；2 秒的卡顿最多带来一次跳变；暂停后回到输入框的种子，Freeze 写入屏幕上显示的实时种子。
   - Response（已检查）：取中性值时，`modulate` 对每个预设给出的结果都和没有这些值时完全相同；Strength 在截断之前缩放偏移量，为 0 时滑块完全保持原值；Melody tracking 加强除 Pan 行和 Melody 行以外的每个滑块行；Strength 缩放种子的 Rate（上限 100%），为 0 时不产生跳变；在调度器里，Strength 为 0 时停止驱动并完全恢复，并且会测量一帧到提交的延迟。
 - **中性不变：** `tests/sound/neutral.test.ts` 在 H 阶段之前于 4a54e5d 锁定，永远不许为了迁就新代码而修改。它对每个预设的 `modulate`、起始设置不打开 Thorn 的每个预设（除 Flare 以外的全部）下实时调度器的请求、提交和 Freeze、当时特征帧的各字段（按 10 位有效数字，因为 V8 的 x64 版和 arm64 版在 `Math.log2` 和 `Math.log10` 的最后一位上不同），以及渲染成 SVG 的默认文字计算哈希。Response 控件取默认值时，每个哈希仍然一致。
   - **为什么不含 Flare：** Thorn 轮换（第 5.3 节）有意改变了 Flare 的实时帧，它是唯一一个起始设置打开 Thorn 的预设；它的新行为由 `tests/sound/turns.test.ts` 测试。调度器的锁定值（32a8121b）是在去掉 Flare 后从 4a54e5d 的导出重新取得的，从不取自新代码，并在 arm64 和 x64（在 Rosetta 下运行的官方 x64 版 Node 22.23.3）上分别用导出和新代码检查过。其他锁定值不变。
@@ -408,7 +409,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 |---|---|
 | 1 | Sound 标签页；音频引擎（File、Microphone）；特征 Level、三个频带（现在叫 Bass、Mids、Treble）、Brightness，以及带底鼓检测器的 Beat；电平表 |
 | 2 | 调制层、连续目标的映射、带独立缓存的自适应实时调度、滑块上的实时值标记、连续映射的闪烁限制、Freeze |
-| 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 脉冲；新增 13 个特征，加上立体声测量支路，之后与最初的特征一起合并成五组共 10 个（第 4 节）；紧凑的电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨；十个预设，带 Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值（保留种子）、设好预设的起始值，并说明关闭了什么；为 Flicker 而设的 Distortion 少数锚点模式；File 作为默认来源、没有 Off，Drive letters 改为开关；为重做后的 Experimental 效果新增七个目标（共 43 个），并为它们重新设计 Flare 和 Gale。尚待完成：Step 映射（Allowed directions、Sides、Rings）；实时 SVG 重绘测量 |
+| 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 脉冲；新增 13 个特征，加上立体声测量支路，之后与最初的特征一起合并成五组共 10 个（第 4 节）；紧凑的电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨；十个预设，带 Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值（保留种子）、设好预设的起始值，并说明关闭了什么；为 Flicker 而设的 Distortion 少数锚点模式；File 作为默认来源、没有 Off，Drive letters 改为开关；为重做后的 Experimental 效果新增七个目标（共 43 个；NOCUR-60 去掉 Crumple 的 Detail 之后为六个，共 42 个），并为它们重新设计 Flare 和 Gale。尚待完成：Step 映射（Allowed directions、Sides、Rings）；实时 SVG 重绘测量 |
 | 4 | Pitch 和立体声（Pan）：已在第 3 阶段和其他新特征一起完成 |
 | H | 已完成：Response 分组（Sensitivity、Strength、Motion contrast、Release（原来的 Smoothing）、Pitch reactive、Melody tracking），可保存、可撤销；每个字母在三个级别上按自己的幅度响应，闪烁限制作用于每个字母，每帧一个请求；Melody 特征和音高置信度；实时视频录制（MP4 或 WebM，带声音），可从 Record 分组、页头和 Export 对话框操作 |
 | H 之后 | 已完成：Sound 不再移动的文字块，按滑块字母放置（第 8 节）；Thorn 轮换，五组字母依次取得 Thorn 的设置，最多每 250 ms 一组，每次轮换都受闪烁限制（第 5.3 节）；Thorn 的锚点在 Distortion 之前挑选，并保持过各次变形（EXPERIMENTAL_PLAN 第 4.8 节） |

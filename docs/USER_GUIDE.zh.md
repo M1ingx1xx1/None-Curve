@@ -87,7 +87,7 @@
 - **会保存的：** 文字；Geometry、Experimental、Typography 和 Color 标签页里的每项设置；画布尺寸；画布视图按钮（Original / Flattened / Compare 和各图层，但不包括缩放和移动到的位置）；预览的 Blur 和 Invert；导出的 **Coordinate precision**（坐标精度）；Sound 标签页的映射和 **Response** 组的六个滑块（Sensitivity、Strength、Motion contrast、Release、Pitch reactive 和 Melody tracking）；选中的字母（再次打开同一款字体时）；以及字体本身。
 - **字体：** Google 字体会在页面打开时自动重新下载（需要联网）。来自你电脑的字体程序无法替你重新打开：画布上会显示 “Last font: *文件名*. Import it again to continue.”（上次的字体：……，请重新导入以继续）。导入同一个文件就能接着做——你的设置都还在。
 - **不会保存的：** Sound 标签页的 **Drive letters** 和声音来源（文件或麦克风）；视频选项（**Format**、**Length**、**Include audio** 和 **Use the preview look**），它们只保留到关闭页面为止；打开着的对话框；亮色或暗色界面；以及撤销步骤。（和以前一样，程序也会记住各区域的大小、你打开的标签页、**Canvas size** 设置是否展开，以及 **Show all explanations**。）
-- **旧版程序保存的作品：** Thorn 的 **Reach** 以前按 em（字母的设计正方形）的比例计算，现在改为按画布的比例计算（见 Experimental 标签页里的 Thorn）。以前保存的作品会按它保存时的字号和画布尺寸，换算成让刺保持同样长度的比例，所以刺会和原来一样。原来有刺的仍然有刺：刺再短，恢复后也至少是滑块第一档的长度。Sound 里作用在 Reach 上的映射行保留各自的 **Depth**。同一个 **Seed** 下，刺也可能长在和以前不同的点上，因为程序现在用一种更稳定的方式挑选它们（见 Experimental 标签页里的 Thorn）；多按几次 **Next variant**，直到你再次满意为止。
+- **旧版程序保存的作品：** Thorn 的 **Reach** 以前按 em（字母的设计正方形）的比例计算，现在改为按画布的比例计算（见 Experimental 标签页里的 Thorn）。以前保存的作品会按它保存时的字号和画布尺寸，换算成让刺保持同样长度的比例，所以刺会和原来一样。原来有刺的仍然有刺：刺再短，恢复后也至少是滑块第一档的长度。Sound 里作用在 Reach 上的映射行保留各自的 **Depth**。同一个 **Seed** 下，刺也可能长在和以前不同的点上，因为程序现在用一种更稳定的方式挑选它们（见 Experimental 标签页里的 Thorn）；多按几次 **Next variant**，直到你再次满意为止。Crumple 不再有 **Detail** 滑块：保存的 Detail 数值会被忽略，Sound 里作用在 **Crumple · Detail** 上的映射行会被去掉；Crumple 恢复了它改名前（还叫 Noise 时）的揉皱方式，所以同一个 **Seed** 得到的折痕和带 Detail 的版本不同。
 - **如果页面在绘制你的设置时关闭了**——比如某个特别重的设置让浏览器撑不住了——下次打开时所有设置都会回到初始值，免得再次卡住，画布上会显示 “The last visit closed while drawing, so its settings were not restored.”（上次访问在绘制时关闭，所以没有恢复它的设置）。你的文字、字体、映射和 **Response** 滑块仍会恢复。
 - **从头开始：** 大多数设置组都有重置按钮（**Reset anchors**、**Reset grid & angles**、**Reset distortion**、**Reset random anchors**、**Reset experimental**、**Reset typography**），Color 标签页里的 **Charcoal** 就是初始配色。想彻底从头开始，就在浏览器设置里清除这个网站的数据（Cookie 和网站数据），然后刷新页面；这样也会忘掉各区域的大小和打开的标签页。
 - **需要知道的：** 每个浏览器各存一份。如果在两个标签页里同时打开程序，以你最后改动的那个为准。Safari 可能会清除 7 天没有打开过的网站所保存的内容。想确保留住某个结果，请把它导出。
@@ -337,10 +337,8 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
 
 - **Use crumple**——打开该效果。
 - **Amount**（强度）——字母被揉皱的程度，最高 500%。数值小时像轻轻手折过；100% 时折痕锐利明显；再往上折痕会互相翻过去，接近 500% 时字母碎成一堆互相叠压的碎片。
-- **Detail**（细节）——揉皱的力度在大折痕和小折痕之间怎么分配（初始为 50%）。纸同时按三种大小被揉皱：大的折痕让整根笔画倾斜、弯折，中等的折痕让这里那里的笔画末端弯一下，还有细小尖锐的棱角。0% 时只有大折痕在动；数值越高，小折痕占得越多，细小的棱角聚在“忙碌”的段落里，中间夹着平静、只有大折痕的段落。
-- **Facet size**（刻面大小）——折痕的大小，按 em（字体的设计正方形）的比例计算。它设定的是中等的折痕；大折痕约为它的两倍，小折痕不到它的一半。刻面小，折痕多而细；刻面大，折痕少而大，能让整个笔画弯折。即使最小的折痕之间也保持足够距离，看起来仍是棱角。
+- **Facet size**（刻面大小）——折痕的大小，按 em（字体的设计正方形）的比例计算。刻面小，折痕多而细；刻面大，折痕少而大，能让整个笔画弯折。最小值也会让折痕之间保持足够距离，看起来仍是棱角。
 - **Turn**（转向）——折痕往哪边走。调大 **Amount** 时，每条折痕都沿同一个方向越推越远；Turn 让它们换一个方向，而折痕的位置不变。180° 时就是反方向揉。（Seed 下面的 **Next variant** 则是换一张全新的纸。）
-- 每个字母按自己的方式揉皱，所以 **l**、**i**、**h** 这样相邻的字母看起来各不相同，而同一个字母的每次出现都一样。
 - 统计数字显示轮廓最多移动了多远（**Max move**），以及折痕增加了多少个角（**Creases**）。
 
 **Ripple——多边形波纹**
@@ -468,7 +466,7 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
   - Curve flattening 的滑块会关闭随机锚点（随机锚点取代了曲线展平），并设好自己需要的设置：**Tolerance** 把 **Mode** 设为 Adaptive，**Segments per curve** 把它设为 Fixed segments，**Corner angle** 会打开 **Merge joined curves**——例如 “Turned off Random anchors. Set Mode to Adaptive.”（已关闭随机锚点。已把 Mode 设为 Adaptive）。（Corner angle 单独使用时变化不大，见 Curve flattening 一节。）
 - 把某一行换成别的目标，或者删除这一行，都不会再把任何设置关掉。这条提示会一直保留，直到你再次更换这一行的目标或删除这一行。如果你用方向键在 **Target** 列表里逐个浏览，只有你最后停下的那个目标才会打开设置：在你按回车或转到其他控件时生效；用鼠标选择则立即生效。
 - 如果之后那个设置又被关掉了——你自己关掉了它，或者另一行需要不同的 Mode（Tolerance 需要 Adaptive，Segments per curve 需要 Fixed segments）——该行下方会有一条灰色提示说明原因，例如 “Turn on Ripple to hear this.”（打开 Ripple 才能听到效果），旁边的 **Enable**（启用）按钮可以把它重新打开。
-- **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Crumple、Ripple、Whorl、Slipstream、Thorn 的全部滑块——以及三个种子，一共 43 个。开关和选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
+- **可以驱动的：** **Geometry** 和 **Experimental** 两个标签页里的每个滑块——Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Density 和 Randomness；以及 Crumple、Ripple、Whorl、Slipstream、Thorn 的全部滑块——以及三个种子，一共 42 个。开关和选项（比如 **Mode** 或 **Allowed directions**）不能驱动。
 - 映射会和你的其他设置一起保存，下次打开程序时会恢复（见[下次打开时](#下次打开时)）；**Drive letters** 不会保存。添加、修改或删除一行，都可以像其他改动一样撤销。
 
 **种子**——跳到新位置的点。种子决定一种随机图案（见 Distortion、Random anchors 和 Experimental 标签页）。声音驱动一个种子时，每跳一次，它就往前走一个数——1234 变成 1235——而每个种子都是一种完全不同的图案，所以轮廓上的每个点会一下子落到新的位置（载入 **Flicker** 之后，每个字母只有少数几个点移动，每次换不同的几个；开启 Thorn 时，Experimental **Seed** 和 Random anchors 的种子每次只送到少数几个字母，见下文的“**刺轮流变化**”）。到 999 999 之后，它从 0 重新开始。
@@ -645,7 +643,7 @@ Grid & angles → 打开 **Snap to grid**，**Grid size** 约为字体 Units/em 
 Random anchors → 打开 **Use random anchors**，**Density** 3–5，**Randomness** 100%，打开 **Keep sharp corners**。不断点 **Shuffle** 直到满意，然后点 **Copy** 记下种子。
 
 **揉皱的纸**
-Experimental 标签页 → 打开 **Use crumple**，**Amount** 70–100%，**Facet size** 15–25%。调高 **Detail** 会多出细小尖锐的折痕，往 0% 调则只剩几道大而平缓的折痕。想要粗犷、块状的折痕，可以搭配较大的 Curve flattening **Tolerance**（40 或以上）。不断点 **Next variant**，直到找到喜欢的折痕。
+Experimental 标签页 → 打开 **Use crumple**，**Amount** 70–100%，**Facet size** 15–25%。想要粗犷、块状的折痕，可以搭配较大的 Curve flattening **Tolerance**（40 或以上）。不断点 **Next variant**，直到找到喜欢的折痕。
 
 **多边形波纹**
 Experimental 标签页 → 打开 **Use ripple**，**Amount** 50%，**Wavelength** 25–35%，**Sides** 6 或 8。想要硬朗的三角形冲击波，试试 **Sides** 3 并配合较大的 Curve flattening **Tolerance**；想让波纹从一角扫过来，把 **Center X** 和 **Center Y** 都设为 0%。

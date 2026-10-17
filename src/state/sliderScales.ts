@@ -97,7 +97,6 @@ export const SLIDER_RANGES = {
 
   // Experimental tab (Thorn's Reach is the cubic THORN_REACH above).
   'experimental.crumple.amount': range(0, CRUMPLE_LIMITS.maxAmount, 0.1),
-  'experimental.crumple.detail': range(0, 1, 0.05),
   'experimental.crumple.facet': range(CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet, 0.02),
   'experimental.crumple.turn': range(0, 345, 15),
   'experimental.ripple.amount': range(0, RIPPLE_LIMITS.maxAmount, 0.1),

@@ -59,7 +59,6 @@ function thornsOf(font: LoadedFont, index: number, params: GeometryParams, warps
   const { reference, distorted } = outlines(font, index, params)
   const anchors = new ThornAnchors(reference, distorted, x.thorn, x.seed, upm)
   const folds = experimentalFolds(x)
-  const glyph = distorted.ref.index
   const [a, b] = [inkBox(reference)!, inkBox(distorted)!]
   const undistorted = (box: Box): Box => ({
     minX: box.minX - (b.minX - a.minX),
@@ -76,8 +75,7 @@ function thornsOf(font: LoadedFont, index: number, params: GeometryParams, warps
     ;({ polygon, marks } = warped)
   }
   if (warps) {
-    const middle = (box: Box) => ({ x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 })
-    warp((scale, box) => crumpleWarp(x.crumple, x.seed, upm, scale, glyph, middle(box)))
+    warp((scale) => crumpleWarp(x.crumple, x.seed, upm, scale))
     warp((scale, box) => rippleWarp(x.ripple, box, upm, scale))
   }
   return anchors.located(polygon).map((site) => {
@@ -188,7 +186,9 @@ describe.each(FIXTURE_FONTS)('Thorn anchors: %s', (fontName) => {
   it('turns the thorns only a little when Distortion moves the letter under Crumple and Ripple', async () => {
     // Sound drives Distortion every frame: it moves the ink box that places Crumple and Ripple, which must not swing
     // long thorns round (a 1° turn moves the tip of a 3 em thorn by 0.05 em). Placed by the box Distortion moved, the
-    // window's ends turned them up to 11.7° (STIX) and 2.7° (Roboto) here, 0.06° and 0.03° at the median.
+    // window's ends turned them up to 11.7° (STIX) and 2.7° (Roboto) here, 0.06° and 0.03° at the median. Crumple's
+    // single lattice, fixed in glyph coordinates, has finer creases than the large mesh it had from 10-13 to NOCUR-60,
+    // so Distortion's moves cross more of them: up to 2.6° on STIX.
     const font = await loadFixture(fontName)
     const turns: number[] = []
     for (const glyph of sampleGlyphs(font, TEXT)) {
@@ -206,7 +206,7 @@ describe.each(FIXTURE_FONTS)('Thorn anchors: %s', (fontName) => {
     turns.sort((p, q) => p - q)
     expect(turns.length).toBeGreaterThan(30)
     expect(turns[Math.floor(turns.length / 2)]).toBeLessThanOrEqual(0.05)
-    expect(turns[turns.length - 1]).toBeLessThanOrEqual(2.5)
+    expect(turns[turns.length - 1]).toBeLessThanOrEqual(3)
   })
 
   it('adds and removes thorns at the end of a fixed list, and only Anchors and the seed change which', async () => {
