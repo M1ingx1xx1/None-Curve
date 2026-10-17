@@ -12,7 +12,7 @@ import { applyThorn, BURST_REACH, THORN_LIMITS, thornBursts } from '../../src/ge
 import type { ExperimentalParams, GeometryParams, Point, ThornParams } from '../../src/geometry/types'
 import { curveLikeRuns, WARP_LIMITS } from '../../src/geometry/warp'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { contoursOf, outlineCrossings, polygonOf, rect, sameContours, vertexCount } from '../helpers/outline'
+import { contoursOf, outlineCrossings, polygonOf, rect, sameContours, vertexCount, winding } from '../helpers/outline'
 import { GEOMETRY, on, paramsWith } from '../helpers/params'
 
 const THORN = on('thorn').thorn!
@@ -25,6 +25,27 @@ function withoutBurst(params: GeometryParams): GeometryParams {
 }
 
 const burst = (patch: Partial<ThornParams> = {}, seed = 1) => paramsWith(GEOMETRY.plain, on('thorn', { burst: true, ...patch }), seed)
+
+/** The distance from `p` to the nearest edge of `contours`. */
+function distanceToEdges(contours: Point[][], p: Point): number {
+  let best = Infinity
+  for (const c of contours) {
+    for (let i = 0; i < c.length; i++) {
+      const a = c[i]
+      const b = c[(i + 1) % c.length]
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const l = dx * dx + dy * dy
+      const t = l > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l)) : 0
+      best = Math.min(best, Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y))
+    }
+  }
+  return best
+}
+
+/** The vertices of `plain` that are neither ink in `contours` nor within `near` of their outline. */
+const lostVertices = (plain: Point[][], contours: Point[][], near: number) =>
+  plain.flat().filter((p) => winding(contours, p) === 0 && distanceToEdges(contours, p) > near)
 
 /** How many vertices sit in runs that read as curves (see curveLikeRuns), over every contour. */
 const curvedVertices = (contours: Point[][], unitsPerEm: number) =>
@@ -97,6 +118,22 @@ describe.each(FIXTURE_FONTS)('Burst on: %s', (fontName) => {
     }
   })
 
+  it('keeps the letter between the spikes: at Dent 0 and 1% no arm, crossbar or corner is cut off', async () => {
+    const font = await loadFixture(fontName)
+    for (const glyph of sampleGlyphs(font, 'HEMW&a')) {
+      const source = font.getGlyph(glyph.index)
+      const base = deriveGeometry(source, paramsWith(GEOMETRY.plain, {})).polygon
+      // A base may cut a corner by at most BURST.leastBase (0.02 em) and the dent sinks 1% of 60% of a stroke.
+      const near = 0.025 * base.metrics.unitsPerEm
+      for (const patch of [{ spikes: 4 }, { spikes: 8 }, { spikes: 4, canvasReach: 0.3 }, { spikes: 40 }]) {
+        for (const dent of [0, 0.01]) {
+          const contours = contoursOf(deriveGeometry(source, burst({ ...patch, dent })).polygon)
+          expect(lostVertices(contoursOf(base), contours, near), `"${glyph.char}" ${JSON.stringify(patch)}, dent ${dent}`).toEqual([])
+        }
+      }
+    }
+  })
+
   it('merges into a valid outline, Reverse included', async () => {
     const font = await loadFixture(fontName)
     for (const glyph of sampleGlyphs(font, 'aB@')) {
@@ -140,6 +177,23 @@ describe('Burst on a ring', () => {
         expect(out.filter((p) => Math.min(p.x, 1000 - p.x, p.y, 1000 - p.y) > 1).length).toBeGreaterThanOrEqual(25)
         expect(counter.filter((p) => hole(p) < -1).length).toBeGreaterThanOrEqual(15)
       }
+    }
+  })
+
+  it('keeps the outline where a spike has no room to grow, and every corner of a long gap', () => {
+    // A staircase of 20 corners; spikes so short that some are left out (no longer than a step off the outline).
+    const stairs: Point[] = [{ x: 0, y: 0 }, { x: 1000, y: 0 }]
+    for (let k = 0; k < 10; k++) stairs.push({ x: 1000 - 100 * k, y: 100 * (k + 1) }, { x: 900 - 100 * k, y: 100 * (k + 1) })
+    const glyph = polygonOf([stairs])
+    for (const spikes of [4, 80]) {
+      const { polygon, stats } = applyThorn(glyph, { ...BURST, spikes, canvasReach: 0.0004, dent: 0.01 }, 1, 1000)
+      if (spikes === 80) {
+        expect(stats.thorns).toBeGreaterThan(0)
+        expect(stats.thorns).toBeLessThan(spikes)
+      }
+      // Each corner stays, sunk at most 1% of 60% of the stroke (or under a base a few units wide).
+      const out = contoursOf(polygon).flat()
+      for (const p of stairs) expect(Math.min(...out.map((q) => Math.hypot(q.x - p.x, q.y - p.y))), `${spikes}: ${p.x},${p.y}`).toBeLessThan(10)
     }
   })
 

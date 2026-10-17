@@ -40,16 +40,18 @@
 // 1. Places: Anchors (in Burst, `spikes`, 4–80 per letter) are shared out over the contours by the length of outline
 //    that shows (where contours overlap, outline hidden in another contour's ink grows none), counters included, and
 //    spaced evenly along what shows of each, every place moved a little either way (seeded).
-// 2. Spikes: a base on the outline (Width: a share of the spacing), and two straight flanks that each bend once, at a
-//    shoulder near the base drawn in toward the spike's axis, so a spike flares at its foot and tapers to a needle.
+// 2. Spikes: a base on the outline (Width: a share of the spacing), ending either side where the outline turns away (so
+//    the straight line across it cuts off no arm, crossbar or corner), and two straight flanks that each bend once, at
+//    a shoulder near the base drawn in toward the spike's axis, so a spike flares at its foot and tapers to a needle.
 //    It points away from the ink; on the letter's outside it also leans to point from the middle of its ink box
 //    (Spread: how much, and how far each turns at random). Into a counter (white closed in on every side) it does not
 //    lean, and goes at most part of the way across, so it stays inside. Lengths are seeded shares of Reach's length ×
 //    BURST.reach: mostly medium, a few long, with a slow wave round the contour that gathers the long ones; none is
 //    longer than that.
-// 3. Dents (Dent): the outline between two bases sinks into the ink, deepest midway, by a share of the stroke's
-//    thickness there, and is redrawn with a few straight edges and clear corners (never a run of short ones that reads
-//    as a curve), so strokes look thin and broken.
+// 3. Dents (Dent): the outline between two bases sinks into the ink, deepest over its middle third, by a share of the
+//    stroke's thickness there, keeping its own sharp corners, its gentle bends only while they show beside the depth,
+//    and two corners of the dent's own (never a run of short edges that reads as a curve), so strokes look thin and
+//    broken; at Dent 0 the outline between the spikes stays as it was. A spike left out keeps its place on the outline.
 // Reverse turns every spike round, into the ink, and pushes the dents out of it instead; places, lengths and widths stay.
 // Refraction still applies after. The spikes cross the letter and each other; the merge at the end cleans them up.
 
@@ -754,6 +756,13 @@ const BURST = {
   room: 0.48,
   /** Half a base is at most this share of its spike's length, so even a short spike ends in a sharp tip. */
   slender: 0.5,
+  /**
+   * Half a base ends where the outline has turned more than this (radians, 20°) from its direction at the spike's place,
+   * but reaches at least `leastBase` × the em (or its whole half, when shorter): a base never spans a corner, so the
+   * straight line across it cuts nothing off the letter beyond a sliver.
+   */
+  bend: Math.PI / 9,
+  leastBase: 0.02,
   /** Each flank bends once, at a shoulder this share of the way out, drawn this share of the way in toward the spike's axis. */
   shoulder: 0.22,
   flare: 0.6,
@@ -786,12 +795,17 @@ const BURST = {
   /** The stroke's thickness is measured at most this far into the ink (× the em). */
   maxThickness: 0.3,
   /**
-   * Between two spikes, the dent keeps at most this many corners: each farther from the straight line than `flat` × its
-   * depth and than `minCorner` × the em, so a shallow dent is a straight cut, not the curve it sank a little.
+   * Between two spikes, the dent keeps the outline's sharp corners (an arm, a crossbar: turning more than
+   * WARP_LIMITS.curveTurn) all; its gentle bends while they lie farther from the straight line between their neighbours
+   * than `bends` × its depth (so a shallow dent keeps the letter's shape, a deep one draws it in fewer, longer edges);
+   * and its two knots, or a straight run's vertices, while they lie farther than `flat` × its depth and `minCorner` × the
+   * em, so a shallow dent is a straight cut, not the curve it sank a little.
    */
-  corners: 3,
+  bends: 0.35,
   flat: 0.15,
   minCorner: 0.01,
+  /** A knot this share of the gap or less from an outline vertex is left out (the vertex bends there already). */
+  snap: 0.1,
   /** After the merge, contours smaller than this (× the em) squared are left out (see withoutSpecks). */
   speck: 0.01,
   /** What shows of the outline is told in pieces about this long (× the em); see showing. */
@@ -836,14 +850,51 @@ class Arc {
     const f = edge > 0 ? Math.min(1, (t - this.cum[i]) / edge) : 0
     return { p: lerp(a, b, f), along: unit(b.x - a.x, b.y - a.y) ?? { x: 1, y: 0 } }
   }
+
+  /**
+   * How far from `s`, on (`sign` 1) or back (-1), the outline runs before it turns more than the angle whose cosine is
+   * `cos` from its direction at `s`: the distance to that vertex, or `limit` when it runs that far first.
+   */
+  straight(s: number, sign: 1 | -1, limit: number, cos: number): number {
+    const n = this.points.length
+    const total = this.perimeter
+    const t = ((s % total) + total) % total
+    const ref = this.at(t).along
+    // The last vertex at or before t.
+    let last = 0
+    let hi = n - 1
+    while (last < hi) {
+      const mid = (last + hi + 1) >> 1
+      if (this.cum[mid] <= t) last = mid
+      else hi = mid - 1
+    }
+    for (let k = 0; k < n; k++) {
+      const j = sign > 0 ? (last + 1 + k) % n : (last - k + n) % n
+      let d = sign > 0 ? this.cum[j] - t : t - this.cum[j]
+      if (d < 0) d += total
+      if (d > limit) break
+      // The edge the walk goes on along past vertex j: on, the one leaving it; back, the one arriving (as drawn).
+      const e = sign > 0 ? j : (j - 1 + n) % n
+      const a = this.points[e]
+      const b = this.points[(e + 1) % n]
+      const along = unit(b.x - a.x, b.y - a.y)
+      if (along && along.x * ref.x + along.y * ref.y < cos) return d
+    }
+    return limit
+  }
 }
 
-/** The edges of every contour in a grid of square cells, to find the ink's far side near a point quickly. */
+/**
+ * The edges of every contour in a grid of square cells, to find the ink's far side near a point, or the winding number
+ * round it, without going over every edge of the glyph.
+ */
 class EdgeGrid {
   private readonly cells = new Map<number, number[]>()
   private readonly edges: [Point, Point][] = []
   private readonly seen: Uint32Array
   private stamp = 0
+  /** The rightmost column any edge reaches. */
+  private right = -Infinity
 
   constructor(contours: readonly (readonly Point[])[], private readonly cell: number) {
     for (const points of contours) {
@@ -851,6 +902,7 @@ class EdgeGrid {
         const a = points[i]
         const b = points[(i + 1) % points.length]
         const e = this.edges.push([a, b]) - 1
+        this.right = Math.max(this.right, this.index(Math.max(a.x, b.x)))
         for (let x = this.index(Math.min(a.x, b.x)); x <= this.index(Math.max(a.x, b.x)); x++) {
           for (let y = this.index(Math.min(a.y, b.y)); y <= this.index(Math.max(a.y, b.y)); y++) {
             const key = this.key(x, y)
@@ -889,6 +941,29 @@ class EdgeGrid {
     }
     return best
   }
+
+  /**
+   * The nonzero winding number of every contour around `p`, the same count as over all their edges: only an edge
+   * crossing the line through `p` to its right can count, and every such edge is listed in a cell of that row from
+   * `p`'s column on.
+   */
+  winding(p: Point): number {
+    let w = 0
+    const y = this.index(p.y)
+    this.stamp++
+    for (let x = this.index(p.x); x <= this.right; x++) {
+      for (const e of this.cells.get(this.key(x, y)) ?? []) {
+        if (this.seen[e] === this.stamp) continue
+        this.seen[e] = this.stamp
+        const [a, b] = this.edges[e]
+        const cross = (b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y)
+        if (a.y <= p.y) {
+          if (b.y > p.y && cross > 0) w++
+        } else if (b.y <= p.y && cross < 0) w--
+      }
+    }
+    return w
+  }
 }
 
 /** How far from `p` along `d` the ray meets the segment a–b, or NaN when it does not. */
@@ -908,43 +983,22 @@ function rayHit(p: Point, d: Point, a: Point, b: Point): number {
 const AROUND = Array.from({ length: 8 }, (_, k) => ({ x: Math.cos((k * Math.PI) / 4), y: Math.sin((k * Math.PI) / 4) }))
 
 /**
- * Whether `p` (off the ink) lies in a counter: every ray from it in 8 directions meets the outline, so the white there
- * is closed in, as a counter is (including one a single contour wraps round itself, as in many a's); a ray escaping
- * through an opening, as from inside a c, tells the letter's outside.
+ * Whether `p` (off the ink) lies in a counter: every ray from it in 8 directions meets the outline within `limit` (as far
+ * as any edge can lie), so the white there is closed in, as a counter is (including one a single contour wraps round
+ * itself, as in many a's); a ray escaping through an opening, as from inside a c, tells the letter's outside.
  */
-function enclosed(contours: readonly (readonly Point[])[], p: Point, from: number): boolean {
-  return AROUND.every((d) => {
-    for (const points of contours) {
-      for (let j = 0, q = points.length - 1; j < points.length; q = j++) if (rayHit(p, d, points[q], points[j]) > from) return true
-    }
-    return false
-  })
-}
-
-/** The nonzero winding number of every contour around `p`. */
-function winding(contours: readonly (readonly Point[])[], p: Point): number {
-  let w = 0
-  for (const points of contours) {
-    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-      const a = points[j]
-      const b = points[i]
-      const cross = (b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y)
-      if (a.y <= p.y) {
-        if (b.y > p.y && cross > 0) w++
-      } else if (b.y <= p.y && cross < 0) w--
-    }
-  }
-  return w
+function enclosed(grid: EdgeGrid, p: Point, from: number, limit: number): boolean {
+  return AROUND.every((d) => grid.ray(p, d, from, limit) < limit)
 }
 
 /**
  * Which side of the outline at `p` (going along `along`) the ink lies on, and whether it lies on both: where contours
  * overlap, that part of the outline is hidden inside another's ink, and grows no spike.
  */
-function inkSides(contours: readonly (readonly Point[])[], p: Point, along: Point, step: number): { inkRight: boolean; hidden: boolean } {
+function inkSides(grid: EdgeGrid, p: Point, along: Point, step: number): { inkRight: boolean; hidden: boolean } {
   const right = { x: along.y, y: -along.x }
-  const inkRight = winding(contours, { x: p.x + right.x * step, y: p.y + right.y * step }) !== 0
-  return { inkRight, hidden: inkRight && winding(contours, { x: p.x - right.x * step, y: p.y - right.y * step }) !== 0 }
+  const inkRight = grid.winding({ x: p.x + right.x * step, y: p.y + right.y * step }) !== 0
+  return { inkRight, hidden: inkRight && grid.winding({ x: p.x - right.x * step, y: p.y - right.y * step }) !== 0 }
 }
 
 /**
@@ -955,7 +1009,7 @@ function inkSides(contours: readonly (readonly Point[])[], p: Point, along: Poin
  */
 function showing(
   arc: Arc,
-  contours: readonly (readonly Point[])[],
+  grid: EdgeGrid,
   step: number,
   piece: number,
 ): { length: number; along: (u: number, slack: number) => number } {
@@ -963,12 +1017,12 @@ function showing(
   const size = arc.perimeter / n
   const shows = Array.from({ length: n }, (_, j) => {
     const { p, along } = arc.at((j + 0.5) * size)
-    return !inkSides(contours, p, along, step).hidden
+    return !inkSides(grid, p, along, step).hidden
   })
   const length = shows.filter(Boolean).length * size
   const hiddenAt = (s: number) => {
     const { p, along } = arc.at(s)
-    return inkSides(contours, p, along, step).hidden
+    return inkSides(grid, p, along, step).hidden
   }
   const place = (u: number) => {
     let seen = 0
@@ -1036,17 +1090,20 @@ function burstOutline(
   const arcs = contours.map((points) => (points.length >= 3 ? new Arc(points) : null))
   // A step off the outline, to tell which side the ink is on, and the least distance a ray counts as leaving it.
   const step = 1e-3 * unitsPerEm
-  const shown = arcs.map((arc) => (arc && arc.perimeter > 0 && Number.isFinite(arc.perimeter) ? showing(arc, contours, step, BURST.piece * unitsPerEm) : null))
+  const thickness = BURST.maxThickness * unitsPerEm
+  const grid = new EdgeGrid(contours, thickness / 2)
+  const shown = arcs.map((arc) => (arc && arc.perimeter > 0 && Number.isFinite(arc.perimeter) ? showing(arc, grid, step, BURST.piece * unitsPerEm) : null))
   const counts = shareOut(
     total,
     shown.map((s) => s?.length ?? 0),
   )
   const box = inkBox(polygon)
   const middle = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : { x: 0, y: 0 }
-  const thickness = BURST.maxThickness * unitsPerEm
-  const grid = new EdgeGrid(contours, thickness / 2)
+  // Farther than any edge can lie from a point on the outline: a ray that meets none within it meets none at all.
+  const beyond = box ? Math.hypot(box.maxX - box.minX, box.maxY - box.minY) + unitsPerEm : unitsPerEm
   const radial = Math.min(1, BURST.radial * spread)
   const turnRange = BURST.turn * spread
+  const bend = Math.cos(BURST.bend)
   const random = (...key: number[]) => hashInts(seed, ...key) / UINT
   let spikes = 0
   let longest = 0
@@ -1069,11 +1126,11 @@ function burstOutline(
     const grows = sites.map((s, i) => {
       const { p, along } = arc.at(s)
       // Away from the ink: the outline's right-hand normal, or its left where the ink lies to the right.
-      const { inkRight, hidden } = inkSides(contours, p, along, step)
+      const { inkRight, hidden } = inkSides(grid, p, along, step)
       const right = { x: along.y, y: -along.x }
       const away = inkRight ? { x: -right.x, y: -right.y } : right
       // Facing a counter: the white just off the outline is closed in on every side (see enclosed).
-      const counter = !hidden && enclosed(contours, { x: p.x + away.x * step, y: p.y + away.y * step }, step)
+      const counter = !hidden && enclosed(grid, { x: p.x + away.x * step, y: p.y + away.y * step }, step, beyond)
       // Outer spikes lean toward pointing from the letter's middle (less where the outline faces the middle, not at all
       // where it faces it squarely: a spike there would lie along the outline), and turn a little; never less steeply
       // out of the outline than minOut, so neither flank folds under the other.
@@ -1100,68 +1157,100 @@ function burstOutline(
       let length = (maxLength * (BURST.short + (1 - BURST.short) * Math.pow(random(CHANNEL.burstLength, k, i), 1.5)) * wave * long) / BURST.long
       // Into a counter: only part of the way across it, so the spike stays inside.
       if (counter) {
-        let across = Infinity
-        for (const other of contours) {
-          for (let j = 0, q = other.length - 1; j < other.length; q = j++) {
-            const t = rayHit(p, dir, other[q], other[j])
-            if (t > step && t < across) across = t
-          }
-        }
-        length = Math.min(length * BURST.counterLength, Number.isFinite(across) ? BURST.counter * across : length)
+        const across = grid.ray(p, dir, step, beyond)
+        length = Math.min(length * BURST.counterLength, across < beyond ? BURST.counter * across : length)
       }
       if (reverse) dir = { x: -dir.x, y: -dir.y }
       return { s, p, dir, length: hidden ? 0 : length, inkRight }
     })
-    // Half of each base, at most `room` of the way to either neighbour, and at most `slender` of the spike's length.
-    const halves = sites.map((s, i) => {
+    // Each base reaches back and on from its place: at most `room` of the way to either neighbour and `slender` of the
+    // spike's length, and no farther than the outline runs on before it turns by `bend` (but at least `minBase` × the
+    // em), so the straight line across a base cuts off no corner, arm or crossbar of the letter. [0, 0]: no spike grows.
+    const halves = sites.map((s, i): [number, number] => {
       const before = m > 1 ? s - (i > 0 ? sites[i - 1] : sites[m - 1] - perimeter) : perimeter
       const after = m > 1 ? (i + 1 < m ? sites[i + 1] : sites[0] + perimeter) - s : perimeter
       const share = BURST.minBase + (BURST.maxBase - BURST.minBase) * width
       const vary = 1 + BURST.baseVary * (random(CHANNEL.burstBase, k, i) - 0.5)
-      return Math.min(gap * share * vary, BURST.room * Math.min(before, after), BURST.slender * grows[i].length)
+      const half = Math.min(gap * share * vary, BURST.room * Math.min(before, after), BURST.slender * grows[i].length)
+      // A spike with no room to grow (hidden, or in a counter far too narrow) is left out; the dents beside it are not.
+      if (!(grows[i].length > step && half > 0)) return [0, 0]
+      const least = Math.min(half, BURST.leastBase * unitsPerEm)
+      return [Math.max(least, arc.straight(s, -1, half, bend)), Math.max(least, arc.straight(s, 1, half, bend))]
     })
     const out: Point[] = []
+    const outMarks: boolean[] = []
+    const push = (q: Point, removable = false) => {
+      out.push(q)
+      outMarks.push(removable)
+    }
     grows.forEach(({ s, p, dir, length, inkRight }, i) => {
-      const tip = { x: p.x + dir.x * length, y: p.y + dir.y * length }
-      const axis = lerp(p, tip, BURST.shoulder)
-      const shoulder = (b: Point) => lerp(lerp(b, tip, BURST.shoulder), axis, BURST.flare)
-      const b0 = arc.at(s - halves[i]).p
-      const b1 = arc.at(s + halves[i]).p
-      // A spike with no room to grow (a counter far too narrow) is left out; the dent beside it is not.
-      if (length > step && halves[i] > 0) {
-        out.push(b0, shoulder(b0), tip, shoulder(b1), b1)
+      const [back, on] = halves[i]
+      const b1 = arc.at(s + on).p
+      if (on > 0) {
+        const tip = { x: p.x + dir.x * length, y: p.y + dir.y * length }
+        const axis = lerp(p, tip, BURST.shoulder)
+        const shoulder = (b: Point) => lerp(lerp(b, tip, BURST.shoulder), axis, BURST.flare)
+        const b0 = arc.at(s - back).p
+        for (const q of [b0, shoulder(b0), tip, shoulder(b1), b1]) push(q)
         spikes++
         longest = Math.max(longest, length)
+      } else {
+        // No spike: its place stays on the outline, where the dents on either side meet.
+        push(p)
       }
 
       // The outline on to the next spike's base, sunk into the ink (Reverse: pushed out of it) as a dent.
-      const from = s + halves[i]
-      const to = (i + 1 < m ? sites[i + 1] : sites[0] + perimeter) - halves[(i + 1) % m]
+      const from = s + on
+      const to = (i + 1 < m ? sites[i + 1] : sites[0] + perimeter) - halves[(i + 1) % m][0]
       const span = to - from
       if (span <= 0) return
-      const places: number[] = []
+      // The outline's vertices on the way, and how far the outline turns at each (degrees).
+      const places: { v: number; turn: number }[] = []
       for (let j = 0; j < points.length; j++) {
-        for (const v of [arc.cum[j], arc.cum[j] + perimeter]) if (v > from && v < to) places.push(v)
+        for (const v of [arc.cum[j] - perimeter, arc.cum[j], arc.cum[j] + perimeter]) if (v > from && v < to) places.push({ v, turn: turnAt(points, j) })
       }
+      places.sort((a, b) => a.v - b.v)
       if (dent === 0) {
-        places.sort((a, b) => a - b)
-        for (const v of places) out.push(arc.at(v).p)
+        for (const { v } of places) push(arc.at(v).p)
         return
       }
-      places.push(from + span / 3, from + (2 * span) / 3)
-      places.sort((a, b) => a - b)
+      // The dent's depth runs straight from nothing at either base to two knots at the gap's thirds, each a seeded
+      // 55–100% of the deepest, and straight between them: its own corners are the knots, wherever the outline has none.
+      const knots = [from + span / 3, from + (2 * span) / 3]
+      const shares = knots.map((_, j) => BURST.minDent + (1 - BURST.minDent) * random(CHANNEL.burstDent, k, i, j))
+      const profile = (v: number) =>
+        v <= knots[0]
+          ? (shares[0] * (v - from)) / (knots[0] - from)
+          : v <= knots[1]
+            ? shares[0] + ((shares[1] - shares[0]) * (v - knots[0])) / (knots[1] - knots[0])
+            : (shares[1] * (to - v)) / (to - knots[1])
+      // A knot right by a vertex of the outline would only add a short edge: the vertex bends there already.
+      for (const knot of knots) if (!places.some(({ v }) => Math.abs(v - knot) < BURST.snap * span)) places.push({ v: knot, turn: 0 })
+      places.sort((a, b) => a.v - b.v)
       const into = inkRight ? 1 : -1
-      const sunk = places.map((v, j) => {
+      const deepest = BURST.steep * span
+      const sunk = places.map(({ v, turn }) => {
+        // Square to the outline, or at a vertex between the squares to the edges either side, so its corner keeps its shape.
         const { p: q, along: a } = arc.at(v)
-        const d = { x: into * a.y, y: -into * a.x }
+        const { along: a0 } = arc.at(v - step / 16)
+        const d = unit(into * (a.y + a0.y), -into * (a.x + a0.x)) ?? { x: into * a.y, y: -into * a.x }
         const deep = grid.ray(q, d, step, thickness)
-        const share = BURST.minDent + (1 - BURST.minDent) * random(CHANNEL.burstDent, k, i, j)
-        const depth = Math.min(dent * BURST.dent * deep, BURST.steep * span) * Math.sin((Math.PI * (v - from)) / span) * share * (reverse ? -1 : 1)
-        return { point: { x: q.x + d.x * depth, y: q.y + d.y * depth }, depth: Math.abs(depth) }
+        const depth = Math.min(dent * BURST.dent * deep, deepest) * profile(v) * (reverse ? -1 : 1)
+        return { point: { x: q.x + d.x * depth, y: q.y + d.y * depth }, depth: Math.abs(depth), turn }
       })
-      for (const q of corners([b1, ...sunk.map((x) => x.point), arc.at(to).p], Math.max(BURST.flat * Math.max(...sunk.map((x) => x.depth)), BURST.minCorner * unitsPerEm))) out.push(q)
+      // The outline's sharp corners (an arm, a crossbar) all stay. Its gentle bends stay while they lie farther than
+      // `flat` × the dent's depth from the line between their neighbours, so a shallow dent keeps the letter's shape
+      // and a deep one draws it in fewer, longer edges; the knots, and the vertices of a straight run, only when they
+      // also lie farther than `minCorner` × the em, so they make clear corners. Sunk, a gentle bend can draw closer to
+      // its neighbours: all but the sharp corners are marked removable, so a run of them that reads as a curve is
+      // broken up after (breakRuns), as the warps' creases are.
+      const loose = BURST.bends * Math.max(...sunk.map((x) => x.depth))
+      const firm = Math.max(loose, BURST.minCorner * unitsPerEm)
+      const chain = [b1, ...sunk.map((x) => x.point), arc.at(to).p]
+      const tolerance = [0, ...sunk.map((x) => (x.turn > WARP_LIMITS.curveTurn ? -1 : x.turn >= WARP_LIMITS.straightTurn ? loose : firm)), 0]
+      for (const j of corners(chain, tolerance)) push(chain[j], sunk[j - 1].turn <= WARP_LIMITS.curveTurn)
     })
-    return { points: out, marks: out.map(() => false) }
+    return { points: out, marks: outMarks }
   })
   return {
     polygon: { ...polygon, contours: grown.map(({ points }) => ({ points, clockwise: signedArea(points) < 0 })) },
@@ -1186,29 +1275,50 @@ export function withoutSpecks(polygon: PolygonGlyph, unitsPerEm: number): { poly
 }
 
 /**
- * The inner points of `chain` (whose ends stay) that keep it looking as it does, at most BURST.corners of them: each
- * time the point farthest from the line kept so far, while it lies farther than `tolerance`. So a dent is a few straight
- * edges with clear corners, never a run of short ones that reads as a curve.
+ * The indices of the inner points of `chain` (whose ends stay) that keep it looking as it does: those whose `tolerance`
+ * is negative, and each time the point farthest from the line kept so far, while it lies farther than its own tolerance.
+ * So a dent keeps the corners that show and drops the rest, never a run of short edges that reads as a curve.
  */
-function corners(chain: readonly Point[], tolerance: number): Point[] {
-  const keep = [0, chain.length - 1]
-  while (keep.length - 2 < BURST.corners) {
+function corners(chain: readonly Point[], tolerance: readonly number[]): number[] {
+  const keep = Uint8Array.from(tolerance, (t) => (t < 0 ? 1 : 0))
+  // Each stretch between two kept points, split at its farthest point until none lies farther than its tolerance.
+  const stretches: [number, number][] = []
+  for (let from = 0, i = 1; i < chain.length; i++) {
+    if (i === chain.length - 1 || keep[i]) {
+      stretches.push([from, i])
+      from = i
+    }
+  }
+  while (stretches.length > 0) {
+    const [from, to] = stretches.pop()!
     let best = -1
-    let bestDistance = tolerance
-    for (let k = 0; k + 1 < keep.length; k++) {
-      for (let i = keep[k] + 1; i < keep[k + 1]; i++) {
-        const distance = segmentDistance(chain[i], chain[keep[k]], chain[keep[k + 1]])
-        if (distance > bestDistance) {
-          best = i
-          bestDistance = distance
-        }
+    let bestDistance = 0
+    for (let i = from + 1; i < to; i++) {
+      const distance = segmentDistance(chain[i], chain[from], chain[to])
+      if (distance > tolerance[i] && distance > bestDistance) {
+        best = i
+        bestDistance = distance
       }
     }
-    if (best < 0) break
-    keep.push(best)
-    keep.sort((a, b) => a - b)
+    if (best < 0) continue
+    keep[best] = 1
+    stretches.push([from, best], [best, to])
   }
-  return keep.slice(1, -1).map((i) => chain[i])
+  return chain.flatMap((_, i) => (i > 0 && i < chain.length - 1 && keep[i] === 1 ? [i] : []))
+}
+
+/** How far the outline turns at vertex `j`, in degrees either way (0 where an edge beside it has no length). */
+function turnAt(points: readonly Point[], j: number): number {
+  const n = points.length
+  const a = points[(j - 1 + n) % n]
+  const b = points[j]
+  const c = points[(j + 1) % n]
+  const ux = b.x - a.x
+  const uy = b.y - a.y
+  const vx = c.x - b.x
+  const vy = c.y - b.y
+  if ((ux === 0 && uy === 0) || (vx === 0 && vy === 0)) return 0
+  return (Math.abs(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)) * 180) / Math.PI
 }
 
 /** The distance from `p` to the segment a–b. */
