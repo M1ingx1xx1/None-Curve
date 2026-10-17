@@ -4,6 +4,7 @@
 // "experimental.effect.key"). Pure: no React, no DOM.
 
 import { CRUMPLE_LIMITS } from '../geometry/crumple'
+import { DISSOLVE_LIMITS } from '../geometry/dissolve'
 import { DISTORTION_LIMITS } from '../geometry/distortion'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
@@ -132,6 +133,12 @@ export const SLIDER_RANGES = {
   'experimental.thorn.flute': range(THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute, 0.01),
   'experimental.thorn.spikes': range(THORN_LIMITS.minSpikes, THORN_LIMITS.maxSpikes, 1),
   'experimental.thorn.dent': range(0, 1, 0.01),
+  'experimental.dissolve.amount': range(0, 1, 0.01),
+  'experimental.dissolve.grain': range(DISSOLVE_LIMITS.minGrain, DISSOLVE_LIMITS.maxGrain, 0.01),
+  'experimental.dissolve.spread': range(0, DISSOLVE_LIMITS.maxSpread, 0.01),
+  'experimental.dissolve.specks': range(0, 1, 0.01),
+  'experimental.dissolve.curl': range(0, 1, 0.01),
+  'experimental.dissolve.facets': range(0, 1, 0.01),
 } as const satisfies Record<string, SliderRange>
 
 /** A linear slider's Sound target id. */

@@ -37,6 +37,7 @@ export const initialState: AppState = {
       whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
       slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
       thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false, burst: false, spikes: 40, dent: 0.8 },
+      dissolve: { enabled: false, amount: 0.5, grain: 0.4, spread: 0.8, specks: 0.4, curl: 0.6, facets: 0.3 },
     },
     view: initialView,
     typography: DEFAULT_TYPOGRAPHY,

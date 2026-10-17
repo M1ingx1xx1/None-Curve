@@ -1,4 +1,4 @@
-// The vertex budget of the Experimental effects (src/geometry/budget.ts): it holds all five effects at the ends of
+// The vertex budget of the Experimental effects (src/geometry/budget.ts): it holds all six effects at the ends of
 // their sliders to a bounded, valid outline, and never touches what one effect alone, the defaults, or the Sound
 // presets make (EXPERIMENTAL_LIMITS: "No single effect reaches them, even at the ends of its sliders").
 
@@ -42,7 +42,7 @@ describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
   it.each([
     ['', ALL_MAX],
     [', Thorn reaching 256 em', { ...ALL_MAX, ...THORN_FARTHEST }],
-  ])('fires at all five effects at slider max%s, and keeps the outline bounded and valid', async (_, effects) => {
+  ])('fires at all six effects at slider max%s, and keeps the outline bounded and valid', async (_, effects) => {
     const font = await loadFixture(fontName)
     const params = paramsWith(GEOMETRY.plain, effects)
     const problems: string[] = []
@@ -82,7 +82,7 @@ describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
   it('does not fire at the defaults, or with one effect at slider max', async () => {
     const font = await loadFixture(fontName)
     const glyphs = sampleGlyphs(font)
-    expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, ALL_DEFAULT)), 'all five default').toEqual([])
+    expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, ALL_DEFAULT)), 'all six default').toEqual([])
     for (const effect of EFFECTS) expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, SLIDER_MAX[effect])), `${effect} at slider max`).toEqual([])
     // Thorn's refraction covers only the letter, so however far the thorns reach, they add only a few points.
     expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, THORN_FARTHEST)), 'thorn at slider max, reaching 256 em').toEqual([])

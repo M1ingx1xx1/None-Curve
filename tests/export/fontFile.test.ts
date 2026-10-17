@@ -97,7 +97,7 @@ async function expectStorable(result: FontExportResult) {
 describe.each(FIXTURE_FONTS)('font export: %s', (name) => {
   for (const [label, params] of [
     ['Experimental off', BASE],
-    ['all five effects', paramsWith(GEOMETRY.plain, ALL_DEFAULT)],
+    ['all six effects', paramsWith(GEOMETRY.plain, ALL_DEFAULT)],
   ] as const) {
     it(`writes OpenType/CFF with straight outlines only (${label})`, async () => {
       const result = await exported(name, params, label)

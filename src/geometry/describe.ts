@@ -1,5 +1,6 @@
 import { reachPercent, reachReadout } from '../state/sliderScales'
 import { crumpleIsOn } from './crumple'
+import { dissolveIsOn } from './dissolve'
 import { experimentalFolds } from './experimental'
 import { rippleIsOn } from './ripple'
 import { slipstreamIsOn } from './slipstream'
@@ -79,6 +80,13 @@ export function describePipeline(params: GeometryParams): string[] {
         `thorn ×${s.count}${s.reverse === true ? ', reversed' : ''}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${glass}, seed ${experimental.seed}`,
       )
     }
+  }
+  if (dissolveIsOn(experimental.dissolve)) {
+    const d = experimental.dissolve
+    const pct = (v: number) => `${Math.round(v * 100)}%`
+    steps.push(
+      `dissolve ${pct(d.amount)}, grain ${pct(d.grain)} stroke, spread ${pct(d.spread)}, specks ${pct(d.specks)}, curl ${pct(d.curl)}, facets ${pct(d.facets)}, seed ${experimental.seed}`,
+    )
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')
   return steps

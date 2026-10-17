@@ -1,4 +1,5 @@
-// The Experimental effects, run after the whole Geometry pipeline in a fixed order: Crumple, Ripple, Whorl, Slipstream, Thorn.
+// The Experimental effects, run after the whole Geometry pipeline in a fixed order: Crumple, Ripple, Whorl, Slipstream, Thorn,
+// Dissolve.
 // The first four are piecewise-linear warps (see warp.ts) that add vertices only at creases. Within their safe ranges the
 // warps are one-to-one, so any combination of them keeps the glyph valid. Beyond them (folds) the letter overlaps itself,
 // and the overlaps are merged into clean outlines at the end (see overlaps.ts). After its warp, Slipstream adds trails that
@@ -7,10 +8,13 @@
 // between them), and can show the letter through fluted glass (thorn.ts); a
 // thorn may cross the letter, so its outlines are merged the same way; layout measures the letter as it was before
 // Thorn (PolygonGlyph.layoutBox and layoutHull), so thorns never move the text. Each glyph has a vertex budget (budget.ts): one
-// that grows beyond it is simplified, and merged afterwards.
+// that grows beyond it is simplified, and merged afterwards. Dissolve comes last, after the merge: it draws the letter
+// anew from what that fills (by the nonzero rule, so it would read an unmerged outline the same), as contours that never
+// cross, so it needs no merge of its own and keeps within the budget by itself (dissolve.ts).
 
 import { GlyphBudget, type BudgetStats } from './budget'
 import { crumpleFolds, crumpleIsOn, crumpleWarp } from './crumple'
+import { applyDissolve, dissolveIsOn, emptyDissolveStats, type DissolveStats } from './dissolve'
 import { emptyOverlapStats, type OverlapStats } from './overlaps'
 import { inkBox, rippleFolds, rippleIsOn, rippleWarp, type Box } from './ripple'
 import { emptySlipstreamStats, slipstreamFolds, slipstreamIsOn, slipstreamMerges, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
@@ -36,6 +40,7 @@ export interface ExperimentalStats {
   whorl: WarpStats
   slipstream: SlipstreamStats
   thorn: ThornStats
+  dissolve: DissolveStats
   /** The merge of overlaps when an effect goes beyond its safe range, Thorn is on, Slipstream cuts the letters, or the glyph was simplified. */
   folds: OverlapStats
   /** Whether the glyph was simplified to stay within its vertex budget. */
@@ -71,6 +76,7 @@ export function applyExperimental(
     whorl: emptyWarpStats(),
     slipstream: emptySlipstreamStats(),
     thorn: emptyThornStats(),
+    dissolve: emptyDissolveStats(),
     folds: emptyOverlapStats(),
     budget: budget.stats,
   }
@@ -174,6 +180,9 @@ export function applyExperimental(
       result = cleaned.polygon
       stats.folds = { ...stats.folds, removed: stats.folds.removed + cleaned.removed, contoursOut: stats.folds.contoursOut - cleaned.removed }
     }
+  }
+  if (dissolveIsOn(params.dissolve)) {
+    ;({ polygon: result, stats: stats.dissolve } = applyDissolve(result, params.dissolve, seed, unitsPerEm, budget.maxVertices))
   }
   return { polygon: layout ? { ...result, ...layout } : result, stats }
 }

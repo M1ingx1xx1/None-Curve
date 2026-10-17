@@ -159,6 +159,30 @@ describe('saved session', () => {
     expect(session.view).toEqual({ ...DEFAULT_VIEW, outline: 'source' })
   })
 
+  it('reads settings and configs saved before Dissolve with it off at its defaults, and a saved Dissolve clamped to its sliders', () => {
+    const before = { version: SESSION_VERSION, params: { experimental: { seed: 7, thorn: { enabled: true } } } }
+    const old = readSession(before)!
+    expect(old.params.experimental.dissolve).toEqual(DEFAULT_SETTINGS.experimental.dissolve)
+    expect(old.params.experimental.dissolve.enabled).toBe(false)
+    expect([old.params.experimental.seed, old.params.experimental.thorn.enabled]).toEqual([7, true])
+    const config = parseConfig(JSON.stringify({ ...CONFIG_MARKER, ...before }))
+    expect(config).toEqual({ ok: true, session: old, newer: false })
+
+    const saved = readSession({
+      version: SESSION_VERSION,
+      params: { experimental: { dissolve: { enabled: true, amount: 3, grain: 0.01, spread: 'wide', specks: -1, curl: 0.25, facets: 0.7 } } },
+    })!
+    expect(saved.params.experimental.dissolve).toEqual({
+      enabled: true,
+      amount: SLIDER_RANGES['experimental.dissolve.amount'].max,
+      grain: SLIDER_RANGES['experimental.dissolve.grain'].min,
+      spread: DEFAULT_SETTINGS.experimental.dissolve.spread,
+      specks: 0,
+      curl: 0.25,
+      facets: 0.7,
+    })
+  })
+
   it('reads a session from before versions, with the old effect and feature names', () => {
     const session = readSession({
       params: { experimental: { noise: { enabled: true, amount: 1.5 }, curl: { enabled: true }, wind: { enabled: true }, spikes: { enabled: true } } },

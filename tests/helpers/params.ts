@@ -1,4 +1,4 @@
-// Parameter sets the geometry tests run: the app's defaults, each Experimental effect on its own, all five, and the
+// Parameter sets the geometry tests run: the app's defaults, each Experimental effect on its own, all six, and the
 // strongest settings the sliders reach (SLIDER_RANGES), on plain, dense and heavy Geometry.
 
 import { THORN_LIMITS } from '../../src/geometry/thorn'
@@ -11,7 +11,7 @@ const { flatten, random, squaring, anchors, grid, distortion, experimental } = i
 /** The app's default Geometry and Experimental settings (every effect off). */
 export const BASE: GeometryParams = { flatten, random, squaring, anchors, grid, distortion, experimental }
 
-export const EFFECTS = ['crumple', 'ripple', 'whorl', 'slipstream', 'thorn'] as const
+export const EFFECTS = ['crumple', 'ripple', 'whorl', 'slipstream', 'thorn', 'dissolve'] as const
 export type Effect = (typeof EFFECTS)[number]
 
 type EffectPatch = Partial<Pick<ExperimentalParams, Effect>>
@@ -60,6 +60,15 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
     refraction: top('experimental.thorn.refraction'),
     flute: bottom('experimental.thorn.flute'),
   }),
+  // The finest grain and facets, the thinnest ink, the widest edge and the most specks: the most contours.
+  dissolve: on('dissolve', {
+    amount: top('experimental.dissolve.amount'),
+    grain: bottom('experimental.dissolve.grain'),
+    spread: top('experimental.dissolve.spread'),
+    specks: top('experimental.dissolve.specks'),
+    curl: top('experimental.dissolve.curl'),
+    facets: bottom('experimental.dissolve.facets'),
+  }),
 }
 
 /** Thorn at slider max on the largest canvas in em that Reach spans (THORN_LIMITS.maxReachEm: 256 em). */
@@ -107,6 +116,7 @@ export function withoutEffects(params: GeometryParams): GeometryParams {
       whorl: { ...x.whorl, enabled: false },
       slipstream: { ...x.slipstream, enabled: false },
       thorn: { ...x.thorn, enabled: false },
+      dissolve: { ...x.dissolve, enabled: false },
     },
   }
 }
