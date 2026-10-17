@@ -312,6 +312,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
   - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 42 个。
   - 开关从不作为目标，Distortion 的少数锚点模式也不是。
   - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标选择则立即应用。**Add mapping** 优先选已经起作用的目标。
+  - **更多目标（NOCUR-73）：** 除了 Geometry 和 Experimental 的滑块和种子，一行还可以驱动：(1) 效果的开关（每个 **Use …**、Ripple 的 Reverse、Thorn 的 Burst 和 Reverse），只在 Trigger（脉冲期间）或 Toggle（从一次上升到下一次）下翻转，没有 Depth、Range 和 Curve；(2) Typography 的 Size、Tracking、Line height 和 Slant；(3) 文字颜色和背景颜色的 Hue 和 Lightness（OKLCH，保持彩度；灰色没有色相，背景需要关闭 Transparent background）；(4) 所载入可变字体的每个轴。字体没有的轴上的行会保留，但在载入带有该轴的字体之前不起作用。Target 列表分组为 Geometry / Experimental / Switches / Typography / Color / Variable axes。画布、预览和视频显示实时值，被驱动的控件显示标记，Freeze 保留除轴以外的全部值；没有映射这些目标时，输出不变。
     - Curve flattening 的目标会关闭 Random anchors，并设置各自需要的：Tolerance 需要 Adaptive 模式，Segments per curve 需要 Fixed segments 模式，Corner angle 需要 Merge joined curves（两种模式下都可以）。
     - Grid size 打开 Snap to grid。
     - Distortion 的 Noise frequency、Normal bias 和 Seed 在 Noise amplitude 为 0 时把它设为 40。

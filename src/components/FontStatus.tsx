@@ -2,6 +2,7 @@ import { errorKindLabel } from '../font/errors'
 import type { LoadedFont } from '../font/model'
 import type { LoadStatus } from '../state/types'
 import Icon from './Icon'
+import { LiveAxis } from './LiveValue'
 
 interface FontStatusProps {
   status: LoadStatus
@@ -94,6 +95,7 @@ function FontSummary({ font, busy, onFace }: { font: LoadedFont; busy: boolean; 
             {font.axes.map((axis) => (
               <li key={axis.tag}>
                 <code>{axis.tag}</code> {axis.name} · {axis.min}–{axis.max} (default {axis.default})
+                <LiveAxis tag={axis.tag} />
               </li>
             ))}
           </ul>

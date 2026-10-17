@@ -61,6 +61,29 @@ const fromLch = (L: number, C: number, h: number): Lab => ({
   b: C * Math.sin((h * Math.PI) / 180),
 })
 
+/** A colour in OKLCH: lightness 0–1, chroma, and hue in degrees (0 ≤ h < 360). */
+export interface Lch {
+  L: number
+  C: number
+  h: number
+}
+
+/** A #rrggbb colour in OKLCH (Sound's colour targets move its hue and lightness). */
+export function hexToLch(hex: string): Lch {
+  const lab = hexToLab(hex)
+  return { L: lab.L, C: chroma(lab), h: hue(lab) }
+}
+
+/** An OKLCH colour as #rrggbb; out of gamut, it keeps its lightness and hue and loses chroma until it fits. */
+export function lchToHex({ L, C, h }: Lch): string {
+  return labToHex(fromLch(Math.min(1, Math.max(0, L)), C, h))
+}
+
+/** Whether a colour has no hue to speak of: a grey, near-black or near-white. */
+export function isNeutralColor(hex: string): boolean {
+  return chroma(hexToLab(hex)) < NEUTRAL
+}
+
 /** The most saturated in-gamut chroma at this lightness and hue. */
 function maxChroma(L: number, h: number): number {
   let low = 0

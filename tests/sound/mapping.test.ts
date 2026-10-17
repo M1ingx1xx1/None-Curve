@@ -11,8 +11,8 @@ import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, SILENT_FRAME, type FeatureFrame, typ
 import { reachFromSlider, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId } from '../../src/state/sliderScales'
 import { BASE } from '../helpers/params'
 
-// Tolerance (logarithmic) and Thorn's Reach (cubic) have curved scales of their own.
-const sliders = TARGETS.filter((t) => t.kind === 'slider' && t.id !== 'flatten.tolerance' && t.id !== 'experimental.thorn.canvasReach')
+// The Geometry and Experimental sliders (Typography and Color have their own targets.test.ts). Tolerance (logarithmic) and Thorn's Reach (cubic) have curved scales of their own.
+const sliders = TARGETS.filter((t) => t.kind === 'slider' && (t.tab === 'geometry' || t.tab === 'experimental') && t.id !== 'flatten.tolerance' && t.id !== 'experimental.thorn.canvasReach')
 const loud: FeatureFrame = { ...SILENT_FRAME, time: 1, silent: false, levelDb: 0, level: 1, bass: 1, mids: 1, treble: 1, brightness: 1, pitch: 1, beat: 1, activity: 1, pan: 1 }
 
 describe('Sound targets', () => {

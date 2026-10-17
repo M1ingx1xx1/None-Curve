@@ -25,6 +25,8 @@ interface SpecimenViewProps {
   /** Glyph and background colours; a transparent background is drawn as a checkerboard. */
   ink: string
   paper: string
+  /** The colours the selection highlight is computed from (the sliders' own while Sound moves `ink` and `paper`). */
+  highlightFrom?: { ink: string; paper: string }
   transparent?: boolean
   view: ViewParams
   gridSize: number | null
@@ -103,6 +105,7 @@ export default function SpecimenView({
   layout,
   ink,
   paper,
+  highlightFrom,
   transparent = false,
   view,
   gridSize,
@@ -121,7 +124,10 @@ export default function SpecimenView({
   const gridId = `${ids}-grid`
   const checkerId = `${ids}-checker`
   // Selected and hovered glyphs: a colour computed from the text and background to stand out.
-  const highlight = useMemo(() => highlightColor(ink, paper), [ink, paper])
+  // Searched for (slow, and kept per pair): from the sliders' colours, not every live frame's.
+  const highlightInk = highlightFrom?.ink ?? ink
+  const highlightPaper = highlightFrom?.paper ?? paper
+  const highlight = useMemo(() => highlightColor(highlightInk, highlightPaper), [highlightInk, highlightPaper])
   // The canvas outline: the interface mint rather than the text colour, so it reads as a guide. Its
   // shadow (elevation, styled in .artboard-frame) is dark on a light background and light on a dark one.
   const edge = useMemo(() => artboardEdgeColor(paper), [paper])

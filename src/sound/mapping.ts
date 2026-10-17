@@ -8,12 +8,21 @@
 // itself can produce (highest rule, SOUND_PLAN §2): positions snap to the slider's step before converting back.
 // The seeds are jump targets: a seed moves on by one whole number on each jump (jumps.ts), so every
 // anchor lands somewhere new, and it stays within its field's range.
+//
+// Beyond the geometry, sound drives the canvas: the Typography tab's Size, Tracking, Line height and Slant sliders and
+// the Color tab's text and background hue and lightness (OKLCH), which never change a glyph (DrivenParams); one
+// target per axis of the loaded variable font (axisTargets: the font is read at the live axis values, so these change
+// the outlines and the shaping); and switches, the Experimental tab's checkboxes ("Use …", Burst, Reverse), which
+// flip on Trigger and Toggle (see modulate).
 
 import { DISTORTION_LIMITS } from '../geometry/distortion'
 import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { THORN_FALLBACK } from '../geometry/thorn'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
+import type { LoadedFont, VariationAxis } from '../font/model'
+import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, TYPOGRAPHY_LIMITS, type PaletteParams, type TypographyParams } from '../specimen/artboard'
+import { hexToLch, isNeutralColor, lchToHex } from '../specimen/color'
 import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
 import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, type FeatureFrame, type ResponseSettings } from './types'
 
@@ -73,8 +82,22 @@ export function featureValue(frame: FeatureFrame, id: FeatureId): number {
 
 // ---- Targets ----
 
+/**
+ * What sound can drive: the geometry parameters (their `variation` holds a variable font's live axis values), and the
+ * canvas's typography and colours. Typography and palette never change a glyph and are never part of the geometry key
+ * (paramsKey); missing (the geometry alone, as in the geometry worker), their targets read the defaults. The editor's
+ * parameters (EditorParams) are driven parameters as they are.
+ */
+export interface DrivenParams extends GeometryParams {
+  typography?: TypographyParams
+  palette?: PaletteParams
+}
+
+/** The settings groups a change can go to: the geometry's, and the canvas's typography and colours. */
+type PatchGroups = Omit<GeometryParams, 'variation'> & { typography: TypographyParams; palette: PaletteParams }
+
 /** One group's changes, as the editor's updateParams action takes them. */
-export type ParamPatch = { [G in keyof GeometryParams]: { group: G; patch: Partial<GeometryParams[G]> } }[keyof GeometryParams]
+export type ParamPatch = { [G in keyof PatchGroups]: { group: G; patch: Partial<PatchGroups[G]> } }[keyof PatchGroups]
 
 export interface Activation {
   patches: readonly ParamPatch[]
@@ -82,13 +105,23 @@ export interface Activation {
   notice: string
 }
 
-/** One parameter sound can drive: a slider or a seed of the Geometry or Experimental tab. */
+/**
+ * One parameter sound can drive: a slider, seed or checkbox of the Geometry or Experimental tab, a Typography slider,
+ * a colour's hue or lightness, or an axis of the loaded variable font.
+ */
 export interface TargetSpec {
-  /** Stable id, "<group>.<param>", e.g. "distortion.amount", "experimental.crumple.amount". */
+  /**
+   * Stable id, "<group>.<param>", e.g. "distortion.amount", "experimental.crumple.amount", "typography.size",
+   * "palette.inkHue", "experimental.thorn.burst"; an axis is "axis.<tag>", e.g. "axis.wght".
+   */
   id: string
-  tab: 'geometry' | 'experimental'
-  /** 'slider': live position = slider position + Depth × feature. 'jump': a seed that moves on by one on each jump (jumps.ts). */
-  kind: 'slider' | 'jump'
+  /** The tab it sits on; 'axes': the font's variable axes (no slider: the font's own instance is the value set). */
+  tab: 'geometry' | 'experimental' | 'typography' | 'color' | 'axes'
+  /**
+   * 'slider': live position = slider position + Depth × feature. 'jump': a seed that moves on by one on each jump
+   * (jumps.ts). 'switch': a checkbox (0 off, 1 on) that a mapping flips while it fires (modulate); Trigger and Toggle.
+   */
+  kind: 'slider' | 'jump' | 'switch'
   /** The control group it belongs to, as labelled in the panel, e.g. "Distortion", "Ripple". */
   section: string
   /** The slider's label in the panel, e.g. "Amount". */
@@ -97,9 +130,9 @@ export interface TargetSpec {
   min: number
   max: number
   step: number
-  get(params: GeometryParams): number
+  get(params: DrivenParams): number
   /** The params with this value set; copies only the groups on the way (immutable). */
-  set(params: GeometryParams, value: number): GeometryParams
+  set(params: DrivenParams, value: number): DrivenParams
   /** Where a value sits on the panel's slider, 0–1 (log-scaled sliders included), and back. */
   toSlider(value: number): number
   fromSlider(position: number): number
@@ -107,14 +140,21 @@ export interface TargetSpec {
    * Why driving this target currently changes nothing (its step or effect is off, or a mode hides
    * it), as a short sentence for the Sound tab ("Turn on Ripple to hear this."); null when it acts.
    */
-  inactive(params: GeometryParams): string | null
-  /** The settings to change so this target acts, or null when it already acts (inactive(params) === null). */
-  activate(params: GeometryParams): Activation | null
+  inactive(params: DrivenParams): string | null
+  /**
+   * The settings to change so this target acts, or null when it already acts (inactive(params) === null) or nothing
+   * this app can switch makes it act (a grey has no hue; the font has no such axis).
+   */
+  activate(params: DrivenParams): Activation | null
 }
 
 /** The params with the patches applied, as the editor's updateParams action applies them (each group merged shallowly). */
-export function applyPatches(params: GeometryParams, patches: readonly ParamPatch[]): GeometryParams {
-  for (const { group, patch } of patches) params = { ...params, [group]: { ...params[group], ...patch } }
+export function applyPatches<P extends DrivenParams>(params: P, patches: readonly ParamPatch[]): P {
+  for (const { group, patch } of patches) {
+    // Geometry alone has no typography or palette: they start from the defaults.
+    const current = params[group] ?? (group === 'typography' ? DEFAULT_TYPOGRAPHY : group === 'palette' ? DEFAULT_PALETTE : {})
+    params = { ...params, [group]: { ...current, ...patch } }
+  }
   return params
 }
 
@@ -168,11 +208,12 @@ const reachScale: Scale = {
 
 /**
  * A setting a target needs to act: why it does not act (a sentence for the Sound tab, null while the
- * setting is right), and the change that makes it right, with a sentence saying what was changed.
+ * setting is right), and the change that makes it right, with a sentence saying what was changed; no `meet`
+ * when no setting can make it right (the font has no such axis, a grey has no hue to move).
  */
 interface Requirement {
-  unmet(params: GeometryParams): string | null
-  meet(params: GeometryParams): { patch: ParamPatch; notice: string }
+  unmet(params: DrivenParams): string | null
+  meet?(params: DrivenParams): { patch: ParamPatch; notice: string }
 }
 
 type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn' | 'dissolve'
@@ -257,11 +298,11 @@ const seededEffectOn: Requirement = {
     p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled || p.experimental.dissolve?.enabled
       ? null
       : 'Turn on Crumple, Slipstream, Thorn or Dissolve to hear this.',
-  meet: effectOn('crumple').meet,
+  meet: effectOn('crumple').meet!,
 }
 
 /** The first reason a target does not act, or null. */
-function firstUnmet(requires: readonly Requirement[], params: GeometryParams): string | null {
+function firstUnmet(requires: readonly Requirement[], params: DrivenParams): string | null {
   for (const requirement of requires) {
     const why = requirement.unmet(params)
     if (why !== null) return why
@@ -269,12 +310,16 @@ function firstUnmet(requires: readonly Requirement[], params: GeometryParams): s
   return null
 }
 
-/** Meets every unmet requirement in order; consecutive changes to one group go into one patch. */
-function activation(requires: readonly Requirement[], params: GeometryParams): Activation | null {
+/**
+ * Meets every unmet requirement in order; consecutive changes to one group go into one patch. Null when nothing is
+ * unmet, or when an unmet one cannot be met (then nothing is changed).
+ */
+function activation(requires: readonly Requirement[], params: DrivenParams): Activation | null {
+  if (requires.some((requirement) => !requirement.meet && requirement.unmet(params) !== null)) return null
   const patches: ParamPatch[] = []
   const notices: string[] = []
   for (const requirement of requires) {
-    if (requirement.unmet(params) === null) continue
+    if (requirement.unmet(params) === null || !requirement.meet) continue
     const { patch, notice } = requirement.meet(params)
     params = applyPatches(params, [patch])
     const last = patches[patches.length - 1]
@@ -293,8 +338,8 @@ type GroupKey = 'flatten' | 'random' | 'squaring' | 'anchors' | 'grid' | 'distor
 /** Reads and writes one numeric field of the params, copying only the objects on the way. */
 interface Field {
   id: string
-  read(params: GeometryParams): unknown
-  write(params: GeometryParams, value: number): GeometryParams
+  read(params: DrivenParams): unknown
+  write(params: DrivenParams, value: number): DrivenParams
 }
 
 function groupField<G extends GroupKey>(group: G, key: NumericKeys<GeometryParams[G]>): Field {
@@ -323,6 +368,70 @@ function experimentalField(key: NumericKeys<ExperimentalParams>): Field {
     id: `experimental.${key}`,
     read: (p) => p.experimental[key],
     write: (p, value) => ({ ...p, experimental: { ...p.experimental, [key]: value } }),
+  }
+}
+
+/** A checkbox of an Experimental effect as a switch: 1 on, 0 off. */
+function switchField<E extends EffectKey>(effect: E, key: 'enabled' | 'reverse' | 'burst'): Field {
+  return {
+    id: `experimental.${effect}.${key}`,
+    read: (p) => ((p.experimental[effect] as unknown as Record<string, unknown> | undefined)?.[key] === true ? 1 : 0),
+    write: (p, value) => ({
+      ...p,
+      experimental: { ...p.experimental, [effect]: { ...p.experimental[effect], [key]: value >= 0.5 } },
+    }),
+  }
+}
+
+type TypographyKey = 'size' | 'tracking' | 'lineHeight' | 'slant'
+
+/** A Typography slider; without typography (the geometry alone), the default. */
+function typographyField(key: TypographyKey): Field {
+  return {
+    id: `typography.${key}`,
+    read: (p) => (p.typography ?? DEFAULT_TYPOGRAPHY)[key],
+    write: (p, value) => ({ ...p, typography: { ...(p.typography ?? DEFAULT_TYPOGRAPHY), [key]: value } }),
+  }
+}
+
+type ColorKey = 'ink' | 'paper'
+
+const COLOR_NAMES: Record<ColorKey, string> = { ink: 'Text', paper: 'Background' }
+
+/**
+ * A colour's hue (degrees) or lightness (0–1), in OKLCH, so the same step looks about as large for every colour. Set,
+ * the colour keeps its chroma and the other part; out of gamut it loses chroma until it fits (lchToHex).
+ */
+function colorField(color: ColorKey, part: 'h' | 'L'): Field {
+  return {
+    id: `palette.${color}${part === 'h' ? 'Hue' : 'Lightness'}`,
+    read: (p) => hexToLch((p.palette ?? DEFAULT_PALETTE)[color])[part],
+    write: (p, value) => {
+      const palette = p.palette ?? DEFAULT_PALETTE
+      return { ...p, palette: { ...palette, [color]: lchToHex({ ...hexToLch(palette[color]), [part]: value }) } }
+    },
+  }
+}
+
+/**
+ * One axis of the variable font (GeometryParams.variation): the font's own value (`own`) is left out, so a frame at
+ * the font's own values has no `variation` (its key is the sliders' own). Kept in tag order, for a stable key.
+ */
+function axisField(tag: string, own: number): Field {
+  return {
+    id: `axis.${tag}`,
+    read: (p) => p.variation?.[tag],
+    write: (p, value) => {
+      const values: Record<string, number> = { ...p.variation }
+      if (value === own) delete values[tag]
+      else values[tag] = value
+      const tags = Object.keys(values).sort()
+      if (!tags.length) {
+        const { variation: _variation, ...rest } = p
+        return rest
+      }
+      return { ...p, variation: Object.fromEntries(tags.map((t) => [t, values[t]])) }
+    },
   }
 }
 
@@ -388,6 +497,37 @@ const experimental = <E extends EffectKey>(effect: E, key: NumericKeys<Experimen
 /** A seed field (whole numbers 0 to its largest seed): a jump target. */
 const seed = (tab: TargetSpec['tab'], section: string, field: Field, max: number, requires: readonly Requirement[]) =>
   target({ field, tab, kind: 'jump', section, label: 'Seed', min: 0, max, step: 1, requires })
+/** A checkbox of an Experimental effect (labelled as in ExperimentalControls): a switch target. */
+const toggle = <E extends EffectKey>(effect: E, key: 'enabled' | 'reverse' | 'burst', label: string, requires: readonly Requirement[] = []) =>
+  target({ field: switchField(effect, key), tab: 'experimental', kind: 'switch', section: EFFECT_NAMES[effect], label, min: 0, max: 1, step: 1, requires })
+/** A Typography slider, with the range and step of TypographyControls. */
+const typography = (key: TypographyKey, label: string, min: number, max: number, step: number) =>
+  target({ field: typographyField(key), tab: 'typography', section: 'Typography', label, min, max, step, fallback: DEFAULT_TYPOGRAPHY[key] })
+
+// With a transparent background there is no background colour to see.
+const backgroundShown: Requirement = {
+  unmet: (p) => (p.palette?.transparent ? 'The background is transparent: turn off Transparent background to hear this.' : null),
+  meet: () => ({ patch: { group: 'palette', patch: { transparent: false } }, notice: 'Turned off Transparent background.' }),
+}
+// A grey has no hue: moving it changes nothing (no setting of this app gives it one).
+const colored = (color: ColorKey): Requirement => ({
+  unmet: (p) =>
+    isNeutralColor((p.palette ?? DEFAULT_PALETTE)[color])
+      ? `The ${COLOR_NAMES[color].toLowerCase()} colour is a grey, so it has no hue to move: pick a colour to hear this.`
+      : null,
+})
+/** A colour's hue (0–360°, step 1°) or lightness (0–100%, step 1%). */
+const color = (key: ColorKey, part: 'h' | 'L') =>
+  target({
+    field: colorField(key, part),
+    tab: 'color',
+    section: COLOR_NAMES[key],
+    label: part === 'h' ? 'Hue' : 'Lightness',
+    min: 0,
+    max: part === 'h' ? 360 : 1,
+    step: part === 'h' ? 1 : 0.01,
+    requires: [...(key === 'paper' ? [backgroundShown] : []), ...(part === 'h' ? [colored(key)] : [])],
+  })
 
 /** Every parameter sound can drive, Geometry tab first, in panel order. */
 export const TARGETS: readonly TargetSpec[] = [
@@ -479,12 +619,124 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('dissolve', 'curl', 'Curl'),
   experimental('dissolve', 'facets', 'Facets'),
   seed('experimental', 'Seed', experimentalField('seed'), EXPERIMENTAL_LIMITS.maxSeed, [seededEffectOn]),
+
+  // The Experimental tab's checkboxes, as switches: each effect's "Use …", then Ripple's Reverse and Thorn's Burst and
+  // Reverse (which act only while their effect is on).
+  toggle('crumple', 'enabled', 'Use crumple'),
+  toggle('ripple', 'enabled', 'Use ripple'),
+  toggle('ripple', 'reverse', 'Reverse', [effectOn('ripple')]),
+  toggle('whorl', 'enabled', 'Use whorl'),
+  toggle('slipstream', 'enabled', 'Use slipstream'),
+  toggle('thorn', 'enabled', 'Use thorn'),
+  toggle('thorn', 'burst', 'Burst', [effectOn('thorn')]),
+  toggle('thorn', 'reverse', 'Reverse', [effectOn('thorn')]),
+  toggle('dissolve', 'enabled', 'Use dissolve'),
+
+  // The Typography tab, as in TypographyControls.
+  typography('size', 'Size', TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize, 1),
+  typography('tracking', 'Tracking', TYPOGRAPHY_LIMITS.minTracking, TYPOGRAPHY_LIMITS.maxTracking, 1),
+  typography('lineHeight', 'Line height', TYPOGRAPHY_LIMITS.minLineHeight, TYPOGRAPHY_LIMITS.maxLineHeight, 0.01),
+  typography('slant', 'Slant', -TYPOGRAPHY_LIMITS.maxSlant, TYPOGRAPHY_LIMITS.maxSlant, 1),
+
+  // The Color tab's text and background colours (ColorControls).
+  color('ink', 'h'),
+  color('ink', 'L'),
+  color('paper', 'h'),
+  color('paper', 'L'),
 ]
 
 const targetsById = new Map(TARGETS.map((t) => [t.id, t]))
 
+/**
+ * A target by id: one of TARGETS, or an axis ("axis.<tag>"), which exists for any tag: the loaded font's axis, or,
+ * when the font has no such axis (or no font is loaded), a target that never acts, so its mappings are kept.
+ */
 export function targetById(id: string): TargetSpec | undefined {
-  return targetsById.get(id)
+  return targetsById.get(id) ?? (id.startsWith(AXIS_PREFIX) ? axisTarget(id.slice(AXIS_PREFIX.length)) : undefined)
+}
+
+// ---- Variable font axes ----
+
+const AXIS_PREFIX = 'axis.'
+/** An OpenType axis tag: four printable ASCII characters, trailing spaces trimmed (as fontkit names them). */
+const AXIS_TAG = /^[\x21-\x7e][\x20-\x7e]{0,3}$/
+
+/** The loaded font's axes and own instance, which the axis targets follow (setTargetFont). */
+let targetFont: { axes: readonly VariationAxis[]; instance: Readonly<Record<string, number>> | null } = { axes: [], instance: null }
+const axisSpecs = new Map<string, TargetSpec>()
+
+/**
+ * Tells the targets which font is loaded: its axes become targets (axisTargets), each moving from the font's own value
+ * (its instance's, else the axis default) over the axis's range. Call whenever the font changes (App does, before the
+ * panels and the live scheduler read the targets); null: no font, every axis target is inactive.
+ */
+export function setTargetFont(font: Pick<LoadedFont, 'axes' | 'instance'> | null): void {
+  const axes = font?.axes ?? []
+  const instance = font?.instance ?? null
+  if (axes === targetFont.axes && instance === targetFont.instance) return
+  targetFont = { axes, instance }
+  axisSpecs.clear()
+}
+
+/** The loaded font's axes as targets, in the font's order (none for a static font). */
+export function axisTargets(): TargetSpec[] {
+  return targetFont.axes.map((axis) => axisTarget(axis.tag)!)
+}
+
+/** The step of an axis target: a power of ten giving at least 100 steps over the axis, at most 1 (wght 400–700: 1). */
+function axisStep(axis: VariationAxis): number {
+  const span = axis.max - axis.min
+  return span > 0 ? Math.min(1, 10 ** Math.floor(Math.log10(span / 100))) : 1
+}
+
+/** An axis's linear scale; its last step is the axis maximum, which need not lie on the step grid. */
+function axisScale(axis: VariationAxis, step: number): Scale {
+  const steps = Math.max(1, Math.round((axis.max - axis.min) / step))
+  const digits = Math.max(decimals(axis.min), decimals(step))
+  return {
+    steps,
+    position: (value) => (axis.max > axis.min ? (value - axis.min) / (axis.max - axis.min) : 0),
+    valueAt: (index) => (index >= steps ? axis.max : Number((axis.min + index * step).toFixed(digits))),
+  }
+}
+
+function axisTarget(tag: string): TargetSpec | undefined {
+  if (!AXIS_TAG.test(tag)) return undefined
+  const known = axisSpecs.get(tag)
+  if (known) return known
+  const axis = targetFont.axes.find((a) => a.tag === tag)
+  let spec: TargetSpec
+  if (axis) {
+    const own = targetFont.instance?.[tag] ?? axis.default
+    const step = axisStep(axis)
+    spec = target({
+      field: axisField(tag, own),
+      tab: 'axes',
+      section: 'Variable axes',
+      label: axis.name || tag,
+      min: axis.min,
+      max: axis.max,
+      step,
+      scale: axisScale(axis, step),
+      fallback: own,
+    })
+  } else {
+    const why = targetFont.axes.length
+      ? `This font has no ${tag} axis: load a font with one to hear this.`
+      : `This font has no variable axes: load a variable font with a ${tag} axis to hear this.`
+    spec = target({
+      field: axisField(tag, 0),
+      tab: 'axes',
+      section: 'Variable axes',
+      label: tag,
+      min: 0,
+      max: 1,
+      step: 1,
+      requires: [{ unmet: () => why }],
+    })
+  }
+  axisSpecs.set(tag, spec)
+  return spec
 }
 
 /** A seed moved on by `jumps` (a whole number), wrapped past the target's largest seed to 0; 0 jumps keep it exactly. */
@@ -656,8 +908,8 @@ export function shapeStateless(mapping: Mapping, frame: FeatureFrame): number {
 
 export interface Modulated {
   /** The live parameters: `base` itself (same object) when no mapping moves anything. */
-  params: GeometryParams
-  /** Live slider position (0–1) of each driven slider target, by id. */
+  params: DrivenParams
+  /** Live slider position (0–1) of each driven slider target (a switch: 0 off, 1 on), by id. */
   positions: ReadonlyMap<string, number>
   /** Live seed of each driven jump target (its seed field's value plus its jumps, wrapped past the largest seed to 0), by id. */
   seeds: ReadonlyMap<string, number>
@@ -697,6 +949,22 @@ export function sharedRange(mappings: readonly Mapping[], targetId: string): rea
 
 const NO_VALUES: ReadonlyMap<string, number> = new Map()
 
+/** A switch mapping in Toggle or Follow flips its switch while its shaped value is at least this. */
+export const SWITCH_LEVEL = 0.5
+
+/**
+ * Whether a switch mapping fires now, from its shaped value (ShapingTracker): in Trigger while its pulse lasts (Smooth,
+ * at least SHAPING_LIMITS.pulseMs, after each rise past the Gate); in Toggle from one rise to the next (once its eased
+ * state passes SWITCH_LEVEL); in Follow, which a switch does not offer, while the shaped feature is at least
+ * SWITCH_LEVEL. Depth's size and sign do not count: any Depth but 0 flips.
+ */
+export function switchFires(mapping: Mapping, shaped: number): boolean {
+  return (mapping.mode ?? 'follow') === 'trigger' ? shaped > 0 : shaped >= SWITCH_LEVEL
+}
+
+/** Whether a mapping acts at all: on, with a finite Depth other than 0. */
+const drives = (mapping: Mapping) => mapping.enabled && mapping.depth !== 0 && Number.isFinite(mapping.depth)
+
 /**
  * Applies the mappings to the slider values: for each slider target, its slider position plus the sum
  * of depth × feature over its enabled mappings, clamped to the slider, converted back and rounded to
@@ -709,6 +977,10 @@ const NO_VALUES: ReadonlyMap<string, number> = new Map()
  *
  * A seed (jump target) driven the same way takes no part in the sum: its live seed is its field's
  * value moved on by `jumps` (by target id, from JumpTracker), listed in `seeds`.
+ *
+ * A switch is flipped from its checkbox's setting while any of its mappings fires (switchFires), and listed in
+ * `positions` (0 off, 1 on). Switches go first: the other targets act or not on the switched settings (a mapping on
+ * Ripple's Amount acts while a mapping turns Ripple on).
  *
  * `response` applies the Response group: Melody tracking adds RESPONSE_LIMITS.melodyBoost × melody × the Melody
  * pulse to each slider mapping's feature (capped at 1; not Pan, not a Melody row, only in Follow mode), and Strength
@@ -723,7 +995,7 @@ const NO_VALUES: ReadonlyMap<string, number> = new Map()
  * exactly what it was before shaping existed.
  */
 export function modulate(
-  base: GeometryParams,
+  base: DrivenParams,
   frame: FeatureFrame,
   mappings: readonly Mapping[],
   jumps: ReadonlyMap<string, number> = NO_VALUES,
@@ -731,19 +1003,33 @@ export function modulate(
   shaped: ReadonlyMap<string, number> = NO_VALUES,
 ): Modulated {
   const boost = response.melody > 0 ? RESPONSE_LIMITS.melodyBoost * response.melody * featureValue(frame, 'melody') : 0
+  let params = base
+  // The switches first: which are flipped, in the order they first appear in the mappings.
+  let flips: Map<TargetSpec, boolean> | null = null
+  for (const mapping of mappings) {
+    if (!drives(mapping)) continue
+    const spec = targetById(mapping.target)
+    if (spec?.kind !== 'switch' || spec.inactive(base) !== null) continue
+    const fires = switchFires(mapping, shaped.get(mapping.id) ?? shapeStateless(mapping, frame))
+    ;(flips ??= new Map()).set(spec, (flips.get(spec) ?? false) || fires)
+  }
+  if (flips) {
+    for (const [spec, flipped] of flips) if (flipped) params = spec.set(params, 1 - spec.get(base))
+  }
+  // What the other targets need is checked on the switched settings.
+  const switched = params
   // Sum of depth × feature per slider target, in the order targets first appear in the mappings.
   let sums: Map<TargetSpec, number> | null = null
   let seeds: Map<string, number> | null = null
   // Each slider target's shared Range (sharedRange): the lowest low and the highest high among its mappings.
   let spans: Map<TargetSpec, [number, number]> | null = null
-  let params = base
   const inactive = new Map<TargetSpec, boolean>()
   for (const mapping of mappings) {
-    if (!mapping.enabled || mapping.depth === 0 || !Number.isFinite(mapping.depth)) continue
+    if (!drives(mapping)) continue
     const spec = targetById(mapping.target)
-    if (!spec) continue
+    if (!spec || spec.kind === 'switch') continue
     let off = inactive.get(spec)
-    if (off === undefined) inactive.set(spec, (off = spec.inactive(base) !== null))
+    if (off === undefined) inactive.set(spec, (off = spec.inactive(switched) !== null))
     if (off) continue
     if (spec.kind === 'jump') {
       if (seeds?.has(spec.id)) continue
@@ -768,11 +1054,11 @@ export function modulate(
       if (high > span[1]) span[1] = high
     }
   }
-  if (!sums) return { params, positions: NO_VALUES, seeds: seeds ?? NO_VALUES }
+  if (!sums && !flips) return { params, positions: NO_VALUES, seeds: seeds ?? NO_VALUES }
 
   const positions = new Map<string, number>()
   let bounds: Map<string, readonly [number, number]> | null = null
-  for (const [spec, added] of sums) {
+  for (const [spec, added] of sums ?? []) {
     const sum = added * response.strength
     const value = spec.get(base)
     const basePosition = spec.toSlider(value)
@@ -795,5 +1081,45 @@ export function modulate(
     params = spec.set(params, live)
     positions.set(spec.id, spec.toSlider(live))
   }
+  for (const [spec, flipped] of flips ?? []) positions.set(spec.id, flipped ? 1 - spec.get(base) : spec.get(base))
   return bounds ? { params, positions, seeds: seeds ?? NO_VALUES, bounds } : { params, positions, seeds: seeds ?? NO_VALUES }
+}
+
+// ---- The canvas's look ----
+
+/** The typography and colours of a frame that sound moved away from the sliders' (lookChanges). */
+export interface LookChanges {
+  typography?: Partial<Pick<TypographyParams, TypographyKey>>
+  palette?: Partial<Pick<PaletteParams, ColorKey>>
+}
+
+const TYPOGRAPHY_KEYS: readonly TypographyKey[] = ['size', 'tracking', 'lineHeight', 'slant']
+const COLOR_KEYS: readonly ColorKey[] = ['ink', 'paper']
+
+/**
+ * The typography and colours sound can move, as a key to join a frame's geometry key (paramsKey leaves them out): ''
+ * for parameters without either (the geometry alone), so a frame's key is then what it always was.
+ */
+export function lookKey(params: DrivenParams): string {
+  const { typography: t, palette: p } = params
+  if (!t && !p) return ''
+  return `|${t ? TYPOGRAPHY_KEYS.map((key) => t[key]).join(',') : ''}|${p ? COLOR_KEYS.map((key) => p[key]).join(',') : ''}`
+}
+
+/** The typography and colours of `live` that differ from `base`'s (the fields sound can move), or null when none do. */
+export function lookChanges(base: DrivenParams, live: DrivenParams): LookChanges | null {
+  let changes: LookChanges | null = null
+  const typography = live.typography
+  if (typography && typography !== base.typography) {
+    for (const key of TYPOGRAPHY_KEYS) {
+      if (typography[key] !== (base.typography ?? DEFAULT_TYPOGRAPHY)[key]) ((changes ??= {}).typography ??= {})[key] = typography[key]
+    }
+  }
+  const palette = live.palette
+  if (palette && palette !== base.palette) {
+    for (const key of COLOR_KEYS) {
+      if (palette[key] !== (base.palette ?? DEFAULT_PALETTE)[key]) ((changes ??= {}).palette ??= {})[key] = palette[key]
+    }
+  }
+  return changes
 }

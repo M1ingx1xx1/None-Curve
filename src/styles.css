@@ -2971,8 +2971,9 @@ input.number-field {
 }
 
 /* The live seed beside a seed field Sound drives, in the live marker's colour. Wide enough for the
-   largest seed, so the field does not resize with every jump. */
-.live-seed {
+   largest seed, so the field does not resize with every jump. A variable axis's live value (Font) alike. */
+.live-seed,
+.live-value {
   flex: none;
   align-self: center;
   min-width: 6ch;
@@ -2980,6 +2981,42 @@ input.number-field {
   font-size: 0.85rem;
   text-align: right;
   color: var(--accent);
+}
+
+.live-value {
+  min-width: 0;
+  margin-left: 6px;
+}
+
+/* A switch Sound flips: a square in the live marker's colour beside its checkbox, filled while it is on live. */
+.live-switch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-left: auto;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.live-switch[data-on] {
+  background: var(--accent);
+}
+
+/* The colour Sound has moved a palette colour to: a square swatch over the right end of the field's own swatch (left
+   of the 96px hex box and the 8px gap), edged in the live marker's colour. */
+.color-row {
+  position: relative;
+}
+
+.live-color {
+  position: absolute;
+  top: 50%;
+  right: calc(96px + 8px + 8px);
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border: 2px solid var(--accent);
+  pointer-events: none;
 }
 
 /* ---- Recording ---- */
@@ -3253,4 +3290,10 @@ input.number-field {
 
 .export-dialog {
   overflow-y: auto;
+}
+
+/* Where the Depth knob sits on a switch's mapping row, which has none: keeps the rows' columns aligned. */
+.mapping-depth-none {
+  flex: none;
+  width: 34px;
 }

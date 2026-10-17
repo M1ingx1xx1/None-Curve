@@ -214,9 +214,10 @@ function readLeaf(path: string, value: unknown, fallback: unknown): unknown {
   if (typeof fallback !== 'number' || typeof value !== 'number' || !Number.isFinite(value)) return undefined
   const choices = CHOICES[path]
   if (choices) return choices.includes(value) ? value : undefined
-  // The slider's own range: every Geometry and Experimental slider and seed is a Sound target.
+  // The slider's own range: every Geometry and Experimental slider and seed is a Sound target (the Typography
+  // sliders are too, but keep their ranges below, which do not round).
   const target = targetById(path)
-  if (target) return Number.isInteger(target.step) ? Math.round(clamp(value, target.min, target.max)) : clamp(value, target.min, target.max)
+  if (target && (target.tab === 'geometry' || target.tab === 'experimental')) return Number.isInteger(target.step) ? Math.round(clamp(value, target.min, target.max)) : clamp(value, target.min, target.max)
   const range = RANGES[path]
   if (range) return range[2] ? Math.round(clamp(value, range[0], range[1])) : clamp(value, range[0], range[1])
   return value

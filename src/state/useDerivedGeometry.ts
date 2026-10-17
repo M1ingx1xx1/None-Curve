@@ -4,7 +4,7 @@ import { paramsKey } from '../geometry/cache'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
 import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
 import type { LiveView } from '../sound/live'
-import { layoutArtboard, placementScene, type ArtboardLayout, type SliderPlacement } from '../specimen/artboard'
+import { layoutArtboard, placementScene, type ArtboardLayout, type SliderPlacement, type TypographyParams } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen, type PolygonLookup, type SpecimenScene } from '../specimen/scene'
 import { geometryClient, useGlyphGeometry } from './geometryClient'
 import type { AppState } from './types'
@@ -83,7 +83,15 @@ export interface GeometryState {
   loadSliderScene: () => Promise<SpecimenScene | null>
   /** The letters of the shaped text (one per occurrence), for the live scheduler (useLiveLetters). */
   letterSlots: LetterSlots
+  /**
+   * The font as the canvas sets it: while Sound drives a variable axis, the font at the live axis values (its
+   * outlines and shaping; LoadedFont.at), otherwise the font itself (null without one).
+   */
+  shownFont: LoadedFont | null
 }
+
+/** The typography fields shaping uses. */
+const layoutOf = ({ tracking, lineHeight, align, slant }: TypographyParams) => ({ tracking, lineHeight, align, slant })
 
 /**
  * All derived geometry for the page. Glyphs are computed in the geometry worker, the selected glyph
@@ -94,7 +102,10 @@ export interface GeometryState {
  * canvasEm), so the canvas, Sound's live frames and the exports share one key. `live` is the frame
  * Sound is driving (useLiveFrame): when its parameters differ from the sliders, the glyphs are computed
  * and shown with them, as live requests, and letters that react by other amounts show their own level.
- * The text block stays placed by the sliders' own letters meanwhile (placementScene).
+ * The text block stays placed by the sliders' own letters meanwhile (placementScene). Sound's typography and colours
+ * (`live.look`) and axis values (`live.params.variation`) set the text as shown, at once (not deferred): it is shaped
+ * with the live typography, in the font at the live axis values. Shaping again costs a few milliseconds a frame (a
+ * fresh axis instance about 2 ms more), within a live frame's budget; the font keeps its recent instances.
  */
 export function useGeometry(state: AppState, text: string, params: GeometryParams, live?: LiveView): GeometryState {
   const { font, selectedGlyph } = state.document
@@ -110,10 +121,20 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
 
   const deferredText = useDeferredValue(text)
   const deferredTypography = useDeferredValue(typography)
-  const { tracking, lineHeight, align, slant } = deferredTypography
+  // Sound's typography over the sliders', and the font at Sound's axis values.
+  const liveTypography = live?.look?.typography
+  const shownTypography = useMemo(
+    () => (liveTypography ? { ...deferredTypography, ...liveTypography } : deferredTypography),
+    [deferredTypography, liveTypography],
+  )
+  const variation = live?.params.variation
+  const shownFont = useMemo(() => (font && variation && font.at ? font.at(variation) : font), [font, variation])
+  // Shaped otherwise than by the sliders: measures of the sliders' own letters shape the text again.
+  const liveShaping = shownFont !== font || liveTypography !== undefined
+  const { tracking, lineHeight, align, slant } = shownTypography
   const shaped = useMemo(
-    () => (font ? shapeSpecimen(font, deferredText, { tracking, lineHeight, align, slant }) : null),
-    [font, deferredText, tracking, lineHeight, align, slant],
+    () => (shownFont ? shapeSpecimen(shownFont, deferredText, { tracking, lineHeight, align, slant }) : null),
+    [shownFont, deferredText, tracking, lineHeight, align, slant],
   )
 
   const indices = useMemo(() => {
@@ -183,16 +204,19 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   const placement = scene && shaped ? placementScene(scene, isLive, shaped, sliderScene, lastSlider.current) : null
 
   const loadSliderScene = useCallback(async () => {
-    if (!isLive || !font || !shaped) return scene
-    if (sliderScene && !sliderPending) return sliderScene
-    return placePolygons(shaped, await geometryClient.ensure(font, params, key, shaped.indices))
-  }, [isLive, font, shaped, params, key, scene, sliderScene, sliderPending])
+    if (!font || !shaped) return scene
+    // Sound's typography or axes: the text as the sliders set it.
+    const own = liveShaping ? shapeSpecimen(font, deferredText, layoutOf(deferredTypography)) : shaped
+    if (!isLive && !liveShaping) return scene
+    if (!liveShaping && sliderScene && !sliderPending) return sliderScene
+    return placePolygons(own, await geometryClient.ensure(font, params, key, own.indices))
+  }, [isLive, liveShaping, font, shaped, deferredText, deferredTypography, params, key, scene, sliderScene, sliderPending])
   const layout = useMemo(
-    () => (font && placement ? layoutArtboard(placement, deferredTypography, artboard, font.metrics.unitsPerEm) : null),
-    [font, placement, deferredTypography, artboard],
+    () => (font && placement ? layoutArtboard(placement, shownTypography, artboard, font.metrics.unitsPerEm) : null),
+    [font, placement, shownTypography, artboard],
   )
 
-  const source = useMemo(() => readSource(font, selectedGlyph), [font, selectedGlyph])
+  const source = useMemo(() => readSource(shownFont, selectedGlyph), [shownFont, selectedGlyph])
   const selected = selectedGlyph ? geometry.lookup(selectedGlyph.index) : null
   const selectedEntry = selected?.entry ?? null
   const result = useMemo<GlyphGeometry>(() => {
@@ -218,5 +242,6 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     scenePending: deferredText !== text || deferredTypography !== typography || (scene?.pendingGlyphs ?? 0) > 0,
     loadSliderScene,
     letterSlots: slots,
+    shownFont,
   }
 }

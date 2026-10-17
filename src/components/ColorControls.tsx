@@ -2,6 +2,7 @@ import { useEffect, useState, type Dispatch } from 'react'
 import { contrastRatio, DEFAULT_PALETTE, normalizeHex, PALETTES, type PaletteParams } from '../specimen/artboard'
 import type { Action } from '../state/editorState'
 import Icon from './Icon'
+import { LiveColor } from './LiveValue'
 
 interface ColorControlsProps {
   params: PaletteParams
@@ -80,8 +81,8 @@ export default function ColorControls({ params, disabled, dispatch }: ColorContr
           </div>
         </div>
 
-        <ColorField id="palette-ink" label="Text" value={params.ink} onChange={(ink) => update({ ink })} />
-        <ColorField id="palette-paper" label="Background" value={params.paper} onChange={(paper) => update({ paper })} />
+        <ColorField id="palette-ink" label="Text" value={params.ink} target="ink" onChange={(ink) => update({ ink })} />
+        <ColorField id="palette-paper" label="Background" value={params.paper} target="paper" onChange={(paper) => update({ paper })} />
         <div className="field field-toggle">
           <input
             id="palette-transparent"
@@ -108,8 +109,23 @@ export default function ColorControls({ params, disabled, dispatch }: ColorContr
   )
 }
 
-/** A colour swatch (the native picker) with a hex box for exact values. */
-function ColorField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (hex: string) => void }) {
+/**
+ * A colour swatch (the native picker) with a hex box for exact values, and the live colour while Sound drives its hue
+ * or lightness (`target`: which palette colour it is).
+ */
+function ColorField({
+  id,
+  label,
+  value,
+  target,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string
+  target: 'ink' | 'paper'
+  onChange: (hex: string) => void
+}) {
   const [draft, setDraft] = useState(value)
   useEffect(() => setDraft(value), [value])
   const invalid = normalizeHex(draft) === null
@@ -127,6 +143,7 @@ function ColorField({ id, label, value, onChange }: { id: string; label: string;
       <label htmlFor={id}>{label}</label>
       <div className="color-row">
         <input id={id} type="color" className="color-swatch" value={value} onChange={(e) => onChange(e.target.value)} />
+        <LiveColor color={value} hue={`palette.${target}Hue`} lightness={`palette.${target}Lightness`} />
         <input
           type="text"
           className="color-hex"

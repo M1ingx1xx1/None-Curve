@@ -174,6 +174,8 @@ Sound 驱动字母且 Thorn 打开时，会移动刺的设置每次只传到少�
 
 **Experimental 标签页**：Crumple 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Refraction / Flute width（Reach 是画布对角线的比例，沿面板上的三次方滑块移动）；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。Crumple 带 Detail 时（第 9 阶段起，到 NOCUR-60 为止）保存的设置，读取时忽略这个值，并丢弃 Crumple · Detail 上的映射行。Reach 还是 em 比例时保存的 Thorn · Reach 映射行保留它们的 Depth，现在它移动的是三次方滑块。
 
+**滑块之外（NOCUR-73）**：效果的开关（每个 Use …、Ripple 的 Reverse、Thorn 的 Burst 和 Reverse：0/1，只有 Trigger 或 Toggle，没有 Depth、Range 和 Curve，先于其他目标应用，所以把 Thorn 打开的行能让 Thorn 的滑块行在同一帧起作用）；Typography 的 Size / Tracking / Line height / Slant（范围与 Typography 标签页相同）；文字颜色和背景颜色的 Hue（0–360°）和 Lightness（0–1），在 OKLCH 中移动并保持彩度；以及所载入可变字体每个轴一个目标（`axis.<tag>`），从字体自己的值出发在轴上移动。字体没有的轴上的行会保留、保存，但不起作用。排版和颜色作为提交中的 `look` 到达画布，从不按字母级别缩放；除了 Thorn 自己的开关，这些目标都不按 Thorn 轮次变化。轴的值通过字体的实例（`LoadedFont.at`，带缓存）进入字形，只有与字体自己的值不同时才加入几何键。没有映射它们时，每一帧和每个键都和以前一样（README 的“更多目标”）。
+
 **目标起作用需要什么**（即它的未生效说明，以及选择它时会打开什么，见第 5 节）：
 
 | 目标 | 需要 | 选择它时 |
@@ -348,7 +350,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 - **Drive letters：** 一个开关（`role="switch"` 的复选框，画成按主题配色的小滑轨和圆钮）；只有打开时声音才会移动字母。开启减少动态效果时它一开始是关的，并说明原因（第 10 节）。Strength 为 0% 时，它下方有一行说明 "Strength is 0%: the letters hold still."。
 - **映射：**
   - **Preset** 和 **Load**，在各行上方，带一个 ⓘ，说明 Load 会恢复哪些默认值、撤销可以恢复之前的设置和映射，并给每个预设一行说明。在列表里选择只是选中，所以用键盘浏览列表不会替换任何东西；按 Load 才应用预设（第 7 节）。这一行下方有一个状态行，说明上一次 Load 做了什么（“Loaded X. Turned off …. Other Geometry and Experimental settings back to defaults (seeds kept).”），一直保留到下一次 Load、在列表里选了另一个预设，或者撤销或重做为止。
-  - 每行占一行：开关 LED、Feature（与电平表说明相同的分组）、Target（分组：Geometry / Experimental；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、一个小的双极 Depth 旋钮，以及打开该行详情的展开按钮（同一时间只展开一行：先是该行的塑形设置——Mode 为 Follow / Trigger / Toggle 分段控件，Gate、Curve 和 Smooth 为小旋钮，目标是滑块时还有双滑块的 Range（NOCUR-72；含义见 README → 塑形）——然后是 Remove，以及 Rate 的 ⓘ）。在种子上，Depth 改为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
+  - 每行占一行：开关 LED、Feature（与电平表说明相同的分组）、Target（分组：Geometry / Experimental / Switches / Typography / Color / Variable axes；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、一个小的双极 Depth 旋钮，以及打开该行详情的展开按钮（同一时间只展开一行：先是该行的塑形设置——Mode 为 Follow / Trigger / Toggle 分段控件，Gate、Curve 和 Smooth 为小旋钮，目标是滑块时还有双滑块的 Range（NOCUR-72；含义见 README → 塑形）——然后是 Remove，以及 Rate 的 ⓘ）。在种子上，Depth 改为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
   - **Add mapping**，以及每行详情里的 Remove。删除一行后，键盘焦点移到下一行的展开按钮（没有时移到上一行的，都没有时移到 Add mapping）。
   - **Freeze**，在这个分组的末尾，旁边显示 "Live · N fps"。录制视频期间它不可用（`aria-disabled`，保留键盘焦点），并显示 "Freeze is off while recording."。它的 ⓘ 还说明，按不同幅度响应的字母会取共享值。
