@@ -1713,6 +1713,19 @@ input[type='range']:disabled {
   align-self: flex-start;
 }
 
+/* How a config file import went (Import → Config file), with its Dismiss button in the corner. */
+.config-notice {
+  position: relative;
+  padding-right: 40px;
+}
+
+.config-notice > .button-small {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 6px;
+}
+
 .font-summary {
   display: flex;
   flex-direction: column;

@@ -2,7 +2,8 @@
 // the preview look, the export precision, the Sound mappings and Response group (Sensitivity, Release,
 // Strength, Motion contrast, Pitch reactive, Melody tracking), and which font and glyph were open. Read
 // once on start and checked leaf by leaf against the defaults, so a damaged or older entry never breaks
-// the app; written a moment after each change.
+// the app; written a moment after each change. A config file (Export → Config, Import → Config file) holds
+// the same session, marked as this app's, and is read back the same way.
 
 import { ANGLE_STEPS } from '../geometry/constraints'
 import type { BreakRule } from '../geometry/curveRuns'
@@ -322,6 +323,59 @@ export function readSession(raw: unknown): Session | null {
   }
 }
 
+// ---- As text: the saved session and the config file ----
+
+/** The session as it is written: with its version, without Thorn's derived canvasEm, the text capped. */
+function sessionRecord(session: Session): Raw {
+  const params = { ...session.params, experimental: withThornCanvasEm(session.params.experimental, null) }
+  return { version: SESSION_VERSION, ...session, params, text: capText(session.text) }
+}
+
+/** The session as the JSON kept in storage. */
+export function serializeSession(session: Session): string {
+  return JSON.stringify(sessionRecord(session))
+}
+
+/** JSON written by serializeSession (any version), checked; null when it is not JSON or not a session. */
+export function parseSession(text: string): Session | null {
+  try {
+    return readSession(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+/** Marks a config file (Export → Config) as this app's: `app` and `kind` beside the session's own keys. */
+export const CONFIG_MARKER = { app: 'none-curve', kind: 'config' } as const
+/** A larger file is not read: a config holds at most MAX_SAVED_TEXT characters of text and a few mappings. */
+export const MAX_CONFIG_BYTES = 1_000_000
+
+/** The session as a config file: the same keys as the saved session, marked, indented to be readable. */
+export function serializeConfig(session: Session): string {
+  return `${JSON.stringify({ ...CONFIG_MARKER, ...sessionRecord(session) }, null, 2)}\n`
+}
+
+export type ParsedConfig =
+  /** `newer`: written by a newer version of the app; what this one does not know was left out. */
+  | { ok: true; session: Session; newer: boolean }
+  | { ok: false; error: string }
+
+/** A config file's text, read as a saved session is (migrated, checked leaf by leaf); anything else is refused. */
+export function parseConfig(text: string): ParsedConfig {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return { ok: false, error: 'The file is not valid JSON.' }
+  }
+  if (!isObject(raw) || raw.app !== CONFIG_MARKER.app || raw.kind !== CONFIG_MARKER.kind) {
+    return { ok: false, error: 'This is not a None-Curve config file. Save one with Export → Config.' }
+  }
+  const { app: _app, kind: _kind, ...saved } = raw
+  // An object always reads as a session (every damaged leaf is the default).
+  return { ok: true, session: readSession(saved)!, newer: typeof saved.version === 'number' && saved.version > SESSION_VERSION }
+}
+
 // ---- Storage ----
 
 /**
@@ -335,7 +389,7 @@ export function loadSession(storage: Storage | null = browserStorage()): Restore
   let crashed = false
   try {
     const text = storage.getItem(SESSION_KEY)
-    session = text ? readSession(JSON.parse(text)) : null
+    session = text ? parseSession(text) : null
     crashed = session !== null && storage.getItem(RESTORING_KEY) !== null
     storage.removeItem(RESTORING_KEY)
   } catch {
@@ -350,8 +404,7 @@ export function loadSession(storage: Storage | null = browserStorage()): Restore
 export function saveSession(session: Session, storage: Storage | null = browserStorage()): boolean {
   if (!storage) return false
   try {
-    const params = { ...session.params, experimental: withThornCanvasEm(session.params.experimental, null) }
-    storage.setItem(SESSION_KEY, JSON.stringify({ version: SESSION_VERSION, ...session, params, text: capText(session.text) }))
+    storage.setItem(SESSION_KEY, serializeSession(session))
     return true
   } catch {
     return false

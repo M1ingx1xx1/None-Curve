@@ -3,15 +3,17 @@ import { LOCAL_FONT_ACCEPT } from '../font/local'
 
 interface LocalFileInputProps {
   onFile: (file: File) => void
+  /** The file types offered; font files by default. */
+  accept?: string
 }
 
 /** Hidden file input; open it with `ref.current.click()`. */
-const LocalFileInput = forwardRef<HTMLInputElement, LocalFileInputProps>(function LocalFileInput({ onFile }, ref) {
+const LocalFileInput = forwardRef<HTMLInputElement, LocalFileInputProps>(function LocalFileInput({ onFile, accept = LOCAL_FONT_ACCEPT }, ref) {
   return (
     <input
       ref={ref}
       type="file"
-      accept={LOCAL_FONT_ACCEPT}
+      accept={accept}
       hidden
       tabIndex={-1}
       onChange={(e) => {

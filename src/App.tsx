@@ -11,9 +11,10 @@ import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
 import TextPreview from './components/TextPreview'
 import TextTools from './components/TextTools'
-import ToolHead from './components/ToolHead'
+import ToolHead, { type ConfigNotice } from './components/ToolHead'
 import Workspace from './components/Workspace'
 import { useRecordingContext } from './export/recorder'
+import type { LoadedFont } from './font/model'
 import type { GeometryParams, GlyphRef } from './geometry/types'
 import { getSoundEngine } from './sound/engine'
 import { useLiveFrame, useLiveLetters } from './sound/live'
@@ -23,8 +24,19 @@ import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from 
 import { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './specimen/previewLook'
 import { DEFAULT_TEXT } from './specimen/samples'
 import { editorReducer, initialState, thornCanvasEm, withThornCanvasEm, type Action } from './state/editorState'
-import { changedSettings, listenForUndo, undoHistory, useHistoryState } from './state/history'
-import { clearRestoring, createSessionSaver, markRestoring, savedFont, type RestoredSession, type SavedGlyph, type Session } from './state/persist'
+import { changedSettings, listenForUndo, undoHistory, useHistoryState, type Snapshot } from './state/history'
+import {
+  clearRestoring,
+  createSessionSaver,
+  markRestoring,
+  MAX_CONFIG_BYTES,
+  parseConfig,
+  savedFont,
+  type RestoredSession,
+  type SavedFont,
+  type SavedGlyph,
+  type Session,
+} from './state/persist'
 import type { AppState, EditorParams, SettingsParams, ViewParams } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
@@ -47,6 +59,23 @@ function startState(saved: Session | null): AppState {
     document: { ...initialState.document, export: { ...initialState.document.export, precision: saved.precision } },
     params: { ...saved.params, view: { ...initialState.params.view, ...saved.view } },
   }
+}
+
+/** The saved glyph in `font`, when it is the same family and style. */
+function findSavedGlyph(font: LoadedFont, glyph: SavedGlyph): GlyphRef | null {
+  if (font.familyName !== glyph.family || font.styleName !== glyph.style) return null
+  return (
+    font.characters.find((c) => c.index === glyph.index && c.unicode === glyph.unicode) ??
+    font.listAllGlyphs().find((g) => g.index === glyph.index) ??
+    null
+  )
+}
+
+/** Whether `font` is the one `saved` names: the same Google Fonts request, or a local file of the same name. */
+function isSavedFont(font: LoadedFont, saved: SavedFont): boolean {
+  const loaded = savedFont(font)
+  if (loaded.kind === 'local' || saved.kind === 'local') return loaded.kind === 'local' && saved.kind === 'local' && loaded.fileName === saved.fileName
+  return loaded.family === saved.family && loaded.weight === saved.weight && loaded.italic === saved.italic && loaded.subset === saved.subset
 }
 
 interface AppProps {
@@ -108,6 +137,19 @@ export default function App({ restored }: AppProps) {
   const typeText = useCallback((next: string) => writeText(next, true), [writeText])
   const replaceText = useCallback((next: string) => writeText(next, false), [writeText])
 
+  // Puts back what one undo step holds (undo and redo, a config file); records nothing itself.
+  const applySnapshot = useCallback(({ params, text, mappings, sound }: Snapshot) => {
+    const action: Action = { type: 'restoreParams', params }
+    current.current.state = editorReducer(current.current.state, action)
+    dispatch(action)
+    current.current.text = text
+    setText(text)
+    mappingStore.restore(mappings)
+    if (sound) {
+      getSoundEngine().setSettings({ sensitivity: sound.sensitivity, releaseMs: sound.releaseMs })
+      mappingStore.restoreResponse(sound)
+    }
+  }, [])
   useEffect(
     () =>
       undoHistory.connect({
@@ -117,20 +159,9 @@ export default function App({ restored }: AppProps) {
           mappings: mappingStore.getState().mappings,
           sound: soundSettings(),
         }),
-        restore: ({ params, text, mappings, sound }) => {
-          const action: Action = { type: 'restoreParams', params }
-          current.current.state = editorReducer(current.current.state, action)
-          dispatch(action)
-          current.current.text = text
-          setText(text)
-          mappingStore.restore(mappings)
-          if (sound) {
-            getSoundEngine().setSettings({ sensitivity: sound.sensitivity, releaseMs: sound.releaseMs })
-            mappingStore.restoreResponse(sound)
-          }
-        },
+        restore: applySnapshot,
       }),
-    [],
+    [applySnapshot],
   )
   useEffect(() => listenForUndo(), [])
   const historyState = useHistoryState()
@@ -239,10 +270,12 @@ export default function App({ restored }: AppProps) {
   const session = useRef(sessionNow)
   session.current = sessionNow
   // Live Sound frames never reach these values: only the sliders' own settings are saved. The mappings and
-  // the Sound settings change outside React, so they are read when the save happens.
-  const [saver] = useState(() =>
-    createSessionSaver(() => ({ ...session.current, mappings: mappingStore.getState().mappings, sound: soundSettings() })),
+  // the Sound settings change outside React, so they are read when the save happens (or a config is exported).
+  const readSessionNow = useCallback(
+    (): Session => ({ ...session.current, mappings: mappingStore.getState().mappings, sound: soundSettings() }),
+    [],
   )
+  const [saver] = useState(() => createSessionSaver(readSessionNow))
   useEffect(
     () => saver.schedule(),
     [saver, flatten, random, squaring, anchors, grid, distortion, experimental, typography, palette, artboard,
@@ -315,12 +348,88 @@ export default function App({ restored }: AppProps) {
     const glyph = glyphToRestore.current
     if (!font || !glyph) return
     glyphToRestore.current = null
-    if (font.familyName !== glyph.family || font.styleName !== glyph.style) return
-    const ref =
-      font.characters.find((c) => c.index === glyph.index && c.unicode === glyph.unicode) ??
-      font.listAllGlyphs().find((g) => g.index === glyph.index)
+    const ref = findSavedGlyph(font, glyph)
     if (ref) dispatch({ type: 'selectGlyph', glyph: ref, keepView: true })
   }, [font])
+
+  // ---- Config files (Export → Config, Import → Config file) ----
+
+  const [configNotice, setConfigNotice] = useState<ConfigNotice | null>(null)
+  const dismissConfigNotice = useCallback(() => setConfigNotice(null), [])
+  // The settings, text, Sound mappings and Response are applied as one undo step; the canvas view's buttons,
+  // the preview look and the export precision are never undone, here as anywhere. The font follows the
+  // config: a Google Fonts face is downloaded (unless it is open), a local file can only be named.
+  const importConfig = useCallback(
+    async (file: File) => {
+      if (file.size > MAX_CONFIG_BYTES) {
+        setConfigNotice({ tone: 'error', text: `${file.name} is larger than 1 MB, too large for a config file.` })
+        return
+      }
+      let text: string
+      try {
+        text = await file.text()
+      } catch {
+        setConfigNotice({ tone: 'error', text: `${file.name} could not be read as a config file.` })
+        return
+      }
+      const parsed = parseConfig(text)
+      if (!parsed.ok) {
+        setConfigNotice({ tone: 'error', text: parsed.error })
+        return
+      }
+      const config = parsed.session
+      undoHistory.transaction(() => {
+        undoHistory.record(null)
+        applySnapshot(config)
+      })
+      for (const action of [
+        { type: 'updateParams', group: 'view', patch: config.view },
+        { type: 'updateExport', patch: { precision: config.precision } },
+      ] satisfies Action[]) {
+        current.current.state = editorReducer(current.current.state, action)
+        dispatch(action)
+      }
+      setPreviewLook(config.previewLook)
+
+      const notes = [`Imported ${file.name}. Undo reverts its settings, text and Sound.`]
+      if (parsed.newer) notes.push('It was saved by a newer None-Curve: settings this version does not know were left out.')
+      const open = current.current.state.document.font
+      const wanted = config.font
+      if (!wanted || (open && isSavedFont(open, wanted))) {
+        // The font stays: the config's glyph is selected in it when it is the same family and style.
+        const ref = open && config.glyph ? findSavedGlyph(open, config.glyph) : null
+        if (ref) dispatch({ type: 'selectGlyph', glyph: ref, keepView: true })
+      } else {
+        glyphToRestore.current = config.glyph
+        if (wanted.kind === 'google') {
+          const { family, weight, italic, subset } = wanted
+          void importGoogle({ family, weight, italic, subset })
+        } else {
+          notes.push(`Its font is the local file ${wanted.fileName}: import it to see the config as it was saved.`)
+        }
+      }
+      setConfigNotice({ tone: 'info', text: notes.join(' ') })
+    },
+    [applySnapshot, importGoogle],
+  )
+  // A font chosen by hand replaces whatever the last config asked for. A .json file (dropped on the canvas,
+  // say) is read as a config.
+  const { importLocal } = importer
+  const importLocalFont = useCallback(
+    (file: File) => {
+      if (/\.json$/i.test(file.name)) return importConfig(file)
+      setConfigNotice(null)
+      return importLocal(file)
+    },
+    [importLocal, importConfig],
+  )
+  const importGoogleFont = useCallback(
+    (request: Parameters<typeof importGoogle>[0]) => {
+      setConfigNotice(null)
+      return importGoogle(request)
+    },
+    [importGoogle],
+  )
 
   // What could not be restored: settings after a crash (until the first change), a local font file.
   const [crashNote, setCrashNote] = useState(restored.crashed)
@@ -351,7 +460,16 @@ export default function App({ restored }: AppProps) {
       <Header document={state.document} history={historyState} onUndo={undo} onRedo={redo} onOpenExport={openExport} />
       <HintsContext.Provider value={showAllHints}>
         <Workspace
-          tools={<ToolHead document={state.document} importer={importer} onOpenGoogleFonts={openGoogleFonts} />}
+          tools={
+            <ToolHead
+              document={state.document}
+              importer={{ ...importer, importLocal: importLocalFont }}
+              onOpenGoogleFonts={openGoogleFonts}
+              onConfigFile={importConfig}
+              configNotice={configNotice}
+              onDismissConfigNotice={dismissConfigNotice}
+            />
+          }
           geometry={
             <GeometryPanel
               state={state}
@@ -378,7 +496,7 @@ export default function App({ restored }: AppProps) {
               onMoveText={typography.position === 'free' ? moveText : undefined}
               onViewChange={onViewChange}
               onResetView={() => dispatch({ type: 'resetView' })}
-              onLocalFile={importer.importLocal}
+              onLocalFile={importLocalFont}
               onOpenGoogleFonts={openGoogleFonts}
               note={sessionNote}
             />
@@ -429,7 +547,7 @@ export default function App({ restored }: AppProps) {
         />
       </HintsContext.Provider>
       <StatusBar state={state} glyphGeometry={derived.result} shownParams={derived.shownParams} scene={scene} />
-      <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importer.importGoogle} />
+      <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importGoogleFont} />
       <ExportDialog
         open={exportOpen}
         onClose={() => setExportOpen(false)}
@@ -447,6 +565,7 @@ export default function App({ restored }: AppProps) {
         pending={derived.pending && !derived.live}
         precision={precision}
         onPrecisionChange={(precision) => dispatch({ type: 'updateExport', patch: { precision } })}
+        readConfig={readSessionNow}
         onExported={onExported}
       />
       {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
