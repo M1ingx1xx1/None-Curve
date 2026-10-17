@@ -2,8 +2,8 @@
 // docs/SOUND_PLAN.md §5, §10). Pure: no React, no DOM, no Web Audio.
 //
 // A mapping to a seed (a jump target) moves it on by one on each jump, so every anchor lands somewhere
-// new. Its Depth, as a Rate (the sign is ignored), sets how often: a Beat mapping counts onsets (from either
-// detector; Rate 100%: every one, 50%: every other one), any other feature jumps at a rate that follows its value,
+// new. Its Depth, as a Rate (the sign is ignored), sets how often: a Beat or Kick mapping counts onsets
+// (Rate 100%: every one, 50%: every other one), any other feature jumps at a rate that follows its value,
 // up to maxRate a second at Rate 100%. Seeds that jump in the same frame jump together, and at most
 // maxJumps such frames fall within windowMs, so jumps keep to the same flash limit as the sliders.
 

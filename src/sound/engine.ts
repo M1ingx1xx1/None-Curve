@@ -14,18 +14,17 @@
 // microphone is measured, never played back, and cannot feed back however the sources are switched.
 // The high-pass removes DC offset (which some microphones have) from what is measured, not from playback.
 // The first analyser hears the channels mixed down (spectrum and samples); the left and right ones give
-// Pan. A mono source is up-mixed to identical left and right, so it reads centred. The three
+// Balance and Width. A mono source is up-mixed to identical left and right, so it reads centred. The three
 // are read one after another, so each frame checks that their samples belong together (readSamples).
 //
-// The context is created lazily, inside the first call that comes from a user gesture (choosing a file
-// or a source, Play, Start listening), because browsers keep a context made earlier suspended; Play and
-// Start listening resume it in their gesture whatever made it.
+// The context is created lazily, inside the first call that comes from a user gesture (choosing File
+// or a file, Play, Start listening), because browsers keep a context made earlier suspended.
 // After a short idle spell (nothing playing or listening) it is suspended again, to save CPU and battery.
 // Every public method catches its own failures and reports them in `state.error`; none throws or
 // rejects, so the UI can call them from event handlers without awaiting.
 
 import { FeatureExtractor } from './features'
-import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundSource, SoundState, StereoSamples } from './types'
+import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundState, StereoSamples } from './types'
 import { INITIAL_SOUND_STATE, SILENT_FRAME, SOUND_LIMITS } from './types'
 
 /** Position updates while playing are at least this far apart (ms): about 4 per second. */
@@ -36,7 +35,7 @@ const METADATA_TIMEOUT_MS = 30_000
 const LENGTH_PROBE_MS = 5_000
 /** How long (ms) nothing has to play or listen before the audio context is suspended, saving CPU and battery. */
 const IDLE_SUSPEND_MS = 2_000
-/** Reads of a frame's samples before Pan holds its last value instead (readSamples). */
+/** Reads of a frame's samples before Balance and Width hold their last values instead (readSamples). */
 const SAMPLE_READS = 3
 /** Mixed-down samples read together with the left and right ones equal their mean within this (float rounding). */
 const STEREO_MATCH = 1e-6
@@ -82,7 +81,7 @@ export class SoundEngine {
   /** Reused every frame, so the loop allocates nothing. */
   private spectrum = new Float32Array(0)
   private samples = new Float32Array(0)
-  /** The left and right analysers' samples, for Pan. */
+  /** The left and right analysers' samples, for Balance and Width. */
   private stereo = { left: new Float32Array(0), right: new Float32Array(0) }
   /** The last left and right samples that matched the mixed-down ones, held over a frame whose reads never did. */
   private heldStereo = { left: new Float32Array(0), right: new Float32Array(0) }
@@ -106,7 +105,7 @@ export class SoundEngine {
   private micSource: MediaStreamAudioSourceNode | null = null
   private trackEvents: AbortController | null = null
   private micPending = false
-  /** Bumped by every start and stop, so a permission prompt answered after Stop listening or a switch to File is dropped. */
+  /** Bumped by every start and stop, so a permission prompt answered after Stop or Off is dropped. */
   private micToken = 0
 
   // Frame loop.
@@ -135,11 +134,10 @@ export class SoundEngine {
     }
   }
   /**
-   * Switches the source: choosing 'microphone' pauses the file, choosing 'file' releases the microphone (the
-   * frame loop stops either way, and the listeners get SILENT_FRAME). Never opens the microphone: choosing
-   * 'microphone' only shows its controls, and only startMicrophone (Start listening) opens it.
+   * Switches the source; 'off' stops playback and releases the microphone. Never opens the microphone:
+   * choosing 'microphone' only shows its controls, and only startMicrophone (Start listening) opens it.
    */
-  async setSource(source: SoundSource): Promise<void> {
+  async setSource(source: SoundState['source']): Promise<void> {
     const changed = source !== this.state.source
     if (source === 'microphone') {
       if (!changed) return
@@ -150,15 +148,21 @@ export class SoundEngine {
       return
     }
     this.cancelMicrophone()
-    // Creating the context here, in the gesture, lets Play start at once; failing here says early
-    // that this browser cannot analyse sound.
-    let error: SoundError | null = null
-    try {
-      this.ensureGraph()
-    } catch (failure) {
-      error = toSoundError(failure)
+    if (source === 'off') {
+      this.pauseFile()
+      this.setState({ source, playing: false, listening: false, busy: this.loading, error: null })
+      this.emit(SILENT_FRAME)
+    } else {
+      // Creating the context here, in the gesture, lets Play start at once; failing here says early
+      // that this browser cannot analyse sound.
+      let error: SoundError | null = null
+      try {
+        this.ensureGraph()
+      } catch (failure) {
+        error = toSoundError(failure)
+      }
+      this.setState({ source, listening: false, busy: this.loading, error })
     }
-    this.setState({ source, listening: false, busy: this.loading, error })
     if (changed) this.extractor?.reset()
   }
   /** Opens a local file (never uploaded) and makes 'file' the source; does not start playback. */
@@ -347,7 +351,7 @@ export class SoundEngine {
   /**
    * Stops everything and releases the microphone, the audio context, and the file's object URL.
    * The engine stays usable: the next gesture builds a new graph (a page restored from the
-   * back-forward cache starts again on File, with no file). Loop and the analysis settings are kept.
+   * back-forward cache starts again from Off). Loop and the analysis settings are kept.
    */
   dispose(): void {
     this.loadToken++
@@ -685,10 +689,10 @@ export class SoundEngine {
   /**
    * Reads the mixed-down samples into `samples` and returns the left and right ones. The three analysers are read
    * one after another, and the audio thread can render between two reads (in Chrome up to one frame in 300),
-   * leaving one block a few render quanta behind: a mono source can then lean to one side for that frame. For one
+   * leaving one block a few render quanta behind: a mono source then reads as wide stereo for that frame. For one
    * or two channels the mixed-down samples are the mean of left and right, so reads that do not match are read
-   * again, up to SAMPLE_READS times; when none match, the last left and right that did are returned, so Pan
-   * holds for that frame. A source of more than two channels never matches (the analyser mixes it down by
+   * again, up to SAMPLE_READS times; when none match, the last left and right that did are returned, so Balance
+   * and Width hold for that frame. A source of more than two channels never matches (the analyser mixes it down by
    * other weights), so after one held frame its reads are used as they are, once each, until one matches.
    */
   private readSamples(analyser: AnalyserNode, left: AnalyserNode, right: AnalyserNode): StereoSamples {

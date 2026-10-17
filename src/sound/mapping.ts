@@ -9,15 +9,15 @@
 // The seeds are jump targets: a seed moves on by one whole number on each jump (jumps.ts), so every
 // anchor lands somewhere new, and it stays within its field's range.
 
-import { CRUMPLE_LIMITS } from '../geometry/crumple'
+import { CURL_LIMITS } from '../geometry/curl'
 import { DISTORTION_LIMITS } from '../geometry/distortion'
 import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
+import { NOISE_LIMITS } from '../geometry/noise'
 import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SLIPSTREAM_LIMITS } from '../geometry/slipstream'
-import { THORN_FALLBACK, THORN_LIMITS } from '../geometry/thorn'
+import { SPIKE_LIMITS } from '../geometry/spikes'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
-import { WHORL_LIMITS } from '../geometry/whorl'
+import { WIND_LIMITS } from '../geometry/wind'
 import type { FeatureFrame } from './types'
 
 const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
@@ -25,36 +25,48 @@ const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
 // ---- Features ----
 
 /** The features a mapping can follow: numeric fields of FeatureFrame. */
-export type FeatureId = 'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'beat' | 'activity' | 'pan'
+export type FeatureId =
+  | 'level' | 'swell' | 'low' | 'mid' | 'high' | 'sub' | 'bass' | 'lowMid' | 'highMid' | 'presence' | 'air'
+  | 'brightness' | 'noisiness' | 'pitch' | 'beatPulse' | 'kickPulse' | 'change' | 'pace' | 'balance' | 'width'
 /** The old name, kept so existing imports keep working. */
 export type ContinuousFeature = FeatureId
 
-export type FeatureGroup = 'Loudness' | 'Bands' | 'Tone' | 'Rhythm' | 'Stereo'
+export type FeatureGroup = 'Loudness' | 'Bands' | 'Narrow bands' | 'Tone' | 'Rhythm' | 'Stereo'
 
 export interface FeatureSpec {
   id: FeatureId
   label: string
   group: FeatureGroup
-  /** Runs −1…1 instead of 0…1 (Pan). */
+  /** Runs −1…1 instead of 0…1 (Balance). */
   bipolar?: true
-  /** On a seed (a jump target) this feature counts the frame's onsets instead: one step per Beat. */
-  event?: 'onset'
+  /** On a seed (a jump target) this feature counts onsets instead: one step per Beat / Kick. */
+  event?: 'beat' | 'kick'
 }
 
-export const FEATURE_GROUPS: readonly FeatureGroup[] = ['Loudness', 'Bands', 'Tone', 'Rhythm', 'Stereo']
+export const FEATURE_GROUPS: readonly FeatureGroup[] = ['Loudness', 'Bands', 'Narrow bands', 'Tone', 'Rhythm', 'Stereo']
 
 /** Every feature, in FEATURE_GROUPS order, as the Sound tab lists them. */
 export const FEATURES: readonly FeatureSpec[] = [
   { id: 'level', label: 'Level', group: 'Loudness' },
   { id: 'swell', label: 'Swell', group: 'Loudness' },
-  { id: 'bass', label: 'Bass', group: 'Bands' },
-  { id: 'mids', label: 'Mids', group: 'Bands' },
-  { id: 'treble', label: 'Treble', group: 'Bands' },
+  { id: 'low', label: 'Low', group: 'Bands' },
+  { id: 'mid', label: 'Mid', group: 'Bands' },
+  { id: 'high', label: 'High', group: 'Bands' },
+  { id: 'sub', label: 'Sub', group: 'Narrow bands' },
+  { id: 'bass', label: 'Bass', group: 'Narrow bands' },
+  { id: 'lowMid', label: 'Low mid', group: 'Narrow bands' },
+  { id: 'highMid', label: 'High mid', group: 'Narrow bands' },
+  { id: 'presence', label: 'Presence', group: 'Narrow bands' },
+  { id: 'air', label: 'Air', group: 'Narrow bands' },
   { id: 'brightness', label: 'Brightness', group: 'Tone' },
+  { id: 'noisiness', label: 'Noisiness', group: 'Tone' },
   { id: 'pitch', label: 'Pitch', group: 'Tone' },
-  { id: 'beat', label: 'Beat', group: 'Rhythm', event: 'onset' },
-  { id: 'activity', label: 'Activity', group: 'Rhythm' },
-  { id: 'pan', label: 'Pan', group: 'Stereo', bipolar: true },
+  { id: 'beatPulse', label: 'Beat', group: 'Rhythm', event: 'beat' },
+  { id: 'kickPulse', label: 'Kick', group: 'Rhythm', event: 'kick' },
+  { id: 'change', label: 'Change', group: 'Rhythm' },
+  { id: 'pace', label: 'Pace', group: 'Rhythm' },
+  { id: 'balance', label: 'Balance', group: 'Stereo', bipolar: true },
+  { id: 'width', label: 'Width', group: 'Stereo' },
 ]
 
 /** Kept for existing imports: the same list. */
@@ -86,7 +98,7 @@ export interface Activation {
 
 /** One parameter sound can drive: a slider or a seed of the Geometry or Experimental tab. */
 export interface TargetSpec {
-  /** Stable id, "<group>.<param>", e.g. "distortion.amount", "experimental.crumple.amount". */
+  /** Stable id, "<group>.<param>", e.g. "distortion.amount", "experimental.noise.amount". */
   id: string
   tab: 'geometry' | 'experimental'
   /** 'slider': live position = slider position + Depth × feature. 'jump': a seed that moves on by one on each jump (jumps.ts). */
@@ -177,14 +189,12 @@ interface Requirement {
   meet(params: GeometryParams): { patch: ParamPatch; notice: string }
 }
 
-type EffectKey = 'crumple' | 'ripple' | 'whorl' | 'slipstream' | 'thorn'
+type EffectKey = 'noise' | 'ripple' | 'curl' | 'wind' | 'spikes'
 
-const EFFECT_NAMES: Record<EffectKey, string> = { crumple: 'Crumple', ripple: 'Ripple', whorl: 'Whorl', slipstream: 'Slipstream', thorn: 'Thorn' }
+const EFFECT_NAMES: Record<EffectKey, string> = { noise: 'Noise', ripple: 'Ripple', curl: 'Curl', wind: 'Wind', spikes: 'Spikes' }
 
 /** Noise amplitude set by turning Distortion on for one of its targets: clearly visible, a fifth of the slider. */
 const ACTIVE_DISTORTION_AMOUNT = 40
-/** Thorn's Refraction set by turning it on for its Flute width target: clearly visible, half the slider. */
-const ACTIVE_REFRACTION = 0.5
 
 // Random anchors replace Flatten's sampling, so every Curve flattening slider needs them off.
 const flattenNotReplaced: Requirement = {
@@ -228,22 +238,13 @@ const effectOn = (effect: EffectKey): Requirement => ({
     notice: `Turned on ${EFFECT_NAMES[effect]}.`,
   }),
 })
-// Refraction 0 turns Thorn's fluted glass off (applyThorn), so its Flute width does nothing.
-const refractionOn: Requirement = {
-  unmet: (p) => ((p.experimental.thorn?.refraction ?? 0) > 0 ? null : 'Set Refraction above 0% to hear this.'),
-  meet: (p) => ({
-    patch: { group: 'experimental', patch: { thorn: { ...p.experimental.thorn, refraction: ACTIVE_REFRACTION } } as Partial<ExperimentalParams> },
-    notice: `Set Refraction to ${Math.round(ACTIVE_REFRACTION * 100)}%.`,
-  }),
-}
-// The shared seed picks Crumple's folds, Slipstream's gusts, slips, cuts and trails, and Thorn's anchors and
-// flutes; Ripple and Whorl have no randomness.
+// The shared seed picks Noise's folds, Wind's gusts and which anchors Spikes moves; Ripple and Curl have no randomness.
 const seededEffectOn: Requirement = {
   unmet: (p) =>
-    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled
+    p.experimental.noise.enabled || p.experimental.wind.enabled || p.experimental.spikes?.enabled
       ? null
-      : 'Turn on Crumple, Slipstream or Thorn to hear this.',
-  meet: effectOn('crumple').meet,
+      : 'Turn on Noise, Wind or Spikes to hear this.',
+  meet: effectOn('noise').meet,
 }
 
 /** The first reason a target does not act, or null. */
@@ -294,7 +295,7 @@ function groupField<G extends GroupKey>(group: G, key: NumericKeys<GeometryParam
 function effectField<E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    // Older saved settings may lack a whole effect (Thorn).
+    // Older saved settings may lack a whole effect (Spikes).
     read: (p) => p.experimental[effect]?.[key],
     write: (p, value) => ({
       ...p,
@@ -325,9 +326,8 @@ interface TargetDef {
   /** Defaults to the linear scale of min, max, step. */
   scale?: Scale
   /**
-   * Value when the field is missing, as the panel shows it (older saved settings lack Crumple Turn and
-   * Detail, Ripple Petals, Slipstream Slip, Cuts and Trails, and Thorn Root, Refraction and Flute width).
-   * Defaults to min.
+   * Value when the field is missing (older saved settings lack Noise Turn and Ripple Petals; the panel
+   * shows them as 0). Defaults to min.
    */
   fallback?: number
   /** The settings it needs to act, checked and met in this order. */
@@ -425,10 +425,9 @@ export const TARGETS: readonly TargetSpec[] = [
 
   // Experimental tab, as in ExperimentalControls: each effect acts only while its "Use …" is on; the
   // shared Seed sits in its own group at the bottom.
-  experimental('crumple', 'amount', 'Amount', 0, CRUMPLE_LIMITS.maxAmount, 0.1),
-  experimental('crumple', 'detail', 'Detail', 0, 1, 0.05, { fallback: CRUMPLE_LIMITS.defaultDetail }),
-  experimental('crumple', 'facet', 'Facet size', CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet, 0.02),
-  experimental('crumple', 'turn', 'Turn', 0, 345, 15, { fallback: 0 }),
+  experimental('noise', 'amount', 'Amount', 0, NOISE_LIMITS.maxAmount, 0.1),
+  experimental('noise', 'facet', 'Facet size', NOISE_LIMITS.minFacet, NOISE_LIMITS.maxFacet, 0.02),
+  experimental('noise', 'turn', 'Turn', 0, 345, 15, { fallback: 0 }),
   experimental('ripple', 'amount', 'Amount', 0, RIPPLE_LIMITS.maxAmount, 0.1),
   experimental('ripple', 'wavelength', 'Wavelength', RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength, 0.02),
   experimental('ripple', 'sides', 'Sides', RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides, 1),
@@ -436,27 +435,17 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('ripple', 'centerY', 'Center Y', RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter, 0.1),
   experimental('ripple', 'fade', 'Fade', 0, 1, 0.1),
   experimental('ripple', 'petals', 'Petals', 0, RIPPLE_LIMITS.maxPetals, 0.1, { fallback: 0 }),
-  experimental('whorl', 'amount', 'Amount', -WHORL_LIMITS.maxAmount, WHORL_LIMITS.maxAmount, 0.1),
-  experimental('whorl', 'rings', 'Rings', WHORL_LIMITS.minRings, WHORL_LIMITS.maxRings, 1),
-  experimental('whorl', 'sides', 'Sides', WHORL_LIMITS.minSides, WHORL_LIMITS.maxSides, 1),
-  experimental('slipstream', 'direction', 'Direction', 0, 345, 15),
-  experimental('slipstream', 'strength', 'Strength', 0, SLIPSTREAM_LIMITS.maxStrength, 0.1),
-  experimental('slipstream', 'slip', 'Slip', 0, SLIPSTREAM_LIMITS.maxSlip, 0.01, { fallback: 0 }),
-  experimental('slipstream', 'gust', 'Gust size', SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust, 0.02),
-  experimental('slipstream', 'gustiness', 'Gustiness', 0, SLIPSTREAM_LIMITS.maxGustiness, 0.1),
-  experimental('slipstream', 'cuts', 'Cuts', 0, SLIPSTREAM_LIMITS.maxCuts, 1, { fallback: 0 }),
-  experimental('slipstream', 'trails', 'Trails', 0, SLIPSTREAM_LIMITS.maxTrails, 1, { fallback: 0 }),
-  experimental('thorn', 'count', 'Anchors', THORN_LIMITS.minCount, THORN_LIMITS.maxCount, 1),
-  experimental('thorn', 'reach', 'Reach', 0, THORN_LIMITS.maxReach, 0.05),
-  experimental('thorn', 'root', 'Root', 0, 1, 0.05, { fallback: THORN_FALLBACK.root }),
-  experimental('thorn', 'spread', 'Spread', 0, 1, 0.05),
-  experimental('thorn', 'width', 'Width', 0, 1, 0.05),
-  experimental('thorn', 'refraction', 'Refraction', 0, 1, 0.05, { fallback: 0 }),
-  // The panel disables Flute width while Refraction is 0.
-  experimental('thorn', 'flute', 'Flute width', THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute, 0.01, {
-    fallback: THORN_FALLBACK.flute,
-    requires: [effectOn('thorn'), refractionOn],
-  }),
+  experimental('curl', 'amount', 'Amount', -CURL_LIMITS.maxAmount, CURL_LIMITS.maxAmount, 0.1),
+  experimental('curl', 'rings', 'Rings', CURL_LIMITS.minRings, CURL_LIMITS.maxRings, 1),
+  experimental('curl', 'sides', 'Sides', CURL_LIMITS.minSides, CURL_LIMITS.maxSides, 1),
+  experimental('wind', 'direction', 'Direction', 0, 345, 15),
+  experimental('wind', 'strength', 'Strength', 0, WIND_LIMITS.maxStrength, 0.1),
+  experimental('wind', 'gust', 'Gust size', WIND_LIMITS.minGust, WIND_LIMITS.maxGust, 0.02),
+  experimental('wind', 'gustiness', 'Gustiness', 0, WIND_LIMITS.maxGustiness, 0.1),
+  experimental('spikes', 'count', 'Anchors', SPIKE_LIMITS.minCount, SPIKE_LIMITS.maxCount, 1),
+  experimental('spikes', 'reach', 'Reach', 0, SPIKE_LIMITS.maxReach, 0.05),
+  experimental('spikes', 'spread', 'Spread', 0, 1, 0.05),
+  experimental('spikes', 'width', 'Width', 0, 1, 0.05),
   seed('experimental', 'Seed', experimentalField('seed'), EXPERIMENTAL_LIMITS.maxSeed, [seededEffectOn]),
 ]
 
