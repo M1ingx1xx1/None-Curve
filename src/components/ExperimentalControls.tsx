@@ -31,7 +31,7 @@ export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
   ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
   whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
   slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false },
+  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, back: 0, dent: 0, reverse: false },
 }
 
 const percent = (v: number) => Math.round(v * 100)
@@ -597,6 +597,8 @@ function ThornGroup({
   const root = params.root ?? DEFAULT_EXPERIMENTAL.thorn.root
   const refraction = params.refraction ?? 0
   const flute = params.flute ?? DEFAULT_EXPERIMENTAL.thorn.flute
+  const back = params.back ?? 0
+  const dent = params.dent ?? 0
   const introHint = useHint()
   const countHint = useHint()
   const reachHint = useHint()
@@ -604,6 +606,8 @@ function ThornGroup({
   const rootHint = useHint()
   const spreadHint = useHint()
   const widthHint = useHint()
+  const backHint = useHint()
+  const dentHint = useHint()
   const refractionHint = useHint()
   const fluteHint = useHint()
 
@@ -616,8 +620,8 @@ function ThornGroup({
       <div className="group-body">
         <HintText hint={introHint}>
           A few anchors on the outside of each letter jump out into the canvas as long, straight thorns and pull the letter
-          along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows the letter through fluted
-          glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump somewhere new.
+          along: strokes lean and thin, and counters bend toward the thorn. Back thorns shoot out behind them, dents sink the
+          outline beside them, and Refraction then shows the letter through fluted glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump somewhere new.
           Runs after Slipstream.
         </HintText>
 
@@ -707,6 +711,32 @@ function ThornGroup({
           onChange={(width) => update({ width })}
         />
         <RangeField
+          id="thorn-back"
+          target="experimental.thorn.back"
+          label="Back thorn"
+          value={back}
+          scale={100}
+          unit="%"
+          valueText={`${percent(back)} percent`}
+          disabled={off}
+          hint={backHint}
+          hintText="Where the stroke behind each thorn ends, a shorter thorn shoots out the other way, as if the thorn had gone right through. 100%: half as long as its thorn. 0%: off."
+          onChange={(back) => update({ back })}
+        />
+        <RangeField
+          id="thorn-dent"
+          target="experimental.thorn.dent"
+          label="Dent"
+          value={dent}
+          scale={100}
+          unit="%"
+          valueText={`${percent(dent)} percent`}
+          disabled={off}
+          hint={dentHint}
+          hintText="The outline on either side of each thorn sinks into the stroke, deepest beside the thorn. 100%: about half the stroke's thickness, never through to its other side. 0%: off."
+          onChange={(dent) => update({ dent })}
+        />
+        <RangeField
           id="thorn-refraction"
           target="experimental.thorn.refraction"
           label="Refraction"
@@ -739,6 +769,12 @@ function ThornGroup({
               <dt>Thorns</dt>
               <dd>{stats.thorns}</dd>
             </div>
+            {back > 0 && (
+              <div>
+                <dt>Back thorns</dt>
+                <dd>{stats.backThorns}</dd>
+              </div>
+            )}
             <div>
               <dt>Roots</dt>
               <dd>{stats.roots}</dd>

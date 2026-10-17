@@ -57,6 +57,8 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
     spread: top('experimental.thorn.spread'),
     width: top('experimental.thorn.width'),
     root: top('experimental.thorn.root'),
+    back: top('experimental.thorn.back'),
+    dent: top('experimental.thorn.dent'),
     refraction: top('experimental.thorn.refraction'),
     flute: bottom('experimental.thorn.flute'),
   }),

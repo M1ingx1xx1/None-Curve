@@ -211,6 +211,13 @@ export interface ThornParams {
   /** Width of each glass strip, as a share of the em (0.04–0.3). Missing in older saved settings: 10%. */
   flute: number
   /**
+   * 0–1: behind each thorn, where the stroke ends, a shorter thorn shoots the other way (1 = half its thorn's length;
+   * 0 = off). Missing in older saved settings: off.
+   */
+  back: number
+  /** 0–1: the outline either side of each thorn sinks into the stroke (1 = 55% of its thickness; 0 = off). Missing in older saved settings: off. */
+  dent: number
+  /**
    * Thorns shoot into the letter, along the inward normal, instead of out of it: through strokes they cut a slit, and
    * across counters and past the far side they show as ink. Missing in older saved settings: false.
    */

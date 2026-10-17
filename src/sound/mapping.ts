@@ -447,6 +447,8 @@ export const TARGETS: readonly TargetSpec[] = [
   experimental('thorn', 'root', 'Root', { fallback: THORN_FALLBACK.root }),
   experimental('thorn', 'spread', 'Spread'),
   experimental('thorn', 'width', 'Width'),
+  experimental('thorn', 'back', 'Back thorn', { fallback: 0 }),
+  experimental('thorn', 'dent', 'Dent', { fallback: 0 }),
   experimental('thorn', 'refraction', 'Refraction', { fallback: 0 }),
   // The panel disables Flute width while Refraction is 0.
   experimental('thorn', 'flute', 'Flute width', {

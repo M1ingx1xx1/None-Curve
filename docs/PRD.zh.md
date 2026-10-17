@@ -167,10 +167,10 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 - **代价有上限：** 每个字形都有一个顶点预算，只取决于字形和设置，与时间无关（每个效果之后，顶点最多比进入标签页时多 6,000 个；合并时最多多 30,000 个点）。几个密集效果一起超出预算时，字母会被简化，而不是拖慢页面（所有滑块都拉到最大时，字母会变成几块宽宽的墨块），面板和状态栏会说明这一点。默认设置、任何单个效果和声音预设都不会触发预算。
 - **Crumple：** 一张由刻面组成的方形格子（Facet size，em 的 8–100%），按种子旋转一个角度，每个正方形沿种子选定的对角线分成两个三角形，所以折痕不会排成规则的网格。每个格点按种子给出的随机向量移动，所有移动再一起按 Turn 旋转，格点之间的点随所在三角形线性移动。100% 以内是一一映射。格子固定在字形坐标中，所以同一个字母的每次出现都揉得一样。
 - **花瓣：** Ripple 可以把各圈弯成一朵花，每条边一片直边花瓣（0–300%）。任何深度下 Petals 都是一一映射，自己永远不会翻折；翻折仍然只来自超过 100% 的 Ripple Amount。
-- **反向（Reverse）：** Ripple 和 Thorn 可以反向。反向的 Ripple 把外和内对调：原来向外移动的圈改为向内，反之亦然，花瓣也不再指向各个角，而是指向每条边的中点（仍是一一映射）。反向的 Thorn 让同样的刺射进字母而不是向外刺出，并走完全部长度：穿过笔画时刻出白色的缝，穿过字腔或从另一侧穿出时显示为墨色。默认关闭，它出现之前保存的设置读作关闭。Crumple、Whorl 和 Slipstream 用各自的控件反向（Turn 180°、负的 Amount、Direction）。
+- **反向（Reverse）：** Ripple 和 Thorn 可以反向。反向的 Ripple 把外和内对调：原来向外移动的圈改为向内，反之亦然，花瓣也不再指向各个角，而是指向每条边的中点（仍是一一映射）。反向的 Thorn 让同样的刺射进字母而不是向外刺出，并走完全部长度：穿过笔画时刻出白色的缝，穿过字腔或从另一侧穿出时显示为墨色；这时反刺从笔画的另一侧出发，反向穿过笔画，在刺所在的一侧穿出。默认关闭，它出现之前保存的设置读作关闭。Crumple、Whorl 和 Slipstream 用各自的控件反向（Turn 180°、负的 Amount、Direction）。
 - **Whorl（漩涡）：** 一圈圈直边多边形各自整体绕字母中心旋转，可以固定上下（中间被拧转），也可以整体旋转（顶和底也被甩过去）。正反方向在 100% 以内都是一一映射；超过之后和其他效果一样翻折。
 - **Slipstream：** 横穿气流的条带像切片一样彼此错开（Slip，一种错切，所以永远不会翻折），气流从面向它的一侧把字母拉长（Strength，带阵风），细长的楔形切口顺着气流切进字母（Cuts），细细的拖尾从字母的下风一侧拖出（Trails）。
-- **Thorn：** 每个字母外侧的几个锚点（字腔永远不会长刺）跳进画布，变成又长又直的刺，并把字母一起拉动：每个锚点周围的星形网格（Root）让笔画倾斜、变细，字腔朝刺的方向弯，再由尖锐的刺尖（Width）收尾。Anchors 决定每个字母跳出几个（1–12），Reach 决定跳多远，Spread 决定向旁边偏多少（两侧各最多 90°）。Reach 是画布对角线的比例（0–100%，默认 10%），所以无论字号多大，100% 时一根刺都能横跨整个画布；它的滑块是非线性的，短刺仍能细调，而且只有刺尖随它变长。Refraction 让字母像隔着竖条纹玻璃，竖条宽为 Flute width；玻璃只盖住字母，所以向左或向右伸出字母的刺尖保持锐利。刺永远不会移动文字：摆放、Fit text 以及文字超出画布边缘的警告都按不带刺的字母计算；刺可以伸出画布边缘，预览以及样张 SVG 和 PNG 会像截掉任何墨迹一样在边缘把它们截掉，点到离开字母的刺上也不会选中这个字母。共用的种子决定哪些锚点跳出、跳向哪里，所以 Next variant 或由 Sound 驱动的种子会让它们换地方。锚点和刺的方向是在 Distortion 与其他实验效果之前的字母上选出的，再跟着这些步骤走，所以 Distortion、Crumple 或 Ripple 走一档，或 Distortion 换一个种子，几乎每根刺都会留在原处、指向不变；每根刺仍从实际画出的轮廓上的一个顶点长出。
+- **Thorn：** 每个字母外侧的几个锚点（字腔永远不会长刺）跳进画布，变成又长又直的刺，并把字母一起拉动：每个锚点周围的星形网格（Root）让笔画倾斜、变细，字腔朝刺的方向弯，再由尖锐的刺尖（Width）收尾。Anchors 决定每个字母跳出几个（1–12），Reach 决定跳多远，Spread 决定向旁边偏多少（两侧各最多 90°）。Reach 是画布对角线的比例（0–100%，默认 10%），所以无论字号多大，100% 时一根刺都能横跨整个画布；它的滑块是非线性的，短刺仍能细调，而且只有刺尖随它变长。Back thorn（反刺）让每根刺看起来像把笔画整个贯穿：在刺背后笔画结束的地方，一根更短的刺朝另一个方向继续射出（最长为刺长的一半）。Dent（凹陷）让每根刺两侧的轮廓陷进笔画（最深约为笔画厚度的一半），但永远不会穿到笔画的另一侧。两者默认关闭，它们出现之前保存的设置读作关闭。Refraction 让字母像隔着竖条纹玻璃，竖条宽为 Flute width；玻璃只盖住字母，所以向左或向右伸出字母的刺尖保持锐利。刺永远不会移动文字：摆放、Fit text 以及文字超出画布边缘的警告都按不带刺的字母计算；刺可以伸出画布边缘，预览以及样张 SVG 和 PNG 会像截掉任何墨迹一样在边缘把它们截掉，点到离开字母的刺上也不会选中这个字母。共用的种子决定哪些锚点跳出、跳向哪里，所以 Next variant 或由 Sound 驱动的种子会让它们换地方。锚点和刺的方向是在 Distortion 与其他实验效果之前的字母上选出的，再跟着这些步骤走，所以 Distortion、Crumple 或 Ripple 走一档，或 Distortion 换一个种子，几乎每根刺都会留在原处、指向不变；每根刺仍从实际画出的轮廓上的一个顶点长出。
 - **可重复：** 整个标签页共用一个种子；效果在字形自身坐标里计算，所以同一个字母的每次出现形状相同，也能导出字体。
 - Random anchors 不再标为实验功能，仍留在 Geometry 标签页。
 
@@ -300,7 +300,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
     - **Step：** 换到几个可选值中的下一个，例如 Allowed directions（角度步长）。
     - **脉冲：** 跃起后再回落。Beat 用在任意滑块上就是这样，靠的是它的脉冲。
   - **Geometry 标签页中的目标：** Distortion 的 Seed、Noise amplitude、Noise frequency 和 Normal bias；Random anchors 的 Seed、Randomness 和 Density；Curve flattening 的 Tolerance、Segments per curve 和 Corner angle；Squaring 的 Amount；Anchor spacing 和 Anchor reduction；Grid size；Allowed directions（角度步长）。Allowed directions 随 Step 映射一起加入。
-  - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 42 个。
+  - **Experimental 标签页中的目标：** 其中的滑块和共用的种子。连同 Geometry 的目标，一共 44 个。
   - 开关从不作为目标，Distortion 的少数锚点模式也不是。
   - **目标会自己打开所需的设置：** 选中一个设置处于关闭状态的目标时，会打开该设置，并在这一行下面说明（例如 "Turned on Ripple."、"Set Noise amplitude to 40." 或 "Turned off Random anchors. Set Mode to Adaptive."）。把这一行换到别的目标，或删除这一行，都不会关闭任何东西。如果用户之后又把设置关掉，这一行会说明原因并提供 **Enable**。用键盘在 Target 列表中浏览时，只有按 Enter 或焦点离开列表时才应用目标；用鼠标选择则立即应用。**Add mapping** 优先选已经起作用的目标。
     - Curve flattening 的目标会关闭 Random anchors，并设置各自需要的：Tolerance 需要 Adaptive 模式，Segments per curve 需要 Fixed segments 模式，Corner angle 需要 Merge joined curves（两种模式下都可以）。
@@ -369,7 +369,7 @@ None-Curve 是一款网页工具，帮助用户把字体原有的曲线轮廓转
 | P1 锚点与几何控制（间距、简化、网格、角度、扰动） | 已实现，顺序固定并公开 |
 | P1 填充与样张 | 已实现：可编辑多行文本，保留字宽与字体自带字偶距，缺字在画布上明确标示；预览画的就是 SVG 导出本身 |
 | P2 字体文件导出 | 已实现：OpenType（CFF，.otf），字形范围可选，带原字体的成对字偶距（GPOS）和画布的行距（`USE_TYPO_METRICS`），在专用 Worker 中生成，带进度、大小估计和立即生效的 Cancel，超出字体限制的字形裁剪到能放下，导出后用 fontkit 与浏览器字体引擎校验 |
-| P2 实验效果 | 已实现：Crumple（含 Turn）、Ripple（含花瓣和 Reverse）、Whorl、Slipstream（含 Slip、Cuts、Trails）、Thorn（含 Root、Refraction 和 Reverse，Reach 按画布计量，锚点在 Distortion 之前选出，所以 Distortion 和 Thorn 之前的效果做小幅变化时，刺留在原处），可叠加，超过 100% 时可翻折，每个字形有顶点预算 |
+| P2 实验效果 | 已实现：Crumple（含 Turn）、Ripple（含花瓣和 Reverse）、Whorl、Slipstream（含 Slip、Cuts、Trails）、Thorn（含 Root、Back thorn、Dent、Refraction 和 Reverse，Reach 按画布计量，锚点在 Distortion 之前选出，所以 Distortion 和 Thorn 之前的效果做小幅变化时，刺留在原处），可叠加，超过 100% 时可翻折，每个字形有顶点预算 |
 | P2 视频导出 | 已实现：实时录制画布和它的声音，保存为 MP4 或 WebM（不支持 MP4 时保存为 WebM 并给出说明），可从 Sound 标签页的 Record 组或 Export → Video 开始，顶部栏有录制指示和 Stop；见第 11 节 |
 | 撤销、重做与会话保存（第 6、7 节） | 已实现：设置、文字、声音映射和 Sound 标签页的 Response 设置共用一份最多 100 步的历史，只用键盘操作；会话保存在 `localStorage` 中，下次访问时恢复，也可以导出为配置文件（`.json`）再作为一个撤销步骤导入；**Reset all** 让编辑器回到刚打开时的样子并清空历史 |
 | 后台计算（第 7 节） | 已实现：几何只在 Worker 中计算，有 60 秒看门狗并会重启 Worker（Worker 无法运行时画布给出提示）；字体导出在专用 Worker 中进行；CI 中运行自动测试 |

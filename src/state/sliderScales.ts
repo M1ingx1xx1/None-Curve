@@ -128,6 +128,8 @@ export const SLIDER_RANGES = {
   'experimental.thorn.root': range(0, 1, 0.01),
   'experimental.thorn.spread': range(0, 1, 0.01),
   'experimental.thorn.width': range(0, 1, 0.01),
+  'experimental.thorn.back': range(0, 1, 0.01),
+  'experimental.thorn.dent': range(0, 1, 0.01),
   'experimental.thorn.refraction': range(0, 1, 0.01),
   'experimental.thorn.flute': range(THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute, 0.01),
 } as const satisfies Record<string, SliderRange>

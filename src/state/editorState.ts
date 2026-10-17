@@ -36,7 +36,7 @@ export const initialState: AppState = {
       ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
       whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
       slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-      thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false },
+      thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, back: 0, dent: 0, reverse: false },
     },
     view: initialView,
     typography: DEFAULT_TYPOGRAPHY,

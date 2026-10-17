@@ -265,6 +265,24 @@ describe('saved session', () => {
     expect([damaged.ripple.reverse, damaged.thorn.reverse]).toEqual([false, false])
   })
 
+  it('round-trips Thorn Back thorn and Dent, reads them as off where missing or not numbers, and clamps them', () => {
+    const storage = new MemoryStorage()
+    const session = changedSession()
+    const { thorn } = session.params.experimental
+    session.params = { ...session.params, experimental: { ...session.params.experimental, thorn: { ...thorn, back: 0.4, dent: 0.7 } } }
+    saveSession(session, storage)
+    expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.thorn).toMatchObject({ back: 0.4, dent: 0.7 })
+    expect(loadSession(storage)).toEqual({ session, crashed: false })
+    // Saved before they existed (same session version), or damaged: off, the other settings kept.
+    const { back: _back, dent: _dent, ...oldThorn } = { ...thorn, count: 5 }
+    const old = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: oldThorn } } })!.params.experimental.thorn
+    expect([old.back, old.dent, old.count]).toEqual([0, 0, 5])
+    const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { back: '1', dent: null } } } })!.params.experimental.thorn
+    expect([damaged.back, damaged.dent]).toEqual([0, 0])
+    const clamped = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { back: 3, dent: -1 } } } })!.params.experimental.thorn
+    expect([clamped.back, clamped.dent]).toEqual([1, 0])
+  })
+
   it('clamps numbers to their sliders and drops wrong types, enums and choices', () => {
     const amount = SLIDER_RANGES['experimental.crumple.amount']
     const session = readSession({

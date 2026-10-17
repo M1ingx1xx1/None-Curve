@@ -38,10 +38,11 @@ import { BASE } from '../helpers/params'
 // Pinned again when the sliders got finer steps (NOCUR-63): Sound snaps a live value to its slider's step, so
 // modulate and scheduler moved; with the old steps put back in SLIDER_RANGES they give a0bbe805 and c91cc307.
 // Pinned again when Ripple and Thorn got Reverse (NOCUR-68); with the reverse fields taken out they give a02149f5 /
-// cf6faa50.
+// cf6faa50. Pinned again when Thorn got Back thorn and Dent (NOCUR-70); with those two fields taken out of the
+// defaults they give bdfa9875 / f3f239b8.
 const PINNED = {
-  modulate: 'bdfa9875',
-  scheduler: 'f3f239b8',
+  modulate: 'f9d47c85',
+  scheduler: '14702a78',
   features: 'f797c3bc',
   svg: '7813f93d',
   paths: '43e22fd6',

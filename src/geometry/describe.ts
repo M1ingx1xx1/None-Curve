@@ -64,10 +64,12 @@ export function describePipeline(params: GeometryParams): string[] {
     const pct = (v: number) => `${Math.round(v * 100)}%`
     const root = s.root ?? THORN_FALLBACK.root
     const refraction = s.refraction ?? 0
+    const back = s.back ?? 0
+    const dent = s.dent ?? 0
     // As the Reach slider shows it, and its length in em the same way.
     const reach = `${reachPercent(s.canvasReach)}% canvas${s.canvasEm !== undefined ? ` (about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm))} em)` : ''}`
     steps.push(
-      `thorn ×${s.count}${s.reverse === true ? ', reversed' : ''}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
+      `thorn ×${s.count}${s.reverse === true ? ', reversed' : ''}, reach ${reach}, root ${pct(root)}, spread ${pct(s.spread)}, width ${pct(s.width)}${back > 0 ? `, back thorns ${pct(back)}` : ''}${dent > 0 ? `, dent ${pct(dent)}` : ''}${refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''}, seed ${experimental.seed}`,
     )
   }
   if (experimentalFolds(experimental)) steps.push('folds merged')

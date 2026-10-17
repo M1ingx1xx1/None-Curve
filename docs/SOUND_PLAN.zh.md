@@ -170,9 +170,9 @@ Sound 驱动字母且 Thorn 打开时，会移动刺的设置每次只传到少�
 | **Grid** size | Bass，按档 | 低音时吸附到更粗的网格 |
 | Grid & angles · **Allowed directions**（角度步长） | Beat → Step（尚待完成） | 边依次锁定到 15°、30°、45°、90° |
 
-以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 42 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
+以下也是目标，但没有建议的驱动方式：Curve flattening 的 Segments per curve 和 Corner angle，以及 Distortion 的 Normal bias。完整列表按面板顺序见 `src/sound/mapping.ts` 中的 `TARGETS`（README 的“目标”一节）：共 44 个目标，其中三个种子是跳变目标，其余都是滑块。Allowed directions 会随 Step 映射成为目标。
 
-**Experimental 标签页**：Crumple 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Refraction / Flute width（Reach 是画布对角线的比例，沿面板上的三次方滑块移动）；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。Crumple 带 Detail 时（第 9 阶段起，到 NOCUR-60 为止）保存的设置，读取时忽略这个值，并丢弃 Crumple · Detail 上的映射行。Reach 还是 em 比例时保存的 Thorn · Reach 映射行保留它们的 Depth，现在它移动的是三次方滑块。
+**Experimental 标签页**：Crumple 的 Amount / Facet size / Turn；Ripple 的 Amount / Wavelength / Sides / Center X / Center Y / Fade / Petals；Whorl 的 Amount / Rings / Sides；Slipstream 的 Direction / Strength / Slip / Gust size / Gustiness / Cuts / Trails；Thorn 的 Anchors / Reach / Root / Spread / Width / Back thorn / Dent / Refraction / Flute width（Reach 是画布对角线的比例，沿面板上的三次方滑块移动）；以及共用的 **Seed**（Beat，Rate 100%），因为它的分组在标签页最下方，所以排在最后。Target 列表里它只显示为 "Seed"；其他目标都显示为 "Section · Label"，例如 "Distortion · Seed"。旧的保存设置里缺少的字段按面板显示的值读取：Thorn 的 Root 为 50%、Flute width 为 10%，Crumple 的 Turn、Ripple 的 Petals、Slipstream 的 Slip、Cuts、Trails 和 Thorn 的 Refraction 为 0。Crumple 带 Detail 时（第 9 阶段起，到 NOCUR-60 为止）保存的设置，读取时忽略这个值，并丢弃 Crumple · Detail 上的映射行。Reach 还是 em 比例时保存的 Thorn · Reach 映射行保留它们的 Depth，现在它移动的是三次方滑块。
 
 **目标起作用需要什么**（即它的未生效说明，以及选择它时会打开什么，见第 5 节）：
 

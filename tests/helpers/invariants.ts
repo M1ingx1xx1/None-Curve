@@ -46,6 +46,10 @@ export const CONFIGS: Config[] = [
   { name: 'Ripple at slider max, reversed', params: paramsWith(GEOMETRY.plain, on('ripple', { ...SLIDER_MAX.ripple.ripple, reverse: true })), recheckEvery: 6 },
   { name: 'Thorn reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { reverse: true })), recheckEvery: 3 },
   { name: 'Thorn at slider max (Reach 100%), reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { ...SLIDER_MAX.thorn.thorn, reverse: true })), recheckEvery: 6 },
+  // Back thorns and dents: through the far side of the stroke (into counters too) and sunk beside each thorn, merged.
+  { name: 'Thorn with back thorns and dents', params: paramsWith(GEOMETRY.plain, on('thorn', { count: 6, back: 1, dent: 1 })), recheckEvery: 3 },
+  { name: 'Thorn with back thorns and dents, reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { count: 6, back: 1, dent: 1, reverse: true })), recheckEvery: 3 },
+  { name: 'Thorn with back thorns and dents, dense Geometry', params: paramsWith(GEOMETRY.dense, on('thorn', { count: 12, back: 1, dent: 1 })), recheckEvery: 6 },
 ]
 
 /** What went wrong with one glyph under one configuration, as readable lines (empty when nothing did). */
