@@ -513,6 +513,25 @@ describe('the page store', () => {
     kerning: false,
   })
 
+  it('keeps one frame asked for however many scenes arrive mid-glide', () => {
+    const pending = new Set<number>()
+    let next = 1
+    const clock: GlideClock = {
+      now: () => 0,
+      request: () => {
+        pending.add(next)
+        return next++
+      },
+      cancel: (handle) => {
+        pending.delete(handle)
+      },
+    }
+    const store = new GlideStore(clock)
+    store.show(scene(0), { durationMs: 100, live: true, key: 'k' })
+    for (let i = 1; i <= 20; i++) store.show(scene(i * 10), { durationMs: 100, live: true, key: 'k' })
+    expect(pending.size).toBe(1)
+  })
+
   it('with Glide 0 shows each scene itself, at once, and asks for no frames', () => {
     const fake = fakeClock()
     const store = new GlideStore(fake.clock)
