@@ -1,7 +1,7 @@
 // Drag to map (src/components/mapDrag.ts): every target Sound can drive has a drop zone. The panels are rendered to
 // markup and their MapTarget anchors (data-map-target, rendered by each control's live marker) are collected, in
 // every state that shows a different control (Flatten's two modes and Merge joined curves, Thorn's Burst), and compared with TARGETS and the
-// loaded font's axes.
+// loaded font's axes. Each anchor must mark a zone of its own (no two share a field).
 
 import { createElement, type ComponentType, type Dispatch } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -34,13 +34,55 @@ const dispatch: Dispatch<unknown> = () => {}
 const params = initialState.params
 const common = { pending: false, disabled: false, dispatch, stats: null }
 
-/** The target ids of the anchors in a component's markup. */
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'])
+
+/**
+ * The anchors in a markup string, each with the element MapTarget marks as its zone: the nearest `.field` or `li`
+ * around it (ZONE_SELECTOR), else its parent, as an index into the markup's elements; a labelled anchor (a colour's
+ * Hue or Lightness chip) is a zone of its own. React escapes `<` and `>` in attributes, so a tag ends at its `>`.
+ */
+function zones(html: string): { target: string; zone: number }[] {
+  const stack: { index: number; tag: string; isZone: boolean }[] = []
+  const found: { target: string; zone: number }[] = []
+  let count = 0
+  for (const [, close, tag, attrs] of html.matchAll(/<(\/?)([a-zA-Z][\w-]*)([^>]*)>/g)) {
+    if (close) {
+      stack.pop()
+      continue
+    }
+    const index = count++
+    const classes = /\bclass="([^"]*)"/.exec(attrs)?.[1].split(/\s+/) ?? []
+    const target = /\bdata-map-target="([^"]+)"/.exec(attrs)?.[1]
+    if (target) {
+      const own = classes.includes('map-zone-chip')
+      const zone = own ? index : ([...stack].reverse().find((el) => el.isZone) ?? stack[stack.length - 1])?.index
+      expect(zone, `anchor ${target} has no zone`).toBeDefined()
+      found.push({ target, zone: zone! })
+    }
+    if (!VOID.has(tag) && !attrs.trimEnd().endsWith('/')) stack.push({ index, tag, isZone: tag === 'li' || classes.includes('field') })
+  }
+  return found
+}
+
+/**
+ * The target ids of the anchors in a component's markup. No two anchors may mark the same zone: the second would
+ * overwrite the first's data-map-zone, and nothing could be dropped on the first target.
+ */
 function anchors<P extends object>(component: ComponentType<P>, props: P): string[] {
-  const html = renderToStaticMarkup(createElement(component, props))
-  return [...html.matchAll(/data-map-target="([^"]+)"/g)].map((m) => m[1])
+  const found = zones(renderToStaticMarkup(createElement(component, props)))
+  const shared = found.filter((a, i) => found.findIndex((b) => b.zone === a.zone) !== i)
+  expect(shared.map((a) => a.target)).toEqual([])
+  return found.map((a) => a.target)
 }
 
 describe('Drop zones', () => {
+  it('are one per anchor (the markup reader finds a shared field)', () => {
+    const shared = zones('<div class="field"><span data-map-target="a" hidden=""></span><span data-map-target="b" hidden=""></span></div>')
+    expect(shared[0].zone).toBe(shared[1].zone)
+    const own = zones('<ul><li><input/><span data-map-target="a" hidden=""></span></li><li><span data-map-target="b" hidden=""></span></li></ul>')
+    expect(own[0].zone).not.toBe(own[1].zone)
+  })
+
   it('cover every target, in every tab', async () => {
     const thorn = params.experimental.thorn
     const found = [

@@ -45,7 +45,7 @@ describe('Drag to map: connect', () => {
   it('finds the row already mapping the same feature to the same target instead of doubling it', () => {
     const first = mappingStore.connect('level', 'typography.size')
     const again = mappingStore.connect('level', 'typography.size')
-    expect(again).toEqual({ id: first?.id, created: false })
+    expect(again).toEqual({ id: first?.id, created: false, switchedOn: false })
     expect(rows()).toHaveLength(1)
     // Another feature on the same target, or the same feature elsewhere, is a new row.
     expect(mappingStore.connect('bass', 'typography.size')?.created).toBe(true)
@@ -57,7 +57,7 @@ describe('Drag to map: connect', () => {
     const ids = TARGETS.slice(0, MAPPING_LIMITS.maxMappings).map((t) => mappingStore.connect('level', t.id)?.id)
     expect(rows()).toHaveLength(MAPPING_LIMITS.maxMappings)
     expect(mappingStore.connect('level', TARGETS[MAPPING_LIMITS.maxMappings].id)).toBeNull()
-    expect(mappingStore.connect('level', TARGETS[0].id)).toEqual({ id: ids[0], created: false })
+    expect(mappingStore.connect('level', TARGETS[0].id)).toEqual({ id: ids[0], created: false, switchedOn: false })
     expect(rows()).toHaveLength(MAPPING_LIMITS.maxMappings)
   })
 
@@ -70,6 +70,18 @@ describe('Drag to map: connect', () => {
     expect(undoHistory.undo()).toBe(true)
     expect(rows()).toEqual([])
     expect(undoHistory.getState().canUndo).toBe(false)
+  })
+
+  it('switches a found row on when it was off, as one undo step', () => {
+    const first = mappingStore.connect('bass', 'typography.size')
+    mappingStore.update(first!.id, { enabled: false })
+    undoHistory.endStep()
+    expect(mappingStore.connect('bass', 'typography.size')).toEqual({ id: first?.id, created: false, switchedOn: true })
+    undoHistory.endStep()
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0].enabled).toBe(true)
+    expect(undoHistory.undo()).toBe(true)
+    expect(rows()[0].enabled).toBe(false)
   })
 
   it('names a target as the Sound tab does', () => {

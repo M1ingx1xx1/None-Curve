@@ -3,7 +3,8 @@
 // chip follows the pointer exactly. Every control a mapping can drive is a drop zone: its live marker (LiveMarker,
 // LiveSeed, LiveSwitch, LiveColor, LiveAxis) renders a MapTarget anchor, which marks the control's field with
 // data-map-zone="<target id>". While a drag (or the keyboard's pick mode) runs, <html data-map-dragging> outlines
-// every zone, and the one under the pointer gets data-map-over. Hovering a tab for TAB_HOVER_MS switches to it.
+// every zone, and the one under the pointer gets data-map-over. Resting on a tab for MAP_DRAG_LIMITS.tabHoverMs
+// switches to it.
 // The drop itself is the Sound tab's (setDropHandler): it adds the row and switches on what the target needs, as
 // Add mapping does.
 
@@ -104,7 +105,7 @@ export function clearMark(id?: string) {
 
 // ---- Drop zones ----
 
-/** The zone (and its target) at a point, or null. */
+/** The drop zone at a point (its data-map-zone names the target), or null. */
 function zoneAt(x: number, y: number): HTMLElement | null {
   const hit = document.elementFromPoint(x, y)
   return hit?.closest<HTMLElement>('[data-map-zone]') ?? null
@@ -163,6 +164,18 @@ function end() {
 
 // ---- Pointer ----
 
+/** Cancels the press on a meter that is under way (or its drag), if any. */
+let pressing: (() => void) | null = null
+
+/** Cancels the keyboard's pick that is under way, if any, leaving focus where it is. */
+let picking: (() => void) | null = null
+
+/** Cancels any drag, press or keyboard pick under way (the Sound tab unmounting). */
+export function cancelMapDrag() {
+  pressing?.()
+  picking?.()
+}
+
 let hoverTab: HTMLElement | null = null
 let hoverTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -216,7 +229,10 @@ function autoScroll(): () => void {
  * drop zone maps the feature to the zone's target; anywhere else, or Escape, cancels.
  */
 export function pressMeter(feature: FeatureId, event: PointerEvent) {
-  if (event.button !== 0 || state.mode) return
+  if (event.button !== 0 || state.mode === 'keyboard') return
+  // A press that never saw its release (another pointer, or a pointerup lost while the window was in the background)
+  // ends here, so its listeners and scrolling do not pile up.
+  pressing?.()
   const startX = event.clientX
   const startY = event.clientY
   const pointerId = event.pointerId
@@ -254,10 +270,14 @@ export function pressMeter(feature: FeatureId, event: PointerEvent) {
     if (target && e.type === 'pointerup') drop(feature, target, rect)
     else set({ announcement: 'Mapping cancelled.' })
   }
+  // Escape cancels a drag; before the press has become one, it is left to whatever else listens for it.
   const key = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape') return
+    if (e.key !== 'Escape' || !dragging) return
     e.preventDefault()
     e.stopPropagation()
+    cancel()
+  }
+  const cancel = () => {
     stop()
     if (dragging) {
       end()
@@ -265,6 +285,7 @@ export function pressMeter(feature: FeatureId, event: PointerEvent) {
     }
   }
   const stop = () => {
+    if (pressing === cancel) pressing = null
     window.removeEventListener('pointermove', move)
     window.removeEventListener('pointerup', up)
     window.removeEventListener('pointercancel', up)
@@ -277,6 +298,7 @@ export function pressMeter(feature: FeatureId, event: PointerEvent) {
   window.addEventListener('pointerup', up)
   window.addEventListener('pointercancel', up)
   window.addEventListener('keydown', key, { capture: true })
+  pressing = cancel
 }
 
 function swallow(e: Event) {
@@ -307,7 +329,8 @@ function tabOf(el: HTMLElement): HTMLElement | null {
 /**
  * Enter or Space on a feature's meter: pick a target with the keyboard. Tab and the arrow keys move through every
  * target (opening its tab and outlining its control), Enter maps, Escape cancels; each step is announced. Focus
- * then moves to the mapped control, or back to the meter.
+ * then moves to the mapped control (a colour's first input), or back to the meter when there is nothing to focus (a
+ * variable axis) or on Escape. A pointer press anywhere cancels it and leaves focus to the press.
  */
 export function startPick(feature: FeatureId, origin: HTMLElement) {
   if (state.mode) return
@@ -339,20 +362,24 @@ export function startPick(feature: FeatureId, origin: HTMLElement) {
     place()
   }
 
-  const finish = (mapped: boolean) => {
+  const finish = (mapped: boolean, refocus = true) => {
     document.removeEventListener('keydown', key, { capture: true })
+    document.removeEventListener('pointerdown', cancel, { capture: true })
+    if (picking === cancel) picking = null
     clearTimeout(timer)
     const id = list[index]
     const rect = rectOf(zoneOf(id))
     end()
     if (mapped) drop(feature, id, rect)
     else set({ announcement: 'Mapping cancelled.' })
+    if (!refocus) return
     // Focus moves to the mapped control once the drop has shown it (switching on its mode can bring it in), else back
     // to the meter on its own tab.
     setTimeout(() => {
+      // A colour's Hue or Lightness zone is shown only while dragging: its field, which is on view, holds the inputs.
       const zone = mapped ? zoneOf(id) : null
-      const field = visible(zone) ? zone.closest<HTMLElement>(ZONE_SELECTOR) : null
-      const control = field?.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled)')
+      const field = zone?.closest<HTMLElement>(ZONE_SELECTOR) ?? null
+      const control = visible(field) ? field.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled)') : null
       if (control) {
         control.focus()
         return
@@ -368,6 +395,8 @@ export function startPick(feature: FeatureId, origin: HTMLElement) {
     if (step === undefined && jump === undefined && e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return
     e.preventDefault()
     e.stopPropagation()
+    // Holding the Enter (or Space) that started the pick repeats it: only a fresh press maps.
+    if (e.repeat && (e.key === 'Enter' || e.key === ' ')) return
     if (e.key === 'Escape') finish(false)
     else if (e.key === 'Enter' || e.key === ' ') finish(true)
     else {
@@ -376,8 +405,13 @@ export function startPick(feature: FeatureId, origin: HTMLElement) {
     }
   }
 
+  // A press with the pointer (on another control, say) ends the pick, so the keys work there again.
+  const cancel = () => finish(false, false)
+
   setDragging('keyboard')
   set({ feature, mode: 'keyboard', marked: null })
   document.addEventListener('keydown', key, { capture: true })
+  document.addEventListener('pointerdown', cancel, { capture: true })
+  picking = cancel
   show(`Map ${name}: Tab or the arrow keys pick a control, Enter maps, Escape cancels. `)
 }

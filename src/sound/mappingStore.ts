@@ -71,17 +71,25 @@ class MappingStore {
   /**
    * Maps `feature` to `target`, as a drop on a control does (drag to map): a new row, on, at `depth` (+50% by default)
    * and in Toggle on a switch (a checkbox has no Follow), one undo step. A row that maps the same feature to the same
-   * target already is not doubled: its id comes back with `created` false. Null at the limit.
+   * target already is not doubled: its id comes back with `created` false, and if it was off it is switched on
+   * (`switchedOn`, one undo step; a row that was on records none). Null at the limit.
    */
-  connect(feature: FeatureId, target: string, depth = 0.5): { id: string; created: boolean } | null {
+  connect(feature: FeatureId, target: string, depth = 0.5): { id: string; created: boolean; switchedOn: boolean } | null {
     const existing = this.state.mappings.find((m) => m.feature === feature && m.target === target)
-    if (existing) return { id: existing.id, created: false }
+    if (existing) {
+      if (!existing.enabled) {
+        // A step of its own: it never joins an open step that switched the row off.
+        undoHistory.record(null)
+        this.set({ mappings: this.state.mappings.map((m) => (m.id === existing.id ? { ...m, enabled: true } : m)) })
+      }
+      return { id: existing.id, created: false, switchedOn: !existing.enabled }
+    }
     if (this.state.mappings.length >= MAPPING_LIMITS.maxMappings) return null
     const id = `m${this.nextId++}`
     const mode: Partial<Shaping> = targetById(target)?.kind === 'switch' ? { mode: 'toggle' } : {}
     undoHistory.record(null)
     this.set({ mappings: [...this.state.mappings, { id, enabled: true, feature, target, depth: clampDepth(depth), ...mode }] })
-    return { id, created: true }
+    return { id, created: true, switchedOn: false }
   }
 
   /** Changes a mapping; Depth and the shaping fields are clamped to their limits (clampDepth, clampShaping). */

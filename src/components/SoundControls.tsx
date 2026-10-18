@@ -52,7 +52,7 @@ import type { EditorParams } from '../state/types'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import Knob from './Knob'
-import { clearMark, pressMeter, setDropHandler, startPick, targetName, useMarked, type DropOutcome } from './mapDrag'
+import { cancelMapDrag, clearMark, pressMeter, setDropHandler, startPick, targetName, useMarked, type DropOutcome } from './mapDrag'
 import RangeControl from './RangeControl'
 import { RecordGroup } from './RecordControls'
 
@@ -184,36 +184,49 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
   /**
    * Drag to map (mapDrag.ts): a feature dropped on a control becomes a row at +50% (in Toggle on a switch), and what
    * the control needs is switched on as Add mapping does: one undo step. The same mapping twice is not added; the
-   * row there is marked instead. What happened comes back for the confirmation beside the control.
+   * row there is marked instead, and switched on (with what its target needs) when it was off, so the drop always
+   * leaves the control moving. What happened comes back for the confirmation beside the control.
    */
   const drop = (feature: FeatureId, targetId: string): DropOutcome => {
     const target = targetById(targetId)
     const pair = `${featureById(feature)?.label ?? feature} → ${target ? targetName(target) : targetId}`
     const result = undoHistory.transaction(() => {
       const connected = mappingStore.connect(feature, targetId, DEFAULT_DEPTH)
-      return connected && { ...connected, activation: connected.created ? activate(connected.id, target) : null }
+      // A found row keeps its notice unless something has to be switched on again (its effect was turned off since).
+      const needs = connected && (connected.created || target?.activate(params) != null)
+      return connected && { ...connected, activation: needs ? activate(connected.id, target) : null }
     })
     if (!result) {
       return { message: `Up to ${MAPPING_LIMITS.maxMappings} mappings: remove one to map ${pair}.`, mappingId: null, created: false }
     }
-    if (!result.created) {
-      const n = mappingStore.getState().mappings.findIndex((m) => m.id === result.id) + 1
-      return { message: `${pair} is mapped already (mapping ${n}).`, mappingId: result.id, created: false }
-    }
-    const amount =
-      target?.kind === 'switch' ? 'in Toggle' : target?.kind === 'jump' ? `at Rate ${DEFAULT_DEPTH * 100}%` : `at Depth +${DEFAULT_DEPTH * 100}%`
     // What the row says while the control still does nothing (a grey has no hue, and nothing can switch that on).
     const after = result.activation ? applyPatches(params, result.activation.patches) : params
     const still = target?.inactive(after) ?? null
-    const message = [`Mapped ${pair} ${amount}.`, result.activation?.notice, still].filter(Boolean).join(' ')
-    return { message, mappingId: result.id, created: true }
+    let first: string
+    if (result.created) {
+      const amount =
+        target?.kind === 'switch' ? 'in Toggle' : target?.kind === 'jump' ? `at Rate ${DEFAULT_DEPTH * 100}%` : `at Depth +${DEFAULT_DEPTH * 100}%`
+      first = `Mapped ${pair} ${amount}.`
+    } else {
+      const n = mappingStore.getState().mappings.findIndex((m) => m.id === result.id) + 1
+      first = result.switchedOn ? `${pair} was mapped already (mapping ${n}, off): switched it on.` : `${pair} is mapped already (mapping ${n}).`
+    }
+    const message = [first, result.activation?.notice, still].filter(Boolean).join(' ')
+    return { message, mappingId: result.id, created: result.created }
   }
   // Drops are handled with this render's settings; the tab stays mounted once opened, so drops reach it from any tab.
   const dropRef = useRef(drop)
   useLayoutEffect(() => {
     dropRef.current = drop
   })
-  useEffect(() => setDropHandler((feature, target) => dropRef.current(feature, target)), [])
+  useEffect(() => {
+    const unset = setDropHandler((feature, target) => dropRef.current(feature, target))
+    return () => {
+      unset()
+      // A drag or keyboard pick under way would otherwise keep its listeners (and the outlines) with no tab to drop on.
+      cancelMapDrag()
+    }
+  }, [])
 
   /**
    * Resets the Geometry and Experimental settings to their defaults (seeds kept), sets the preset's start
@@ -838,6 +851,8 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
       const meter = board.meters.find((m) => m.bar === e.target)
       if (!meter) return
       e.preventDefault()
+      // A held key starts one pick, not one per repeat.
+      if (e.repeat) return
       startPick(meter.feature.id, e.target)
       return
     }
