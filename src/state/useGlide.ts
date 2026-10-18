@@ -60,6 +60,8 @@ export class GlideStore {
     const glide = options.live || this.lastLive
     this.lastLive = options.live
     this.glide.retarget(scene, this.clock.now(), { durationMs: options.durationMs, glide, key: options.key })
+    // The frame already asked for would run tick a second time: one chain of frames at most.
+    this.stop()
     this.tick()
   }
 

@@ -130,7 +130,8 @@ export const PRESETS: readonly Preset[] = [
       map('beat', 'experimental.seed', 1),
       // Half the cubic Reach slider at full level: an eighth of the canvas diagonal (about 4 em on the default canvas).
       map('level', 'experimental.thorn.canvasReach', 0.5),
-      map('beat', 'experimental.thorn.count', 0.15),
+      // 1.65 anchors at full beat: 15% of the old 1–12 travel, kept now that Anchors runs from 0 (11/12 of 15%).
+      map('beat', 'experimental.thorn.count', 0.1375),
     ],
   },
   {

@@ -28,6 +28,9 @@
 //    (and a strip either side): a thorn's far end, which can reach across the canvas, is left as it is.
 // Reach is a share of the canvas diagonal: the app gives that diagonal in em (canvasEm), so at Reach 100% a thorn
 // can span the whole canvas whatever the text size.
+// Anchors 0 (or, in Burst, its Anchors 0) grows nothing, and Thorn then leaves the letter as it is, its glass included,
+// as at Reach 0. Flute width 0 clears the glass: below the narrowest strip (finestFlute) the strips keep that width
+// and Refraction fades out instead, in proportion.
 // A thorn may cross the letter or another thorn; the outlines are then merged at the end of the Experimental
 // effects (overlaps.ts), as when an effect folds.
 // Reverse turns every thorn round, so it shoots into the letter along the inward normal: the same anchors, turns,
@@ -66,7 +69,8 @@ import { applyWarp, breakRuns, WARP_LIMITS, type CreaseMarks, type Warp, type Wa
 const diagonalEm = (width: number, height: number, size: number) => Math.round((Math.hypot(width, height) / size) * 100) / 100
 
 export const THORN_LIMITS = {
-  minCount: 1,
+  /** Anchors that jump; 0: none, and Thorn leaves the letter as it is. */
+  minCount: 0,
   maxCount: 12,
   /**
    * The canvas diagonal in em that Reach is a share of when the app gives none (ThornParams.canvasEm): the default
@@ -84,11 +88,13 @@ export const THORN_LIMITS = {
   minWidth: 0.02,
   /** The root's radius at Root 100%, as a share of the em (Root 0: no root, the thorns are only added on). */
   maxRoot: 0.6,
-  /** Flute width range, as a share of the em. */
-  minFlute: 0.04,
+  /** Flute width range, as a share of the em; 0 clears the glass (see the header). */
+  minFlute: 0,
   maxFlute: 0.3,
-  /** Spikes per letter in Burst. */
-  minSpikes: 4,
+  /** The narrowest strip: narrower flute widths keep it and fade Refraction out. */
+  finestFlute: 0.04,
+  /** Spikes per letter in Burst; 0: none, and Thorn leaves the letter as it is. */
+  minSpikes: 0,
   maxSpikes: 80,
 } as const
 
@@ -174,8 +180,16 @@ const CHANNEL = {
 } as const
 const UINT = 0x1_0000_0000
 
+/** The strip width Thorn's glass uses (× the em) and how much of Refraction is left there (0–1; 0: no glass). */
+export function thornFlutes(params: ThornParams): { flute: number; fade: number } {
+  const width = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute)
+  return { flute: Math.max(width, THORN_LIMITS.finestFlute), fade: Math.min(width / THORN_LIMITS.finestFlute, 1) }
+}
+
 export function thornIsOn(params: ThornParams | undefined): params is ThornParams {
-  return !!params && params.enabled && finite(params.count, 0) >= THORN_LIMITS.minCount && finite(params.canvasReach, 0) > 0
+  if (!params || !params.enabled || !(finite(params.canvasReach, 0) > 0)) return false
+  // Older saved settings have no Burst and no spikes (THORN_FALLBACK.spikes).
+  return params.burst === true ? finite(params.spikes, THORN_FALLBACK.spikes) >= 1 : finite(params.count, 0) >= 1
 }
 
 /** True when Thorn is on in Burst (see the header): spikes all round the letter instead of a few picked thorns. */
@@ -527,8 +541,10 @@ export function applyThorn(
   const spread = clamp(finite(params.spread, 0.5), 0, 1)
   const width = clamp(finite(params.width, 1), THORN_LIMITS.minWidth, 1)
   const radius = clamp(finite(params.root, THORN_FALLBACK.root), 0, 1) * THORN_LIMITS.maxRoot * unitsPerEm
-  const refraction = clamp(finite(params.refraction, 0), 0, 1)
-  const flute = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute) * unitsPerEm
+  // Below the narrowest strip, the glass fades out: Refraction falls with the flute width, to 0 at 0.
+  const flutes = thornFlutes(params)
+  const refraction = clamp(finite(params.refraction, 0), 0, 1) * flutes.fade
+  const flute = flutes.flute * unitsPerEm
   const contours = polygon.contours.map((c) => c.points)
 
   // Older saved settings have no Reverse; off runs exactly the expressions it always did.

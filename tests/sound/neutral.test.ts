@@ -40,9 +40,13 @@ import { BASE } from '../helpers/params'
 // Pinned again when Ripple and Thorn got Reverse (NOCUR-68); with the reverse fields taken out they give a02149f5 /
 // cf6faa50. Pinned again when Thorn got Burst (NOCUR-70); with the burst, spikes and dent fields taken out they give
 // bdfa9875 / f3f239b8. Pinned again when Dissolve was added (NOCUR-69, off by default); with its default left out
-// of the params they give 20eebabd / 5d255e78.
+// of the params they give 20eebabd / 5d255e78. Modulate pinned again when six Experimental sliders were let down to 0
+// (Facet size, Wavelength, Gust size, Anchors, Flute width, Burst's Anchors): Sound spans each slider's range, so their
+// live values moved; with the old minimums put back in SLIDER_RANGES (0.08, 0.08, 0.06, 1, 0.04, 4) it gives 107bb3bd.
+// Pinned again when Flare's beat row on Anchors went from 0.15 to 0.1375, the same 1.65 anchors over the new 0–12
+// travel as 0.15 gave over 1–12; with 0.15 put back it gives f7f30c45.
 const PINNED = {
-  modulate: '107bb3bd',
+  modulate: '7d8242b5',
   scheduler: 'abe13938',
   features: 'f797c3bc',
   svg: '7813f93d',

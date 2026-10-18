@@ -27,14 +27,20 @@
 // the warp is one-to-one, so Ripple never needs to be weakened to keep the letter valid. Above 100%
 // rings overtake their neighbours (the innermost can pass through the centre and turn inside out),
 // folding the letter onto itself; the overlaps are then merged into one outline (see overlaps.ts).
+//
+// Wavelength 0 stills the waves: the rings stay put and only Petals, if any, shapes the letter. Below the shortest
+// wavelength (shortestWavelength) the rings keep that spacing and the waves fade out instead, in proportion, so the
+// slider runs down to nothing without ever packing the rings closer together.
 
 import type { Point, PolygonGlyph, RippleParams } from './types'
 import type { Warp } from './warp'
 
 export const RIPPLE_LIMITS = {
-  /** Wavelengths, as fractions of the em: rings fall half a wavelength apart. */
-  minWavelength: 0.08,
+  /** Wavelengths, as fractions of the em: rings fall half a wavelength apart. 0 stills the waves (see the header). */
+  minWavelength: 0,
   maxWavelength: 2,
+  /** The shortest ring spacing's wavelength: shorter wavelengths keep it and fade the waves out. */
+  shortestWavelength: 0.08,
   minSides: 3,
   maxSides: 12,
   /** Centre, as a fraction of the glyph's ink box; it may lie outside the letter. */
@@ -71,12 +77,27 @@ export interface Box {
 }
 
 export function rippleIsOn(params: RippleParams): boolean {
-  return params.enabled && (params.amount > 0 || petalsOf(params) > 0)
+  return params.enabled && ((params.amount > 0 && wavesOf(params) > 0) || petalsOf(params) > 0)
 }
 
 /** True when Ripple goes beyond its safe range, so the letter folds onto itself (Petals never folds). */
 export function rippleFolds(params: RippleParams): boolean {
-  return rippleIsOn(params) && params.amount > 1
+  return rippleIsOn(params) && params.amount * wavesOf(params) > 1
+}
+
+/** The wavelength (× the em), from 0 (no waves) up. */
+function wavelengthOf(params: RippleParams): number {
+  return clamp(finite(params.wavelength, 0.3), RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength)
+}
+
+/** How much of the waves is left: 1 from the shortest wavelength up, falling to 0 at wavelength 0. */
+function wavesOf(params: RippleParams): number {
+  return Math.min(wavelengthOf(params) / RIPPLE_LIMITS.shortestWavelength, 1)
+}
+
+/** The wavelength Ripple's rings use (× the em) and how much of the waves is left there (0–1; 0: no rings). */
+export function rippleRings(params: RippleParams): { wavelength: number; waves: number } {
+  return { wavelength: Math.max(wavelengthOf(params), RIPPLE_LIMITS.shortestWavelength), waves: wavesOf(params) }
 }
 
 /** The Petals setting (0 when missing, as in settings saved before it existed). */
@@ -103,9 +124,9 @@ export function inkBox(polygon: PolygonGlyph): Box | null {
 
 /** The Ripple warp for a glyph with this ink box, at `scale` × its strength. */
 export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, scale = 1): Warp {
-  const spacing = (clamp(finite(params.wavelength, 0.3), RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength) * unitsPerEm) / 2
+  const spacing = (Math.max(wavelengthOf(params), RIPPLE_LIMITS.shortestWavelength) * unitsPerEm) / 2
   const sides = Math.round(clamp(finite(params.sides, 8), RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides))
-  const amplitude = clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) * RIPPLE_LIMITS.maxMove * spacing * scale
+  const amplitude = clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) * wavesOf(params) * RIPPLE_LIMITS.maxMove * spacing * scale
   const fade = clamp(finite(params.fade, 0), 0, 1)
   // Older saved settings have no Reverse; off runs exactly the expressions it always did.
   const reverse = params.reverse === true
@@ -120,7 +141,9 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   )
   const half = Math.PI / sides
   const tanHalf = Math.tan(half)
-  const last = Math.ceil(reach / spacing) + 1
+  // Wavelength 0: no waves, so no rings either. Only the rays' scaling (Petals) is left, linear in each slice, as
+  // beyond the last ring: the whole letter is then "beyond the rings", and its edges are creased only at the rays.
+  const last = wavesOf(params) === 0 ? 0 : Math.ceil(reach / spacing) + 1
   // Ray j points at angle first + j × 2·half; wedge j lies between rays j and j + 1. With this first
   // angle, one wedge is centred straight down, so the polygons sit on a flat side.
   const first = -Math.PI / 2 + half

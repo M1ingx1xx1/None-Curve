@@ -205,7 +205,7 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           valueText={`${percent(params.facet)} percent of the em`}
           disabled={off}
           hint={facetHint}
-          hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds; the smallest still keeps creases far enough apart to read as corners."
+          hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds. Below 8% the triangles stay that size and the folds flatten out instead, so creases always read as corners. 0%: off."
           onChange={(facet) => update({ facet })}
         />
         <RangeField
@@ -296,7 +296,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           valueText={`${percent(params.wavelength)} percent of the em`}
           disabled={off}
           hint={wavelengthHint}
-          hintText="Distance from one crest to the next, as a share of the em. Rings fall half of it apart."
+          hintText="Distance from one crest to the next, as a share of the em. Rings fall half of it apart. Below 8% the rings keep that spacing and the waves flatten out instead. 0%: no waves; Petals still shapes the letter."
           onChange={(wavelength) => update({ wavelength })}
         />
         <RangeField
@@ -536,7 +536,7 @@ function SlipstreamGroup({
           valueText={`${percent(params.gust)} percent of the em`}
           disabled={off}
           hint={gustHint}
-          hintText="Width of each band that a gust pulls or slides, as a share of the em. With a level stream, every letter on a line shares the same bands."
+          hintText="Width of each band that a gust pulls or slides, as a share of the em. With a level stream, every letter on a line shares the same bands. Below 6% the bands keep that width and Gustiness and Slip fade out instead. 0%: a steady stream, no gusts and no slip."
           onChange={(gust) => update({ gust })}
         />
         <RangeField
@@ -669,7 +669,7 @@ function ThornGroup({
             valueText={`${spikes} spikes`}
             disabled={off}
             hint={countHint}
-            hintText="How many spikes grow from each letter, spread evenly round all its outlines, counters included."
+            hintText="How many spikes grow from each letter, spread evenly round all its outlines, counters included. 0: none, and Thorn leaves the letter as it is."
             onChange={(spikes) => update({ spikes })}
           />
         ) : (
@@ -681,7 +681,7 @@ function ThornGroup({
             valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
             disabled={off}
             hint={countHint}
-            hintText="How many anchors of each letter jump."
+            hintText="How many anchors of each letter jump. 0: none, and Thorn leaves the letter as it is."
             onChange={(count) => update({ count })}
           />
         )}
@@ -795,7 +795,7 @@ function ThornGroup({
           valueText={`${percent(flute)} percent of the em`}
           disabled={off || refraction === 0}
           hint={fluteHint}
-          hintText="How wide each strip of the fluted glass is, as a share of the em."
+          hintText="How wide each strip of the fluted glass is, as a share of the em. Below 4% the strips keep that width and the refraction fades out instead. 0%: no glass."
           onChange={(flute) => update({ flute })}
         />
 

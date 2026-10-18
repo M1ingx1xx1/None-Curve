@@ -77,7 +77,7 @@ describe.each(FIXTURE_FONTS)('Burst on: %s', (fontName) => {
     for (const glyph of sampleGlyphs(font, 'aHo8')) {
       const source = font.getGlyph(glyph.index)
       const plain = contoursOf(deriveGeometry(source, paramsWith(GEOMETRY.plain, on('thorn'))).polygon)
-      for (const spikes of [THORN_LIMITS.minSpikes, 10, 40, THORN_LIMITS.maxSpikes]) {
+      for (const spikes of [1, 4, 10, 40, THORN_LIMITS.maxSpikes]) {
         const derived = deriveGeometry(source, burst({ spikes }))
         const stats = derived.experimental.thorn
         expect(stats.thorns, `"${glyph.char}" × ${spikes}`).toBe(spikes)

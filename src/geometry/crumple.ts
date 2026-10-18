@@ -16,19 +16,25 @@
 // one-to-one: Crumple never needs to be weakened to keep the letter valid. Above 100% the points move
 // further along the same directions, triangles flip over their neighbours, and the letter folds onto
 // itself; the overlaps are then merged into one outline (see overlaps.ts).
+//
+// Facet size 0 leaves the letter as it is. Below the finest facet (finestFacet) the lattice keeps that size and the
+// movement fades out instead, in proportion, so the slider runs down to nothing without ever cutting creases closer
+// together than the finest facet does.
 
 import { hashInts } from './distortion'
 import type { CrumpleParams, Point } from './types'
 import type { Warp } from './warp'
 
 export const CRUMPLE_LIMITS = {
-  /**
-   * Facet sizes, as fractions of the em. Creases fall about 40% of a facet apart along the outline, so
-   * the smallest facet keeps them about 3% of the em apart or more: far enough to read as corners
-   * rather than as a wobbly curve at any text size.
-   */
-  minFacet: 0.08,
+  /** Facet sizes, as fractions of the em; 0 leaves the letter as it is (see the header). */
+  minFacet: 0,
   maxFacet: 1,
+  /**
+   * The finest lattice. Creases fall about 40% of a facet apart along the outline, so this keeps them about 3% of the
+   * em apart or more: far enough to read as corners rather than as a wobbly curve at any text size. Smaller facet
+   * sizes keep this lattice and fade the movement out.
+   */
+  finestFacet: 0.08,
   /** Above 1 (the safe range), facets fold over each other. */
   maxAmount: 5,
   /** Largest lattice-point movement at 100% Amount, as a fraction of the facet size. */
@@ -40,19 +46,34 @@ const CHANNEL = { angle: 101, direction: 102, distance: 103, diagonal: 104 } as 
 const UINT = 0x1_0000_0000
 
 export function crumpleIsOn(params: CrumpleParams): boolean {
-  return params.enabled && params.amount > 0
+  return params.enabled && params.amount > 0 && facetFade(params) > 0
 }
 
 /** True when Crumple goes beyond its safe range, so the letter folds onto itself. */
 export function crumpleFolds(params: CrumpleParams): boolean {
-  return crumpleIsOn(params) && params.amount > 1
+  return crumpleIsOn(params) && params.amount * facetFade(params) > 1
+}
+
+/** The facet size (× the em), from 0 (off) up. */
+function facetOf(params: CrumpleParams): number {
+  return clamp(finite(params.facet, 0.18), CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet)
+}
+
+/** How much of the movement is left: 1 from the finest facet up, falling to 0 at facet size 0. */
+function facetFade(params: CrumpleParams): number {
+  return Math.min(facetOf(params) / CRUMPLE_LIMITS.finestFacet, 1)
+}
+
+/** The lattice Crumple uses (its facet size, × the em) and how much of the movement is left there (0–1). */
+export function crumpleLattice(params: CrumpleParams): { facet: number; fade: number } {
+  return { facet: Math.max(facetOf(params), CRUMPLE_LIMITS.finestFacet), fade: facetFade(params) }
 }
 
 /** The Crumple warp at `scale` × its strength (1 = the safe maximum). */
 export function crumpleWarp(params: CrumpleParams, seed: number, unitsPerEm: number, scale = 1): Warp {
-  const amount = clamp(finite(params.amount, 0), 0, CRUMPLE_LIMITS.maxAmount) * scale
+  const amount = clamp(finite(params.amount, 0), 0, CRUMPLE_LIMITS.maxAmount) * facetFade(params) * scale
   const turned = (finite(params.turn, 0) * Math.PI) / 180
-  const size = clamp(finite(params.facet, 0.18), CRUMPLE_LIMITS.minFacet, CRUMPLE_LIMITS.maxFacet) * unitsPerEm
+  const size = Math.max(facetOf(params), CRUMPLE_LIMITS.finestFacet) * unitsPerEm
   const reach = amount * CRUMPLE_LIMITS.maxMove * size
   // The square lattice looks the same every quarter turn, so a quarter turn of angles covers all.
   const angle = (hashInts(seed, CHANNEL.angle) / UINT) * (Math.PI / 2)
