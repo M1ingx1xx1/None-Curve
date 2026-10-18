@@ -3,11 +3,12 @@
 // reason with what was recorded saved once (nothing for 0 bytes), keeps what came before an error, plays a Whole
 // file from its start with Loop off and gives Loop back, falls from MP4 to WebM and from a refused MIME type to the
 // next, delays its audio by the live latency (and half a frame), and leaves a source it did not start running. Frames
-// come from a fixed clock at the take's frame rate, whatever the canvas draws: a steady count over time, the last
+// come from a fixed clock at the take's frame rate, whatever the canvas draws: a frame asked for every tick, the last
 // drawing repeated when nothing changed, missed frames skipped, and no frame once the recorder stops. The fake canvas
-// gives a frame only when it changed since the last one (as Chrome's captureStream does), so a frame the recorder asks
-// for without a drawing must touch the canvas first; and a take records a moment past Stop (and past the sound's end,
-// for the sound still in the audio's delay), so its last frame is in the file. Nothing touches the DOM.
+// gives a frame only when it changed since the last one (as Chrome's captureStream does), so every frame the recorder
+// asks for touches the canvas first (a real track would otherwise wait for the next drawing); where frames cannot be
+// requested, no clock runs. A take asks for the canvas as it is at Stop and records a moment past it (and past the
+// sound's end, for the sound still in the audio's delay), so its last frame is in the file. Nothing touches the DOM.
 
 import { describe, expect, it } from 'vitest'
 import {
@@ -380,8 +381,8 @@ describe('recorder', () => {
     expect(r.recorder.timeslice).toBe(1000)
     expect(r.recorder.options).toMatchObject({ mimeType: MP4[0], videoBitsPerSecond: 4_320_000, audioBitsPerSecond: 128_000 })
     expect(r.recorder.tracks).toEqual([asTrack(r.video), asTrack(r.audio)])
-    // The canvas as it was is the first frame (drawn before the capture began, so touched); the clock takes the
-    // next one a frame later, drawn since, so untouched.
+    // The canvas as it was is the first frame (touched, so it is taken at once); the clock takes the next one a frame
+    // later, touched too, so it is taken at the tick rather than at the next drawing.
     expect(r.video.frames).toBe(1)
     expect(r.touches).toBe(1)
     r.draw()
@@ -389,7 +390,7 @@ describe('recorder', () => {
     expect(r.video.frames).toBe(1)
     r.advance(1000 / 30)
     expect(r.video.frames).toBe(2)
-    expect(r.touches).toBe(1)
+    expect(r.touches).toBe(2)
     expect(r.video.lost).toBe(0)
   })
 
@@ -451,16 +452,15 @@ describe('recorder', () => {
     end(r)
     expect(r.state.phase).toBe('stopping')
     if (tail > 0) {
-      // The recorder and the clock run on for the tail: the canvas as it is, and frames drawn meanwhile, still count.
+      // The canvas as it is at the stop is asked for at once, not left to the clock's next tick.
+      expect(r.video.frames).toBe(frames + 1)
+      // The recorder and the clock run on for the tail: frames drawn meanwhile still count.
       expect(r.recorder.stops).toBe(0)
       r.advance(tail / 2)
       r.draw()
-      const touches = r.touches
       r.advance(tail / 2 - 1)
       expect(r.recorder.stops).toBe(0)
-      expect(r.video.frames).toBeGreaterThanOrEqual(frames + Math.floor(tail / (1000 / 30)) - 1)
-      // The frame after the drawing took it as drawn.
-      expect(r.touches).toBeLessThan(touches + Math.ceil(tail / 2 / (1000 / 30)))
+      expect(r.video.frames).toBeGreaterThanOrEqual(frames + Math.floor(tail / (1000 / 30)))
       r.advance(1)
       // Every frame asked for is in the file: none at the moment the recorder stops, and none after.
       expect(r.video.frameTimes.at(-1)).toBeLessThan(r.recorder.stoppedAt!)
@@ -806,22 +806,23 @@ describe('recorder', () => {
     expect(alreadyListening.calls).toEqual([])
   })
 
-  it('captures at the take’s frame rate where frames cannot be requested, and still touches the canvas', async () => {
+  it('captures at about the take’s frame rate where frames cannot be requested, with no frame clock', async () => {
     const fallback = rig({ requestFrame: false })
     await fallback.record()
     expect(fallback.captures).toEqual([0, 30])
     expect(fallback.videos[0].stopped).toBe(true)
     expect(fallback.state.phase).toBe('recording')
-    // No requestFrame: the clock marks the still canvas as changed, so the capture's own rate takes it.
+    // No requestFrame: the browser's capture runs on its own clock, so no second clock touches the canvas against it
+    // (the two would drift, repeating or dropping frames); only the first frame is touched.
     fallback.advance(1001)
-    expect(fallback.touches).toBe(31)
+    expect(fallback.touches).toBe(1)
 
     const fast = rig({ requestFrame: false, record: { fps: 60 } })
     await fast.record()
     expect(fast.captures).toEqual([0, 60])
   })
 
-  it.each([24, 25, 30, 50, 60] as const)('gives a steady %i frames a second, however the canvas draws', async (fps) => {
+  it.each([24, 25, 30, 50, 60] as const)('asks for %i frames a second on its clock, however the canvas draws', async (fps) => {
     const r = rig({ record: { fps } })
     await r.record()
     expect(r.state.take?.fps).toBe(fps)
@@ -851,17 +852,18 @@ describe('recorder', () => {
     r.advance(frame * 3)
     expect(r.video.frames).toBe(4)
     expect(r.touches).toBe(4)
-    // Three drawings within one frame: one frame, as drawn (not touched).
+    // Three drawings within one frame: one frame, the canvas as last drawn (every tick touches it, so it is taken at
+    // the tick and not at the next drawing).
     r.draw()
     r.draw()
     r.draw()
     r.advance(frame)
     expect(r.video.frames).toBe(5)
-    expect(r.touches).toBe(4)
+    expect(r.touches).toBe(5)
     // Still again: repeats.
     r.advance(frame)
     expect(r.video.frames).toBe(6)
-    expect(r.touches).toBe(5)
+    expect(r.touches).toBe(6)
   })
 
   it('skips the frames a late clock missed, then keeps to its timeline', async () => {

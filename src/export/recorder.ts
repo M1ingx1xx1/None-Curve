@@ -1,12 +1,15 @@
 // Real-time video recording: the canvas as it moves with the sound, captured on a fixed frame clock at the take's
 // frame rate (captureStream(0) and requestFrame), with the sound as heard, delayed to line up with the letters, into
 // a MediaRecorder; saved once, as one file, when the take ends. The canvas draws whenever it changes; each tick of
-// the clock takes it as it is, so a frame repeats the last drawing when nothing changed and the file has a steady
-// rate. A take waits for its sound and its first drawn frame, and ends at its length, at the 10-minute cap, or when
-// the sound stops, the tab is hidden, the canvas changes size or the font goes; what was recorded is saved even
-// after an error. A canvas gives a frame only when it has changed, so a tick with no drawing since the last one
-// touches it (touchCanvas) first. Stop and the sound's end let the recorder (and the clock) run a moment longer, so
-// the last frame, and the end of the sound still in the audio's delay, are in the file.
+// the clock takes it as it is, so a frame repeats the last drawing when nothing changed. A requested frame is
+// captured at the canvas's next change, so every tick touches the canvas (touchCanvas, one pixel copied onto
+// itself) in the same task as its request: the frame is then taken at the next rendering update, close to the tick.
+// The rate is about the chosen one, best effort: frames land on rendering updates, so a rate at or above the
+// display's (60 fps on a 60 Hz screen) can lose some, and MediaRecorder writes a variable-rate file. A take waits
+// for its sound and its first drawn frame, and ends at its length, at the 10-minute cap, or when the sound stops,
+// the tab is hidden, the canvas changes size or the font goes; what was recorded is saved even after an error.
+// Stop asks for the canvas as it is at once, and Stop and the sound's end let the recorder (and the clock) run a
+// moment longer, so the last frame, and the end of the sound still in the audio's delay, are in the file.
 //
 // The controller gets its clock, timers, browser checks, recorder and engine injected, so tests run it with
 // fakes and nothing touches the DOM; the page's single controller and its hooks are at the bottom.
@@ -181,8 +184,6 @@ interface Take {
   touch: (() => void) | null
   blurWorks: boolean
   drawn: boolean
-  /** The canvas has drawn since the last frame (so the next one needs no touch). */
-  fresh: boolean
   /** The clock's interval (ms), and the index of its last frame (frame n is due n intervals after startedAt). */
   frameMs: number
   frameIndex: number
@@ -344,7 +345,6 @@ export class RecordingController {
       touch: null,
       blurWorks: true,
       drawn: false,
-      fresh: false,
       frameMs: 1000 / options.fps,
       frameIndex: 0,
       stream: null,
@@ -415,7 +415,8 @@ export class RecordingController {
     const tail = this.tailMs(take, reason)
     this.arm('stop', tail + STOP_TIMEOUT_MS, () => this.finish(take))
     if (tail === 0) return this.stopRecorder(take)
-    // The clock goes on for the frames still to come (the canvas as it is now among them), then the end.
+    // The canvas as it is now, at once; then the clock goes on for the frames still to come, then the end.
+    this.requestFrame(take)
     take.ending = true
     take.endAt = this.deps.now() + tail
     this.arm('drain', tail, () => this.stopRecorder(take))
@@ -423,8 +424,8 @@ export class RecordingController {
 
   /**
    * The recording canvas is mounted; `blurWorks` is false only when the take asks for blur and the canvas cannot
-   * draw it. `touch` marks the canvas as changed without changing what it shows (touchCanvas): a frame is captured
-   * only from a changed canvas, so the first frame, and a clock frame with no drawing since the last, touch it first.
+   * draw it. `touch` marks the canvas as changed without changing what it shows (touchCanvas): a requested frame is
+   * captured only at the canvas's next change, so every request touches it, in the same task, to be taken right away.
    */
   canvasReady(canvas: CaptureCanvas, blurWorks: boolean, touch: () => void): void {
     const take = this.take
@@ -435,14 +436,12 @@ export class RecordingController {
     this.tryBegin(take)
   }
 
-  /** The recording canvas has drawn: the clock's next frame takes it as it is. */
+  /** The recording canvas has drawn: a starting take may begin (once recording, the clock's next frame takes it). */
   frameDrawn(): void {
     const take = this.take
-    if (!take) return
-    if (this.state.phase === 'starting') {
-      take.drawn = true
-      this.tryBegin(take)
-    } else take.fresh = true
+    if (!take || this.state.phase !== 'starting') return
+    take.drawn = true
+    this.tryBegin(take)
   }
 
   // --- Take --------------------------------------------------------------------------------------
@@ -493,7 +492,8 @@ export class RecordingController {
       let stream = canvas.captureStream(0)
       let video: FrameTrack | undefined = stream.getVideoTracks()[0]
       if (video && typeof video.requestFrame !== 'function') {
-        // Frames on request are not available: capture at the take's rate instead (the clock still touches the canvas).
+        // Frames on request are not available: the browser captures on its own clock at about the take's rate, and
+        // only when the canvas changed, so no frame clock runs (its touches would drift against the capture's).
         stopTracks(stream)
         stream = canvas.captureStream(take.options.fps)
         video = stream.getVideoTracks()[0]
@@ -544,9 +544,8 @@ export class RecordingController {
     take.startedAt = deps.now()
     // The canvas was drawn before it was captured: touched, so it is the first frame (frame 0); the clock takes the rest.
     take.frameIndex = 0
-    take.fresh = false
-    this.requestFrame(take, true)
-    this.armFrame(take)
+    this.requestFrame(take)
+    if (typeof video.requestFrame === 'function') this.armFrame(take)
     if (take.spec.limitMs !== null && take.spec.limitMs < VIDEO_LIMITS.maxMs && !take.wholeFile) {
       this.arm('length', take.spec.limitMs, () => this.stop('length'))
     }
@@ -585,7 +584,7 @@ export class RecordingController {
   }
 
   /**
-   * The clock's frame: the canvas as it is, touched when nothing was drawn since the last frame (so it repeats).
+   * The clock's frame: the canvas as it is, touched (so it repeats when nothing was drawn since the last frame).
    * A clock that fell behind (a busy tab) skips the frames it missed rather than asking for them all at once; one
    * due right at the recorder's stop is not asked for, as it would be lost.
    */
@@ -594,15 +593,14 @@ export class RecordingController {
     const now = this.deps.now()
     if (take.endAt !== null && now > take.endAt - FRAME_GUARD_MS) return
     take.frameIndex = Math.max(take.frameIndex + 1, Math.floor((now - take.startedAt) / take.frameMs))
-    this.requestFrame(take, !take.fresh)
-    take.fresh = false
+    this.requestFrame(take)
     this.armFrame(take)
   }
 
-  /** Asks for the canvas as the next frame; `touch`: nothing was drawn since the last frame, so it is touched first. */
-  private requestFrame(take: Take, touch = false): void {
+  /** Asks for the canvas as the next frame, touching it first in the same task so it is taken at once. */
+  private requestFrame(take: Take): void {
     try {
-      if (touch) take.touch?.()
+      take.touch?.()
       take.video?.requestFrame?.()
     } catch {
       // A track already ended: the recorder's own events report it.

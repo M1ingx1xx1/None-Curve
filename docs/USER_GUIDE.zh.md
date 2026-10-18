@@ -634,11 +634,11 @@ Sound 标签页最下面的 **Record**（录制）框，会在声音移动字母
 - **Record** / **Stop**（录制 / 停止）——旁边显示已录制的时间，选了固定长度时还会显示这次录制有多长（例如 “0:03 / 0:10”），声音带动字母时还会显示 **Live · N fps**。Record 无法开始时会变灰，并在下方说明原因：“Load a font to record.”（请先载入字体）、“Choose an audio file first.”（请先选择音频文件）、“Opening the sound…”（正在打开声音）或 “This browser cannot record video.”（这个浏览器无法录制视频）。
 - **Format**（格式）——**MP4**（初始选项，几乎在哪里都能播放）或 **WebM**。不能写 MP4 的浏览器会改存为 WebM，并显示 “MP4 isn't supported in this browser: saved as WebM.”（这个浏览器不支持 MP4：已存为 WebM）。浏览器完全不能写的格式会变灰，并标着 “(not supported in this browser)”（这个浏览器不支持）。
 - **Length**（长度）——一次录制持续多久：**Until stopped**（直到停止，初始选项）、**5 s**、**10 s**、**15 s**、**30 s**、**60 s** 或 **Whole file**（整个文件）。**Whole file** 会把音频文件从头播到尾，录制期间 **Loop** 关闭（如果原来是开着的，录完后会重新打开）。它需要选好的音频文件，所以使用麦克风时或选好文件之前是灰色的；如果之前已经选了它，会有一条提示 “Whole file needs an audio file: this take runs until stopped.”（Whole file 需要音频文件：这次录制会一直持续到停止）。每次录制最多 10 分钟（“Stopped at the 10-minute limit.”，即在 10 分钟上限处停止），因为视频在保存之前一直放在浏览器的内存里。
-- **Frame rate**（帧率）——视频文件每秒有多少帧：**24**、**25**、**30**（初始选择）、**50** 或 **60**。选你的视频剪辑软件或项目用的帧率；**30** 适合大多数用途，**24** 得到电影感的文件。整次录制帧率都不变：字母没有变化时，视频就把同一个画面再显示一次。字母本身每秒最多变化 30 次，所以 **50** 和 **60** 不会让动作更流畅；它们适合要求这些帧率的项目，文件也更大。
+- **Frame rate**（帧率）——视频文件每秒有多少帧：**24**、**25**、**30**（初始选择）、**50** 或 **60**。选你的视频剪辑软件或项目用的帧率；**30** 适合大多数用途，**24** 得到电影感的文件。整次录制都大约保持这个帧率：字母没有变化时，视频就把同一个画面再显示一次。说“大约”，是因为浏览器写出的文件帧率略有起伏，而且在 60 Hz 的屏幕上，**60** 偶尔会少一帧；大多数视频剪辑软件都能正常处理。字母本身每秒最多变化 30 次，所以 **50** 和 **60** 不会让动作更流畅；它们适合要求这些帧率的项目，文件也更大。
 - **Include audio**（包含音频）——把声音录进视频，并和字母对齐（初始是勾选的）。使用麦克风时，它的声音会录进文件，但仍然从不通过扬声器播放。录制不会改变你听到的声音。
 - **Use the preview look**（使用预览外观）——不勾选（初始）：画布按 **Color** 设置显示，和 PNG 导出一样。勾选：使用右下角小预览的外观，包括它的 **Blur**，以及开启 **Invert** 时互换的颜色。
 - **尺寸说明**——选项下方的一行说明下一次录制会是什么样，例如 “1200 × 800 px · 30 fps · MP4”（1200 × 800 像素 · 每秒 30 帧 · MP4）。尺寸就是 PNG 的尺寸：画布的 **W** × **H** 乘以 1×–4× 倍数（见[画布尺寸](#画布尺寸)）。超过 4K 的视频（长边超过 3840 px，或像素数多于 3840 × 2160）会缩小到刚好放得下，这一行会加上 “(scaled down to the 4K limit)”（已缩小到 4K 上限）。视频不能透明：开启 **Transparent background** 时会画上背景色，并有一条提示 “Videos have no transparency: the background colour is painted.”（视频没有透明度：会画上背景色）。
-- **帧：** 视频总是按选好的 **Frame rate** 录制。画布每显示一个新形状，视频里的画面就变一次，每秒最多 30 次——和 **Live · N fps** 的数字一样；两次之间，以及字母静止时，视频重复上一个画面。程序跟不上时，这个框会显示 “Too slow for a smooth video: try fewer effects or a shorter text.”（太慢，视频不会流畅：试试少开几个效果或缩短文字）。
+- **帧：** 视频大约按选好的 **Frame rate** 录制。画布每显示一个新形状，视频里的画面就变一次，每秒最多 30 次——和 **Live · N fps** 的数字一样；两次之间，以及字母静止时，视频重复上一个画面。程序跟不上时，这个框会显示 “Too slow for a smooth video: try fewer effects or a shorter text.”（太慢，视频不会流畅：试试少开几个效果或缩短文字）。
 - 如果什么都不会动——**Drive letters** 关着、**Strength** 为 0%，或者没有一行有 Depth——会有一条提示 “Sound is not moving the letters: the video will be still.”（声音没有在移动字母：视频会是静止的）。你仍然可以录制。
 - **页面顶部：** 录制期间，屏幕顶部先显示 “Starting to record…”（正在开始录制），然后是一个红灯和 “Recording 0:12”（正在录制 0:12），最后是 “Saving the video…”（正在保存视频），旁边有一个方形的停止按钮，无论工具区打开的是哪个标签页都能点到。录制结束后，顶部会说明结果，直到你点它的 **×** 关掉这条提示。
 - **从导出对话框录制：** **Export…** → **Video — live sound**（视频——实时声音）显示同样的选项（在那里改，这里也跟着改）。它的 **Record** 按钮会关闭对话框并立刻开始录制；在页面顶部停止。录制期间再次打开对话框，里面也有自己的 **Stop**。见[保存为视频](#保存为视频)。
@@ -880,7 +880,7 @@ SVG 文件可以用 Illustrator、Figma、Inkscape 或浏览器打开，里面�
 SVG、PNG 和字体导出使用的是滑块，而不是声音。在想要的时刻按 **Freeze**，然后再导出。开启 **Motion contrast**、**Pitch reactive** 或 Thorn 轮流变化时，Freeze 会让每个字母都使用共同值，所以冻结后的字母比移动时看起来更相像。想留住动态本身，就录一段视频：导出对话框里的 **Video — live sound**，或 Sound 标签页里的 **Record**（见[录制视频](#录制视频)）。
 
 **视频一卡一卡的。**
-视频里的画面每秒变化的次数，就是声音移动字母时程序每秒能画出的数量——也就是 **Live · N fps** 的数字，最多 30（文件仍然保持它的 **Frame rate**：两个新形状之间重复上一个画面）。设置很重、文字很长、**Motion contrast** 和 **Pitch reactive** 都会让它变小；每秒低于大约 8 帧时，Record 组会显示 “Too slow for a smooth video: try fewer effects or a shorter text.”（太慢，视频不会流畅：试试少开几个效果或缩短文字）。关掉一些 Experimental 效果、换一段更短的文字，或者调低 Motion contrast 和 Pitch reactive，然后重新录制。字母静止时视频会保持画面：这不是故障。
+视频里的画面每秒变化的次数，就是声音移动字母时程序每秒能画出的数量——也就是 **Live · N fps** 的数字，最多 30（文件仍然大约保持它的 **Frame rate**：两个新形状之间重复上一个画面）。设置很重、文字很长、**Motion contrast** 和 **Pitch reactive** 都会让它变小；每秒低于大约 8 帧时，Record 组会显示 “Too slow for a smooth video: try fewer effects or a shorter text.”（太慢，视频不会流畅：试试少开几个效果或缩短文字）。关掉一些 Experimental 效果、换一段更短的文字，或者调低 Motion contrast 和 Pitch reactive，然后重新录制。字母静止时视频会保持画面：这不是故障。
 
 **为什么得到的是 WebM 文件，而不是 MP4？**
 不是每个浏览器都能写 MP4。你的浏览器不能写时，程序会改存为 WebM，并显示 “MP4 isn't supported in this browser: saved as WebM.”；这时 **Format** 列表里的 MP4 会标着 “(not supported in this browser)”。WebM 可以在网页浏览器和 VLC 这类播放器里播放。如果一定要 MP4，换一个浏览器录制（比如新版的 Chrome 或 Edge），或者用视频转换工具转换。有些播放器不显示 WebM 文件的总时长；视频本身是完整的。

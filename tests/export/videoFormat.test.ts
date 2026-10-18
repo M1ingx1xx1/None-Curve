@@ -15,7 +15,6 @@ import {
   videoFileName,
   videoMimeCandidates,
   videoSize,
-  videoFps,
   videoSupport,
 } from '../../src/export/videoFormat'
 
@@ -133,13 +132,9 @@ describe('video bitrate, delay, name and clock', () => {
     expect((videoBitrate(3840, 2160, 60) * VIDEO_LIMITS.maxMs) / 8000).toBeLessThanOrEqual(900_000_000)
   })
 
-  it('offers 24 to 60 fps, 30 by default, and reads anything else as the default', () => {
+  it('offers 24 to 60 fps, 30 by default', () => {
     expect(VIDEO_FPS).toEqual([24, 25, 30, 50, 60])
     expect(DEFAULT_VIDEO_FPS).toBe(30)
-    expect(videoFps(60)).toBe(60)
-    expect(videoFps(undefined)).toBe(30)
-    expect(videoFps(29.97)).toBe(30)
-    expect(videoFps('60')).toBe(30)
   })
 
   it('delays the audio by the live latency plus the analysis lag', () => {

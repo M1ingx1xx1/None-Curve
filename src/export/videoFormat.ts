@@ -26,6 +26,8 @@ export const VIDEO_LIMITS = {
   /**
    * Video bitrate: bits per second for each pixel of the frame at referenceFps (0.15 bits per pixel per frame),
    * scaled with the frame rate and kept within min and max (12 Mbps is about 0.9 GB in 10 minutes, at any rate).
+   * The max wins from about 1080p at 30 fps up (9.3 Mbps there), so a large 50 or 60 fps video gets about as many
+   * bits a second as at 30 and fewer bits per frame.
    */
   bitsPerPixel: 4.5,
   referenceFps: 30,
@@ -125,7 +127,10 @@ function positive(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 1
 }
 
-/** Video bits per second for a frame size and rate (30 fps when not given), within VIDEO_LIMITS' min and max. */
+/**
+ * Video bits per second for a frame size and rate (30 fps when not given), within VIDEO_LIMITS' min and max: it
+ * follows the rate only below the max, which large sizes reach already at 30 fps.
+ */
 export function videoBitrate(width: number, height: number, fps: number = VIDEO_LIMITS.referenceFps): number {
   const bits = Math.round(positive(width) * positive(height) * VIDEO_LIMITS.bitsPerPixel * (positive(fps) / VIDEO_LIMITS.referenceFps))
   return Math.min(VIDEO_LIMITS.maxBitrate, Math.max(VIDEO_LIMITS.minBitrate, bits))
@@ -140,11 +145,6 @@ export function recordDelayMs(latencyMs: number | null, fps?: number): number {
   const frame = fps !== undefined && Number.isFinite(fps) && fps > 0 ? 500 / fps : 0
   const base = latencyMs === null || !Number.isFinite(latencyMs) ? VIDEO_LIMITS.defaultDelayMs - VIDEO_LIMITS.lagMs : latencyMs
   return Math.min(VIDEO_LIMITS.maxDelayMs, Math.max(VIDEO_LIMITS.minDelayMs, Math.round(base + VIDEO_LIMITS.lagMs + frame)))
-}
-
-/** A frame rate from the list, or the default for anything else (an older or unknown value). */
-export function videoFps(value: unknown): VideoFps {
-  return VIDEO_FPS.find((fps) => fps === value) ?? DEFAULT_VIDEO_FPS
 }
 
 /** "Family-Style-video.mp4", or "-video-preview" with the preview's look. */

@@ -146,9 +146,10 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           ))}
         </div>
         <HintText hint={fpsHint}>
-          Frames per second in the video, steady for the whole take: when the letters have not changed, the last frame
-          repeats. The letters move up to {LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit editors that
-          expect those rates; they make larger files.
+          About this many frames per second in the video: when the letters have not changed, the last frame repeats.
+          The browser writes a variable-rate file, and a rate as high as the screen refresh (60 on a 60 Hz screen) may
+          drop some frames. The letters move up to {LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit
+          editors that expect those rates; they make larger files.
         </HintText>
       </div>
 
