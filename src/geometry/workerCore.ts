@@ -34,10 +34,12 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
     // Live frames (parameters Sound is driving) use the live cache; the flag goes back with the results.
     const live = request.live === true
     let batch: GlyphResult[] = []
+    let times: number[] = []
     let started = performance.now()
     const flush = (key: string) => {
-      if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}) })
+      if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}), times })
       batch = []
+      times = []
     }
     for (const { params, key, indices } of request.jobs) {
       for (const index of indices) {
@@ -47,12 +49,14 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
           return post({ type: 'done', requestId, stopped: true })
         }
         post({ type: 'glyph', requestId, key, index })
+        const begun = performance.now()
         try {
           const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, live)
           batch.push({ index, geometry })
         } catch (error) {
           batch.push({ index, error: errorText(error) })
         }
+        times.push(performance.now() - begun)
         if (performance.now() - started > BATCH_MS) {
           flush(key)
           // Let newer requests and cancels in before going on.

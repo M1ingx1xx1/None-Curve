@@ -1,13 +1,18 @@
-// The page's side of the geometry worker: sends it the font and the glyphs to compute, keeps the
+// The page's side of the geometry workers: sends them the font and the glyphs to compute, keeps the
 // results, and tells React when new ones arrive. Live frames (parameters Sound is driving) keep their
 // results apart, so a song does not push out the results of normal editing, and reach React only when
 // complete, so each live frame appears whole (SOUND_PLAN §2). A live frame whose letters react by
 // different amounts asks for several parameter sets in one request (jobs).
 //
-// Glyphs are computed only in the worker, never on the page. Every request ends with an answer; a
-// worker that falls silent is restarted, and the glyph it was stuck on is marked failed so the rest of
-// the text goes on. If the worker cannot start, cannot open the font, or keeps failing, the glyphs fail
-// and the canvas says why (getProblem).
+// There is a pool of workers (2 to 4, by the number of cores: poolSize), and each request is shared out
+// among them, glyph by glyph: a glyph keeps going to the same worker (whose cache knows it) unless that
+// worker has more than its share of the request, and the share is weighed by how long each glyph took
+// before. A request is one request to its asker: it ends when every worker's part has ended.
+//
+// Glyphs are computed only in the workers, never on the page. Every request ends with an answer; a
+// worker that falls silent is restarted on its own, and the glyph it was stuck on is marked failed so the
+// rest of the text goes on. If no worker can start, cannot open the font, or keeps failing, the glyphs
+// fail and the canvas says why (getProblem).
 
 import { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import type { LoadedFont } from '../font/model'
@@ -45,7 +50,7 @@ const NOTIFY_MS = 50
  * leaves room for slow machines and for opening a large font, so only a fault gets here.
  */
 const WATCHDOG_MS = 60_000
-/** More than this many restarts within RESTART_WINDOW_MS and geometry stops until the next font. */
+/** A worker restarted more than this many times within RESTART_WINDOW_MS leaves the pool until the next font; geometry stops when none is left. */
 const MAX_RESTARTS = 3
 const RESTART_WINDOW_MS = 60_000
 /**
@@ -53,10 +58,19 @@ const RESTART_WINDOW_MS = 60_000
  * replaced at once instead of finishing it (never for a live frame).
  */
 const PREEMPT_MS = 750
-/** At most one such replacement this often: each one opens the font again and starts from an empty cache. */
+/** At most one such replacement of a worker this often: each one opens the font again and starts from an empty cache. */
 const PREEMPT_GAP_MS = 2000
 /** Requests remembered by id, so the glyph a silent worker is stuck on can be blamed after its request was superseded. */
 const REMEMBERED_REQUESTS = 8
+/** Most workers in the pool: past four, a frame's few dozen distinct glyphs gain little, and each worker holds its own copy of the font. */
+const MAX_WORKERS = 4
+/**
+ * How far past an even share of a request a worker may be loaded with glyphs it computed before (so its cache
+ * knows them) before they go to the least loaded worker instead.
+ */
+const SHARE_SLACK = 0.1
+/** How much a glyph's newest time counts in its estimate (the rest is its earlier estimate). */
+const COST_WEIGHT = 0.5
 
 const CANNOT_START = 'The geometry worker could not start. Reload the page to try again.'
 
@@ -68,16 +82,43 @@ type ComputeRequest = Extract<WorkerRequest, { type: 'compute' }>
  */
 type Origin = 'canvas' | 'prefetch' | 'export'
 
+/** One worker of the pool, and what the page knows of it. */
+interface Slot {
+  worker: Worker | null
+  /** When the worker last sent anything (or started). */
+  lastHeard: number
+  /** The glyph (and its settings) the worker said it started, while nothing has been heard since. */
+  current: { requestId: number; key: string; index: number; at: number } | null
+  /** When the worker was last replaced for superseded settings (PREEMPT_GAP_MS). */
+  lastReplaced: number
+  /** When the worker was restarted after a fault, within the last RESTART_WINDOW_MS. */
+  restarts: number[]
+  /** The font was sent again after the worker said it did not have it (once per font). */
+  resentFont: boolean
+  /** Out of the pool until the next font: it could not start, or kept failing. */
+  retired: boolean
+}
+
+/** A worker's share of a request: its glyphs, by parameter set, in the request's order. */
+interface Part {
+  request: ComputeRequest
+  /** True until the worker ends it ('done', 'failed', or a restart). */
+  pending: boolean
+}
+
 interface InFlight {
   id: number
-  /** The glyphs on their way, by parameter set. */
+  /** The glyphs on their way, by parameter set (a worker's glyphs leave when it is restarted). */
   pairs: Map<string, Set<number>>
   /** The first parameter set asked for (see RequestInfo.primary). */
   primary: string | undefined
   live: boolean
   origin: Origin
   sentAt: number
-  request: ComputeRequest
+  /** Each worker's part. */
+  parts: Map<Slot, Part>
+  /** A worker's part ended without its glyphs (restarted, or no font): the end must reach React, which asks again. */
+  broken: boolean
 }
 
 /** What is remembered of a request: whether it was live, and the first parameter set its asker wanted. */
@@ -91,16 +132,28 @@ interface RequestInfo {
 }
 
 export interface GeometryClientOptions {
-  /** Starts a worker; throws where workers cannot start. */
+  /** Starts a worker (called once per worker of the pool); throws where workers cannot start. */
   createWorker?: () => Worker
+  /** Workers in the pool (poolSize() if not given); with 1, every request goes to one worker. */
+  workers?: number
   /** Silence after which a busy worker counts as stuck (ms). */
   watchdogMs?: number
 }
 
 const startGeometryWorker = () => new Worker(new URL('../geometry/geometry.worker.ts', import.meta.url), { type: 'module' })
 
+/**
+ * Workers in the pool for this many logical cores: one fewer than the cores, so the page's own thread (React,
+ * Sound's analysis) keeps one, but at least two (a dual core still computes on both while the page waits for a
+ * frame) and at most MAX_WORKERS.
+ */
+export function poolSize(cores = typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency): number {
+  const n = Number.isFinite(cores) && cores! > 0 ? Math.floor(cores!) - 1 : 2
+  return Math.min(MAX_WORKERS, Math.max(2, n))
+}
+
 export class GeometryClient {
-  private worker: Worker | null = null
+  private readonly slots: Slot[]
   private readonly createWorker: () => Worker
   private readonly watchdogMs: number
   private font: LoadedFont | null = null
@@ -120,18 +173,12 @@ export class GeometryClient {
   private shown: { font: LoadedFont; indices: readonly number[] } | null = null
   /** How many parameter sets the latest live requests asked for (LIVE_ASKS of them), newest last. */
   private liveSets: number[] = []
+  /** The worker each glyph went to last (its cache knows the glyph), for this font. */
+  private homes = new Map<number, Slot>()
+  /** How long each glyph took in a worker lately (ms), for this font: requests are shared out by it. */
+  private costs = new Map<number, number>()
 
-  /** When the worker last sent anything (or started). */
-  private lastHeard = 0
-  /** The glyph (and its settings) the worker said it started, while nothing has been heard since. */
-  private current: { requestId: number; key: string; index: number; at: number } | null = null
   private watchdog: ReturnType<typeof setTimeout> | null = null
-  /** When the worker was last replaced for superseded settings (PREEMPT_GAP_MS). */
-  private lastReplaced = -Infinity
-  /** When the worker was restarted after a fault, within the last RESTART_WINDOW_MS. */
-  private restarts: number[] = []
-  /** The font was sent again after the worker said it did not have it (once per font). */
-  private resentFont = false
   /** Why geometry stopped for good (until the next font), or null. */
   private stopped: string | null = null
   /** Why the worker cannot open a font. */
@@ -140,6 +187,16 @@ export class GeometryClient {
   constructor(options: GeometryClientOptions = {}) {
     this.createWorker = options.createWorker ?? startGeometryWorker
     this.watchdogMs = options.watchdogMs ?? WATCHDOG_MS
+    const size = Math.max(1, Math.floor(options.workers ?? poolSize()))
+    this.slots = Array.from({ length: size }, () => ({
+      worker: null,
+      lastHeard: 0,
+      current: null,
+      lastReplaced: -Infinity,
+      restarts: [],
+      resentFont: false,
+      retired: false,
+    }))
   }
 
   subscribe = (listener: () => void) => {
@@ -155,12 +212,12 @@ export class GeometryClient {
     return this.fontProblem && this.fontProblem.fontId === this.fontId ? this.fontProblem.message : null
   }
 
-  /** True while a compute request is on its way in the worker (the live scheduler sends one at a time). */
+  /** True while a compute request is on its way in the workers (the live scheduler sends one at a time). */
   isComputing(): boolean {
     return this.inFlight !== null
   }
 
-  /** Calls `listener` whenever the request in flight ends (answered, cancelled, or the worker restarted); returns the unsubscribe function. */
+  /** Calls `listener` whenever the request in flight ends (answered, cancelled, or the workers restarted); returns the unsubscribe function. */
   subscribeIdle(listener: () => void): () => void {
     this.idleListeners.add(listener)
     return () => {
@@ -231,7 +288,7 @@ export class GeometryClient {
 
   /**
    * Polygons for an export: resolves once every one of these glyphs has a result under these settings,
-   * asking the worker for those still missing (never computing on the page). Rejects when `signal` aborts.
+   * asking the workers for those still missing (never computing on the page). Rejects when `signal` aborts.
    */
   ensure(font: LoadedFont, params: GeometryParams, key: string, indices: readonly number[], signal?: AbortSignal): Promise<PolygonLookup> {
     return new Promise((resolve, reject) => {
@@ -239,7 +296,7 @@ export class GeometryClient {
       const check = () => {
         if (signal?.aborted) {
           end(() => reject(signal.reason))
-          // Nobody wants these glyphs now: the worker stops on them (between glyphs).
+          // Nobody wants these glyphs now: the workers stop on them (between glyphs).
           if (this.inFlight?.origin === 'export') this.cancel()
           return
         }
@@ -319,209 +376,319 @@ export class GeometryClient {
       return true
     }
     const needed: GeometryJob[] = [...missing].map(([key, { params, indices }]) => ({ params, key, indices: [...indices] }))
-    if (!live && this.stuckElsewhere(needed)) this.replaceWorker()
-    this.startWorker()
-    const problem = this.getProblem()
-    if (problem) {
-      // No page-side computing: the glyphs fail (canvas, preview and exports alike) and the canvas says why.
-      for (const { key, indices } of needed) for (const i of indices) this.store(key, i, { error: problem, transient: true }, live)
-      if (origin !== 'prefetch') this.notify()
-      return false
+    this.startWorkers()
+    if (!this.getProblem() && this.request(needed, live, origin, primary)) return true
+    // No page-side computing: the glyphs fail (canvas, preview and exports alike) and the canvas says why.
+    const problem = this.getProblem() ?? CANNOT_START
+    for (const { key, indices } of needed) for (const i of indices) this.store(key, i, { error: problem, transient: true }, live)
+    if (origin !== 'prefetch') this.notify()
+    return false
+  }
+
+  /**
+   * Shares the jobs out among the workers and sends each its part; the request in flight before is superseded.
+   * False when no worker is left to send it to.
+   */
+  private request(jobs: GeometryJob[], live: boolean, origin: Origin, primary: string | undefined): boolean {
+    const font = this.font!
+    const running = () => this.slots.filter((slot) => slot.worker)
+    let shares = this.share(jobs, running())
+    // A worker busy with a glyph its new part does not need is replaced (static settings only).
+    if (!live) for (const slot of this.slots) if (this.stuckElsewhere(slot, shares.get(slot) ?? [])) this.replaceWorker(slot)
+    // A worker that could not start again leaves its part to the others.
+    if ([...shares.keys()].some((slot) => !slot.worker)) shares = this.share(jobs, running())
+    if (!shares.size) return false
+    const id = this.nextId++
+    const previous = this.inFlight
+    const parts = new Map<Slot, Part>()
+    for (const [slot, part] of shares) {
+      parts.set(slot, { request: { type: 'compute', requestId: id, fontId: font.id, jobs: part, ...(live ? { live } : {}) }, pending: true })
     }
-    this.request(font, needed, live, origin, primary)
+    const pairs = new Map(jobs.map((job) => [job.key, new Set(job.indices)]))
+    this.inFlight = { id, pairs, primary, live, origin, sentAt: performance.now(), parts, broken: false }
+    this.requests.set(id, { live, primary })
+    while (this.requests.size > REMEMBERED_REQUESTS) this.requests.delete(this.requests.keys().next().value!)
+    // A worker's new part stops its old one; a worker without one is told to stop.
+    for (const [slot, part] of previous?.parts ?? []) {
+      if (part.pending && !parts.has(slot)) this.send(slot, { type: 'cancel', requestId: previous!.id })
+    }
+    for (const [slot, part] of parts) this.send(slot, part.request)
+    this.armWatchdog(this.watchdogMs)
     return true
   }
 
-  private request(font: LoadedFont, jobs: GeometryJob[], live: boolean, origin: Origin, primary: string | undefined) {
-    const id = this.nextId++
-    const request: ComputeRequest = { type: 'compute', requestId: id, fontId: font.id, jobs, ...(live ? { live } : {}) }
-    const pairs = new Map(jobs.map((job) => [job.key, new Set(job.indices)]))
-    this.inFlight = { id, pairs, primary, live, origin, sentAt: performance.now(), request }
-    this.requests.set(id, { live, primary })
-    while (this.requests.size > REMEMBERED_REQUESTS) this.requests.delete(this.requests.keys().next().value!)
-    this.send(request)
-    this.armWatchdog(this.watchdogMs)
+  /**
+   * Each worker's part of these jobs: every glyph (under all its parameter sets) to one worker, in the jobs' order.
+   * Heaviest first, a glyph goes back to the worker it went to last while that worker stays within an even share of
+   * the request (by each glyph's recent time, SHARE_SLACK over), else to the least loaded worker.
+   */
+  private share(jobs: GeometryJob[], slots: Slot[]): Map<Slot, GeometryJob[]> {
+    if (slots.length <= 1) return new Map(slots.map((slot) => [slot, jobs]))
+    // Every glyph's estimated time in this request (under all its sets); a glyph never timed counts as the mean.
+    const known = [...this.costs.values()]
+    const fallback = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 1
+    const weights = new Map<number, number>()
+    for (const { indices } of jobs) for (const i of indices) weights.set(i, (weights.get(i) ?? 0) + (this.costs.get(i) ?? fallback))
+    const order = [...weights].sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    const total = order.reduce((sum, [, w]) => sum + w, 0)
+    const cap = Math.max((total / slots.length) * (1 + SHARE_SLACK), order[0][1])
+    const load = new Map(slots.map((slot) => [slot, 0]))
+    const owner = new Map<number, Slot>()
+    for (const [index, weight] of order) {
+      const home = this.homes.get(index)
+      let slot = home !== undefined && load.has(home) && load.get(home)! + weight <= cap ? home : undefined
+      if (!slot) slot = slots.reduce((a, b) => (load.get(b)! < load.get(a)! ? b : a))
+      load.set(slot, load.get(slot)! + weight)
+      owner.set(index, slot)
+      this.homes.set(index, slot)
+    }
+    const shares = new Map<Slot, GeometryJob[]>()
+    for (const slot of slots) {
+      const part = jobs
+        .map((job) => ({ ...job, indices: job.indices.filter((i) => owner.get(i) === slot) }))
+        .filter((job) => job.indices.length)
+      if (part.length) shares.set(slot, part)
+    }
+    return shares
   }
 
-  /** Stops the request in flight (between glyphs, in the worker) and tells the idle listeners. */
+  /** Stops the request in flight (between glyphs, in the workers) and tells the idle listeners. */
   private cancel() {
-    if (!this.inFlight) return
-    this.send({ type: 'cancel', requestId: this.inFlight.id })
+    const inFlight = this.inFlight
+    if (!inFlight) return
+    this.stopParts(inFlight)
     this.inFlight = null
     this.idle()
   }
 
+  /** Tells every worker still on a part of this request to stop. */
+  private stopParts(inFlight: InFlight) {
+    for (const [slot, part] of inFlight.parts) if (part.pending) this.send(slot, { type: 'cancel', requestId: inFlight.id })
+  }
+
   /**
-   * True when the worker has been in one glyph for PREEMPT_MS that these settings do not need (the
-   * glyph of superseded settings): replacing the worker is quicker than waiting for it.
+   * True when the worker has been in one glyph for PREEMPT_MS that its new part does not need (the glyph of
+   * superseded settings): replacing the worker is quicker than waiting for it.
    */
-  private stuckElsewhere(jobs: readonly GeometryJob[]): boolean {
-    const current = this.current
+  private stuckElsewhere(slot: Slot, jobs: readonly GeometryJob[]): boolean {
+    const current = slot.current
     const now = performance.now()
-    if (!this.worker || !current || now - current.at < PREEMPT_MS || now - this.lastReplaced < PREEMPT_GAP_MS) return false
+    if (!slot.worker || !current || now - current.at < PREEMPT_MS || now - slot.lastReplaced < PREEMPT_GAP_MS) return false
     return !jobs.some(({ key, indices }) => key === current.key && indices.includes(current.index))
   }
 
   private useFont(font: LoadedFont) {
     if (this.fontId === font.id) return
     const inFlight = this.inFlight
-    if (inFlight) this.send({ type: 'cancel', requestId: inFlight.id })
+    if (inFlight) this.stopParts(inFlight)
     this.inFlight = null
     this.font = font
     this.fontId = font.id
     this.byKey.clear()
     this.liveByKey.clear()
     this.latest.clear()
-    this.resentFont = false
-    // A new font is a fresh start after geometry stopped.
+    this.homes.clear()
+    this.costs.clear()
+    // A new font is a fresh start after geometry stopped: every worker is back in the pool.
     this.stopped = null
-    this.restarts = []
-    if (this.worker) this.sendFont()
-    else this.startWorker()
+    for (const slot of this.slots) {
+      slot.resentFont = false
+      slot.restarts = []
+      slot.retired = false
+      if (slot.worker) this.sendFont(slot)
+    }
+    this.startWorkers()
     // After the request that asked for this font is on its way (an idle listener may ask for glyphs itself).
     if (inFlight) queueMicrotask(() => this.idle())
   }
 
-  private sendFont() {
+  private sendFont(slot: Slot) {
     const font = this.font
-    if (font) this.send({ type: 'font', fontId: font.id, bytes: font.bytes, source: font.source })
+    if (font) this.send(slot, { type: 'font', fontId: font.id, bytes: font.bytes, source: font.source })
   }
 
-  /** Starts a worker if there is none (and sends it the font); null when geometry stopped or no worker can start. */
-  private startWorker(): Worker | null {
-    if (this.worker || this.stopped) return this.worker
+  /** Starts the workers missing from the pool (and sends them the font), unless geometry stopped. */
+  private startWorkers() {
+    if (this.stopped) return
+    for (const slot of this.slots) if (!slot.worker && !slot.retired) this.startWorker(slot)
+  }
+
+  /** Starts this worker; a worker that cannot start leaves the pool, and with none left geometry stops. */
+  private startWorker(slot: Slot) {
     let worker: Worker
     try {
       worker = this.createWorker()
     } catch {
-      this.stopped = CANNOT_START
-      return null
+      this.retire(slot, CANNOT_START)
+      return
     }
     // Messages a replaced worker sent before it was stopped are ignored.
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-      if (this.worker === worker) this.receive(event.data)
+      if (slot.worker === worker) this.receive(slot, event.data)
     }
     worker.onerror = (event) => {
       event.preventDefault()
-      if (this.worker === worker) this.restart('kept failing')
+      if (slot.worker === worker) this.restart(slot, 'kept failing')
     }
     worker.onmessageerror = () => {
-      if (this.worker === worker) this.restart('kept failing')
+      if (slot.worker === worker) this.restart(slot, 'kept failing')
     }
-    this.worker = worker
-    this.lastHeard = performance.now()
-    this.sendFont()
-    return worker
+    slot.worker = worker
+    slot.lastHeard = performance.now()
+    this.sendFont(slot)
+  }
+
+  /** Takes the worker out of the pool until the next font; with none left, geometry stops for this reason. */
+  private retire(slot: Slot, problem: string) {
+    slot.retired = true
+    if (this.slots.every((s) => s.retired)) this.stopped = problem
   }
 
   /** A new worker in place of one busy with a glyph nobody needs (not a fault: no restart is counted). */
-  private replaceWorker() {
-    this.lastReplaced = performance.now()
-    this.worker?.terminate()
-    this.worker = null
-    this.current = null
-    this.startWorker()
+  private replaceWorker(slot: Slot) {
+    slot.lastReplaced = performance.now()
+    slot.worker?.terminate()
+    slot.worker = null
+    slot.current = null
+    slot.resentFont = false
+    this.startWorker(slot)
   }
 
   /**
-   * After a fault: a new worker, unless there were too many lately. What was on its way is asked for
-   * again by the next render (useGlyphGeometry's `version`), by the live scheduler, or by an export.
+   * After a fault: a new worker in this one's place, unless it was restarted too often lately. Its part of the
+   * request in flight ends; the other workers go on, and once all have ended, what this one did not send is asked
+   * for again by the next render (useGlyphGeometry's `version`), by the live scheduler, or by an export.
    */
-  private restart(what: string) {
-    this.worker?.terminate()
-    this.worker = null
-    this.inFlight = null
-    this.current = null
+  private restart(slot: Slot, what: string) {
+    slot.worker?.terminate()
+    slot.worker = null
+    slot.current = null
     const now = performance.now()
-    this.restarts = this.restarts.filter((t) => now - t < RESTART_WINDOW_MS)
-    this.restarts.push(now)
-    if (this.restarts.length > MAX_RESTARTS) this.stopped = `The geometry worker ${what}. Reload the page to try again.`
-    else this.startWorker()
-    this.notifyNow()
+    slot.restarts = slot.restarts.filter((t) => now - t < RESTART_WINDOW_MS)
+    slot.restarts.push(now)
+    if (slot.restarts.length > MAX_RESTARTS) this.retire(slot, `The geometry worker ${what}. Reload the page to try again.`)
+    else this.startWorker(slot)
+    const inFlight = this.inFlight
+    const part = inFlight?.parts.get(slot)
+    if (inFlight && part?.pending) this.endPart(inFlight, part)
+    else if (!inFlight) {
+      this.notifyNow()
+      this.idle()
+    }
+  }
+
+  /** A worker's part ended without all its glyphs: they are no longer on their way, and the request may be over. */
+  private endPart(inFlight: InFlight, part: Part) {
+    part.pending = false
+    inFlight.broken = true
+    for (const { key, indices } of part.request.jobs) for (const i of indices) inFlight.pairs.get(key)?.delete(i)
+    this.endIfComplete(inFlight)
+  }
+
+  /** Ends the request once every worker's part has ended. */
+  private endIfComplete(inFlight: InFlight) {
+    if (this.inFlight !== inFlight) return
+    for (const part of inFlight.parts.values()) if (part.pending) return
+    this.inFlight = null
+    // A live frame is complete: show it now, whole (its results were held back until now). A prefetched frame is
+    // not shown yet: the live scheduler commits it when it hears it is idle. A request a worker did not finish is
+    // shown at once, so the canvas asks again for what is missing.
+    if (inFlight.broken || (inFlight.live && inFlight.origin !== 'prefetch')) this.notifyNow()
     this.idle()
   }
 
-  /** One timer, re-armed lazily: when it fires, a request still in flight after watchdogMs of silence restarts the worker. */
+  /** One timer, re-armed lazily: when it fires, a worker on a part of the request in flight after watchdogMs of silence is restarted. */
   private armWatchdog(ms: number) {
     if (this.watchdog !== null) return
     this.watchdog = setTimeout(() => {
       this.watchdog = null
       const inFlight = this.inFlight
-      if (!inFlight || !this.worker) return
-      const silent = performance.now() - Math.max(this.lastHeard, inFlight.sentAt)
-      if (silent < this.watchdogMs) return this.armWatchdog(this.watchdogMs - silent)
-      // Blame the glyph the worker said it started, so asking again does not get stuck again.
-      const current = this.current
-      const blamed = current && this.requests.get(current.requestId)
-      if (current && blamed) {
-        this.store(current.key, current.index, { error: `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings` }, blamed.live)
+      if (!inFlight) return
+      let wait = Infinity
+      for (const [slot, part] of inFlight.parts) {
+        if (!part.pending || !slot.worker) continue
+        const silent = performance.now() - Math.max(slot.lastHeard, inFlight.sentAt)
+        if (silent < this.watchdogMs) {
+          wait = Math.min(wait, this.watchdogMs - silent)
+          continue
+        }
+        // Blame the glyph the worker said it started, so asking again does not get stuck again.
+        const current = slot.current
+        const blamed = current && this.requests.get(current.requestId)
+        if (current && blamed) {
+          this.store(current.key, current.index, { error: `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings` }, blamed.live)
+        }
+        this.restart(slot, 'stopped responding')
       }
-      this.restart('stopped responding')
+      if (wait < Infinity && this.inFlight === inFlight) this.armWatchdog(wait)
     }, ms)
   }
 
-  private send(message: WorkerRequest) {
-    this.worker?.postMessage(message)
+  private send(slot: Slot, message: WorkerRequest) {
+    slot.worker?.postMessage(message)
   }
 
-  private receive(message: WorkerResponse) {
+  private receive(slot: Slot, message: WorkerResponse) {
     const now = performance.now()
-    this.lastHeard = now
+    slot.lastHeard = now
     if (message.type === 'glyph') {
-      this.current = { requestId: message.requestId, key: message.key, index: message.index, at: now }
+      slot.current = { requestId: message.requestId, key: message.key, index: message.index, at: now }
       return
     }
-    if (message.type !== 'font-error') this.current = null
+    if (message.type !== 'font-error') slot.current = null
     if (message.type === 'results') {
       if (message.fontId !== this.fontId) return
       // A live frame's quiet and strong levels are not what a glyph shows everywhere: they never stand in for it.
       const asked = this.requests.get(message.requestId)
       const standsIn = !asked || asked.primary === undefined || message.key === asked.primary
-      for (const result of message.results) {
+      message.results.forEach((result, n) => {
         const entry: GeometryEntry = 'error' in result ? { error: result.error } : { geometry: result.geometry }
         this.store(message.key, result.index, entry, message.live === true, standsIn)
-      }
-      // Live results wait for their frame's 'done', so each live frame appears whole (SOUND_PLAN §2).
+        const ms = message.times?.[n]
+        if (ms !== undefined) {
+          const before = this.costs.get(result.index)
+          this.costs.set(result.index, before === undefined ? ms : before + COST_WEIGHT * (ms - before))
+        }
+      })
+      // Live results wait for their frame's end, so each live frame appears whole (SOUND_PLAN §2).
       if (!message.live) this.notifySoon()
     } else if (message.type === 'done') {
       const inFlight = this.inFlight
-      if (inFlight?.id !== message.requestId) return
-      this.inFlight = null
-      // A live frame is complete: show it now, whole (its results were held back until now). A prefetched
-      // frame is not shown yet: the live scheduler commits it when it hears it is idle.
-      if (inFlight.live && inFlight.origin !== 'prefetch') this.notifyNow()
-      this.idle()
+      const part = inFlight?.parts.get(slot)
+      if (inFlight?.id !== message.requestId || !part) return
+      part.pending = false
+      this.endIfComplete(inFlight)
     } else if (message.type === 'failed') {
-      this.failed(message.requestId, message.reason, message.message)
+      this.failed(slot, message.requestId, message.reason, message.message)
     } else if (message.fontId === this.fontId) {
       this.fontProblem = { fontId: message.fontId, message: `The geometry worker could not open this font (${message.message}).` }
       this.notify()
     }
   }
 
-  private failed(requestId: number, reason: Extract<WorkerResponse, { type: 'failed' }>['reason'], message: string) {
+  private failed(slot: Slot, requestId: number, reason: Extract<WorkerResponse, { type: 'failed' }>['reason'], message: string) {
     const inFlight = this.inFlight
-    if (inFlight?.id !== requestId) return
-    if (reason === 'no-font' && !this.resentFont && this.font) {
-      // The worker does not have the font (it was dropped, or never arrived): send it again and repeat the request, once.
-      this.resentFont = true
-      this.sendFont()
-      this.request(this.font, inFlight.request.jobs, inFlight.live, inFlight.origin, inFlight.primary)
+    const part = inFlight?.parts.get(slot)
+    if (!inFlight || inFlight.id !== requestId || !part?.pending) return
+    if (reason === 'no-font' && !slot.resentFont && this.font) {
+      // The worker does not have the font (it was dropped, or never arrived): send it again and repeat its part, once.
+      slot.resentFont = true
+      this.sendFont(slot)
+      this.send(slot, part.request)
       return
     }
     if (reason === 'font') {
       const problem = `The geometry worker could not open this font (${message}).`
-      this.fontProblem = { fontId: inFlight.request.fontId, message: problem }
-      this.inFlight = null
-      for (const [key, indices] of inFlight.pairs) {
+      this.fontProblem = { fontId: part.request.fontId, message: problem }
+      for (const { key, indices } of part.request.jobs) {
         for (const i of indices) if (!this.entry(key, i)) this.store(key, i, { error: problem, transient: true }, inFlight.live)
       }
-      this.notifyNow()
-      this.idle()
+      this.endPart(inFlight, part)
       return
     }
-    this.restart('kept failing')
+    this.restart(slot, 'kept failing')
   }
+
 
   /** Keeps a result; `standsIn`: it also becomes the glyph's newest result, shown while other settings are computed. */
   private store(key: string, index: number, entry: GeometryEntry, live = false, standsIn = true) {

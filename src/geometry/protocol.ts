@@ -26,8 +26,12 @@ export type GlyphResult = { index: number; geometry: WorkerGeometry } | { index:
 export type FailureReason = 'no-font' | 'font' | 'internal'
 
 export type WorkerResponse =
-  /** One job's glyphs (every message holds one `key`). `live` repeats the request's flag, so the page keeps live results apart too. */
-  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[]; live?: boolean }
+  /**
+   * One job's glyphs (every message holds one `key`). `live` repeats the request's flag, so the page keeps live results
+   * apart too. `times`: how long each result took (ms, in the same order), so the page can share the next request
+   * out evenly among its workers.
+   */
+  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[]; live?: boolean; times?: number[] }
   /**
    * Sent before each glyph: the page's watchdog hears the worker is alive, and knows which glyph (under
    * which settings) to blame if it falls silent.
