@@ -90,6 +90,7 @@ export default function TextTools({ typography, palette, livePalette, artboard, 
             }}
             type="button"
             role="tab"
+            data-map-tab={t.id}
             id={`${ids}-${t.id}-tab`}
             aria-selected={tab === t.id}
             aria-controls={`${ids}-${t.id}-panel`}

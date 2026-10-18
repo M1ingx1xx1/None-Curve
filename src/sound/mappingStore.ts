@@ -5,7 +5,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { undoHistory } from '../state/history'
-import { clampShaping, shapingOf, type FeatureId, type Mapping, type Shaping } from './mapping'
+import { clampShaping, shapingOf, targetById, type FeatureId, type Mapping, type Shaping } from './mapping'
 import { clampResponse, DEFAULT_RESPONSE, type ResponseSettings } from './types'
 
 export const MAPPING_LIMITS = {
@@ -66,6 +66,22 @@ class MappingStore {
     undoHistory.record(null)
     this.set({ mappings: [...this.state.mappings, { id, enabled: true, feature, target, depth: clampDepth(depth) }] })
     return id
+  }
+
+  /**
+   * Maps `feature` to `target`, as a drop on a control does (drag to map): a new row, on, at `depth` (+50% by default)
+   * and in Toggle on a switch (a checkbox has no Follow), one undo step. A row that maps the same feature to the same
+   * target already is not doubled: its id comes back with `created` false. Null at the limit.
+   */
+  connect(feature: FeatureId, target: string, depth = 0.5): { id: string; created: boolean } | null {
+    const existing = this.state.mappings.find((m) => m.feature === feature && m.target === target)
+    if (existing) return { id: existing.id, created: false }
+    if (this.state.mappings.length >= MAPPING_LIMITS.maxMappings) return null
+    const id = `m${this.nextId++}`
+    const mode: Partial<Shaping> = targetById(target)?.kind === 'switch' ? { mode: 'toggle' } : {}
+    undoHistory.record(null)
+    this.set({ mappings: [...this.state.mappings, { id, enabled: true, feature, target, depth: clampDepth(depth), ...mode }] })
+    return { id, created: true }
   }
 
   /** Changes a mapping; Depth and the shaping fields are clamped to their limits (clampDepth, clampShaping). */
