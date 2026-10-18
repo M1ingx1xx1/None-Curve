@@ -864,7 +864,7 @@ SVG 文件可以用 Illustrator、Figma、Inkscape 或浏览器打开，里面�
 一个字母计算超过 60 秒，程序就会放弃它。这个字母不会出现在画布和导出里；导出字体时会把它列出来，原因是 “Took longer than 60 s; try lighter settings”（耗时超过 60 秒，请用轻一些的设置）。调低最重的那些设置（通常是 Experimental 效果，或很小的 **Anchor spacing**）。
 
 **画布上出现红色提示 “The geometry worker … Reload the page to try again.”**
-字母是由程序里一个叫 geometry worker（几何计算器）的部分在后台算出来的。如果它启动不了，或者接连好几次失败或没有响应，字母就再也画不出来了：请刷新页面。如果是某个很重的设置引起的，刷新后把它调低。“The geometry worker could not open this font” 表示读取这个字体文件来绘制时失败了；换一份这款字体的文件试试。
+字母是由程序里叫 geometry worker（几何计算器）的部分在后台算出来的，它有几个副本一起分担工作。如果它们一个都启动不了，或者一分钟内（合在一起算）好几次失败或没有响应，字母就再也画不出来了：请刷新页面。如果是某个很重的设置引起的，刷新后把它调低。“The geometry worker could not open this font” 表示读取这个字体文件来绘制时失败了；换一份这款字体的文件试试。
 
 **字母没有随音乐动起来。**
 在 Sound 标签页里检查：已经载入字体；文件正在播放（或麦克风正在收音）；**Drive letters** 已打开；**Strength**（在 **Response** 里）高于 0%（为 0% 时 Drive letters 下方会显示 “Strength is 0%: the letters hold still.”）；至少有一个映射是勾选的，并且 **Depth**（或 **Rate**）不是 0%。如果某行下方有灰色提示，点它旁边的 **Enable**——例如 “Turn on Crumple to hear this.” 表示 Crumple 效果是关闭的。如果电平表一直是空的，说明声音太小：调高 **Sensitivity**。程序只在它的标签页可见时才听声音：切换到另一个标签页、把窗口最小化或被其他窗口挡住时，字母不再跟随声音，回来后会接着跟随。

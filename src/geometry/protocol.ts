@@ -9,8 +9,11 @@ export type { GeometryJob } from './types'
 export type WorkerGeometry = Omit<DerivedGeometry, 'source'>
 
 export type WorkerRequest =
-  /** Opens a font in the worker; later requests refer to it by id. */
-  | { type: 'font'; fontId: string; bytes: Uint8Array; source: FontSource }
+  /**
+   * Opens a font in the worker; later requests refer to it by id. `workers`: how many workers the page shares glyphs
+   * among; each keeps that share of the glyph cache's limits, so the pool together holds what one worker did.
+   */
+  | { type: 'font'; fontId: string; bytes: Uint8Array; source: FontSource; workers?: number }
   /**
    * Computes these jobs' glyphs, job after job, in this order (a live frame whose letters show several
    * parameter sets is one request). A newer compute request stops this one between glyphs.
@@ -29,9 +32,9 @@ export type WorkerResponse =
   /**
    * One job's glyphs (every message holds one `key`). `live` repeats the request's flag, so the page keeps live results
    * apart too. `times`: how long each result took (ms, in the same order), so the page can share the next request
-   * out evenly among its workers.
+   * out evenly among its workers; null for a result the worker's cache already held (it says nothing of the glyph's cost).
    */
-  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[]; live?: boolean; times?: number[] }
+  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[]; live?: boolean; times?: (number | null)[] }
   /**
    * Sent before each glyph: the page's watchdog hears the worker is alive, and knows which glyph (under
    * which settings) to blame if it falls silent.
