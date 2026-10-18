@@ -11,6 +11,12 @@ interface GlyphLayersProps {
   markerRadius: number
   /** False when markers would be too small or too many to read; outlines are still drawn. */
   showMarkers: boolean
+  /**
+   * Ids of shared paths (SharedGlyphPaths) holding this glyph's outline and its font outline: the layers then draw
+   * them with <use> instead of path data of their own. `polygon` is then needed only for the vertex markers.
+   */
+  polygonHref?: string | null
+  sourceHref?: string
 }
 
 /** Vertex dots are this share of the marker radius: about 3 px across, small enough to tell crowded corners apart. */
@@ -20,9 +26,23 @@ const VERTEX_SCALE = 0.4
  * The outline layers of one glyph in its own font units (y up). The caller positions it and flips y.
  * Shared by the single-glyph inspector and the text specimen so both show the same layers.
  */
-function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers }: GlyphLayersProps) {
-  const path = useMemo(() => sourceGlyphToPath(source), [source])
-  const polygonPath = useMemo(() => (polygon ? polygonGlyphToPath(polygon) : ''), [polygon])
+function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, polygonHref, sourceHref }: GlyphLayersProps) {
+  const path = useMemo(() => (sourceHref ? '' : sourceGlyphToPath(source)), [source, sourceHref])
+  const polygonPath = useMemo(() => (polygon && polygonHref === undefined ? polygonGlyphToPath(polygon) : ''), [polygon, polygonHref])
+  const hasPolygon = polygonHref === undefined ? polygon !== null : polygonHref !== null
+  // An outline layer: the shared path when there is one, else this glyph's own path data.
+  const sourceLayer = (className: string, stroke: boolean) =>
+    sourceHref ? (
+      <use className={className} href={`#${sourceHref}`} />
+    ) : (
+      <path className={className} d={path} vectorEffect={stroke ? 'non-scaling-stroke' : undefined} />
+    )
+  const polygonLayer = (className: string, stroke: boolean) =>
+    polygonHref ? (
+      <use className={className} href={`#${polygonHref}`} />
+    ) : (
+      <path className={className} d={polygonPath} vectorEffect={stroke ? 'non-scaling-stroke' : undefined} />
+    )
   const skeleton = useMemo(() => (view.showSkeleton && showMarkers ? sourceGlyphSkeleton(source) : null), [source, view.showSkeleton, showMarkers])
   const vertices = useMemo(
     () => (view.showVertices && showMarkers ? (polygon?.contours.flatMap((c) => c.points) ?? []) : []),
@@ -32,29 +52,18 @@ function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers }: Gl
 
   return (
     <>
-      {outline === 'source' &&
-        (view.showFill ? (
-          <path className="glyph-fill" d={path} />
-        ) : (
-          <path className="outline-stroke" d={path} vectorEffect="non-scaling-stroke" />
-        ))}
-      {outline === 'flattened' &&
-        polygon &&
-        (view.showFill ? (
-          <path className="glyph-fill" d={polygonPath} />
-        ) : (
-          <path className="outline-stroke" d={polygonPath} vectorEffect="non-scaling-stroke" />
-        ))}
+      {outline === 'source' && (view.showFill ? sourceLayer('glyph-fill', false) : sourceLayer('outline-stroke', true))}
+      {outline === 'flattened' && hasPolygon && (view.showFill ? polygonLayer('glyph-fill', false) : polygonLayer('outline-stroke', true))}
       {outline === 'compare' && (
         <g className="compare">
-          {view.showFill && polygon && <path className="glyph-fill compare-fill" d={polygonPath} />}
-          {polygon && <path className="outline-stroke" d={polygonPath} vectorEffect="non-scaling-stroke" />}
-          <path className="compare-source" d={path} vectorEffect="non-scaling-stroke" />
+          {view.showFill && hasPolygon && polygonLayer('glyph-fill compare-fill', false)}
+          {hasPolygon && polygonLayer('outline-stroke', true)}
+          {sourceLayer('compare-source', true)}
         </g>
       )}
       {view.showSkeleton && (
         <g className="skeleton">
-          <path className="skeleton-outline" d={path} vectorEffect="non-scaling-stroke" />
+          {sourceLayer('skeleton-outline', true)}
           {skeleton?.handles.map(([a, b], i) => (
             <line key={i} className="skeleton-handle" x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke" />
           ))}
