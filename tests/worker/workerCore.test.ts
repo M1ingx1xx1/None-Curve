@@ -71,6 +71,20 @@ describe('geometry worker core', async () => {
     expect('geometry' in first && first.geometry.polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[0]), BASE).polygon)
   })
 
+  it('times each glyph it computes, and gives no time for one its cache already held', async () => {
+    const w = worker()
+    w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource, workers: 2 })
+    w.send(compute(1, glyphs.slice(0, 4)))
+    await w.until(1)
+    const times = (requestId: number) => w.of(requestId).flatMap((m) => (m.type === 'results' ? (m.times ?? []) : []))
+    expect(times(1)).toHaveLength(4)
+    for (const ms of times(1)) expect(typeof ms).toBe('number')
+    w.send(compute(2, [...glyphs.slice(2, 4), glyphs[4]]))
+    await w.until(2)
+    expect(times(2).slice(0, 2)).toEqual([null, null])
+    expect(typeof times(2)[2]).toBe('number')
+  })
+
   it('answers a request for a font it does not have with failed (no-font)', async () => {
     const w = worker()
     w.send(compute(7, glyphs.slice(0, 2)))
