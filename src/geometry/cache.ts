@@ -29,8 +29,24 @@ interface Limits {
   points: number
 }
 
-const MAIN_LIMITS: Limits = { entries: MAX_ENTRIES_PER_FONT, points: MAX_POINTS_PER_FONT }
-const LIVE_LIMITS: Limits = { entries: MAX_LIVE_ENTRIES_PER_FONT, points: MAX_LIVE_POINTS_PER_FONT }
+let MAIN_LIMITS: Limits = { entries: MAX_ENTRIES_PER_FONT, points: MAX_POINTS_PER_FONT }
+let LIVE_LIMITS: Limits = { entries: MAX_LIVE_ENTRIES_PER_FONT, points: MAX_LIVE_POINTS_PER_FONT }
+
+/**
+ * Keeps 1/`parts` of the limits above: each of the page's geometry workers holds its own cache, and a glyph mostly goes
+ * to one of them, so the pool together keeps what one cache did. Takes effect as results are next kept.
+ */
+export function shareCacheLimits(parts: number) {
+  const n = Math.max(1, Math.floor(parts) || 1)
+  MAIN_LIMITS = { entries: Math.ceil(MAX_ENTRIES_PER_FONT / n), points: Math.ceil(MAX_POINTS_PER_FONT / n) }
+  LIVE_LIMITS = { entries: Math.ceil(MAX_LIVE_ENTRIES_PER_FONT / n), points: Math.ceil(MAX_LIVE_POINTS_PER_FONT / n) }
+}
+
+/** True when a result for this glyph and key is cached already (glyphGeometry returns it without computing). */
+export function isCached(font: LoadedFont, index: number, key: string): boolean {
+  const cacheKey = `${index}|${key}`
+  return caches.get(font)?.entries.has(cacheKey) === true || liveCaches.get(font)?.entries.has(cacheKey) === true
+}
 
 const caches = new WeakMap<LoadedFont, FontCache>()
 const liveCaches = new WeakMap<LoadedFont, FontCache>()

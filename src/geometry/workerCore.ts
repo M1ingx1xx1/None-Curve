@@ -6,7 +6,7 @@
 
 import type { LoadedFont } from '../font/model'
 import { parseFont } from '../font/parse'
-import { glyphGeometry } from './cache'
+import { glyphGeometry, isCached, shareCacheLimits } from './cache'
 import type { GlyphResult, WorkerRequest, WorkerResponse } from './protocol'
 
 /** How long the worker computes before sending what it has and checking for newer requests (ms). */
@@ -34,10 +34,12 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
     // Live frames (parameters Sound is driving) use the live cache; the flag goes back with the results.
     const live = request.live === true
     let batch: GlyphResult[] = []
+    let times: (number | null)[] = []
     let started = performance.now()
     const flush = (key: string) => {
-      if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}) })
+      if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}), times })
       batch = []
+      times = []
     }
     for (const { params, key, indices } of request.jobs) {
       for (const index of indices) {
@@ -47,12 +49,16 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
           return post({ type: 'done', requestId, stopped: true })
         }
         post({ type: 'glyph', requestId, key, index })
+        // A result from the cache took no time: it says nothing of what the glyph costs to compute.
+        const cached = isCached(font, index, key)
+        const begun = performance.now()
         try {
           const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, live)
           batch.push({ index, geometry })
         } catch (error) {
           batch.push({ index, error: errorText(error) })
         }
+        times.push(cached ? null : performance.now() - begun)
         if (performance.now() - started > BATCH_MS) {
           flush(key)
           // Let newer requests and cancels in before going on.
@@ -76,6 +82,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
 
   return (message) => {
     if (message.type === 'font') {
+      shareCacheLimits(message.workers ?? 1)
       const loading = parseFont(message.bytes, message.source, new AbortController().signal)
       loading.catch((error) => post({ type: 'font-error', fontId: message.fontId, message: errorText(error) }))
       // A font sent again goes to the back, so the current font is never the one dropped.

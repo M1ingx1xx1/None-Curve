@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { getRecorder, useRecording, type RecordOptions } from '../export/recorder'
-import { RECORD_LENGTHS, VIDEO_LIMITS, formatClock, videoSize, type RecordLength, type VideoFormat } from '../export/videoFormat'
+import { RECORD_LENGTHS, VIDEO_FPS, VIDEO_LIMITS, formatClock, videoSize, type RecordLength, type VideoFormat } from '../export/videoFormat'
 import { LIVE_LIMITS, useLiveDriving, useLiveStatus } from '../sound/live'
 import { useMappingState } from '../sound/mappingStore'
 import type { SoundState } from '../sound/types'
@@ -44,7 +44,7 @@ export function useStillVideo(): boolean {
 }
 
 /**
- * A take's choices: Format, Length, Include audio and Use the preview look, then the video's size. Shared by
+ * A take's choices: Format, Length, Frame rate, Include audio and Use the preview look, then the video's size. Shared by
  * the Record group (Sound tab) and the Export dialog's Video format: both set the same options, which last
  * for the visit (not saved, not undone) and are locked during a take.
  */
@@ -54,6 +54,7 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
   const id = useId()
   const formatHint = useHint()
   const lengthHint = useHint()
+  const fpsHint = useHint()
   const audioHint = useHint()
   const lookHint = useHint()
   const recorder = getRecorder()
@@ -61,6 +62,7 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
   const wholeFile = hasWholeFile(sound)
   // During a take, what it records; otherwise what Record would record now.
   const size = take ?? videoSize(artboard.width, artboard.height, artboard.scale)
+  const fps = take?.fps ?? options.fps
   const format = take?.mimes[0]?.format ?? (options.format === 'mp4' && !support.mp4 && support.webm ? 'webm' : options.format)
 
   return (
@@ -121,6 +123,37 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
       </div>
 
       <div className="field">
+        <span className="field-title">
+          <span className="field-label" id={`${id}-fps`}>
+            Frame rate
+          </span>
+          <HintButton hint={fpsHint} topic="Frame rate" />
+        </span>
+        <div className="segmented segmented-small" role="radiogroup" aria-labelledby={`${id}-fps`} aria-describedby={fpsHint.id}>
+          {VIDEO_FPS.map((value) => (
+            <label key={value} className="segment-option">
+              <input
+                type="radio"
+                name={`${id}-fps`}
+                value={value}
+                checked={options.fps === value}
+                disabled={locked}
+                aria-label={`${value} fps`}
+                onChange={() => recorder.setOptions({ fps: value })}
+              />
+              <span>{value}</span>
+            </label>
+          ))}
+        </div>
+        <HintText hint={fpsHint}>
+          About this many frames per second in the video: when the letters have not changed, the last frame repeats.
+          The browser writes a variable-rate file, and a rate as high as the screen refresh (60 on a 60 Hz screen) may
+          drop some frames. The letters move up to {LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit
+          editors that expect those rates; they make larger files.
+        </HintText>
+      </div>
+
+      <div className="field">
         <div className="field field-toggle">
           <input
             id={`${id}-audio`}
@@ -162,7 +195,7 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
       </div>
 
       <p className="field-hint">
-        {size.width} × {size.height} px · up to {LIVE_LIMITS.maxFps} fps · {FORMAT_LABELS[format]}
+        {size.width} × {size.height} px · {fps} fps · {FORMAT_LABELS[format]}
         {size.capped ? ' (scaled down to the 4K limit)' : ''}
       </p>
       {transparent && <p className="field-hint">Videos have no transparency: the background colour is painted.</p>}

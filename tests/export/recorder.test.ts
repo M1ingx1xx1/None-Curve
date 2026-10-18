@@ -2,10 +2,13 @@
 // browser's MediaRecorder and the tab's visibility: a take waits for its sound and its first frame, ends for every
 // reason with what was recorded saved once (nothing for 0 bytes), keeps what came before an error, plays a Whole
 // file from its start with Loop off and gives Loop back, falls from MP4 to WebM and from a refused MIME type to the
-// next, delays its audio by the live latency, and leaves a source it did not start running. The fake canvas gives a
-// frame only when it changed since the last one (as Chrome's captureStream does), so a frame the recorder asks for
-// without a drawing must touch the canvas first; and a take records a moment past Stop (and past the sound's end, for
-// the sound still in the audio's delay), so its last frame is in the file. Nothing touches the DOM.
+// next, delays its audio by the live latency (and half a frame), and leaves a source it did not start running. Frames
+// come from a fixed clock at the take's frame rate, whatever the canvas draws: a frame asked for every tick, the last
+// drawing repeated when nothing changed, missed frames skipped, and no frame once the recorder stops. The fake canvas
+// gives a frame only when it changed since the last one (as Chrome's captureStream does), so every frame the recorder
+// asks for touches the canvas first (a real track would otherwise wait for the next drawing); where frames cannot be
+// requested, no clock runs. A take asks for the canvas as it is at Stop and records a moment past it (and past the
+// sound's end, for the sound still in the audio's delay), so its last frame is in the file. Nothing touches the DOM.
 
 import { describe, expect, it } from 'vitest'
 import {
@@ -16,7 +19,7 @@ import {
   type RecordingContext,
   type RecordOptions,
 } from '../../src/export/recorder'
-import { VIDEO_LIMITS } from '../../src/export/videoFormat'
+import { VIDEO_LIMITS, recordDelayMs } from '../../src/export/videoFormat'
 import { INITIAL_SOUND_STATE, type SoundState } from '../../src/sound/types'
 
 const MP4 = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']
@@ -138,6 +141,10 @@ function rig(options: RigOptions = {}) {
     const id = nextId++
     timers.push({ at: now + Math.max(0, ms), id, run })
     return id
+  }
+  /** Time passes without any timer running (a busy tab): the overdue ones run late, at the next advance. */
+  const jump = (ms: number) => {
+    now += ms
   }
   /** Runs the timers due in the next `ms`, in order. */
   const advance = (ms: number) => {
@@ -295,6 +302,7 @@ function rig(options: RigOptions = {}) {
     saved,
     answers,
     advance,
+    jump,
     setSound,
     setContext,
     get sound() {
@@ -320,6 +328,10 @@ function rig(options: RigOptions = {}) {
     },
     get now() {
       return now
+    },
+    /** Timers still armed. */
+    get timers() {
+      return timers.length
     },
     hide() {
       hidden = true
@@ -349,6 +361,8 @@ function rig(options: RigOptions = {}) {
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 const playing = { playing: true }
+/** The audio's delay at 30 fps before any live frame: the default delay and half a frame. */
+const DELAY = recordDelayMs(null, 30)
 
 describe('recorder', () => {
   it('waits for the sound and the first drawn frame before recording', async () => {
@@ -367,13 +381,16 @@ describe('recorder', () => {
     expect(r.recorder.timeslice).toBe(1000)
     expect(r.recorder.options).toMatchObject({ mimeType: MP4[0], videoBitsPerSecond: 4_320_000, audioBitsPerSecond: 128_000 })
     expect(r.recorder.tracks).toEqual([asTrack(r.video), asTrack(r.audio)])
-    // The canvas as it was is the first frame (drawn before the capture began, so touched); each drawn frame is the next.
+    // The canvas as it was is the first frame (touched, so it is taken at once); the clock takes the next one a frame
+    // later, touched too, so it is taken at the tick rather than at the next drawing.
     expect(r.video.frames).toBe(1)
     expect(r.touches).toBe(1)
     r.draw()
     r.draw()
-    expect(r.video.frames).toBe(3)
-    expect(r.touches).toBe(1)
+    expect(r.video.frames).toBe(1)
+    r.advance(1000 / 30)
+    expect(r.video.frames).toBe(2)
+    expect(r.touches).toBe(2)
     expect(r.video.lost).toBe(0)
   })
 
@@ -387,8 +404,8 @@ describe('recorder', () => {
     expect(r.state.phase).toBe('recording')
     expect(r.video.frames).toBe(1)
     r.advance(10_000)
-    // Nothing drawn for 10 s, yet a frame every second, so the file lasts as long as the take.
-    expect(r.video.frames).toBeGreaterThanOrEqual(10)
+    // Nothing drawn for 10 s, yet a frame on every tick of the clock, so the file lasts as long as the take.
+    expect(r.video.frames).toBe(301)
     expect(r.video.lost).toBe(0)
     r.controller.stop()
     r.finish()
@@ -418,7 +435,7 @@ describe('recorder', () => {
   // How long each take goes on after it is stopped: a moment for its last frame; for the file paused, also the sound
   // still in the audio's delay (90 ms before any live frame); nothing when it cannot go on.
   const LAST = VIDEO_LIMITS.finalFrameMs
-  const DRAIN = VIDEO_LIMITS.defaultDelayMs + VIDEO_LIMITS.drainMs
+  const DRAIN = DELAY + VIDEO_LIMITS.drainMs
   it.each([
     ['user', (r: ReturnType<typeof rig>) => r.controller.stop(), '', 'info', LAST],
     ['source', (r: ReturnType<typeof rig>) => r.setSound({ playing: false }), 'The sound stopped, so the recording ended. ', 'info', DRAIN],
@@ -435,25 +452,27 @@ describe('recorder', () => {
     end(r)
     expect(r.state.phase).toBe('stopping')
     if (tail > 0) {
-      // The canvas as it is, touched, then the recorder runs on for the tail: frames drawn meanwhile still count.
-      expect(r.recorder.stops).toBe(0)
+      // The canvas as it is at the stop is asked for at once, not left to the clock's next tick.
       expect(r.video.frames).toBe(frames + 1)
+      // The recorder and the clock run on for the tail: frames drawn meanwhile still count.
+      expect(r.recorder.stops).toBe(0)
       r.advance(tail / 2)
       r.draw()
-      expect(r.video.frames).toBe(frames + 2)
       r.advance(tail / 2 - 1)
       expect(r.recorder.stops).toBe(0)
+      expect(r.video.frames).toBeGreaterThanOrEqual(frames + Math.floor(tail / (1000 / 30)))
       r.advance(1)
-      // Every frame asked for is in the file: none at the moment the recorder stops.
+      // Every frame asked for is in the file: none at the moment the recorder stops, and none after.
       expect(r.video.frameTimes.at(-1)).toBeLessThan(r.recorder.stoppedAt!)
       r.draw()
-      expect(r.video.frames).toBe(frames + 2)
     } else {
       expect(r.video.frames).toBe(frames)
     }
     expect(r.recorder.stops).toBe(1)
     expect(r.state.elapsedMs).toBe(2300)
+    const last = r.video.frames
     r.finish()
+    expect(r.video.frames).toBe(last)
     expect(r.state).toMatchObject({ phase: 'idle', take: null, elapsedMs: 0 })
     expect(r.saves).toHaveLength(1)
     expect(r.saves[0].fileName).toBe('Roboto-Regular-video.mp4')
@@ -576,7 +595,7 @@ describe('recorder', () => {
     // The file's last sound is still in the tap's delay, and the letters answer it about as late: the take goes on
     // for the delay and the drain, then ends.
     expect(r.state.phase).toBe('stopping')
-    r.advance(VIDEO_LIMITS.defaultDelayMs + VIDEO_LIMITS.drainMs - 1)
+    r.advance(DELAY + VIDEO_LIMITS.drainMs - 1)
     expect(r.recorder.stops).toBe(0)
     expect(r.tapStops).toBe(0)
     r.advance(1)
@@ -734,16 +753,20 @@ describe('recorder', () => {
   it('delays the audio by the live latency, and records that much past a timed length', async () => {
     const measured = rig({ latency: 50, record: { length: 5 } })
     await measured.record()
-    expect(measured.taps).toEqual([87])
+    // 50 ms, the analysis lag (37 ms), and half a frame at 30 fps.
+    expect(measured.taps).toEqual([104])
     measured.advance(5000)
     expect(measured.state.phase).toBe('stopping')
-    measured.advance(87 + VIDEO_LIMITS.drainMs - 1)
+    measured.advance(104 + VIDEO_LIMITS.drainMs - 1)
     expect(measured.recorder.stops).toBe(0)
     measured.advance(1)
     expect(measured.recorder.stops).toBe(1)
     const unknown = rig()
     await unknown.record()
-    expect(unknown.taps).toEqual([90])
+    expect(unknown.taps).toEqual([DELAY])
+    const fast = rig({ latency: 50, record: { fps: 60 } })
+    await fast.record()
+    expect(fast.taps).toEqual([95])
 
     // A microphone that stopped has left the tap: only the last frame.
     const mic = rig({ sound: { source: 'microphone', listening: true }, latency: 300 })
@@ -783,30 +806,121 @@ describe('recorder', () => {
     expect(alreadyListening.calls).toEqual([])
   })
 
-  it('captures at 30 fps where frames cannot be requested, and keeps a still canvas ticking', async () => {
+  it('captures at about the take’s frame rate where frames cannot be requested, with no frame clock', async () => {
     const fallback = rig({ requestFrame: false })
     await fallback.record()
     expect(fallback.captures).toEqual([0, 30])
     expect(fallback.videos[0].stopped).toBe(true)
     expect(fallback.state.phase).toBe('recording')
+    // No requestFrame: the browser's capture runs on its own clock, so no second clock touches the canvas against it
+    // (the two would drift, repeating or dropping frames); only the first frame is touched.
+    fallback.advance(1001)
+    expect(fallback.touches).toBe(1)
 
-    const still = rig()
-    await still.record()
-    expect(still.video.frames).toBe(1)
-    still.advance(3000)
-    // Nothing drawn: a frame at least every second, each from the canvas touched first (an unchanged canvas gives none).
-    expect(still.video.frames).toBeGreaterThanOrEqual(4)
-    expect(still.video.lost).toBe(0)
-    expect(still.touches).toBe(still.video.frames)
-    const before = still.video.frames
-    const touched = still.touches
-    for (let t = 0; t < 1000; t += 33) {
-      still.advance(33)
-      still.draw()
+    const fast = rig({ requestFrame: false, record: { fps: 60 } })
+    await fast.record()
+    expect(fast.captures).toEqual([0, 60])
+  })
+
+  it.each([24, 25, 30, 50, 60] as const)('asks for %i frames a second on its clock, however the canvas draws', async (fps) => {
+    const r = rig({ record: { fps } })
+    await r.record()
+    expect(r.state.take?.fps).toBe(fps)
+    // Bursts of drawings 7 ms apart, then a still second, then drawings 50 ms apart: 10 s in all.
+    for (let t = 0; t < 3000; t += 7) {
+      r.advance(7)
+      r.draw()
     }
-    // Drawn frames alone while the canvas moves, none touched.
-    expect(still.video.frames - before).toBe(31)
-    expect(still.touches).toBe(touched)
+    r.advance(1000 - (3003 - 3000))
+    for (let t = 4000; t < 10_000; t += 50) {
+      r.advance(50)
+      r.draw()
+    }
+    // Frame 0 and one a tick for 10 s: no more, no fewer.
+    expect(r.now).toBe(10_000)
+    expect(r.video.frames).toBe(1 + Math.round(fps * 10))
+    expect(r.video.lost).toBe(0)
+    const gaps = r.video.frameTimes.slice(1).map((at, i) => at - r.video.frameTimes[i])
+    for (const gap of gaps) expect(gap).toBeCloseTo(1000 / fps, 6)
+  })
+
+  it('repeats the last drawing when nothing changed, and takes a new one as it is', async () => {
+    const r = rig()
+    await r.record()
+    const frame = 1000 / 30
+    // Still: every frame repeats the canvas, touched first.
+    r.advance(frame * 3)
+    expect(r.video.frames).toBe(4)
+    expect(r.touches).toBe(4)
+    // Three drawings within one frame: one frame, the canvas as last drawn (every tick touches it, so it is taken at
+    // the tick and not at the next drawing).
+    r.draw()
+    r.draw()
+    r.draw()
+    r.advance(frame)
+    expect(r.video.frames).toBe(5)
+    expect(r.touches).toBe(5)
+    // Still again: repeats.
+    r.advance(frame)
+    expect(r.video.frames).toBe(6)
+    expect(r.touches).toBe(6)
+  })
+
+  it('skips the frames a late clock missed, then keeps to its timeline', async () => {
+    const r = rig()
+    await r.record()
+    const frame = 1000 / 30
+    r.advance(frame * 10)
+    expect(r.video.frames).toBe(11)
+    // A busy tab holds the clock for 510 ms: one frame when it runs again (at 843.3 ms), not fifteen at once.
+    r.jump(510)
+    r.advance(0)
+    expect(r.video.frames).toBe(12)
+    // Then on the take's own grid again: frame 26 is due at 866.7 ms.
+    r.advance(frame * 26 - r.now - 0.01)
+    expect(r.video.frames).toBe(12)
+    r.advance(0.02)
+    expect(r.video.frames).toBe(13)
+    expect(r.video.frameTimes.at(-1)).toBeCloseTo(frame * 26, 6)
+  })
+
+  it('stops its frame clock with the take, for every way it ends', async () => {
+    const stopped = rig()
+    await stopped.record()
+    stopped.advance(1000)
+    stopped.controller.stop()
+    stopped.finish()
+    expect(stopped.state.phase).toBe('idle')
+    const frames = stopped.video.frames
+    expect(stopped.video.frameTimes.at(-1)).toBeLessThan(stopped.recorder.stoppedAt!)
+    stopped.advance(5000)
+    expect(stopped.video.frames).toBe(frames)
+    expect(stopped.timers).toBe(0)
+
+    const hidden = rig()
+    await hidden.record()
+    hidden.advance(500)
+    hidden.hide()
+    const atHide = hidden.video.frames
+    hidden.advance(1000)
+    expect(hidden.video.frames).toBe(atHide)
+
+    const failed = rig()
+    await failed.record()
+    failed.recorder.fail(new Error('Encoder crashed.'))
+    const atFail = failed.video.frames
+    failed.advance(1000)
+    expect(failed.video.frames).toBe(atFail)
+    expect(failed.timers).toBe(0)
+  })
+
+  it('scales the bitrate with the frame rate', async () => {
+    const slow = rig({ record: { fps: 24 } })
+    await slow.record()
+    expect(slow.recorder.options.videoBitsPerSecond).toBe(3_456_000)
+    const fast = rig({ record: { fps: 60 } })
+    await fast.record()
+    expect(fast.recorder.options.videoBitsPerSecond).toBe(8_640_000)
   })
 
   it('notes the missing blur and the painted background', async () => {
@@ -830,18 +944,18 @@ describe('recorder', () => {
     await r.record()
     expect(r.state.take).toMatchObject({ width: 3526, height: 2350, capped: true })
     expect(r.recorder.options.videoBitsPerSecond).toBe(12_000_000)
-    r.controller.setOptions({ format: 'webm', length: 5 })
-    expect(r.state.options).toMatchObject({ format: 'mp4', length: 'until-stopped' })
+    r.controller.setOptions({ format: 'webm', length: 5, fps: 60 })
+    expect(r.state.options).toMatchObject({ format: 'mp4', length: 'until-stopped', fps: 30 })
     // Text and font name changes are recorded as they happen.
     r.setContext({ artboard: { width: 1200, height: 800, scale: 4 }, family: 'Inter' })
     expect(r.state.phase).toBe('recording')
     r.controller.stop()
     r.finish()
     expect(r.saves[0].fileName).toBe('Roboto-Regular-video.mp4')
-    r.controller.setOptions({ format: 'webm', length: 5, audio: false, previewLook: true })
-    expect(r.state.options).toEqual({ format: 'webm', length: 5, audio: false, previewLook: true })
-    r.controller.setOptions({ format: 'gif' as never, length: 7 as never })
-    expect(r.state.options).toMatchObject({ format: 'webm', length: 5 })
+    r.controller.setOptions({ format: 'webm', length: 5, fps: 24, audio: false, previewLook: true })
+    expect(r.state.options).toEqual({ format: 'webm', length: 5, fps: 24, audio: false, previewLook: true })
+    r.controller.setOptions({ format: 'gif' as never, length: 7 as never, fps: 29.97 as never })
+    expect(r.state.options).toMatchObject({ format: 'webm', length: 5, fps: 24 })
   })
 
   it('says why Record cannot start', () => {

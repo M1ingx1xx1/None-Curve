@@ -256,7 +256,7 @@ Ripple 的各圈一直是正多边形。Petals 把每一圈都弯成一朵花，
 
 - Geometry 面板分成两个标签页：**Geometry** 和 **Experimental**，浏览器会记住当前选中的标签页。**Show all explanations** 留在标签页上方，对两个标签页都生效。Experimental 标签页的控件在第一次打开该标签页时才加载，之后一直保留。
 - Experimental 的设置和其他设置一起保存在浏览器里，下次打开时恢复；对它们的每一次修改都可以撤销。
-- Experimental 标签页从上到下：一行说明顺序（在 Geometry 之后，Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve）；每个效果一组，各有自己的开关；共用的种子；**Reset experimental** 按钮。
+- Experimental 标签页从上到下：一行说明顺序（在 Geometry 之后，Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve）；每个效果一组，各有自己的开关；共用的种子；**Reset experimental** 按钮，它清空整个标签页：所有效果和开关关闭，每个滑块移到最低（范围包含 0 的设为 0，否则设为最小值），但 Ripple 的 Center X/Y 回到正中，Dissolve 的 Grain 回到初始大小（最细的一档最慢），种子保留。
 - 每组像 Geometry 各组一样显示统计（最大移动距离、新增顶点）和警告。有效果超过 100%、Thorn 打开、Slipstream 有切口或顶点预算简化了字形时，说明区还会显示合并了多少处交叉、略去了多少细条，以及预算和合并的警告（第 4.10 节）。预算简化了所选字形时，状态栏会在它的顶点数后面显示 "(simplified)"。
 - 状态栏和导出说明里的流程摘要会列出已开启的效果。
 - 界面标签只用英文，尽量简短，说明收在 ⓘ 按钮里。

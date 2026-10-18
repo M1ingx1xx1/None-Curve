@@ -200,7 +200,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 1. **Deconstruction:** Flattening mode, curve approximation tolerance, lines per curve, anchor spacing, anchor reduction.
 2. **Geometry and grid:** Grid snapping, grid size, angle locking, fixed-anchor behavior.
 3. **Distortion:** Noise amplitude, frequency, normal bias, and random seed (plus the few anchors mode, which has no control: only the Flicker preset sets it).
-4. **Export:** SVG settings, font glyph coverage, font metadata, and the video's options (Format, Length, Include audio, Use the preview look).
+4. **Export:** SVG settings, font glyph coverage, font metadata, and the video's options (Format, Length, Frame rate, Include audio, Use the preview look).
 5. **Experimental** (its own tab beside Geometry): Crumple, Ripple, Whorl, Slipstream, Thorn, and Dissolve, stackable, with one shared seed.
 
 ### Tool hierarchy
@@ -236,7 +236,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 - Use an explicit seed for random distortion so previews are repeatable.
 - Validate SVG output to ensure path data contains no curve commands such as `C` or `Q`.
 - Experimental effects are piecewise-linear warps that add vertices only at creases (Slipstream's trails and cuts and Thorn's tips add a few straight edges); they must not add runs of small same-direction turns that read as curves.
-- Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing. Glyph geometry for the canvas is computed only in a background worker, never on the page. A worker that stays silent on one glyph for 60 s is stopped, the glyph is reported as failed, and the worker is restarted; when the worker cannot run at all, the canvas says so and asks for a reload. The font file is built in a worker of its own.
+- Avoid blocking the interface when processing large fonts; use background computation when needed and keep controls responsive during processing. Glyph geometry for the canvas is computed only in background workers (a pool of 2 to 4 that share each request out, so a long text uses several cores), never on the page. A worker that stays silent on one glyph for 60 s is stopped, the glyph is reported as failed, and the worker is restarted; when the worker cannot run at all, the canvas says so and asks for a reload. The font file is built in a worker of its own.
 - The saved session (settings, text, mappings, and which font was open) stays in the browser's own storage and is never uploaded. A damaged or older saved session must never break the app: anything that does not fit falls back to its default, and older settings are converted (an older Thorn Reach, in em, becomes the same share of its saved canvas). A config file holds the same session and is read the same way.
 
 ## 8. Acceptance criteria
@@ -341,9 +341,10 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
   - A take starts from the **Record** group at the bottom of the Sound tab, or from **Export → Video**, whose Record button closes the dialog and starts it. While it runs, the header shows "Recording 0:12" with a Stop button, wherever it started.
   - **Format:** MP4 or WebM. MP4 is used when the browser can write it; otherwise the take is saved as WebM with "MP4 isn't supported in this browser: saved as WebM."
   - **Length:** Until stopped, 5, 10, 15, 30, or 60 s, or Whole file (the audio file from its start, with Loop off for the take). A file take otherwise starts from the current position; a microphone take starts listening if it was not already.
+  - **Frame rate:** 24, 25, 30 (default), 50, or 60 fps, about that rate for the whole take (best effort; the file is variable-rate, and 60 fps on a 60 Hz screen can drop frames).
   - **Include audio** (on by default; with the microphone, its sound goes into the file) and **Use the preview look** (off by default: the canvas's ink and paper; on: the preview's colours and blur).
   - The options are per visit: not saved and not undone.
-  - **Size and frame rate:** the canvas export size, as for PNG, scaled down to at most 3840 px on its longest side and 3840 × 2160 in area, in even pixel sizes. The paper is always painted, since a video has no transparency. The frame rate is the live rate, up to 30 fps; the Record group shows "Live · N fps" and warns when it is too slow. A canvas that stands still is still recorded as frames.
+  - **Size and frame rate:** the canvas export size, as for PNG, scaled down to at most 3840 px on its longest side and 3840 × 2160 in area, in even pixel sizes. The paper is always painted, since a video has no transparency. The file has about the chosen frame rate; its pictures change at the live rate, up to 30 a second, and repeat in between. The Record group shows "Live · N fps" and warns when it is too slow. A canvas that stands still is still recorded as frames.
   - **Ending:** a take stops and saves on Stop, at its length, when the sound stops, ends, or switches source, when the tab is hidden ("Recording stopped because the tab was hidden."), when the canvas size changes, or when the recorder fails (what was recorded is saved). It stops at 10 minutes. Leaving the page during a take asks first.
   - **Sound:** the file holds the sound as measured (the file, or the microphone), delayed by about as long as the letters take to answer it (measured while Sound runs), so the two line up; what the speakers play does not change.
   - Saved as `Family-Style-video.mp4` or `.webm` (`-video-preview` with the preview look), through the browser's own recorder.

@@ -52,6 +52,7 @@ import type { EditorParams } from '../state/types'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import Knob from './Knob'
+import { cancelMapDrag, clearMark, pressMeter, setDropHandler, startPick, targetName, useMarked, type DropOutcome } from './mapDrag'
 import RangeControl from './RangeControl'
 import { RecordGroup } from './RecordControls'
 
@@ -173,11 +174,59 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
    * Switches on what `target` needs to act (its step, effect or mode) and says so under the row; with
    * nothing to switch, clears the row's notice. Leaving a target never switches anything off again.
    */
-  const activate = (id: string, target: TargetSpec | undefined) => {
+  const activate = (id: string, target: TargetSpec | undefined): Activation | null => {
     const activation = target?.activate(params) ?? null
     if (activation) applyActivation(activation, dispatch)
     setNotice(id, activation?.notice ?? null)
+    return activation
   }
+
+  /**
+   * Drag to map (mapDrag.ts): a feature dropped on a control becomes a row at +50% (in Toggle on a switch), and what
+   * the control needs is switched on as Add mapping does: one undo step. The same mapping twice is not added; the
+   * row there is marked instead, and switched on (with what its target needs) when it was off, so the drop always
+   * leaves the control moving. What happened comes back for the confirmation beside the control.
+   */
+  const drop = (feature: FeatureId, targetId: string): DropOutcome => {
+    const target = targetById(targetId)
+    const pair = `${featureById(feature)?.label ?? feature} → ${target ? targetName(target) : targetId}`
+    const result = undoHistory.transaction(() => {
+      const connected = mappingStore.connect(feature, targetId, DEFAULT_DEPTH)
+      // A found row keeps its notice unless something has to be switched on again (its effect was turned off since).
+      const needs = connected && (connected.created || target?.activate(params) != null)
+      return connected && { ...connected, activation: needs ? activate(connected.id, target) : null }
+    })
+    if (!result) {
+      return { message: `Up to ${MAPPING_LIMITS.maxMappings} mappings: remove one to map ${pair}.`, mappingId: null, created: false }
+    }
+    // What the row says while the control still does nothing (a grey has no hue, and nothing can switch that on).
+    const after = result.activation ? applyPatches(params, result.activation.patches) : params
+    const still = target?.inactive(after) ?? null
+    let first: string
+    if (result.created) {
+      const amount =
+        target?.kind === 'switch' ? 'in Toggle' : target?.kind === 'jump' ? `at Rate ${DEFAULT_DEPTH * 100}%` : `at Depth +${DEFAULT_DEPTH * 100}%`
+      first = `Mapped ${pair} ${amount}.`
+    } else {
+      const n = mappingStore.getState().mappings.findIndex((m) => m.id === result.id) + 1
+      first = result.switchedOn ? `${pair} was mapped already (mapping ${n}, off): switched it on.` : `${pair} is mapped already (mapping ${n}).`
+    }
+    const message = [first, result.activation?.notice, still].filter(Boolean).join(' ')
+    return { message, mappingId: result.id, created: result.created }
+  }
+  // Drops are handled with this render's settings; the tab stays mounted once opened, so drops reach it from any tab.
+  const dropRef = useRef(drop)
+  useLayoutEffect(() => {
+    dropRef.current = drop
+  })
+  useEffect(() => {
+    const unset = setDropHandler((feature, target) => dropRef.current(feature, target))
+    return () => {
+      unset()
+      // A drag or keyboard pick under way would otherwise keep its listeners (and the outlines) with no tab to drop on.
+      cancelMapDrag()
+    }
+  }, [])
 
   /**
    * Resets the Geometry and Experimental settings to their defaults (seeds kept), sets the preset's start
@@ -793,8 +842,20 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
   // The meter that holds the strip's tab stop: the last one focused.
   const [stop, setStop] = useState<FeatureId>('level')
 
-  /** Left, Right, Home and End: focus moves along the meters, which shows each one's number. */
+  /**
+   * Left, Right, Home and End: focus moves along the meters, which shows each one's number. Enter or Space on a meter
+   * picks a control to map its feature to (drag to map from the keyboard, mapDrag.ts).
+   */
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target instanceof HTMLElement && e.target.getAttribute('role') === 'meter') {
+      const meter = board.meters.find((m) => m.bar === e.target)
+      if (!meter) return
+      e.preventDefault()
+      // A held key starts one pick, not one per repeat.
+      if (e.repeat) return
+      startPick(meter.feature.id, e.target)
+      return
+    }
     const meters = board.meters
     const at = meters.findIndex((m) => m.feature.id === stop)
     const moves: Partial<Record<string, number>> = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: meters.length - 1 }
@@ -829,7 +890,14 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
         }}
       >
         {board.meters.map((meter) => (
-          <div key={meter.feature.id} className="led-column" title={meter.feature.label} onPointerEnter={() => setShown(meter.feature.id)}>
+          // Drag a meter onto a control to map its feature to it (mapDrag.ts).
+          <div
+            key={meter.feature.id}
+            className="led-column"
+            title={`${meter.feature.label}: drag onto a control to map it`}
+            onPointerEnter={() => setShown(meter.feature.id)}
+            onPointerDown={(e) => pressMeter(meter.feature.id, e.nativeEvent)}
+          >
             <div
               ref={(el) => {
                 meter.bar = el
@@ -842,6 +910,7 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
               }}
               role="meter"
               aria-label={meter.feature.label}
+              aria-keyshortcuts="Enter Space"
               aria-valuemin={meter.feature.bipolar ? -100 : 0}
               aria-valuemax={100}
               aria-describedby={hintId}
@@ -1218,6 +1287,8 @@ function MappingRow({ mapping, index, params, switched, axes, open, notice, span
   const update = (patch: Partial<Omit<Mapping, 'id'>>) => mappingStore.update(mapping.id, patch)
   const shaping = shapingOf(mapping)
   const percent = (share: number) => Math.round(share * 100)
+  // A drop on a control made this row ('new') or found it ('found'): marked until it is used (mapDrag.ts).
+  const marked = useMarked(mapping.id)
   // On a seed only rises count in Trigger and Toggle, and Beat's hits count as they are (in Trigger and Toggle on a
   // slider too): knobs that would do nothing there are not shown (as Range is not on a seed).
   const event = feature?.event !== undefined
@@ -1241,7 +1312,13 @@ function MappingRow({ mapping, index, params, switched, axes, open, notice, span
   }
 
   return (
-    <li className="mapping" data-off={!mapping.enabled || undefined}>
+    <li
+      className="mapping"
+      data-off={!mapping.enabled || undefined}
+      data-marked={marked ?? undefined}
+      onPointerDownCapture={() => clearMark(mapping.id)}
+      onFocusCapture={() => clearMark(mapping.id)}
+    >
       <div className="mapping-row" role="group" aria-label={`Mapping ${n}`}>
         {/* The on/off light: a checkbox drawn as a square LED. */}
         <span className="mapping-led">

@@ -54,9 +54,10 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 ## 几何计算与 Worker
 
 - 字形几何只在几何 Worker 里计算（`src/geometry/geometry.worker.ts`，逻辑在 `workerCore.ts`），从不在页面上计算。画布、文字预览、Sound 的实时帧以及 SVG 和 PNG 导出，都通过页面端的客户端（`src/state/geometryClient.ts`）请求：导出用 `ensure()`，实时帧用 `prefetchJobs()`。不要加主线程的后备方案；Worker 无法运行时，画布会说明并请用户刷新页面。
+- 客户端运行一组几何 Worker（`poolSize`：逻辑核数减一，2 到 4 个；`workers` 选项可以指定数量，测试传入 `workers: 1` 或注入 `createWorker`，每个 Worker 调用它一次）。调用方发出的一个请求仍是一个请求：客户端按字形把它分给各个 Worker（同一字形的所有参数组给同一个 Worker，每一份保持请求的顺序，用同一个请求 id），所有部分都结束后请求才结束。调用方看不到这些 Worker。一个字形优先回到之前算过它的 Worker，除非那个 Worker 会因此超出份额；份额按 Worker 在每条 `results` 消息里报告的耗时（`times`；结果直接来自它的缓存时为 null，这种耗时说明不了字形的开销）加权。新请求再次要某个 Worker 正在算的字形时，这个字形留给它。每个 Worker 只用字形缓存上限的 1/N（`font` 消息带有 `workers`）。卡住或出错的 Worker 单独重启，只结束它自己那一份。
 - 协议（`src/geometry/protocol.ts`）：每个计算请求都有一个 id，并且在任何路径上（包括 Worker 没有这个字体时）都以恰好一个回答结束：`done`（如果被更新的请求或 `cancel` 在字形之间停下，则带 `stopped`）或 `failed`（带原因）。一个请求带一个或多个任务（一个参数键和它的字形），按顺序执行；每条 `results` 消息只含一个任务的键。Worker 在每个字形之前发送 `glyph`：这是页面的心跳，也写明参数键和出问题时该怪的字形。新增的消息类型也要遵守这些规则。
 - 一个实时帧就是一个请求。帧里的字母可能反应幅度不同（共享值，以及安静和强烈两个档位），打开 Thorn 时还会按轮次组显示不同的 Thorn 设置（`src/sound/types.ts` 中的 `THORN_TURNS`），所以字母最多显示 15 组参数（3 个档位 × 5 个轮次组），再加上每帧总会请求的共享值，最多 16 组。`prefetchJobs()` 把它们都作为同一个请求的任务发出，共享值排在最前；全部到齐后才提交这一帧。每个任务只列出它那组参数需要的字形：共享参数覆盖画面上的每个字形，有 Thorn 轮次时只覆盖显示它的字母的字形和选中的字形（`FrameJob.within`、`shownGlyphs`）；其他每组参数只列出自己字母的字形。不要把一帧的几组参数拆成几个请求发送：较新的请求会取代正在处理的请求。实时结果与编辑时的结果分开保存，按最近最少使用的顺序淘汰：保留最近四个实时请求中最多组数的两倍，至少 6 组，最多 `LIVE_KEPT_KEYS`（32）组，所以下一帧计算时，画面上那一帧的各组参数仍然保留。
-- 客户端：Worker 在一个字形上 60 秒没有消息时，这个字形被标为失败（"Took longer than 60 s; try lighter settings"），Worker 重启并重新发送字体；60 秒内重启超过 3 次时，几何计算停止，直到换下一个字体，画布会说明原因。新的设置会替换卡在一个已不需要的字形上 750 毫秒以上的 Worker（每 2 秒最多一次，实时帧除外）。要让重度设置变快，应像 Experimental 的顶点预算那样在流程内部解决（EXPERIMENTAL_PLAN 第 4.10 节），而不是放宽这些限制。
+- 客户端：Worker 在一个字形上 60 秒没有消息时，这个字形被标为失败（"Took longer than 60 s; try lighter settings"），Worker 重启并重新发送字体；重启次数按整组 Worker 合计，60 秒内超过 3 次，就停掉所有 Worker，几何计算停止，直到换下一个字体，画布会说明原因（启动不了的 Worker 退出这组 Worker；一个都不剩时几何计算也停止）。新的设置会替换卡在一个新请求已不需要的字形上 750 毫秒以上的 Worker（整组 Worker 每 2 秒最多替换一个，实时帧除外）。要让重度设置变快，应像 Experimental 的顶点预算那样在流程内部解决（EXPERIMENTAL_PLAN 第 4.10 节），而不是放宽这些限制。
 - 字体导出每次构建都在自己的 Worker 里运行（`src/export/fontExport.worker.ts`）。Cancel 会立即终止它，一分钟没有进度时也会终止。只有这个 Worker 无法启动时，构建才在页面上运行。
 - 不用浏览器测试 Worker 的逻辑和客户端：`tests/worker` 用假的 `post` 运行 `workerCore`，用假 Worker 和假计时器测试客户端。
 

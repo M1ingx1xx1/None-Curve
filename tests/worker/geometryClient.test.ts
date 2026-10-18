@@ -6,40 +6,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
-import type { WorkerGeometry, WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
+import type { WorkerGeometry, WorkerResponse } from '../../src/geometry/protocol'
 import { GeometryClient, LIVE_KEPT_KEYS } from '../../src/state/geometryClient'
+import { FakeWorker } from '../helpers/fakeWorker'
 import { BASE } from '../helpers/params'
-
-class FakeWorker {
-  readonly received: WorkerRequest[] = []
-  terminated = false
-  onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null = null
-  onerror: ((event: ErrorEvent) => void) | null = null
-  onmessageerror: (() => void) | null = null
-  postMessage(message: WorkerRequest) {
-    this.received.push(message)
-  }
-  terminate() {
-    this.terminated = true
-  }
-  /** The worker answers the page. */
-  reply(message: WorkerResponse) {
-    this.onmessage?.({ data: message } as MessageEvent<WorkerResponse>)
-  }
-  /** The newest compute request it was sent. */
-  get lastRequest() {
-    return this.received.filter((m) => m.type === 'compute').at(-1) as Extract<WorkerRequest, { type: 'compute' }>
-  }
-  /** The newest compute request's id and its first job. */
-  get lastCompute() {
-    const { requestId, jobs } = this.lastRequest
-    return { requestId, ...jobs[0] }
-  }
-  /** Compute requests sent so far. */
-  get computes() {
-    return this.received.filter((m) => m.type === 'compute').length
-  }
-}
 
 const font = (id: string) => ({ id, bytes: new Uint8Array(4), source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 } }) as unknown as LoadedFont
 const geometry = (index: number) => ({ polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] }, vertexCount: index }) as unknown as WorkerGeometry
@@ -55,6 +25,7 @@ describe('geometry client', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'] })
     workers = []
     client = new GeometryClient({
+      workers: 1,
       createWorker: () => {
         const w = new FakeWorker()
         workers.push(w)
@@ -122,7 +93,7 @@ describe('geometry client', () => {
   })
 
   it('stops after more than 3 restarts within a minute, until the next font', async () => {
-    client = new GeometryClient({ createWorker: () => (workers.push(new FakeWorker()), worker() as unknown as Worker), watchdogMs: 5_000 })
+    client = new GeometryClient({ workers: 1, createWorker: () => (workers.push(new FakeWorker()), worker() as unknown as Worker), watchdogMs: 5_000 })
     for (let k = 0; k < 4; k++) {
       client.compute(font('f'), BASE, `k${k}`, [k])
       worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: `k${k}`, index: k })
@@ -176,6 +147,7 @@ describe('geometry client', () => {
 
   it('fails the glyphs with a reason when no worker can start', () => {
     client = new GeometryClient({
+      workers: 1,
       createWorker: () => {
         throw new Error('no workers here')
       },
