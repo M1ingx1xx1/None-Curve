@@ -10,21 +10,30 @@ export type RecordLength = 'until-stopped' | 5 | 10 | 15 | 30 | 60 | 'whole-file
 
 export const RECORD_LENGTHS: readonly RecordLength[] = ['until-stopped', 5, 10, 15, 30, 60, 'whole-file']
 
+/** The video's frame rate: film, PAL and NTSC-style web video, and their doubles. */
+export type VideoFps = 24 | 25 | 30 | 50 | 60
+
+export const VIDEO_FPS: readonly VideoFps[] = [24, 25, 30, 50, 60]
+
+export const DEFAULT_VIDEO_FPS: VideoFps = 30
+
 export const VIDEO_LIMITS = {
   /** Longest side of the video, and its area (4K UHD): past these, H.264 encoders refuse or fail the frame. */
   maxSide: 3840,
   maxPixels: 3840 * 2160,
   /** A take stops after 10 minutes: the recording is held in memory until it is saved. */
   maxMs: 600_000,
-  /** Video bitrate: bits per pixel per second, kept within min and max (12 Mbps is about 0.9 GB in 10 minutes). */
+  /**
+   * Video bitrate: bits per second for each pixel of the frame at referenceFps (0.15 bits per pixel per frame),
+   * scaled with the frame rate and kept within min and max (12 Mbps is about 0.9 GB in 10 minutes, at any rate).
+   */
   bitsPerPixel: 4.5,
+  referenceFps: 30,
   minBitrate: 2_000_000,
   maxBitrate: 12_000_000,
   audioBitrate: 128_000,
   /** The recorder hands over its data this often (ms), so an error keeps what came before it. */
   timesliceMs: 1000,
-  /** A still canvas still gives a frame this often (ms), so players keep time. */
-  heartbeatMs: 1000,
   /**
    * After Stop, the take goes on this long (ms) so its last frame is in the file: a frame asked for just before
    * the recorder stops is lost.
@@ -116,16 +125,26 @@ function positive(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 1
 }
 
-/** Video bits per second for a frame size, within VIDEO_LIMITS' min and max. */
-export function videoBitrate(width: number, height: number): number {
-  const bits = Math.round(positive(width) * positive(height) * VIDEO_LIMITS.bitsPerPixel)
+/** Video bits per second for a frame size and rate (30 fps when not given), within VIDEO_LIMITS' min and max. */
+export function videoBitrate(width: number, height: number, fps: number = VIDEO_LIMITS.referenceFps): number {
+  const bits = Math.round(positive(width) * positive(height) * VIDEO_LIMITS.bitsPerPixel * (positive(fps) / VIDEO_LIMITS.referenceFps))
   return Math.min(VIDEO_LIMITS.maxBitrate, Math.max(VIDEO_LIMITS.minBitrate, bits))
 }
 
-/** The audio's delay for a take (ms): the live latency plus the analysis lag, or the default before any live frame. */
-export function recordDelayMs(latencyMs: number | null): number {
-  if (latencyMs === null || !Number.isFinite(latencyMs)) return VIDEO_LIMITS.defaultDelayMs
-  return Math.min(VIDEO_LIMITS.maxDelayMs, Math.max(VIDEO_LIMITS.minDelayMs, Math.round(latencyMs + VIDEO_LIMITS.lagMs)))
+/**
+ * The audio's delay for a take (ms): the live latency plus the analysis lag, or the default before any live frame.
+ * With a frame rate, also half a frame: frames are taken on a fixed clock, so a drawing waits half a frame on
+ * average before it is in the video.
+ */
+export function recordDelayMs(latencyMs: number | null, fps?: number): number {
+  const frame = fps !== undefined && Number.isFinite(fps) && fps > 0 ? 500 / fps : 0
+  const base = latencyMs === null || !Number.isFinite(latencyMs) ? VIDEO_LIMITS.defaultDelayMs - VIDEO_LIMITS.lagMs : latencyMs
+  return Math.min(VIDEO_LIMITS.maxDelayMs, Math.max(VIDEO_LIMITS.minDelayMs, Math.round(base + VIDEO_LIMITS.lagMs + frame)))
+}
+
+/** A frame rate from the list, or the default for anything else (an older or unknown value). */
+export function videoFps(value: unknown): VideoFps {
+  return VIDEO_FPS.find((fps) => fps === value) ?? DEFAULT_VIDEO_FPS
 }
 
 /** "Family-Style-video.mp4", or "-video-preview" with the preview's look. */

@@ -717,7 +717,8 @@ input[type='range']:disabled {
 }
 
 .group:disabled .segmented,
-.segmented:has(button:disabled) {
+.segmented:has(button:disabled),
+.segmented:has(input:disabled) {
   border-color: var(--border);
   border-style: dashed;
 }
@@ -750,6 +751,7 @@ input[type='range']:disabled {
   color: var(--on-primary);
 }
 
+.segment-option input:disabled:checked + span,
 .group:disabled .segment-option input:checked + span {
   background: var(--border);
   color: var(--muted);

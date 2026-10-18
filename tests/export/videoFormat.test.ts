@@ -1,10 +1,12 @@
 // Video recording's pure choices (src/export/videoFormat.ts): the MIME types tried in Chrome-, Firefox- and
-// Safari-like browsers (MP4 falling back to WebM), the capped even frame size, the bitrate, the audio delay,
-// the file name (and safeFileName under it), and the clock.
+// Safari-like browsers (MP4 falling back to WebM), the capped even frame size, the bitrate (with the frame rate),
+// the audio delay, the frame rates, the file name (and safeFileName under it), and the clock.
 
 import { describe, expect, it } from 'vitest'
 import { safeFileName } from '../../src/export/download'
 import {
+  DEFAULT_VIDEO_FPS,
+  VIDEO_FPS,
   VIDEO_LIMITS,
   formatClock,
   pickVideoMimes,
@@ -13,6 +15,7 @@ import {
   videoFileName,
   videoMimeCandidates,
   videoSize,
+  videoFps,
   videoSupport,
 } from '../../src/export/videoFormat'
 
@@ -120,6 +123,25 @@ describe('video bitrate, delay, name and clock', () => {
     expect(videoBitrate(3840, 2160)).toBe(VIDEO_LIMITS.maxBitrate)
   })
 
+  it('scales the bitrate with the frame rate (30 fps by default), within its limits', () => {
+    expect(videoBitrate(1200, 800, 30)).toBe(4_320_000)
+    expect(videoBitrate(1200, 800, 24)).toBe(3_456_000)
+    expect(videoBitrate(1200, 800, 60)).toBe(8_640_000)
+    expect(videoBitrate(1920, 1080, 60)).toBe(VIDEO_LIMITS.maxBitrate)
+    expect(videoBitrate(400, 400, 24)).toBe(VIDEO_LIMITS.minBitrate)
+    // Ten minutes at the most never pass the memory the cap allows for, at any rate.
+    expect((videoBitrate(3840, 2160, 60) * VIDEO_LIMITS.maxMs) / 8000).toBeLessThanOrEqual(900_000_000)
+  })
+
+  it('offers 24 to 60 fps, 30 by default, and reads anything else as the default', () => {
+    expect(VIDEO_FPS).toEqual([24, 25, 30, 50, 60])
+    expect(DEFAULT_VIDEO_FPS).toBe(30)
+    expect(videoFps(60)).toBe(60)
+    expect(videoFps(undefined)).toBe(30)
+    expect(videoFps(29.97)).toBe(30)
+    expect(videoFps('60')).toBe(30)
+  })
+
   it('delays the audio by the live latency plus the analysis lag', () => {
     expect(recordDelayMs(null)).toBe(90)
     expect(recordDelayMs(Number.NaN)).toBe(90)
@@ -128,6 +150,15 @@ describe('video bitrate, delay, name and clock', () => {
     expect(recordDelayMs(0)).toBe(40)
     expect(recordDelayMs(-100)).toBe(40)
     expect(recordDelayMs(1000)).toBe(400)
+  })
+
+  it('adds half a frame of the frame clock to the delay', () => {
+    expect(recordDelayMs(null, 30)).toBe(107)
+    expect(recordDelayMs(50, 24)).toBe(108)
+    expect(recordDelayMs(50, 60)).toBe(95)
+    expect(recordDelayMs(1000, 24)).toBe(400)
+    expect(recordDelayMs(-100, 60)).toBe(40)
+    expect(recordDelayMs(50, 0)).toBe(87)
   })
 
   it('names the file after the font and the look', () => {

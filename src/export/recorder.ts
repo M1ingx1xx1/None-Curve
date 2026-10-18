@@ -1,11 +1,12 @@
-// Real-time video recording: the canvas as it moves with the sound, one video frame per drawn frame
-// (captureStream(0) and requestFrame), with the sound as heard, delayed to line up with the letters, into a
-// MediaRecorder; saved once, as one file, when the take ends. A take waits for its sound and its first drawn
-// frame, and ends at its length, at the 10-minute cap, or when the sound stops, the tab is hidden, the canvas
-// changes size or the font goes; what was recorded is saved even after an error. A canvas gives a frame only when
-// it has changed, so a still one is touched (touchCanvas) for its first frame, its heartbeat and its last. Stop
-// and the sound's end let the recorder run a moment longer, so the last frame, and the end of the sound still in
-// the audio's delay, are in the file.
+// Real-time video recording: the canvas as it moves with the sound, captured on a fixed frame clock at the take's
+// frame rate (captureStream(0) and requestFrame), with the sound as heard, delayed to line up with the letters, into
+// a MediaRecorder; saved once, as one file, when the take ends. The canvas draws whenever it changes; each tick of
+// the clock takes it as it is, so a frame repeats the last drawing when nothing changed and the file has a steady
+// rate. A take waits for its sound and its first drawn frame, and ends at its length, at the 10-minute cap, or when
+// the sound stops, the tab is hidden, the canvas changes size or the font goes; what was recorded is saved even
+// after an error. A canvas gives a frame only when it has changed, so a tick with no drawing since the last one
+// touches it (touchCanvas) first. Stop and the sound's end let the recorder (and the clock) run a moment longer, so
+// the last frame, and the end of the sound still in the audio's delay, are in the file.
 //
 // The controller gets its clock, timers, browser checks, recorder and engine injected, so tests run it with
 // fakes and nothing touches the DOM; the page's single controller and its hooks are at the bottom.
@@ -16,7 +17,9 @@ import { liveLatencyMs } from '../sound/live'
 import type { SoundSource, SoundState } from '../sound/types'
 import { downloadFile } from './download'
 import {
+  DEFAULT_VIDEO_FPS,
   RECORD_LENGTHS,
+  VIDEO_FPS,
   VIDEO_LIMITS,
   formatClock,
   pickVideoMimes,
@@ -27,6 +30,7 @@ import {
   videoSupport,
   type RecordLength,
   type VideoFormat,
+  type VideoFps,
   type VideoMime,
 } from './videoFormat'
 
@@ -37,13 +41,21 @@ export type StopReason = 'user' | 'length' | 'cap' | 'source' | 'hidden' | 'size
 export interface RecordOptions {
   format: VideoFormat
   length: RecordLength
+  /** Frames per second in the file. */
+  fps: VideoFps
   /** Put the sound in the file (with the microphone, its sound). */
   audio: boolean
   /** Draw with the preview's look (its blur and inversion) instead of the palette. */
   previewLook: boolean
 }
 
-export const DEFAULT_RECORD_OPTIONS: RecordOptions = { format: 'mp4', length: 'until-stopped', audio: true, previewLook: false }
+export const DEFAULT_RECORD_OPTIONS: RecordOptions = {
+  format: 'mp4',
+  length: 'until-stopped',
+  fps: DEFAULT_VIDEO_FPS,
+  audio: true,
+  previewLook: false,
+}
 
 /** What the page tells the recorder: the font (null without one) and the canvas. */
 export interface RecordingContext {
@@ -62,6 +74,8 @@ export interface TakeSpec {
   width: number
   height: number
   capped: boolean
+  /** Frames per second. */
+  fps: VideoFps
   /** The MIME types to try, best first. */
   mimes: VideoMime[]
   previewLook: boolean
@@ -130,8 +144,8 @@ export interface CaptureCanvas {
   captureStream(fps?: number): MediaStream
 }
 
-/** Without requestFrame the canvas is captured at this rate instead (the live rate's ceiling). */
-const FALLBACK_FPS = 30
+/** A clock frame due this close (ms) to the recorder's stop is not asked for: it would be lost. */
+const FRAME_GUARD_MS = 10
 /** A recorder that never reports its end is given up on after this long (ms), keeping what it gave. */
 const STOP_TIMEOUT_MS = 5000
 
@@ -167,6 +181,11 @@ interface Take {
   touch: (() => void) | null
   blurWorks: boolean
   drawn: boolean
+  /** The canvas has drawn since the last frame (so the next one needs no touch). */
+  fresh: boolean
+  /** The clock's interval (ms), and the index of its last frame (frame n is due n intervals after startedAt). */
+  frameMs: number
+  frameIndex: number
   stream: MediaStream | null
   video: FrameTrack | null
   audio: MediaStreamTrack | null
@@ -178,11 +197,12 @@ interface Take {
   mime: VideoMime | null
   chunks: Blob[]
   startedAt: number
-  lastFrameAt: number
   elapsedMs: number
   reason: StopReason | null
-  /** Stopping, but the recorder still runs for the take's last moments (frames are still asked for). */
+  /** Stopping, but the recorder still runs for the take's last moments (the clock still asks for frames). */
   ending: boolean
+  /** When the recorder is stopped after its last moments (deps.now()); null while recording. */
+  endAt: number | null
   error: string | null
 }
 
@@ -231,10 +251,19 @@ export class RecordingController {
     const next: RecordOptions = {
       format: patch.format === 'mp4' || patch.format === 'webm' ? patch.format : current.format,
       length: patch.length !== undefined && RECORD_LENGTHS.includes(patch.length) ? patch.length : current.length,
+      fps: patch.fps !== undefined && VIDEO_FPS.includes(patch.fps) ? patch.fps : current.fps,
       audio: typeof patch.audio === 'boolean' ? patch.audio : current.audio,
       previewLook: typeof patch.previewLook === 'boolean' ? patch.previewLook : current.previewLook,
     }
-    if (next.format === current.format && next.length === current.length && next.audio === current.audio && next.previewLook === current.previewLook) return
+    if (
+      next.format === current.format &&
+      next.length === current.length &&
+      next.fps === current.fps &&
+      next.audio === current.audio &&
+      next.previewLook === current.previewLook
+    ) {
+      return
+    }
     this.setState({ options: next })
   }
 
@@ -297,6 +326,7 @@ export class RecordingController {
     const lengthMs = typeof options.length === 'number' ? options.length * 1000 : wholeFile ? sound.duration * 1000 : null
     const spec: TakeSpec = {
       ...size,
+      fps: options.fps,
       mimes,
       previewLook: options.previewLook,
       limitMs: lengthMs === null ? null : Math.min(lengthMs, VIDEO_LIMITS.maxMs),
@@ -314,6 +344,9 @@ export class RecordingController {
       touch: null,
       blurWorks: true,
       drawn: false,
+      fresh: false,
+      frameMs: 1000 / options.fps,
+      frameIndex: 0,
       stream: null,
       video: null,
       audio: null,
@@ -323,10 +356,10 @@ export class RecordingController {
       mime: null,
       chunks: [],
       startedAt: 0,
-      lastFrameAt: 0,
       elapsedMs: 0,
       reason: null,
       ending: false,
+      endAt: null,
       error: null,
     }
     this.take = take
@@ -382,17 +415,16 @@ export class RecordingController {
     const tail = this.tailMs(take, reason)
     this.arm('stop', tail + STOP_TIMEOUT_MS, () => this.finish(take))
     if (tail === 0) return this.stopRecorder(take)
-    // The canvas as it is now (a frame asked for in the same task as the recorder's stop would be lost), and the
-    // frames still to come, then the end.
+    // The clock goes on for the frames still to come (the canvas as it is now among them), then the end.
     take.ending = true
-    this.requestFrame(take, true)
+    take.endAt = this.deps.now() + tail
     this.arm('drain', tail, () => this.stopRecorder(take))
   }
 
   /**
    * The recording canvas is mounted; `blurWorks` is false only when the take asks for blur and the canvas cannot
    * draw it. `touch` marks the canvas as changed without changing what it shows (touchCanvas): a frame is captured
-   * only from a changed canvas, so the first frame, the heartbeat and the last one touch it first.
+   * only from a changed canvas, so the first frame, and a clock frame with no drawing since the last, touch it first.
    */
   canvasReady(canvas: CaptureCanvas, blurWorks: boolean, touch: () => void): void {
     const take = this.take
@@ -403,14 +435,14 @@ export class RecordingController {
     this.tryBegin(take)
   }
 
-  /** The recording canvas has drawn a frame: it becomes the video's next frame. */
+  /** The recording canvas has drawn: the clock's next frame takes it as it is. */
   frameDrawn(): void {
     const take = this.take
     if (!take) return
     if (this.state.phase === 'starting') {
       take.drawn = true
       this.tryBegin(take)
-    } else if (this.state.phase === 'recording' || take.ending) this.requestFrame(take)
+    } else take.fresh = true
   }
 
   // --- Take --------------------------------------------------------------------------------------
@@ -461,9 +493,9 @@ export class RecordingController {
       let stream = canvas.captureStream(0)
       let video: FrameTrack | undefined = stream.getVideoTracks()[0]
       if (video && typeof video.requestFrame !== 'function') {
-        // Frames on request are not available: capture at the live rate's ceiling instead.
+        // Frames on request are not available: capture at the take's rate instead (the clock still touches the canvas).
         stopTracks(stream)
-        stream = canvas.captureStream(FALLBACK_FPS)
+        stream = canvas.captureStream(take.options.fps)
         video = stream.getVideoTracks()[0]
       }
       take.stream = stream
@@ -476,14 +508,14 @@ export class RecordingController {
     }
     const video = take.video
 
-    take.delayMs = recordDelayMs(deps.latencyMs())
+    take.delayMs = recordDelayMs(deps.latencyMs(), take.options.fps)
     if (take.options.audio) {
       take.audio = deps.engine.startRecordingAudio(take.delayMs)
       take.audioMissing = take.audio === null
     }
     const mimes = take.audioMissing ? pickVideoMimes(take.options.format, false, deps.isTypeSupported) : take.spec.mimes
     const tracks = take.audio ? [video, take.audio] : [video]
-    const settings: MediaRecorderOptions = { videoBitsPerSecond: videoBitrate(take.spec.width, take.spec.height) }
+    const settings: MediaRecorderOptions = { videoBitsPerSecond: videoBitrate(take.spec.width, take.spec.height, take.options.fps) }
     if (take.audio) settings.audioBitsPerSecond = VIDEO_LIMITS.audioBitrate
 
     let failure: unknown = null
@@ -510,8 +542,11 @@ export class RecordingController {
     }
 
     take.startedAt = deps.now()
-    // The canvas was drawn before it was captured: touched, so it is the first frame.
+    // The canvas was drawn before it was captured: touched, so it is the first frame (frame 0); the clock takes the rest.
+    take.frameIndex = 0
+    take.fresh = false
     this.requestFrame(take, true)
+    this.armFrame(take)
     if (take.spec.limitMs !== null && take.spec.limitMs < VIDEO_LIMITS.maxMs && !take.wholeFile) {
       this.arm('length', take.spec.limitMs, () => this.stop('length'))
     }
@@ -535,24 +570,37 @@ export class RecordingController {
     }
   }
 
-  /**
-   * Every tickMs: the elapsed time shown (as whole seconds change), and a frame at least every heartbeatMs (the
-   * canvas touched, as nothing was drawn since the last one).
-   */
+  /** Every tickMs while recording: the elapsed time shown, as whole seconds change. */
   private tick(take: Take): void {
-    if (this.take !== take) return
-    const recording = this.state.phase === 'recording'
-    if (!recording && !take.ending) return
-    const now = this.deps.now()
-    if (now - take.lastFrameAt >= VIDEO_LIMITS.heartbeatMs - VIDEO_LIMITS.tickMs) this.requestFrame(take, true)
-    const elapsedMs = Math.floor((now - take.startedAt) / 1000) * 1000
-    if (recording && elapsedMs !== this.state.elapsedMs) this.setState({ elapsedMs })
+    if (this.take !== take || this.state.phase !== 'recording') return
+    const elapsedMs = Math.floor((this.deps.now() - take.startedAt) / 1000) * 1000
+    if (elapsedMs !== this.state.elapsedMs) this.setState({ elapsedMs })
     this.arm('tick', VIDEO_LIMITS.tickMs, () => this.tick(take))
+  }
+
+  /** Arms the clock for the frame after take.frameIndex, due frameMs after it on the take's own timeline. */
+  private armFrame(take: Take): void {
+    const due = take.startedAt + (take.frameIndex + 1) * take.frameMs
+    this.arm('frame', Math.max(0, due - this.deps.now()), () => this.clockFrame(take))
+  }
+
+  /**
+   * The clock's frame: the canvas as it is, touched when nothing was drawn since the last frame (so it repeats).
+   * A clock that fell behind (a busy tab) skips the frames it missed rather than asking for them all at once; one
+   * due right at the recorder's stop is not asked for, as it would be lost.
+   */
+  private clockFrame(take: Take): void {
+    if (this.take !== take || (this.state.phase !== 'recording' && !take.ending)) return
+    const now = this.deps.now()
+    if (take.endAt !== null && now > take.endAt - FRAME_GUARD_MS) return
+    take.frameIndex = Math.max(take.frameIndex + 1, Math.floor((now - take.startedAt) / take.frameMs))
+    this.requestFrame(take, !take.fresh)
+    take.fresh = false
+    this.armFrame(take)
   }
 
   /** Asks for the canvas as the next frame; `touch`: nothing was drawn since the last frame, so it is touched first. */
   private requestFrame(take: Take, touch = false): void {
-    take.lastFrameAt = this.deps.now()
     try {
       if (touch) take.touch?.()
       take.video?.requestFrame?.()
@@ -577,7 +625,7 @@ export class RecordingController {
   private stopRecorder(take: Take): void {
     if (this.take !== take) return
     take.ending = false
-    this.disarm('drain', 'tick')
+    this.disarm('drain', 'tick', 'frame')
     const recorder = take.recorder
     if (!recorder || recorder.state === 'inactive') return // Already stopped (after an error): its stop event follows.
     try {
@@ -593,7 +641,7 @@ export class RecordingController {
     if (this.take !== take) return
     this.take = null
     take.ending = false
-    this.disarm('start', 'length', 'cap', 'tick', 'drain', 'stop')
+    this.disarm('start', 'length', 'cap', 'tick', 'frame', 'drain', 'stop')
     const mime = take.mime ?? take.spec.mimes[0]
     const type = mime.mimeType.split(';')[0]
     const fileName = videoFileName(take.context.family, take.context.style, take.options.previewLook, mime.format)
@@ -639,7 +687,7 @@ export class RecordingController {
   private abort(take: Take, message: RecordingState['message']): void {
     if (this.take !== take) return
     this.take = null
-    this.disarm('start', 'length', 'cap', 'tick', 'drain', 'stop')
+    this.disarm('start', 'length', 'cap', 'tick', 'frame', 'drain', 'stop')
     this.release(take)
     this.setState({ phase: 'idle', take: null, elapsedMs: 0, message })
   }
