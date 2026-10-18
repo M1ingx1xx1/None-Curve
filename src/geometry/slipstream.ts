@@ -169,6 +169,11 @@ function gustFade(params: SlipstreamParams): number {
   return Math.min(gustOf(params) / SLIPSTREAM_LIMITS.smallestGust, 1)
 }
 
+/** The band size Slipstream uses (× the em) and how much of Gustiness and Slip is left there (0–1; 0: steady). */
+export function slipstreamBands(params: SlipstreamParams): { gust: number; fade: number } {
+  return { gust: Math.max(gustOf(params), SLIPSTREAM_LIMITS.smallestGust), fade: gustFade(params) }
+}
+
 /** True when Slipstream redraws the outline to make its cuts (see slipstreamTrailsAndCuts). */
 export function slipstreamMerges(params: SlipstreamParams): boolean {
   return slipstreamIsOn(params) && count(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0
@@ -183,6 +188,8 @@ export function slipstreamWarp(params: SlipstreamParams, seed: number, box: Box,
   const gustiness = clamp(finite(params.gustiness, 0.6), 0, SLIPSTREAM_LIMITS.maxGustiness) * fade
   const slip = clamp(finite(params.slip, 0), 0, SLIPSTREAM_LIMITS.maxSlip) * fade * unitsPerEm * scale
   const shear = slip > 0 ? slipShear(seed, slip) : null
+  /** Gust size 0: no gusts and no slip, a steady stream. */
+  const steady = fade === 0
   // The glyph's upwind edge: the smallest distance along the stream over the ink box.
   const upwind = Math.min(...[box.minX, box.maxX].flatMap((x) => [box.minY, box.maxY].map((y) => x * wx + y * wy)))
 
@@ -233,6 +240,9 @@ export function slipstreamWarp(params: SlipstreamParams, seed: number, box: Box,
       const downwind = (t: number) => pa.u + du * t >= 0
       const ts: number[] = []
       latticeLines(pa.u, du, ts, 0)
+      // Gust size 0: every band blows alike and nothing slips, so the stretch changes only from one column of cells
+      // to the next; band lines and diagonals bend nothing.
+      if (steady) return ts.sort((x, y) => x - y)
       const bands: number[] = []
       latticeLines(pa.v, dv, bands)
       for (const t of bands) if (downwind(t)) ts.push(t)

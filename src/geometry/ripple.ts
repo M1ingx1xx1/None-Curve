@@ -95,6 +95,11 @@ function wavesOf(params: RippleParams): number {
   return Math.min(wavelengthOf(params) / RIPPLE_LIMITS.shortestWavelength, 1)
 }
 
+/** The wavelength Ripple's rings use (× the em) and how much of the waves is left there (0–1; 0: no rings). */
+export function rippleRings(params: RippleParams): { wavelength: number; waves: number } {
+  return { wavelength: Math.max(wavelengthOf(params), RIPPLE_LIMITS.shortestWavelength), waves: wavesOf(params) }
+}
+
 /** The Petals setting (0 when missing, as in settings saved before it existed). */
 function petalsOf(params: RippleParams): number {
   return clamp(finite(params.petals, 0), 0, RIPPLE_LIMITS.maxPetals)
@@ -136,7 +141,9 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   )
   const half = Math.PI / sides
   const tanHalf = Math.tan(half)
-  const last = Math.ceil(reach / spacing) + 1
+  // Wavelength 0: no waves, so no rings either. Only the rays' scaling (Petals) is left, linear in each slice, as
+  // beyond the last ring: the whole letter is then "beyond the rings", and its edges are creased only at the rays.
+  const last = wavesOf(params) === 0 ? 0 : Math.ceil(reach / spacing) + 1
   // Ray j points at angle first + j × 2·half; wedge j lies between rays j and j + 1. With this first
   // angle, one wedge is centred straight down, so the polygons sit on a flat side.
   const first = -Math.PI / 2 + half

@@ -33,7 +33,7 @@ import type { OutlineView, SettingsParams, ViewToggles } from './types'
 const SESSION_KEY = 'none-curve:session'
 /** Set while settings restored from the last visit are first drawn; still set on the next start means that visit never finished. */
 const RESTORING_KEY = 'none-curve:restoring'
-export const SESSION_VERSION = 2
+export const SESSION_VERSION = 3
 /** Characters of text saved at most. */
 export const MAX_SAVED_TEXT = 10_000
 /** Wait this long after a change before saving (changes during a slider drag are saved once). */
@@ -156,8 +156,48 @@ function fromV1(raw: Raw): Raw {
   return { ...raw, params, mappings, version: 2 }
 }
 
+/**
+ * The six Experimental sliders that version 3 lets down to 0, with the [lowest, highest] value each ran over in
+ * version 2. A Sound row's Depth and Range are shares of its slider's travel, so the same share now means another value.
+ */
+const WIDENED_IN_V3: Readonly<Record<string, readonly [number, number]>> = {
+  'experimental.crumple.facet': [0.08, 1],
+  'experimental.ripple.wavelength': [0.08, 2],
+  'experimental.slipstream.gust': [0.06, 0.5],
+  'experimental.thorn.count': [1, 12],
+  'experimental.thorn.flute': [0.04, 0.3],
+  'experimental.thorn.spikes': [4, 80],
+}
+
+/**
+ * Version 3 runs the sliders in WIDENED_IN_V3 from 0. A Sound row on one of them keeps what it did: its Depth moves the
+ * slider the same distance in value, and a narrowed Range keeps the same values at its ends (rounded to the Range's
+ * step), so it never reaches below the old lowest. A full Range stays full: the row may now take the slider down to 0.
+ */
+function fromV2(raw: Raw): Raw {
+  const mappings = Array.isArray(raw.mappings)
+    ? raw.mappings.map((m) => {
+        if (!isObject(m) || typeof m.target !== 'string' || !(m.target in WIDENED_IN_V3)) return m
+        const [low, high] = WIDENED_IN_V3[m.target]
+        // Old shares of the travel to new ones, over the new travel 0–high.
+        const share = (old: number) => (low + old * (high - low)) / high
+        const row: Raw = { ...m }
+        // Rounded to strip floating-point noise (0.15 × 11 / 12 is 0.1375, not 0.13749999999999998).
+        if (typeof m.depth === 'number' && Number.isFinite(m.depth)) row.depth = Number(((m.depth * (high - low)) / high).toFixed(9))
+        const rangeMin = typeof m.rangeMin === 'number' && Number.isFinite(m.rangeMin) ? m.rangeMin : 0
+        const rangeMax = typeof m.rangeMax === 'number' && Number.isFinite(m.rangeMax) ? m.rangeMax : 1
+        if (rangeMin > 0 || rangeMax < 1) {
+          row.rangeMin = share(clamp(rangeMin, 0, 1))
+          row.rangeMax = share(clamp(rangeMax, 0, 1))
+        }
+        return row
+      })
+    : raw.mappings
+  return { ...raw, mappings, version: 3 }
+}
+
 /** Steps from each older version to the next; the last one reaches SESSION_VERSION. */
-const MIGRATIONS: Record<number, (raw: Raw) => Raw> = { 0: fromUnversioned, 1: fromV1 }
+const MIGRATIONS: Record<number, (raw: Raw) => Raw> = { 0: fromUnversioned, 1: fromV1, 2: fromV2 }
 
 function migrate(raw: Raw): Raw {
   let version = typeof raw.version === 'number' && Number.isInteger(raw.version) ? raw.version : 0

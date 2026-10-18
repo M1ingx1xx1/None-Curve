@@ -201,10 +201,11 @@ describe('saved session', () => {
     expect([x.crumple.enabled, x.whorl.enabled, x.slipstream.enabled, x.thorn.enabled]).toEqual([true, true, true, true])
     expect(x.crumple.amount).toBe(1.5)
     expect('noise' in x).toBe(false)
-    // The dropped feature "sub" has no new name: its row is left out.
+    // The dropped feature "sub" has no new name: its row is left out. Anchors now runs from 0 (version 3), so its
+    // row's depth is rescaled to move it as far as before: 20% of 1–12 is 2.2 anchors, 2.2 / 12 of 0–12.
     expect(session.mappings).toEqual([
       { id: 'm1', enabled: true, feature: 'bass', target: 'experimental.crumple.amount', depth: 0.4 },
-      { id: 'm2', enabled: true, feature: 'beat', target: 'experimental.thorn.count', depth: 0.2 },
+      { id: 'm2', enabled: true, feature: 'beat', target: 'experimental.thorn.count', depth: 0.183333333 },
     ])
   })
 
@@ -227,7 +228,8 @@ describe('saved session', () => {
     expect('reach' in thorn).toBe(false)
     expect(session.mappings).toEqual([
       { id: 'm1', enabled: true, feature: 'level', target: 'experimental.thorn.canvasReach', depth: 0.3 },
-      { id: 'm2', enabled: true, feature: 'beat', target: 'experimental.thorn.count', depth: 0.15 },
+      // Anchors now runs from 0 (version 3): 15% of 1–12, 1.65 anchors, is 0.1375 of 0–12.
+      { id: 'm2', enabled: true, feature: 'beat', target: 'experimental.thorn.count', depth: 0.1375 },
     ])
     // The saved text size and canvas, read as the session reads them (missing ones at their defaults, out of range clamped).
     expect(v1(0.6).params.experimental.thorn.canvasReach).toBe(thorn.canvasReach)
@@ -262,6 +264,39 @@ describe('saved session', () => {
     expect(v1('far').params.experimental.thorn.canvasReach).toBe(DEFAULT_SETTINGS.experimental.thorn.canvasReach)
   })
 
+  it('reads version 2 Sound rows on the six sliders that now run from 0 as moving the same values', () => {
+    const v2 = (rows: Record<string, unknown>[]) => readSession({ version: 2, mappings: rows })!.mappings
+    const [facet, count, gust, flute, wavelength, spikes, other] = v2([
+      // A narrowed Range keeps its values: 0–50% of 8%–100% (8%–54%) is 8%–54% of 0–100%.
+      { feature: 'level', target: 'experimental.crumple.facet', depth: 0.46, rangeMin: 0, rangeMax: 0.5 },
+      // A full Range stays full; the depth still moves the same number of anchors (0.6 × 11 = 6.6 = 0.55 × 12).
+      { feature: 'beat', target: 'experimental.thorn.count', depth: -0.6 },
+      { feature: 'bass', target: 'experimental.slipstream.gust', depth: 0.5, rangeMin: 0.25, rangeMax: 1 },
+      { feature: 'mids', target: 'experimental.thorn.flute', depth: 1, rangeMax: 0.5 },
+      { feature: 'treble', target: 'experimental.ripple.wavelength', depth: 0.2 },
+      { feature: 'pitch', target: 'experimental.thorn.spikes', depth: 0.1, rangeMin: 0.5 },
+      // Other sliders are left as they were.
+      { feature: 'level', target: 'experimental.crumple.amount', depth: 0.4, rangeMin: 0.2, rangeMax: 0.6 },
+    ])
+    expect(facet).toMatchObject({ depth: 0.4232, rangeMin: 0.08, rangeMax: 0.54 })
+    expect(count).toMatchObject({ depth: -0.55 })
+    expect('rangeMin' in count || 'rangeMax' in count).toBe(false)
+    // 0.06 + 0.25 × 0.44 = 0.17 of 0.5.
+    expect(gust).toMatchObject({ depth: 0.44, rangeMin: 0.34 })
+    expect('rangeMax' in gust).toBe(false)
+    // 0.04 + 0.5 × 0.26 = 0.17 of 0.3, and 0.04 itself is 0.13 of it.
+    expect(flute).toMatchObject({ depth: 0.866666667, rangeMin: 0.13, rangeMax: 0.57 })
+    expect(wavelength).toMatchObject({ depth: 0.192 })
+    // 4 + 0.5 × 76 = 42 of 80.
+    expect(spikes).toMatchObject({ depth: 0.095, rangeMin: 0.53 })
+    expect(other).toMatchObject({ depth: 0.4, rangeMin: 0.2, rangeMax: 0.6 })
+    // A version 3 row is read as it is.
+    expect(readSession({ version: 3, mappings: [{ feature: 'level', target: 'experimental.crumple.facet', depth: 0.46, rangeMax: 0.5 }] })!.mappings[0]).toMatchObject({
+      depth: 0.46,
+      rangeMax: 0.5,
+    })
+  })
+
   it('round-trips a version 2 Reach, and never saves Thorn\'s derived canvasEm', () => {
     const storage = new MemoryStorage()
     const session = changedSession()
@@ -270,7 +305,7 @@ describe('saved session', () => {
     session.mappings = [{ id: 'm1', enabled: true, feature: 'level', target: 'experimental.thorn.canvasReach', depth: -0.5 }]
     saveSession({ ...session, params: { ...session.params, experimental: { ...session.params.experimental, thorn: { ...thorn, canvasEm: 30.04 } } } }, storage)
     const raw = JSON.parse(storage.items.get(SESSION_KEY)!)
-    expect(raw.version).toBe(2)
+    expect(raw.version).toBe(SESSION_VERSION)
     expect('canvasEm' in raw.params.experimental.thorn).toBe(false)
     expect(loadSession(storage)).toEqual({ session, crashed: false })
     // Nor is one read back from storage.

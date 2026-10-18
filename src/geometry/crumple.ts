@@ -64,6 +64,11 @@ function facetFade(params: CrumpleParams): number {
   return Math.min(facetOf(params) / CRUMPLE_LIMITS.finestFacet, 1)
 }
 
+/** The lattice Crumple uses (its facet size, × the em) and how much of the movement is left there (0–1). */
+export function crumpleLattice(params: CrumpleParams): { facet: number; fade: number } {
+  return { facet: Math.max(facetOf(params), CRUMPLE_LIMITS.finestFacet), fade: facetFade(params) }
+}
+
 /** The Crumple warp at `scale` × its strength (1 = the safe maximum). */
 export function crumpleWarp(params: CrumpleParams, seed: number, unitsPerEm: number, scale = 1): Warp {
   const amount = clamp(finite(params.amount, 0), 0, CRUMPLE_LIMITS.maxAmount) * facetFade(params) * scale

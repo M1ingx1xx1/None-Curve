@@ -180,6 +180,12 @@ const CHANNEL = {
 } as const
 const UINT = 0x1_0000_0000
 
+/** The strip width Thorn's glass uses (× the em) and how much of Refraction is left there (0–1; 0: no glass). */
+export function thornFlutes(params: ThornParams): { flute: number; fade: number } {
+  const width = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute)
+  return { flute: Math.max(width, THORN_LIMITS.finestFlute), fade: Math.min(width / THORN_LIMITS.finestFlute, 1) }
+}
+
 export function thornIsOn(params: ThornParams | undefined): params is ThornParams {
   if (!params || !params.enabled || !(finite(params.canvasReach, 0) > 0)) return false
   // Older saved settings have no Burst and no spikes (THORN_FALLBACK.spikes).
@@ -535,10 +541,10 @@ export function applyThorn(
   const spread = clamp(finite(params.spread, 0.5), 0, 1)
   const width = clamp(finite(params.width, 1), THORN_LIMITS.minWidth, 1)
   const radius = clamp(finite(params.root, THORN_FALLBACK.root), 0, 1) * THORN_LIMITS.maxRoot * unitsPerEm
-  const fluteWidth = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute)
   // Below the narrowest strip, the glass fades out: Refraction falls with the flute width, to 0 at 0.
-  const refraction = clamp(finite(params.refraction, 0), 0, 1) * Math.min(fluteWidth / THORN_LIMITS.finestFlute, 1)
-  const flute = Math.max(fluteWidth, THORN_LIMITS.finestFlute) * unitsPerEm
+  const flutes = thornFlutes(params)
+  const refraction = clamp(finite(params.refraction, 0), 0, 1) * flutes.fade
+  const flute = flutes.flute * unitsPerEm
   const contours = polygon.contours.map((c) => c.points)
 
   // Older saved settings have no Reverse; off runs exactly the expressions it always did.

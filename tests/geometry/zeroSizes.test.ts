@@ -14,7 +14,7 @@ import type { GeometryParams } from '../../src/geometry/types'
 import type { LoadedFont } from '../../src/font/model'
 import { SLIDER_RANGES } from '../../src/state/sliderScales'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { allFinite, contoursOf, outlineCrossings, sameContours } from '../helpers/outline'
+import { allFinite, boundsOf, contoursOf, inkArea, outlineCrossings, sameContours, vertexCount } from '../helpers/outline'
 import { BASE, GEOMETRY, on, paramsWith } from '../helpers/params'
 
 const TEXT = 'aBg8&'
@@ -62,6 +62,15 @@ describe('sliders that reach 0', () => {
     expect(status(on('thorn', { count: 0 }))).not.toContain('thorn')
     expect(status(on('thorn', { refraction: 1, flute: 0 }))).not.toContain('refraction')
     expect(status(on('thorn', { refraction: 1, flute: 0.04 }))).toContain('refraction 100% (flutes 4% em)')
+    // It shows what is drawn: below the finest size, that size and the part faded out.
+    expect(status(on('thorn', { refraction: 1, flute: 0.02 }))).toContain('refraction 50% (flutes 4% em)')
+    expect(status(on('crumple', { amount: 0.7, facet: 0.04 }))).toContain('crumple 35%, facets 8% em')
+    expect(status(on('ripple', { amount: 0.5, wavelength: 0.04 }))).toContain('ripple 25%, wavelength 8% em')
+    expect(status(on('ripple', { amount: 0.5, wavelength: 0, petals: 0.3 }))).toContain('ripple no waves, 8 sides')
+    expect(status(on('slipstream', { strength: 0.5, gustiness: 1, slip: 0.5, gust: 0.03 }))).toContain('slip 25% em, gusts 6% em, gustiness 50%')
+    const steadyStatus = status(on('slipstream', { strength: 0.5, gustiness: 1, slip: 0.5, gust: 0 }))
+    expect(steadyStatus).toContain('steady, no gusts')
+    expect(steadyStatus).not.toMatch(/slip \d|gustiness/)
   })
 })
 
@@ -80,7 +89,6 @@ describe.each(FIXTURE_FONTS)('sizes at and below the old minimums: %s', (fontNam
   const NO_OPS: [string, GeometryParams, GeometryParams][] = [
     ['Crumple, Facet size 0', paramsWith({}, on('crumple', { amount: 3, facet: 0 })), plain],
     ['Ripple, Wavelength 0', paramsWith({}, on('ripple', { amount: 3, wavelength: 0, fade: 0.5 })), plain],
-    ['Ripple, Wavelength 0 with Petals', paramsWith({}, on('ripple', { amount: 3, wavelength: 0, petals: 1 })), paramsWith({}, on('ripple', { amount: 0, wavelength: 0.08, petals: 1 }))],
     ['Slipstream, Gust size 0, only Slip', paramsWith({}, on('slipstream', { strength: 0, slip: 0.6, gust: 0, cuts: 0, trails: 0 })), plain],
     [
       'Slipstream, Gust size 0',
@@ -95,6 +103,19 @@ describe.each(FIXTURE_FONTS)('sizes at and below the old minimums: %s', (fontNam
 
   it.each(NO_OPS)('%s: exactly the outline without it', (_name, params, without) => {
     for (const g of glyphs) expect(sameContours(outline(g.index, params), outline(g.index, without)), `"${g.char}"`).toBe(true)
+  })
+
+  it('Ripple, Wavelength 0 with Petals: the same letter as still rings, without their creases', () => {
+    const noWaves = paramsWith({}, on('ripple', { amount: 3, wavelength: 0, petals: 1 }))
+    const stillRings = paramsWith({}, on('ripple', { amount: 0, wavelength: 0.08, petals: 1 }))
+    for (const g of glyphs) {
+      const [a, b] = [outline(g.index, noWaves), outline(g.index, stillRings)]
+      // No ring creases to add: never more points than the densest rings give.
+      expect(vertexCount(a), `"${g.char}"`).toBeLessThanOrEqual(vertexCount(b))
+      expect(Math.abs(inkArea(a) - inkArea(b)) / inkArea(b), `"${g.char}"`).toBeLessThan(0.005)
+      const [ba, bb] = [boundsOf(a)!, boundsOf(b)!]
+      for (const k of ['minX', 'minY', 'maxX', 'maxY'] as const) expect(Math.abs(ba[k] - bb[k]), `"${g.char}" ${k}`).toBeLessThan(1)
+    }
   })
 
   /** Halfway below the old minimum: the finest size, its part at half strength (each half is exact in binary). */
