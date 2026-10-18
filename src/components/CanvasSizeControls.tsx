@@ -1,3 +1,4 @@
+import { pngSize } from '../export/png'
 import { ARTBOARD_LIMITS, type ArtboardParams } from '../specimen/artboard'
 import NumberField from './NumberField'
 import Icon from './Icon'
@@ -24,6 +25,7 @@ const clampSide = (v: number) => Math.round(Math.min(ARTBOARD_LIMITS.max, Math.m
  */
 export default function CanvasSizeControls({ params, onChange }: CanvasSizeControlsProps) {
   const { width, height, scale } = params
+  const png = pngSize(width, height, scale)
 
   /** Keeps the width and sets the height from the ratio; if that is too tall, keeps the height instead. */
   const applyRatio = (a: number, b: number) => {
@@ -102,7 +104,7 @@ export default function CanvasSizeControls({ params, onChange }: CanvasSizeContr
           ))}
         </div>
         <p className="field-hint">
-          PNG {width * scale} × {height * scale} px
+          PNG {png.width} × {png.height} px{png.capped ? ' (scaled down to what a browser can draw)' : ''}
         </p>
       </div>
     </div>
