@@ -88,6 +88,7 @@
   - **Load** 是唯一的例外（第 7 节）：它在设置预设之前先把 Geometry 和 Experimental 的设置恢复为默认值，所以可能会关闭一些设置，并在 Preset 一行下方说明。它是一个撤销步骤，所以撤销会恢复之前的设置和映射。手动选择目标仍然只会打开该目标所需的设置，不会恢复任何默认值。
   - 如果用户之后又把这个设置关掉，该行会说明目标为什么不起作用，并提供 **Enable** 按钮，点它会重新打开设置并显示提示。
   - 用键盘浏览 Target 列表时，途经的选项不会打开任何设置：按 Enter 或焦点离开列表时才生效。用鼠标选择则立即生效。
+- **拖拽映射**（NOCUR-75），与 Ableton 或 Bitwig 一样：从 Input 框里某个特征的电平表拖出这个特征，放到任意标签页里作为目标的控件上（§6）：Geometry 和 Experimental 的滑块、种子和勾选框，Typography 的滑块，颜色（它的 Hue 或 Lightness），以及可变轴。放下后添加一行，处于打开状态，Depth 为 +50%（种子的 Rate 为 50%；开关从 Toggle 开始），并完全像 Add mapping 一样打开目标需要的设置，显示同样的提示；这一行和它打开的设置是一个撤销步骤。同一个特征已经映射到这个目标时不会再映射一次，而是标记已有的那一行；那一行如果是关闭的，会把它和目标需要的设置一起打开，作为一个撤销步骤。已有 8 行时不添加。语义不变：拖拽添加的行就是普通的行。
 - **基准值保持不变：**
   - 滑块保留自己的值，Sound 实时运行时滑块不动；每个被驱动的滑块上有一条细标记显示实时值。
   - 种子输入框保留自己的种子；旁边一个小数字显示实时种子。Distortion 和 Random anchors 的统计数字也显示实时种子，因为它们描述的是屏幕上显示的字母。
@@ -363,6 +364,8 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - 每行占一行：开关 LED、Feature（与电平表说明相同的分组）、Target（分组：Geometry / Experimental / Switches / Typography / Color / Variable axes；选项显示为 "Section · Label"，Experimental 的种子只显示 "Seed"）、一个小的双极 Depth 旋钮，以及打开该行详情的展开按钮（同一时间只展开一行：先是该行的塑形设置——Mode 为 Follow / Trigger / Toggle 分段控件，Gate、Curve 和 Smooth 为小旋钮，目标是滑块时还有双滑块的 Range（NOCUR-72；含义见 README → 塑形）——然后是 Remove，以及 Rate 的 ⓘ）。在种子上，Depth 改为 **Rate**，0–100%，步长 1%，并带一个 ⓘ，其中也说明种子和滑块共用每秒 3 次闪烁的限制，滑块越忙，跳变就越少。行内控件的名称带行号（“Remove mapping 2”）；目标当前不起作用时，行下方的说明也是 Target 的描述。
   - 行下方：选择目标时打开了什么的提示，一直保留到该行的目标再次改变；或者，目标不起作用时，说明原因并提供 **Enable**（屏幕阅读器读作 “Enable, mapping 2”）。
   - **Add mapping**，以及每行详情里的 Remove。删除一行后，键盘焦点移到下一行的展开按钮（没有时移到上一行的，都没有时移到 Add mapping）。
+  - **拖拽映射**（§5）：用 pointer 事件，不用 HTML 拖放。在电平表上按下后移动超过 4 px 就开始拖动：一个主色薄荷绿的方形小标签跟随指针，写着特征名称（经过目标时再加上目标名称）；所有放置区出现薄荷绿虚线框，指针下的那个变成实线框，页面其他部分没有反应。每个目标的实时标记都会渲染一个锚点（`MapTarget`），把它所在的字段标记为放置区，所以新控件随它的标记一起获得放置区；有一个测试渲染各个面板，检查每个目标都有放置区。颜色的两个目标在色块上有两个放置区 Hue 和 Lightness，只在拖动时显示。在标签（Geometry、Experimental、Sound、Typography、Color）上停留 400 ms 会打开它，指针靠近可滚动面板的顶部或底部时面板会滚动。按 Escape 或在放置区以外松开即取消。放下后停留在当前标签页；控件下方的简短消息说明映射了什么、打开了什么（或映射已存在，或已达上限），对应的行加上边框，新行标为 “New”，直到用户用到它。
+  - 键盘：在电平表上按 Enter 或空格开始选择目标；Tab、Shift+Tab 和方向键按 Target 列表的顺序经过所有目标（打开它的标签页并给控件加框），Enter 映射，Escape 取消，每一步都通过 polite 实时区域朗读。之后焦点移到被映射的控件（颜色则是它的第一个输入框）；没有可聚焦的东西（可变轴）或按 Escape 时回到电平表。用指针在任何地方按下都会取消选择，焦点留在按下的位置；按住 Enter 只开始一次选择，不会映射。Feature 和 Target 下拉框照常可用。
   - **Freeze**，在这个分组的末尾，旁边显示 "Live · N fps"。录制视频期间它不可用（`aria-disabled`，保留键盘焦点），并显示 "Freeze is off while recording."。它的 ⓘ 还说明，按不同幅度响应的字母会取共享值。
   - 变慢的提示，低于约 8 fps 时显示："Too slow to follow the sound: try fewer effects or a shorter text."；Motion contrast 或 Pitch reactive 大于 0 时改为 "Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive."。
 - **Response**（取代原来的 Analysis 分组）：依次是 Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking 和 Glide（第 5.1 节），每个都是带数值（dB、% 或 ms）和通俗 ⓘ 说明的滑块；然后是 **Reset sound**，它用一个撤销步骤把七个值都恢复，已经是默认值时不可用。

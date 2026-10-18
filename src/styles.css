@@ -3297,3 +3297,116 @@ input.number-field {
   flex: none;
   width: 34px;
 }
+
+/* ---- Drag to map (mapDrag.ts) ----
+   A meter is picked up and dropped on any control Sound can drive. Straight edges only, like the rest of the
+   interface: square chips and outlines, no rounding. */
+.led-column {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+html[data-map-dragging] {
+  user-select: none;
+}
+
+html[data-map-dragging='pointer'],
+html[data-map-dragging='pointer'] * {
+  cursor: grabbing !important;
+}
+
+/* Every control a mapping can drive is outlined in the interface mint; the one under the pointer (or the
+   keyboard's pick) gets a heavier outline and a faint wash. Areas that are not targets do not change. */
+html[data-map-dragging] [data-map-zone] {
+  outline: 1px dashed var(--primary-strong);
+  outline-offset: 2px;
+}
+
+html[data-map-dragging] [data-map-zone][data-map-over] {
+  outline: 2px solid var(--primary-strong);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* A colour row holds two targets, Hue and Lightness: a small zone each, shown only while dragging. */
+.map-zone-chip {
+  display: none;
+}
+
+html[data-map-dragging] .map-zone-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  color: var(--primary-strong);
+  white-space: nowrap;
+}
+
+/* In a colour row the two zones cover the swatch while dragging, Hue on its left half and Lightness on its right
+   (the swatch column is the row less the hex box, 96px, and the gap, 8px). */
+html[data-map-dragging] .color-row > .map-zone-chip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc((100% - 104px) / 2);
+  height: 32px;
+  justify-content: center;
+  background: var(--surface);
+  outline-offset: -2px;
+}
+
+html[data-map-dragging] .color-row > .map-zone-chip + .map-zone-chip {
+  left: calc((100% - 104px) / 2);
+}
+
+/* The dragged feature, following the pointer: a square chip in the primary mint. */
+.map-drag-chip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--primary-edge);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.map-drag-chip-target {
+  font-weight: 400;
+}
+
+/* What a drop did, beside the control, for a few seconds. */
+.map-drag-status {
+  position: fixed;
+  z-index: 1000;
+  max-width: 272px;
+  padding: 4px 8px;
+  border: 1px solid var(--primary-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+/* The row a drop made (or found), until it is used. */
+.mapping[data-marked] {
+  outline: 1px solid var(--primary-strong);
+  outline-offset: 2px;
+}
+
+.mapping[data-marked='new'] .mapping-row::before {
+  content: 'New';
+  flex: none;
+  padding: 0 4px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}

@@ -7,6 +7,7 @@ import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
 import { HintsContext, useShowAllHints } from './components/Hint'
 import InputPanel from './components/InputPanel'
+import MapDragLayer from './components/MapDragLayer'
 import RecordingCanvas from './components/RecordingCanvas'
 import StatusBar from './components/StatusBar'
 import TextPanel from './components/TextPanel'
@@ -614,6 +615,8 @@ export default function App({ restored }: AppProps) {
         extras={{ previewLook, precision }}
         onReset={resetAll}
       />
+      {/* Drag to map: the dragged feature's chip and what a drop did. */}
+      <MapDragLayer />
       <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importGoogleFont} />
       <ExportDialog
         open={exportOpen}
