@@ -1,5 +1,6 @@
 // Reset experimental (src/state/clearExperimental.ts): every Experimental field of the default settings is cleared,
-// switches to false and sliders to their lowest (0 where the range holds it), the seed is kept, and the "already
+// switches to false and sliders to their lowest (0 where the range holds it) except the few kept at their starting
+// value (Ripple's centre, Dissolve's Grain), the seed is kept, and the "already
 // cleared" check matches. The cleared values are valid for the pipeline: each effect switched on at them, and with
 // its strength then raised, gives finite outlines that do not cross themselves.
 
@@ -17,6 +18,9 @@ import { BASE, EFFECTS, type Effect } from '../helpers/params'
 
 const DEFAULTS = initialState.params.experimental
 
+/** Sliders Reset experimental leaves at their starting value: Ripple's centre (a position) and Dissolve's Grain (cost). */
+const KEPT_AT_DEFAULT = new Set(['experimental.ripple.centerX', 'experimental.ripple.centerY', 'experimental.dissolve.grain'])
+
 /** The lowest value the control for this field can give. */
 function controlMinimum(id: string): number {
   if (id === 'experimental.thorn.canvasReach') return reachFromSlider(THORN_REACH.slider.min)
@@ -29,7 +33,7 @@ describe('clearedExperimental', () => {
     expect(clearedExperimental(0).seed).toBe(0)
   })
 
-  it('turns every switch off and puts every slider at its lowest, or 0 where its range holds 0', () => {
+  it('turns every switch off and puts every slider at its lowest, or 0 where its range holds 0, or kept at its start', () => {
     const cleared = clearedExperimental(1)
     for (const effect of Object.keys(DEFAULTS).filter((k) => k !== 'seed') as Effect[]) {
       const fields = Object.entries(DEFAULTS[effect])
@@ -39,6 +43,9 @@ describe('clearedExperimental', () => {
         const id = `experimental.${effect}.${key}`
         if (typeof value === 'boolean') {
           expect(got, id).toBe(false)
+        } else if (KEPT_AT_DEFAULT.has(id)) {
+          expect(got, id).toBe(value)
+          expect(got, id).toBe(clearedSliderValue(id))
         } else {
           const min = controlMinimum(id)
           expect(got, id).toBe(min > 0 ? min : 0)
@@ -57,8 +64,8 @@ describe('clearedExperimental', () => {
         amount: 0,
         wavelength: SLIDER_RANGES['experimental.ripple.wavelength'].min,
         sides: SLIDER_RANGES['experimental.ripple.sides'].min,
-        centerX: 0,
-        centerY: 0,
+        centerX: 0.5,
+        centerY: 0.5,
         fade: 0,
         petals: 0,
         reverse: false,
@@ -79,7 +86,7 @@ describe('clearedExperimental', () => {
         spikes: THORN_LIMITS.minSpikes,
         dent: 0,
       },
-      dissolve: { enabled: false, amount: 0, grain: SLIDER_RANGES['experimental.dissolve.grain'].min, spread: 0, specks: 0, curl: 0, facets: 0 },
+      dissolve: { enabled: false, amount: 0, grain: DEFAULTS.dissolve.grain, spread: 0, specks: 0, curl: 0, facets: 0 },
     })
   })
 
@@ -145,8 +152,7 @@ describe.each(FIXTURE_FONTS)('cleared values in the pipeline: %s', (fontName) =>
   it.each(CASES)('%s: valid outlines', (_name, patch) => {
     const params: GeometryParams = { ...BASE, experimental: { ...cleared, ...patch } }
     const problems: string[] = []
-    // Dissolve at its finest grain is slow: every fourth glyph (dissolve.test.ts checks its finest grain more closely).
-    for (const g of patch.dissolve ? glyphs.filter((_, k) => k % 4 === 0) : glyphs) {
+    for (const g of glyphs) {
       const derived = deriveGeometry(font.getGlyph(g.index), params)
       const contours = contoursOf(derived.polygon)
       const label = `"${g.char}"`

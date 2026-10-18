@@ -6,7 +6,7 @@ import { BURST_REACH, THORN_LIMITS, type ThornStats } from '../geometry/thorn'
 import type { CrumpleParams, DissolveParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import { clearedExperimental, isClearedExperimental } from '../state/clearExperimental'
-import type { Action } from '../state/editorState'
+import { initialState, type Action } from '../state/editorState'
 import { reachFromSlider, reachPercent, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId, type SliderRange } from '../state/sliderScales'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
@@ -28,15 +28,8 @@ interface ExperimentalControlsProps {
   reachEm: number
 }
 
-export const DEFAULT_EXPERIMENTAL: ExperimentalParams = {
-  seed: 1,
-  crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
-  ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
-  whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
-  slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-  thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false, burst: false, spikes: 40, dent: 0.8 },
-  dissolve: { enabled: false, amount: 0.5, grain: 0.4, spread: 0.8, specks: 0.4, curl: 0.6, facets: 0.3 },
-}
+/** The starting Experimental settings, for older settings missing an effect or field. */
+export const DEFAULT_EXPERIMENTAL: ExperimentalParams = initialState.params.experimental
 
 const percent = (v: number) => Math.round(v * 100)
 /** Ems for a hint: one decimal below 10, whole above. */
@@ -144,11 +137,6 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
             type="button"
             className="button-small"
             disabled={disabled || isCleared}
-            title={
-              isCleared
-                ? 'Every effect is off and every slider at its lowest'
-                : 'Reset experimental: turns every effect and switch off and every slider to its lowest (0 where it can be). The seed stays; Undo brings the settings back.'
-            }
             onClick={() => update(clearedExperimental(params.seed))}
           >
             <Icon name="reset" />

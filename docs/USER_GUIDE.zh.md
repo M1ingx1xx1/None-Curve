@@ -432,7 +432,7 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
 - **设置很重时。** 很细的 Grain 加上很长的刺，或者所有效果都拉到最大，可能会产生太多的角。这时字母会溶解得粗一些，你可能会看到黄色提示：“This glyph is too large for the grain: it is dissolved more coarsely.” 或 “Longer facets on this glyph: these settings make too many vertices.” 调高 **Grain** 或 **Facets**，或调低其他效果，细节就会回来。
 - **试一试：** 勾选 **Use dissolve**，然后把 **Amount** 调到 80%、**Curl** 调到 100%，得到几乎磨光的墨迹；或者把 **Grain** 降到 20%，得到细密如尘的墨点。按 Seed 下的 **Next variant** 看看另一种图案。
 
-**Seed**（种子）——这个标签页上所有效果共用一个数字：它决定 Crumple 的折痕；Slipstream 的阵风、错位、切口和拖尾；Thorn 移动哪些点、玻璃竖条怎么移动；以及 Dissolve 让墨迹在哪里碎开（Ripple 和 Whorl 没有随机性）。种子和设置相同，字母就相同；**Next variant** 换下一个。**Reset experimental** 清空整个标签页：关闭所有效果，关掉所有开关（**Reverse**、**Burst**、**Pin top and bottom**），并把每个滑块移到最低：能为 0 的设为 0，不能为 0 的设为它的最小值（**Sides**、**Rings**、**Anchors**、**Facet size**、**Wavelength**、**Gust size**、**Flute width**、**Grain**）。种子保持不变，**Undo**（撤销）可以把设置找回来。一切都已清空时，这个按钮是灰的。
+**Seed**（种子）——这个标签页上所有效果共用一个数字：它决定 Crumple 的折痕；Slipstream 的阵风、错位、切口和拖尾；Thorn 移动哪些点、玻璃竖条怎么移动；以及 Dissolve 让墨迹在哪里碎开（Ripple 和 Whorl 没有随机性）。种子和设置相同，字母就相同；**Next variant** 换下一个。**Reset experimental** 清空整个标签页：关闭所有效果，关掉所有开关（**Reverse**、**Burst**、**Pin top and bottom**），并把每个滑块移到最低：能为 0 的设为 0，不能为 0 的设为它的最小值（**Sides**、**Rings**、**Anchors**、**Facet size**、**Wavelength**、**Gust size**、**Flute width**）。有两处改为回到初始值：Ripple 的 **Center** 回到字母正中，Dissolve 的 **Grain** 回到初始大小，因为最细的颗粒画起来很慢。种子保持不变，**Undo**（撤销）可以把设置找回来。一切都已清空时，这个按钮是灰的。
 
 同一个字母的每次出现折痕、切口、拖尾、刺和墨迹都一样，所以导出的字体与画布上看到的完全相同，只有很长的刺会被字体文件切短（见上面的 Thorn）。
 
