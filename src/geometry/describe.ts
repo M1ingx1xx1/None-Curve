@@ -67,7 +67,9 @@ export function describePipeline(params: GeometryParams): string[] {
     const refraction = s.refraction ?? 0
     // As the Reach slider shows it, and its length in em the same way.
     const reach = `${reachPercent(s.canvasReach)}% canvas${s.canvasEm !== undefined ? ` (about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm))} em)` : ''}`
-    const glass = refraction > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(s.flute ?? THORN_FALLBACK.flute)} em)` : ''
+    // Flute width 0 clears the glass, as Refraction 0 does.
+    const flute = s.flute ?? THORN_FALLBACK.flute
+    const glass = refraction > 0 && flute > 0 ? `, refraction ${pct(refraction)} (flutes ${pct(flute)} em)` : ''
     if (s.burst === true) {
       // Burst: its own spike count and Dent, no roots; its longest spike is BURST_REACH of Reach's length.
       const spikes = s.spikes ?? THORN_FALLBACK.spikes

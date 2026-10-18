@@ -30,6 +30,10 @@
 // through it. They are cut out exactly: the outline is first redrawn by the nonzero rule (overlaps.ts), so the ink
 // winds once and everything else not at all; then the wedges are added the other way round, and the outline is
 // redrawn around what still winds positively.
+//
+// Gust size 0 means no gusts: the stream blows steadily (every band at full strength, so Gustiness does nothing) and
+// nothing slips. Below the smallest band (smallestGust) the bands keep that size and Gustiness and Slip fade out
+// instead, in proportion, so the slider runs down to a steady stream without ever cutting the bands finer.
 
 import type { GlyphBudget } from './budget'
 import { hashInts } from './distortion'
@@ -50,9 +54,11 @@ export const SLIPSTREAM_LIMITS = {
   maxReach: 4,
   /** Above 1 (the safe range), some gusts blow backwards. */
   maxGustiness: 2,
-  /** Band (gust) sizes, as fractions of the em. */
-  minGust: 0.06,
+  /** Band (gust) sizes, as fractions of the em; 0: no gusts (see the header). */
+  minGust: 0,
   maxGust: 0.5,
+  /** The narrowest band: smaller gust sizes keep it and fade Gustiness and Slip out. */
+  smallestGust: 0.06,
   /** Slip: how far apart the sway bands may slide, as a fraction of the em. Safe at any amount (a shear). */
   maxSlip: 0.6,
   /** Cuts and trails per letter. */
@@ -141,7 +147,7 @@ export const emptySlipstreamStats = (): SlipstreamStats => ({ ...emptyWarpStats(
 export function slipstreamIsOn(params: SlipstreamParams): boolean {
   return (
     params.enabled &&
-    (finite(params.strength, 0) > 0 || finite(params.slip, 0) > 0 || count(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0 || count(params.trails, SLIPSTREAM_LIMITS.maxTrails) > 0)
+    (finite(params.strength, 0) > 0 || finite(params.slip, 0) * gustFade(params) > 0 || count(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0 || count(params.trails, SLIPSTREAM_LIMITS.maxTrails) > 0)
   )
 }
 
@@ -150,7 +156,17 @@ export function slipstreamIsOn(params: SlipstreamParams): boolean {
  * stretch can fold: without Strength, Slip is a shear and never does.
  */
 export function slipstreamFolds(params: SlipstreamParams): boolean {
-  return slipstreamIsOn(params) && finite(params.strength, 0) > 0 && params.gustiness > 1
+  return slipstreamIsOn(params) && finite(params.strength, 0) > 0 && params.gustiness * gustFade(params) > 1
+}
+
+/** The gust size (× the em), from 0 (no gusts) up. */
+function gustOf(params: SlipstreamParams): number {
+  return clamp(finite(params.gust, 0.12), SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust)
+}
+
+/** How much of Gustiness and Slip is left: 1 from the smallest band up, falling to 0 at gust size 0. */
+function gustFade(params: SlipstreamParams): number {
+  return Math.min(gustOf(params) / SLIPSTREAM_LIMITS.smallestGust, 1)
 }
 
 /** True when Slipstream redraws the outline to make its cuts (see slipstreamTrailsAndCuts). */
@@ -161,10 +177,11 @@ export function slipstreamMerges(params: SlipstreamParams): boolean {
 /** The Slipstream warp for a glyph with this ink box, at `scale` × its strength and slip. */
 export function slipstreamWarp(params: SlipstreamParams, seed: number, box: Box, unitsPerEm: number, scale = 1): Warp {
   const { wx, wy } = streamOf(params)
-  const size = clamp(finite(params.gust, 0.12), SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust) * unitsPerEm
+  const size = Math.max(gustOf(params), SLIPSTREAM_LIMITS.smallestGust) * unitsPerEm
+  const fade = gustFade(params)
   const strength = clamp(finite(params.strength, 0), 0, SLIPSTREAM_LIMITS.maxStrength) * scale
-  const gustiness = clamp(finite(params.gustiness, 0.6), 0, SLIPSTREAM_LIMITS.maxGustiness)
-  const slip = clamp(finite(params.slip, 0), 0, SLIPSTREAM_LIMITS.maxSlip) * unitsPerEm * scale
+  const gustiness = clamp(finite(params.gustiness, 0.6), 0, SLIPSTREAM_LIMITS.maxGustiness) * fade
+  const slip = clamp(finite(params.slip, 0), 0, SLIPSTREAM_LIMITS.maxSlip) * fade * unitsPerEm * scale
   const shear = slip > 0 ? slipShear(seed, slip) : null
   // The glyph's upwind edge: the smallest distance along the stream over the ink box.
   const upwind = Math.min(...[box.minX, box.maxX].flatMap((x) => [box.minY, box.maxY].map((y) => x * wx + y * wy)))

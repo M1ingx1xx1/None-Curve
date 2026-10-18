@@ -1,6 +1,9 @@
 // Parameter sets the geometry tests run: the app's defaults, each Experimental effect on its own, all six, and the
 // strongest settings the sliders reach (SLIDER_RANGES), on plain, dense and heavy Geometry.
 
+import { CRUMPLE_LIMITS } from '../../src/geometry/crumple'
+import { RIPPLE_LIMITS } from '../../src/geometry/ripple'
+import { SLIPSTREAM_LIMITS } from '../../src/geometry/slipstream'
 import { THORN_LIMITS } from '../../src/geometry/thorn'
 import type { ExperimentalParams, GeometryParams } from '../../src/geometry/types'
 import { initialState } from '../../src/state/editorState'
@@ -24,15 +27,19 @@ export function on<E extends Effect>(effect: E, patch: Partial<ExperimentalParam
 const top = (id: SliderId) => SLIDER_RANGES[id].max
 const bottom = (id: SliderId) => SLIDER_RANGES[id].min
 
-/** Each effect at the ends of its sliders that make the most vertices (the finest meshes, the most thorns and cuts). */
+/**
+ * Each effect at the ends of its sliders that make the most vertices (the finest meshes, the most thorns and cuts). The
+ * finest meshes are the finest lattices, rings, bands and flutes (the *_LIMITS finest sizes): below them a size only fades
+ * its part out, down to nothing at 0.
+ */
 export const SLIDER_MAX: Record<Effect, EffectPatch> = {
   crumple: on('crumple', {
     amount: top('experimental.crumple.amount'),
-    facet: bottom('experimental.crumple.facet'),
+    facet: CRUMPLE_LIMITS.finestFacet,
   }),
   ripple: on('ripple', {
     amount: top('experimental.ripple.amount'),
-    wavelength: bottom('experimental.ripple.wavelength'),
+    wavelength: RIPPLE_LIMITS.shortestWavelength,
     sides: top('experimental.ripple.sides'),
     petals: top('experimental.ripple.petals'),
   }),
@@ -43,7 +50,7 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
   }),
   slipstream: on('slipstream', {
     strength: top('experimental.slipstream.strength'),
-    gust: bottom('experimental.slipstream.gust'),
+    gust: SLIPSTREAM_LIMITS.smallestGust,
     gustiness: top('experimental.slipstream.gustiness'),
     slip: top('experimental.slipstream.slip'),
     cuts: top('experimental.slipstream.cuts'),
@@ -58,7 +65,7 @@ export const SLIDER_MAX: Record<Effect, EffectPatch> = {
     width: top('experimental.thorn.width'),
     root: top('experimental.thorn.root'),
     refraction: top('experimental.thorn.refraction'),
-    flute: bottom('experimental.thorn.flute'),
+    flute: THORN_LIMITS.finestFlute,
   }),
   // The finest grain and facets, the thinnest ink, the widest edge and the most specks: the most contours.
   dissolve: on('dissolve', {

@@ -1,12 +1,10 @@
 // Reset experimental (src/state/clearExperimental.ts): every Experimental field of the default settings is cleared,
-// switches to false and sliders to their lowest (0 where the range holds it) except the few kept at their starting
-// value (Ripple's centre, Dissolve's Grain), the seed is kept, and the "already
-// cleared" check matches. The cleared values are valid for the pipeline: each effect switched on at them, and with
+// switches to false and sliders to 0, or to their minimum where the range starts above 0 (Sides, Rings, Grain), except
+// Ripple's centre, which goes to the middle; the seed is kept, and the "already cleared" check matches. The cleared values are valid for the pipeline: each effect switched on at them, and with
 // its strength then raised, gives finite outlines that do not cross themselves.
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import { THORN_LIMITS } from '../../src/geometry/thorn'
 import type { ExperimentalParams, GeometryParams } from '../../src/geometry/types'
 import type { LoadedFont } from '../../src/font/model'
 import { clearedExperimental, clearedSliderValue, isClearedExperimental } from '../../src/state/clearExperimental'
@@ -18,8 +16,8 @@ import { BASE, EFFECTS, type Effect } from '../helpers/params'
 
 const DEFAULTS = initialState.params.experimental
 
-/** Sliders Reset experimental leaves at their starting value: Ripple's centre (a position) and Dissolve's Grain (cost). */
-const KEPT_AT_DEFAULT = new Set(['experimental.ripple.centerX', 'experimental.ripple.centerY', 'experimental.dissolve.grain'])
+/** Sliders Reset experimental puts in the middle: Ripple's centre (a position). */
+const CENTRED = new Set(['experimental.ripple.centerX', 'experimental.ripple.centerY'])
 
 /** The lowest value the control for this field can give. */
 function controlMinimum(id: string): number {
@@ -33,7 +31,7 @@ describe('clearedExperimental', () => {
     expect(clearedExperimental(0).seed).toBe(0)
   })
 
-  it('turns every switch off and puts every slider at its lowest, or 0 where its range holds 0, or kept at its start', () => {
+  it('turns every switch off and puts every slider at 0, or its minimum where its range starts above 0, or the middle', () => {
     const cleared = clearedExperimental(1)
     for (const effect of Object.keys(DEFAULTS).filter((k) => k !== 'seed') as Effect[]) {
       const fields = Object.entries(DEFAULTS[effect])
@@ -43,8 +41,8 @@ describe('clearedExperimental', () => {
         const id = `experimental.${effect}.${key}`
         if (typeof value === 'boolean') {
           expect(got, id).toBe(false)
-        } else if (KEPT_AT_DEFAULT.has(id)) {
-          expect(got, id).toBe(value)
+        } else if (CENTRED.has(id)) {
+          expect(got, id).toBe(0.5)
           expect(got, id).toBe(clearedSliderValue(id))
         } else {
           const min = controlMinimum(id)
@@ -57,37 +55,30 @@ describe('clearedExperimental', () => {
 
   it('clears to the documented values', () => {
     const { seed: _seed, ...cleared } = clearedExperimental(1)
+    // Literal values, so a change of any slider's range shows up here. Only Sides, Rings and Grain stop above 0; angles
+    // (Turn, Direction) and Whorl's signed Amount sit at 0, Ripple's centre in the middle.
     expect(cleared).toEqual({
-      crumple: { enabled: false, amount: 0, facet: SLIDER_RANGES['experimental.crumple.facet'].min, turn: 0 },
-      ripple: {
-        enabled: false,
-        amount: 0,
-        wavelength: SLIDER_RANGES['experimental.ripple.wavelength'].min,
-        sides: SLIDER_RANGES['experimental.ripple.sides'].min,
-        centerX: 0.5,
-        centerY: 0.5,
-        fade: 0,
-        petals: 0,
-        reverse: false,
-      },
-      whorl: { enabled: false, amount: 0, rings: SLIDER_RANGES['experimental.whorl.rings'].min, sides: SLIDER_RANGES['experimental.whorl.sides'].min, pinned: false },
-      slipstream: { enabled: false, direction: 0, strength: 0, gust: SLIDER_RANGES['experimental.slipstream.gust'].min, gustiness: 0, slip: 0, cuts: 0, trails: 0 },
+      crumple: { enabled: false, amount: 0, facet: 0, turn: 0 },
+      ripple: { enabled: false, amount: 0, wavelength: 0, sides: 3, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
+      whorl: { enabled: false, amount: 0, rings: 2, sides: 3, pinned: false },
+      slipstream: { enabled: false, direction: 0, strength: 0, gust: 0, gustiness: 0, slip: 0, cuts: 0, trails: 0 },
       thorn: {
         enabled: false,
-        count: THORN_LIMITS.minCount,
+        count: 0,
         canvasReach: 0,
         spread: 0,
         width: 0,
         root: 0,
         refraction: 0,
-        flute: THORN_LIMITS.minFlute,
+        flute: 0,
         reverse: false,
         burst: false,
-        spikes: THORN_LIMITS.minSpikes,
+        spikes: 0,
         dent: 0,
       },
-      dissolve: { enabled: false, amount: 0, grain: DEFAULTS.dissolve.grain, spread: 0, specks: 0, curl: 0, facets: 0 },
+      dissolve: { enabled: false, amount: 0, grain: SLIDER_RANGES['experimental.dissolve.grain'].min, spread: 0, specks: 0, curl: 0, facets: 0 },
     })
+    expect(cleared.dissolve.grain).toBe(0.15)
   })
 
   it('gives a fresh object each time', () => {
@@ -134,17 +125,24 @@ describe.each(FIXTURE_FONTS)('cleared values in the pipeline: %s', (fontName) =>
     }
   })
 
-  /** Each effect switched on at the cleared values, then with the slider that gives it strength raised. */
+  /** Each effect switched on at the cleared values, all of them at once, then with the slider that gives it strength raised. */
   const CASES: [string, Partial<ExperimentalParams>][] = [
     ...EFFECTS.map((effect): [string, Partial<ExperimentalParams>] => [`${effect} on`, { [effect]: { ...cleared[effect], enabled: true } }]),
+    ['every effect on', Object.fromEntries(EFFECTS.map((effect) => [effect, { ...cleared[effect], enabled: true }]))],
+    ['burst and every effect on', { ...Object.fromEntries(EFFECTS.map((effect) => [effect, { ...cleared[effect], enabled: true }])), thorn: { ...cleared.thorn, enabled: true, burst: true } }],
     ['crumple amount', { crumple: { ...cleared.crumple, enabled: true, amount: 0.7 } }],
     ['ripple amount', { ripple: { ...cleared.ripple, enabled: true, amount: 0.5 } }],
     ['whorl amount', { whorl: { ...cleared.whorl, enabled: true, amount: 0.6 } }],
     ['slipstream strength', { slipstream: { ...cleared.slipstream, enabled: true, strength: 0.5 } }],
     ['thorn reach', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1 } }],
+    ['thorn reach, one anchor', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, count: 1 } }],
+    ['thorn reach, one anchor, refraction', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, count: 1, refraction: 1 } }],
     ['thorn reach, reverse', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, reverse: true } }],
     ['burst on', { thorn: { ...cleared.thorn, enabled: true, burst: true } }],
     ['burst reach', { thorn: { ...cleared.thorn, enabled: true, burst: true, canvasReach: 0.1 } }],
+    ['burst reach, one spike', { thorn: { ...cleared.thorn, enabled: true, burst: true, canvasReach: 0.1, spikes: 1 } }],
+    ['ripple petals', { ripple: { ...cleared.ripple, enabled: true, amount: 4, petals: 3 } }],
+    ['slipstream at full', { slipstream: { ...cleared.slipstream, enabled: true, strength: 8, gustiness: 2, slip: 0.6, cuts: 8, trails: 8 } }],
     ['dissolve amount', { dissolve: { ...cleared.dissolve, enabled: true, amount: 0.5 } }],
   ]
 

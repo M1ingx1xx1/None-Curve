@@ -308,10 +308,10 @@ describe('saved session', () => {
     expect([old.burst, old.spikes, old.dent, old.count, old.reverse]).toEqual([false, 40, 0.8, 5, true])
     const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { burst: 'yes', spikes: '9', dent: null } } } })!.params.experimental.thorn
     expect([damaged.burst, damaged.spikes, damaged.dent]).toEqual([false, 40, 0.8])
-    // Out of range: Burst's Anchors to 4–80 in whole spikes, Dent to 0–1, and Anchors without Burst to 1–12, apart.
+    // Out of range: Burst's Anchors to 0–80 in whole spikes, Dent to 0–1, and Anchors without Burst to 0–12, apart.
     const wild = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 500, dent: -2, count: 80 } } } })!.params.experimental.thorn
     expect([wild.spikes, wild.dent, wild.count]).toEqual([80, 0, 12])
-    expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 2.4 } } } })!.params.experimental.thorn.spikes).toBe(4)
+    expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 2.4 } } } })!.params.experimental.thorn.spikes).toBe(2)
     expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 33.6 } } } })!.params.experimental.thorn.spikes).toBe(34)
   })
 
