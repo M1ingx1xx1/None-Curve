@@ -77,7 +77,7 @@ function changedSession(): Session {
       { id: 'm2', enabled: false, feature: 'beat', target: 'experimental.seed', depth: 0.25 },
       { id: 'm3', enabled: true, feature: 'melody', target: 'distortion.amount', depth: -0.4 },
     ],
-    sound: { sensitivity: -6, releaseMs: 400, strength: 2.5, contrast: 0.6, pitchReactive: 1.25, melody: 0.15 },
+    sound: { sensitivity: -6, releaseMs: 400, strength: 2.5, contrast: 0.6, pitchReactive: 1.25, melody: 0.15, glideMs: 320 },
     font: { kind: 'google', family: 'Roboto', weight: 400, italic: false, subset: 'latin' },
     glyph: { family: 'Roboto', style: 'Regular', index: 37, unicode: 0x41 },
   }
@@ -123,7 +123,8 @@ describe('saved session', () => {
 
   it('checks the Sound settings: each clamped to its slider and rounded to its step, otherwise the default', () => {
     const read = (sound: unknown) => readSession({ version: SESSION_VERSION, sound })!.sound
-    // A version 2 session saved before the Response group existed: neutral Sound, as it was.
+    // A version 2 session saved before the Response group existed: neutral Sound, as it was (Glide at its default, which
+    // changes only how the shapes are shown).
     expect(read(undefined)).toEqual(DEFAULT_SOUND_SETTINGS)
     for (const garbage of [null, 'loud', 7, [], { strength: '2' }]) expect(read(garbage), JSON.stringify(garbage)).toEqual(DEFAULT_SOUND_SETTINGS)
     expect(read({ sensitivity: 99, releaseMs: 1, strength: -3, contrast: 7, pitchReactive: Infinity, melody: Number.NaN })).toEqual({
@@ -141,9 +142,13 @@ describe('saved session', () => {
       contrast: 0.46,
       pitchReactive: 0.33,
       melody: 1.97,
+      // Saved before Glide existed: its default.
+      glideMs: DEFAULT_SOUND_SETTINGS.glideMs,
     })
+    // Glide: 0–1000 ms in steps of 10.
+    expect([1234, 147, -5, 0].map((glideMs) => read({ glideMs })?.glideMs)).toEqual([1000, 150, 0, 0])
     // Values saved on the coarser steps are still on the finer ones, so they come back as they were.
-    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95 }
+    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95, glideMs: 150 }
     expect(read(coarse)).toEqual(coarse)
     // Saved as JSON, the values come back exactly.
     const storage = new MemoryStorage()

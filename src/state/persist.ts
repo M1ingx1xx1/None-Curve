@@ -1,6 +1,6 @@
 // The session saved between visits in localStorage: the settings, the canvas view's buttons, the text,
 // the preview look, the export precision, the Sound mappings and Response group (Sensitivity, Release,
-// Strength, Motion contrast, Pitch reactive, Melody tracking), and which font and glyph were open. Read
+// Strength, Motion contrast, Pitch reactive, Melody tracking, Glide), and which font and glyph were open. Read
 // once on start and checked leaf by leaf against the defaults, so a damaged or older entry never breaks
 // the app; written a moment after each change. A config file (Export → Config, Import → Config file) holds
 // the same session, marked as this app's, and is read back the same way.
@@ -278,6 +278,7 @@ const SOUND_RANGES: { [K in keyof SoundSettings]: { min: number; max: number; st
   contrast: RESPONSE_LIMITS.contrast,
   pitchReactive: RESPONSE_LIMITS.pitchReactive,
   melody: RESPONSE_LIMITS.melody,
+  glideMs: RESPONSE_LIMITS.glideMs,
 }
 
 /** The saved Sound settings: each a finite number, clamped to its slider and rounded to its step; otherwise the default. */
