@@ -256,7 +256,7 @@ The letter as worn, photocopied ink: dense along the strokes, broken into island
 
 - The Geometry panel gets two tabs: **Geometry** and **Experimental**. The chosen tab is remembered in the browser. **Show all explanations** stays above the tabs and applies to both. The Experimental tab's controls load the first time the tab is opened, and stay loaded.
 - The Experimental settings are saved in the browser with the other settings and restored on the next visit, and every change to them can be undone.
-- The Experimental tab, from top to bottom: a short line on the order (Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve, after Geometry); one group per effect, each with its own on/off control; the shared seed; and **Reset experimental**.
+- The Experimental tab, from top to bottom: a short line on the order (Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve, after Geometry); one group per effect, each with its own on/off control; the shared seed; and **Reset experimental**, which clears the tab: every effect and switch off, every slider at its lowest (0 where its range holds 0, else its minimum), the seed kept.
 - Each group shows its statistics (largest move, vertices added) and warnings, like the Geometry groups. When an effect goes beyond 100%, Thorn is on, Slipstream cuts the letters, or the vertex budget simplified the glyph, the intro also shows how many crossings were merged and how many slivers were dropped, with the budget's and the merge's warnings (section 4.10). When the budget simplified the selected glyph, the status bar shows "(simplified)" after its vertex count.
 - The pipeline summary in the status bar and export notes lists the active effects.
 - English-only labels, short, with explanations folded behind ⓘ buttons.

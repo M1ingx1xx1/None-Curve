@@ -5,6 +5,7 @@ import type { SlipstreamStats } from '../geometry/slipstream'
 import { BURST_REACH, THORN_LIMITS, type ThornStats } from '../geometry/thorn'
 import type { CrumpleParams, DissolveParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
+import { clearedExperimental, isClearedExperimental } from '../state/clearExperimental'
 import type { Action } from '../state/editorState'
 import { reachFromSlider, reachPercent, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId, type SliderRange } from '../state/sliderScales'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
@@ -59,8 +60,8 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
   const update = (patch: Partial<ExperimentalParams>) => dispatch({ type: 'updateParams', group: 'experimental', patch })
   const introHint = useHint()
   const seedHint = useHint()
-  // Reset keeps the seed, so a variant the user liked is not lost.
-  const isDefault = JSON.stringify({ ...params, seed: 0 }) === JSON.stringify({ ...DEFAULT_EXPERIMENTAL, seed: 0 })
+  // Reset clears every effect but keeps the seed, so a variant the user liked is not lost.
+  const isCleared = isClearedExperimental(params)
 
   return (
     <>
@@ -142,8 +143,13 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
           <button
             type="button"
             className="button-small"
-            disabled={disabled || isDefault}
-            onClick={() => update({ ...DEFAULT_EXPERIMENTAL, seed: params.seed })}
+            disabled={disabled || isCleared}
+            title={
+              isCleared
+                ? 'Every effect is off and every slider at its lowest'
+                : 'Reset experimental: turns every effect and switch off and every slider to its lowest (0 where it can be). The seed stays; Undo brings the settings back.'
+            }
+            onClick={() => update(clearedExperimental(params.seed))}
           >
             <Icon name="reset" />
             Reset experimental

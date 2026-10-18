@@ -100,7 +100,7 @@
 - **不会保存的：** Sound 标签页的 **Drive letters** 和声音来源（文件或麦克风）；视频选项（**Format**、**Length**、**Include audio** 和 **Use the preview look**），它们只保留到关闭页面为止；打开着的对话框；亮色或暗色界面；以及撤销步骤。（和以前一样，程序也会记住各区域的大小、你打开的标签页、**Canvas size** 设置是否展开，以及 **Show all explanations**。）
 - **旧版程序保存的作品：** Thorn 的 **Reach** 以前按 em（字母的设计正方形）的比例计算，现在改为按画布的比例计算（见 Experimental 标签页里的 Thorn）。以前保存的作品会按它保存时的字号和画布尺寸，换算成让刺保持同样长度的比例，所以刺会和原来一样。原来有刺的仍然有刺：刺再短，恢复后也至少是滑块第一档的长度。Sound 里作用在 Reach 上的映射行保留各自的 **Depth**。同一个 **Seed** 下，刺也可能长在和以前不同的点上，因为程序现在用一种更稳定的方式挑选它们（见 Experimental 标签页里的 Thorn）；多按几次 **Next variant**，直到你再次满意为止。Crumple 不再有 **Detail** 滑块：保存的 Detail 数值会被忽略，Sound 里作用在 **Crumple · Detail** 上的映射行会被去掉；Crumple 恢复了它改名前（还叫 Noise 时）的揉皱方式，所以同一个 **Seed** 得到的折痕和带 Detail 的版本不同。
 - **如果页面在绘制你的设置时关闭了**——比如某个特别重的设置让浏览器撑不住了——下次打开时所有设置都会回到初始值，免得再次卡住，画布上会显示 “The last visit closed while drawing, so its settings were not restored.”（上次访问在绘制时关闭，所以没有恢复它的设置）。你的文字、字体、映射和 **Response** 滑块仍会恢复。
-- **从头开始：** 大多数设置组都有重置按钮（**Reset anchors**、**Reset grid & angles**、**Reset distortion**、**Reset random anchors**、**Reset experimental**、**Reset typography**），Color 标签页里的 **Charcoal** 就是初始配色。状态栏最右端的箭头按钮（**Reset all**）关闭字体，并把文字和每项设置恢复成程序刚打开时的样子；它不能撤销（见[认识屏幕](#3-认识屏幕)里的“一键从头开始”）。如果还想忘掉各区域的大小和打开的标签页，就在浏览器设置里清除这个网站的数据（Cookie 和网站数据），然后刷新页面。
+- **从头开始：** 大多数设置组都有重置按钮（**Reset anchors**、**Reset grid & angles**、**Reset distortion**、**Reset random anchors**、**Reset experimental**、**Reset typography**；其中 **Reset experimental** 是把标签页清空到最低设置，而不是恢复初始设置），Color 标签页里的 **Charcoal** 就是初始配色。状态栏最右端的箭头按钮（**Reset all**）关闭字体，并把文字和每项设置恢复成程序刚打开时的样子；它不能撤销（见[认识屏幕](#3-认识屏幕)里的“一键从头开始”）。如果还想忘掉各区域的大小和打开的标签页，就在浏览器设置里清除这个网站的数据（Cookie 和网站数据），然后刷新页面。
 - **需要知道的：** 每个浏览器各存一份。如果在两个标签页里同时打开程序，以你最后改动的那个为准。Safari 可能会清除 7 天没有打开过的网站所保存的内容。想确保留住某个结果，请把它导出；想保留设置本身，或把它带到另一个浏览器，请保存一个[配置文件](#保存为配置文件只含设置)。
 
 ---
@@ -432,7 +432,7 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
 - **设置很重时。** 很细的 Grain 加上很长的刺，或者所有效果都拉到最大，可能会产生太多的角。这时字母会溶解得粗一些，你可能会看到黄色提示：“This glyph is too large for the grain: it is dissolved more coarsely.” 或 “Longer facets on this glyph: these settings make too many vertices.” 调高 **Grain** 或 **Facets**，或调低其他效果，细节就会回来。
 - **试一试：** 勾选 **Use dissolve**，然后把 **Amount** 调到 80%、**Curl** 调到 100%，得到几乎磨光的墨迹；或者把 **Grain** 降到 20%，得到细密如尘的墨点。按 Seed 下的 **Next variant** 看看另一种图案。
 
-**Seed**（种子）——这个标签页上所有效果共用一个数字：它决定 Crumple 的折痕；Slipstream 的阵风、错位、切口和拖尾；Thorn 移动哪些点、玻璃竖条怎么移动；以及 Dissolve 让墨迹在哪里碎开（Ripple 和 Whorl 没有随机性）。种子和设置相同，字母就相同；**Next variant** 换下一个。**Reset experimental** 关闭所有效果并恢复其设置，但保留你的种子。
+**Seed**（种子）——这个标签页上所有效果共用一个数字：它决定 Crumple 的折痕；Slipstream 的阵风、错位、切口和拖尾；Thorn 移动哪些点、玻璃竖条怎么移动；以及 Dissolve 让墨迹在哪里碎开（Ripple 和 Whorl 没有随机性）。种子和设置相同，字母就相同；**Next variant** 换下一个。**Reset experimental** 清空整个标签页：关闭所有效果，关掉所有开关（**Reverse**、**Burst**、**Pin top and bottom**），并把每个滑块移到最低：能为 0 的设为 0，不能为 0 的设为它的最小值（**Sides**、**Rings**、**Anchors**、**Facet size**、**Wavelength**、**Gust size**、**Flute width**、**Grain**）。种子保持不变，**Undo**（撤销）可以把设置找回来。一切都已清空时，这个按钮是灰的。
 
 同一个字母的每次出现折痕、切口、拖尾、刺和墨迹都一样，所以导出的字体与画布上看到的完全相同，只有很长的刺会被字体文件切短（见上面的 Thorn）。
 
