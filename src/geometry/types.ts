@@ -345,6 +345,16 @@ export interface WhorlMotion {
   radius: number
   /** turns[k]: how far ring k turned (radians, counter-clockwise), k = 0 (the centre) to `rings`; beyond, as the last. */
   turns: number[]
+  /**
+   * The letter as Whorl received it (each contour's points): where Whorl folds the letter, Glide undoes the turn to the
+   * layer that lies on it.
+   */
+  outline?: Point[][]
+  /**
+   * True when nothing after Whorl reshaped the letter (Slipstream, Thorn and Dissolve are off, and Whorl was not left
+   * out as too complex): the outline is Whorl's turn of `outline`, merged where it folds.
+   */
+  last?: boolean
 }
 
 export interface DerivedGeometry {

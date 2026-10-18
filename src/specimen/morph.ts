@@ -30,7 +30,8 @@
 // does not pile up anchors.
 
 import type { GlyphMotion, Point, PolygonContour, PolygonGlyph } from '../geometry/types'
-import { chooseTrajectory, type Correspondence, type TrackPath, type TrajectoryModel } from './trajectory'
+import { planWhorlMesh, type MeshGlide, type MeshPose } from './whorlGlide'
+import { chooseTrajectory, STRAIGHT, TRAJECTORY_MODELS, WHORL_MODEL, type Correspondence, type TrackPath, type TrajectoryModel } from './trajectory'
 
 export const MORPH_LIMITS = {
   /** Anchors of an in-between glyph at most; a glyph that would need more changes at once. */
@@ -38,19 +39,25 @@ export const MORPH_LIMITS = {
   /** Samples round a contour weighed for the best turn, and the turns tried before the finer search (fewer on small contours). */
   shiftSamples: 32,
   shiftSteps: 64,
-  /** 'nearest' looks this share of the way round either side of where arc length puts an anchor... */
-  window: 0.15,
-  /** ...over at most this many sides either side. */
-  windowSides: 8,
   /** Anchor goes to anchor while none moves further than this share of the contour's size (half its box's diagonal). */
   directShare: 0.35,
   /** With more contours than this on either side, each contour is weighed against its `neighbours` nearest only. */
   manyContours: 48,
   neighbours: 4,
-  /** Contours further apart than this many times their sizes added up are never paired. */
-  reach: 1.5,
-  /** In-between anchors only the old outline had are dropped within this share of an em (settleInBetween). */
+  /** Contours further apart than this many times their sizes added up, or with areas further apart than this ratio, are never paired. */
+  reach: 0.5,
+  areaRatio: 4,
+  /** Paired contours whose centres lie closer than this share of the smaller's size are matched as they lie, not centred. */
+  centreShare: 0.5,
+  /**
+   * A contour without a partner grows out of (or sinks into) the other outline, each anchor from (or to) its closest
+   * point there, when those lie within this share of its size on average; otherwise out of (or into) its centre.
+   */
+  attachShare: 1,
+  /** In-between anchors only the old outline had are dropped within this share of an em (settleInBetween)... */
   settleShare: 0.004,
+  /** ...or, while they outnumber the next outline's anchors, within up to this share. */
+  settleMaxShare: 0.05,
 } as const
 
 interface Ring {
@@ -63,8 +70,13 @@ interface Ring {
   cx: number
   cy: number
   area: number
-  /** Half the diagonal of the contour's box. */
+  /** Half the diagonal of the contour's box, and the box. */
   size: number
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  /** Which way it winds: by its area, or by its flag when it has none. */
   clockwise: boolean
   contour: PolygonContour
 }
@@ -112,7 +124,9 @@ function ringOf(contour: PolygonContour): Ring {
     cy = n > 0 ? ys.reduce((s, y) => s + y, 0) / n : 0
   }
   const size = n > 0 ? Math.hypot(maxX - minX, maxY - minY) / 2 : 0
-  return { xs, ys, u, n, length, cx, cy, area: twice / 2, size, clockwise: contour.clockwise, contour }
+  const flat = Math.abs(twice) <= 1e-9 * Math.max(1, (maxX - minX) * (maxY - minY))
+  const clockwise = flat ? contour.clockwise : twice < 0
+  return { xs, ys, u, n, length, cx, cy, area: twice / 2, size, minX, minY, maxX, maxY, clockwise, contour }
 }
 
 /** The point the share `t` of the way round `r` (any real; whole turns wrap), into `out`. */
@@ -147,10 +161,17 @@ function sideAt(r: Ring, t: number): number {
 }
 
 /**
- * Where on `b` the start of `a` lies best: the share s of the way round `b` such that a(t) and b(t + s), each taken from
- * its centre, lie closest over the whole contour.
+ * Where on `b` the start of `a` lies best: the share s of the way round `b` such that a(t) and b(t + s) lie closest over
+ * the whole contour: as they are while the two overlap (their centres closer than MORPH_LIMITS.centreShare of the
+ * smaller's size), so that a spike or a cut that shifts a contour's centre does not shift the match; otherwise each
+ * taken from its centre (a contour that moved as a whole, such as one of Dissolve's islands).
  */
 function bestShift(a: Ring, b: Ring): number {
+  const centred = Math.hypot(a.cx - b.cx, a.cy - b.cy) > MORPH_LIMITS.centreShare * Math.min(a.size, b.size)
+  const acx = centred ? a.cx : 0
+  const acy = centred ? a.cy : 0
+  const bcx = centred ? b.cx : 0
+  const bcy = centred ? b.cy : 0
   // Small contours (Dissolve's islands) need fewer samples and turns: about two per anchor.
   const anchors = Math.max(a.n, b.n)
   const k = Math.min(MORPH_LIMITS.shiftSamples, Math.max(8, anchors))
@@ -159,15 +180,15 @@ function bestShift(a: Ring, b: Ring): number {
   const p = { x: 0, y: 0 }
   for (let i = 0; i < k; i++) {
     pointAt(a, i / k, p)
-    ax[i] = p.x - a.cx
-    ay[i] = p.y - a.cy
+    ax[i] = p.x - acx
+    ay[i] = p.y - acy
   }
   const cost = (s: number) => {
     let sum = 0
     for (let i = 0; i < k; i++) {
       pointAt(b, i / k + s, p)
-      const dx = p.x - b.cx - ax[i]
-      const dy = p.y - b.cy - ay[i]
+      const dx = p.x - bcx - ax[i]
+      const dy = p.y - bcy - ay[i]
       sum += dx * dx + dy * dy
     }
     return sum
@@ -195,37 +216,60 @@ function bestShift(a: Ring, b: Ring): number {
 }
 
 /**
- * The closest point of `r` to (px, py) among the sides near the share `guess` of the way round: its share of the way
- * round, unwrapped to lie near `guess` (so it may be below 0 or above 1).
+ * Where the points (xs, ys), in order round their own contour (`shares` of the way round it, from 0 up to 1), belong on
+ * `r`, kept in order round it from `start` to `start` + 1: each at its closest point of `r`, as long as those follow one
+ * another round `r` (the longest run of them that does); the rest are spread between their neighbours in that run by
+ * their own shares. So features only one contour has (a spike, a notch) are skipped over rather than dragging their
+ * neighbours along, and no stretch of either contour gathers into one point unless it lies there.
  */
-function nearestOn(r: Ring, px: number, py: number, guess: number): number {
-  const base = Math.floor(guess)
-  const side = sideAt(r, guess - base)
-  const reach = Math.min(MORPH_LIMITS.windowSides, Math.ceil(r.n * MORPH_LIMITS.window), Math.floor((r.n - 1) / 2))
-  let best = guess
-  let bestD = Infinity
-  for (let o = -reach; o <= reach; o++) {
-    const idx = side + o
-    const turns = Math.floor(idx / r.n)
-    const e = idx - turns * r.n
-    const j = e + 1 < r.n ? e + 1 : 0
-    const x0 = r.xs[e]
-    const y0 = r.ys[e]
-    const dx = r.xs[j] - x0
-    const dy = r.ys[j] - y0
-    const len2 = dx * dx + dy * dy
-    let w = len2 > 0 ? ((px - x0) * dx + (py - y0) * dy) / len2 : 0
-    w = w < 0 ? 0 : w > 1 ? 1 : w
-    const qx = x0 + dx * w - px
-    const qy = y0 + dy * w - py
-    const d = qx * qx + qy * qy
-    const t = base + turns + r.u[e] + (r.u[e + 1] - r.u[e]) * w
-    if (d < bestD - 1e-12 || (Math.abs(d - bestD) <= 1e-12 && Math.abs(t - guess) < Math.abs(best - guess))) {
-      bestD = d
-      best = t
-    }
+function inOrder(r: Ring, xs: Float64Array, ys: Float64Array, shares: Float64Array, start: number): Float64Array {
+  const n = shares.length
+  const out = { d: 0 }
+  const at = new Float64Array(n)
+  for (let k = 0; k < n; k++) {
+    let v = closestOn(r, xs[k], ys[k], out) + Math.floor(start)
+    if (v < start) v += 1
+    if (v >= start + 1) v -= 1
+    at[k] = v
   }
-  return best
+  // The longest run that keeps its order (patience sorting, non-decreasing).
+  const tails: number[] = []
+  const previous = new Int32Array(n).fill(-1)
+  for (let k = 0; k < n; k++) {
+    let lo = 0
+    let hi = tails.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (at[tails[mid]] <= at[k]) lo = mid + 1
+      else hi = mid
+    }
+    if (lo > 0) previous[k] = tails[lo - 1]
+    tails[lo] = k
+  }
+  const inRun = new Uint8Array(n)
+  for (let k = tails.length > 0 ? tails[tails.length - 1] : -1; k >= 0; k = previous[k]) inRun[k] = 1
+  const result = new Float64Array(n)
+  // Between the run's points (and the ends: share 0 at `start`, share 1 at `start` + 1), by share.
+  let lastShare = 0
+  let lastV = start
+  let k = 0
+  while (k < n) {
+    let next = k
+    while (next < n && !inRun[next]) next++
+    const nextShare = next < n ? shares[next] : 1
+    const nextV = next < n ? at[next] : start + 1
+    for (let m = k; m < next; m++) {
+      const w = nextShare > lastShare ? (shares[m] - lastShare) / (nextShare - lastShare) : 0
+      result[m] = lastV + (nextV - lastV) * Math.min(1, Math.max(0, w))
+    }
+    if (next < n) {
+      result[next] = nextV
+      lastShare = nextShare
+      lastV = nextV
+    }
+    k = next + 1
+  }
+  return result
 }
 
 /** A contour's anchors on their way: from (sx, sy) to (tx, ty). `kept[i]`: the anchor is one of the new outline's. */
@@ -236,6 +280,8 @@ interface Track {
   tx: Float64Array
   ty: Float64Array
   kept: Uint8Array
+  /** base[i]: the anchor's base is its end (Trajectory.path). */
+  base: Uint8Array
   /** Null: the contour does not change (`still` is drawn as it is). */
   path: TrackPath | null
   still: PolygonContour | null
@@ -249,6 +295,11 @@ export interface MorphPlan {
   tracks: Track[]
   /** Anchors of the in-between glyph. */
   points: number
+  /** Scratch the tracks write their anchors into, frame by frame (as long as the longest track). */
+  xs: Float64Array
+  ys: Float64Array
+  /** Whorl on its own, glided by its mesh (whorlGlide.ts) instead of by tracks. */
+  mesh?: MeshGlide
 }
 
 /** Pairs listed as plain arrays while they are built. */
@@ -258,7 +309,9 @@ class Pairs {
   tx: number[] = []
   ty: number[] = []
   kept: number[] = []
-  push(sx: number, sy: number, tx: number, ty: number, kept: boolean) {
+  base: number[] = []
+  /** `atEnd`: the anchor's base is its end (see Trajectory.path). */
+  push(sx: number, sy: number, tx: number, ty: number, kept: boolean, atEnd: boolean) {
     const n = this.sx.length
     // The same pair twice in a row (an anchor both outlines share) is drawn once.
     if (n > 0 && this.sx[n - 1] === sx && this.sy[n - 1] === sy && this.tx[n - 1] === tx && this.ty[n - 1] === ty) {
@@ -270,6 +323,7 @@ class Pairs {
     this.tx.push(tx)
     this.ty.push(ty)
     this.kept.push(kept ? 1 : 0)
+    this.base.push(atEnd ? 1 : 0)
   }
   track(clockwise: boolean): Omit<Track, 'path' | 'still'> {
     return {
@@ -279,6 +333,7 @@ class Pairs {
       tx: Float64Array.from(this.tx),
       ty: Float64Array.from(this.ty),
       kept: Uint8Array.from(this.kept),
+      base: Uint8Array.from(this.base),
     }
   }
 }
@@ -314,14 +369,18 @@ function directPairs(a: Ring, b: Ring, a2: Ring, b2: Ring): Pairs | null {
   if (a.n !== b.n) return null
   const limit = MORPH_LIMITS.directShare * Math.max(a2.size, b2.size)
   const limit2 = limit * limit
+  /** The summed squared moves with this shift, or Infinity when one goes further than the limit. */
   const tries = (shift: number) => {
+    let sum = 0
     for (let i = 0; i < a.n; i++) {
       const j = (i + shift) % b.n
       const dx = b2.xs[j] - a2.xs[i]
       const dy = b2.ys[j] - a2.ys[i]
-      if (dx * dx + dy * dy > limit2) return false
+      const d = dx * dx + dy * dy
+      if (d > limit2) return Infinity
+      sum += d
     }
-    return true
+    return sum
   }
   // The same start, or the anchor of `b` nearest the start of `a`.
   let nearest = 0
@@ -333,12 +392,15 @@ function directPairs(a: Ring, b: Ring, a2: Ring, b2: Ring): Pairs | null {
       nearest = j
     }
   }
-  const shift = tries(0) ? 0 : nearest !== 0 && tries(nearest) ? nearest : -1
-  if (shift < 0) return null
+  // Whichever of the two moves the anchors least (a contour whose start moved by a few anchors keeps its place).
+  const same = tries(0)
+  const near = nearest !== 0 ? tries(nearest) : Infinity
+  if (same === Infinity && near === Infinity) return null
+  const shift = near < same ? nearest : 0
   const pairs = new Pairs()
   for (let i = 0; i < a.n; i++) {
     const j = (i + shift) % b.n
-    pairs.push(a.xs[i], a.ys[i], b.xs[j], b.ys[j], true)
+    pairs.push(a.xs[i], a.ys[i], b.xs[j], b.ys[j], true, false)
   }
   return pairs
 }
@@ -348,28 +410,32 @@ function directPairs(a: Ring, b: Ring, a2: Ring, b2: Ring): Pairs | null {
  * (the contours as Trajectory.straighten gives them: `a` and `b` themselves without it).
  */
 function unionPairs(a: Ring, b: Ring, a2: Ring, b2: Ring, correspondence: Correspondence): Pairs {
-  const s = bestShift(a2, b2)
   const nearest = correspondence === 'nearest'
+  const out = { d: 0 }
+  // Where the start of the old contour lies on the new one: its closest point, or by the best turn.
+  const s0 = nearest ? closestOn(b2, a2.xs[0], a2.ys[0], out) : bestShift(a2, b2)
+  const s = s0 - Math.floor(s0)
   type Item = { u: number; v: number; fromA: boolean; i: number }
   const items: Item[] = []
-  // The old outline's anchors: where they go on the new one, between s and s + 1 round it.
-  for (let i = 0; i < a.n; i++) {
-    const guess = a2.u[i] + s
-    const v = nearest ? nearestOn(b2, a2.xs[i], a2.ys[i], guess) : guess
-    items.push({ u: a2.u[i], v: Math.min(s + 1, Math.max(s, v)), fromA: true, i })
-  }
+  // The old outline's anchors: where they go on the new one, between s and s + 1 round it, in order.
+  const onB = nearest ? inOrder(b2, a2.xs, a2.ys, a2.u.subarray(0, a.n), s) : null
+  for (let i = 0; i < a.n; i++) items.push({ u: a2.u[i], v: onB ? onB[i] : a2.u[i] + s, fromA: true, i })
   // The new outline's anchors, in order round it from s: where they come from on the old one, in order too.
   const first = sideAt(b2, s) + (b2.u[sideAt(b2, s)] < s ? 1 : 0)
-  let floor = 0
+  const order = new Int32Array(b.n)
+  const vs = new Float64Array(b.n)
+  const qx = new Float64Array(b.n)
+  const qy = new Float64Array(b.n)
   for (let k = 0; k < b.n; k++) {
     const j = (first + k) % b.n
-    const v = b2.u[j] < s ? b2.u[j] + 1 : b2.u[j]
-    const guess = v - s
-    let u = nearest ? nearestOn(a2, b2.xs[j], b2.ys[j], guess) : guess
-    u = Math.min(1, Math.max(floor, u))
-    floor = u
-    items.push({ u, v, fromA: false, i: j })
+    order[k] = j
+    vs[k] = b2.u[j] < s ? b2.u[j] + 1 : b2.u[j]
+    qx[k] = b2.xs[j]
+    qy[k] = b2.ys[j]
   }
+  const shares = vs.map((v) => v - s)
+  const onA = nearest ? inOrder(a2, qx, qy, shares, 0) : null
+  for (let k = 0; k < b.n; k++) items.push({ u: onA ? onA[k] : shares[k], v: vs[k], fromA: false, i: order[k] })
   items.sort((p, q) => p.u - q.u || p.v - q.v || (p.fromA === q.fromA ? 0 : p.fromA ? 1 : -1))
   // Keep the old anchors' places on the new outline in order between the new outline's own anchors.
   const n = items.length
@@ -396,10 +462,10 @@ function unionPairs(a: Ring, b: Ring, a2: Ring, b2: Ring, correspondence: Corres
   for (const item of items) {
     if (item.fromA) {
       pointOn(b, b2, item.v, p)
-      pairs.push(a.xs[item.i], a.ys[item.i], p.x, p.y, false)
+      pairs.push(a.xs[item.i], a.ys[item.i], p.x, p.y, false, true)
     } else {
       pointOn(a, a2, item.u, p)
-      pairs.push(p.x, p.y, b.xs[item.i], b.ys[item.i], true)
+      pairs.push(p.x, p.y, b.xs[item.i], b.ys[item.i], true, false)
     }
   }
   return pairs
@@ -417,6 +483,7 @@ function pairContours(a: Ring[], b: Ring[]): [number, number][] {
     const d = Math.hypot(p.cx - q.cx, p.cy - q.cy)
     if (d > MORPH_LIMITS.reach * scale) return null
     const ratio = Math.log((Math.abs(p.area) + 1e-9 * scale * scale + 1e-12) / (Math.abs(q.area) + 1e-9 * scale * scale + 1e-12))
+    if (Math.abs(ratio) > Math.log(MORPH_LIMITS.areaRatio)) return null
     return (d * d) / (scale * scale || 1) + 0.25 * ratio * ratio
   }
   if (!many) {
@@ -457,17 +524,119 @@ function pairContours(a: Ring[], b: Ring[]): [number, number][] {
   return pairs
 }
 
-/** Plans plans `from` → `to`: null when the glyph should change at once (too many anchors). */
+/** The same outline wound the other way round. */
+function reversed(c: PolygonContour): PolygonContour {
+  return { points: c.points.slice().reverse(), clockwise: !c.clockwise }
+}
+
+/**
+ * Which way a glyph's outlines wind: the way its largest contour does. A merged outline (overlaps.ts) winds the other
+ * way from the font's own, so a glyph whose effects start or stop folding it turns its whole winding over.
+ */
+function windsClockwise(rings: Ring[]): boolean | null {
+  let best: Ring | null = null
+  for (const r of rings) if (r.n > 0 && (!best || Math.abs(r.area) > Math.abs(best.area))) best = r
+  return best && best.area !== 0 ? best.area < 0 : null
+}
+
+/** The share of the way round `r` of its point closest to (px, py), over all its sides; its distance into `out.d`. */
+function closestOn(r: Ring, px: number, py: number, out: { d: number }): number {
+  let best = 0
+  let bestD = Infinity
+  for (let e = 0; e < r.n; e++) {
+    const j = e + 1 < r.n ? e + 1 : 0
+    const x0 = r.xs[e]
+    const y0 = r.ys[e]
+    const dx = r.xs[j] - x0
+    const dy = r.ys[j] - y0
+    const len2 = dx * dx + dy * dy
+    let w = len2 > 0 ? ((px - x0) * dx + (py - y0) * dy) / len2 : 0
+    w = w < 0 ? 0 : w > 1 ? 1 : w
+    const qx = x0 + dx * w - px
+    const qy = y0 + dy * w - py
+    const d = qx * qx + qy * qy
+    if (d < bestD) {
+      bestD = d
+      best = r.u[e] + (r.u[e + 1] - r.u[e]) * w
+    }
+  }
+  out.d = Math.sqrt(bestD)
+  return best
+}
+
+/**
+ * The anchors of `r` (in the space of pairing `r2`) paired with their closest points on the other outline's contours
+ * (`hosts`, `hosts2` in that space), when those lie within MORPH_LIMITS.attachShare of its size on average: `entering`
+ * true, `r` is a new contour that grows out of the old outline; false, an old one that sinks into the new outline.
+ * Null when they lie further (it grows out of or shrinks into its centre instead).
+ */
+function attachPairs(r: Ring, r2: Ring, hosts: Ring[], hosts2: Ring[], entering: boolean): Pairs | null {
+  if (r.n === 0) return null
+  const limit = MORPH_LIMITS.attachShare * r2.size
+  const out = { d: 0 }
+  const host = new Int32Array(r.n).fill(-1)
+  const share = new Float64Array(r.n)
+  let sum = 0
+  for (let k = 0; k < r.n; k++) {
+    const x = r2.xs[k]
+    const y = r2.ys[k]
+    let best = Infinity
+    for (let h = 0; h < hosts2.length; h++) {
+      const c = hosts2[h]
+      if (c.n < 2) continue
+      // The gap to its box: none of its points lies closer than that.
+      const gx = Math.max(0, c.minX - x, x - c.maxX)
+      const gy = Math.max(0, c.minY - y, y - c.maxY)
+      if (gx * gx + gy * gy >= best * best) continue
+      const t = closestOn(c, x, y, out)
+      if (out.d < best) {
+        best = out.d
+        host[k] = h
+        share[k] = t
+      }
+    }
+    if (host[k] < 0) return null
+    sum += best
+    if (sum > limit * r.n) return null
+  }
+  const pairs = new Pairs()
+  const p = { x: 0, y: 0 }
+  for (let k = 0; k < r.n; k++) {
+    pointOn(hosts[host[k]], hosts2[host[k]], share[k], p)
+    if (entering) pairs.push(p.x, p.y, r.xs[k], r.ys[k], true, false)
+    else pairs.push(r.xs[k], r.ys[k], p.x, p.y, false, true)
+  }
+  return pairs
+}
+
+/** Plans `from` → `to`: null when the glyph should change at once (too many anchors). */
 export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonly TrajectoryModel[]): MorphPlan | null {
+  // Whorl on its own glides by its mesh (whorlGlide.ts).
+  if ((models ?? TRAJECTORY_MODELS).includes(WHORL_MODEL)) {
+    const mesh = planWhorlMesh(from, to, meshPoses.get(from)?.(), keptAnchors.has(from))
+    if (mesh) {
+      if (mesh.points > MORPH_LIMITS.maxPoints) return null
+      return { from, to, trajectory: 'whorl-mesh', tracks: [], points: mesh.points, xs: new Float64Array(mesh.points), ys: new Float64Array(mesh.points), mesh }
+    }
+  }
   const trajectory = chooseTrajectory(from.motion, to.motion, models)
   const a = from.contours.map(ringOf)
-  const b = to.contours.map(ringOf)
-  // The contours in the space their anchors are paired in (Whorl's turns undone), or the contours themselves.
+  let b = to.contours.map(ringOf)
+  // The new outline wound the old one's way, so every in-between contour winds one way (see the top of the file).
+  const winds = windsClockwise(a)
+  const windsTo = windsClockwise(b)
+  if (winds !== null && windsTo !== null && winds !== windsTo) b = to.contours.map((c) => ringOf(reversed(c)))
+  // The contours in the space their anchors are paired in (Whorl's turns undone), or the contours themselves; each
+  // keeps its own winding.
   const { straighten } = trajectory
-  const flat = (contour: PolygonContour, side: 'from' | 'to') =>
-    ringOf({ clockwise: contour.clockwise, points: contour.points.map((q) => straighten!(q.x, q.y, side)) })
-  const a2 = straighten ? from.contours.map((c) => flat(c, 'from')) : a
-  const b2 = straighten ? to.contours.map((c) => flat(c, 'to')) : b
+  const flat = (r: Ring, side: 'from' | 'to'): Ring => {
+    // Each point straightened near the one before it, so a contour stays in one piece where Whorl folds.
+    const points: Point[] = []
+    for (const q of r.contour.points) points.push(straighten!(q.x, q.y, side, points[points.length - 1]))
+    return { ...ringOf({ clockwise: r.contour.clockwise, points }), clockwise: r.clockwise }
+  }
+  const a2 = straighten ? a.map((r) => flat(r, 'from')) : a
+  const b2 = straighten ? b.map((r) => flat(r, 'to')) : b
   const built: { pairs: Pairs | null; clockwise: boolean; still: PolygonContour | null }[] = []
   let points = 0
   const pairs = pairContours(a2, b2)
@@ -483,48 +652,53 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
     if (i >= 0) {
       const p = a[i]
       if (sameContour(p.contour, q.contour)) {
-        built.push({ pairs: null, clockwise: q.clockwise, still: q.contour })
+        built.push({ pairs: null, clockwise: q.contour.clockwise, still: q.contour })
         points += q.n
         continue
       }
       if (p.length > 0 && q.length > 0) {
         const paired = directPairs(p, q, a2[i], b2[j]) ?? unionPairs(p, q, a2[i], b2[j], trajectory.correspondence)
-        built.push({ pairs: paired, clockwise: q.clockwise, still: null })
+        built.push({ pairs: paired, clockwise: q.contour.clockwise, still: null })
         points += paired.sx.length
         continue
       }
     }
-    // A new contour grows out of its centre.
-    const grow = new Pairs()
-    for (let k = 0; k < q.n; k++) grow.push(q.cx, q.cy, q.xs[k], q.ys[k], true)
-    built.push({ pairs: grow, clockwise: q.clockwise, still: null })
-    points += q.n
+    // A new contour grows out of the old outline it lies along, or else out of its centre.
+    let grow = attachPairs(q, b2[j], a, a2, true)
+    if (!grow) {
+      grow = new Pairs()
+      for (let k = 0; k < q.n; k++) grow.push(q.cx, q.cy, q.xs[k], q.ys[k], true, false)
+    }
+    built.push({ pairs: grow, clockwise: q.contour.clockwise, still: null })
+    points += grow.sx.length
   }
   for (let i = 0; i < a.length; i++) {
     if (pairedA[i]) continue
-    // A contour that goes shrinks into its centre.
+    // A contour that goes sinks into the new outline it lies along, or else shrinks into its centre.
     const p = a[i]
-    const shrink = new Pairs()
-    for (let k = 0; k < p.n; k++) shrink.push(p.xs[k], p.ys[k], p.cx, p.cy, false)
-    built.push({ pairs: shrink, clockwise: p.clockwise, still: null })
-    points += p.n
+    let shrink = attachPairs(p, a2[i], b, b2, false)
+    if (!shrink) {
+      shrink = new Pairs()
+      for (let k = 0; k < p.n; k++) shrink.push(p.xs[k], p.ys[k], p.cx, p.cy, false, true)
+    }
+    built.push({ pairs: shrink, clockwise: p.contour.clockwise, still: null })
+    points += shrink.sx.length
   }
   if (points > MORPH_LIMITS.maxPoints) return null
+  let longest = 0
   const tracks: Track[] = built.map(({ pairs, clockwise, still }) => {
     if (!pairs) {
       const n = still!.points.length
-      return { clockwise, sx: new Float64Array(0), sy: new Float64Array(0), tx: new Float64Array(0), ty: new Float64Array(0), kept: new Uint8Array(n).fill(1), path: null, still }
+      const none = new Float64Array(0)
+      return { clockwise, sx: none, sy: none, tx: none, ty: none, kept: new Uint8Array(n).fill(1), base: new Uint8Array(0), path: null, still }
     }
     const t = pairs.track(clockwise)
-    // Contours that grow or shrink go straight to or from their centre whatever the trajectory.
-    const path = (pairs.kept.every((k) => k === 1) || pairs.kept.every((k) => k === 0)) && isPoint(t) ? straightPath(t) : chooseFor(t)
+    longest = Math.max(longest, t.sx.length)
+    // Contours that grow out of or shrink into their centre go straight whatever the trajectory.
+    const path = isPoint(t) ? straightPath(t) : trajectory.path(t.sx, t.sy, t.tx, t.ty, t.base)
     return { ...t, path, still: null }
   })
-  return { from, to, trajectory: trajectory.id, tracks, points }
-
-  function chooseFor(t: Omit<Track, 'path' | 'still'>): TrackPath {
-    return trajectory.path(t.sx, t.sy, t.tx, t.ty)
-  }
+  return { from, to, trajectory: trajectory.id, tracks, points, xs: new Float64Array(longest), ys: new Float64Array(longest) }
 }
 
 /** True when a track starts or ends in a single point (a contour that grows or shrinks). */
@@ -534,17 +708,14 @@ function isPoint(t: Omit<Track, 'path' | 'still'>): boolean {
 }
 
 function straightPath(t: Omit<Track, 'path' | 'still'>): TrackPath {
-  const { sx, sy, tx, ty } = t
-  return (p, xs, ys) => {
-    for (let i = 0; i < sx.length; i++) {
-      xs[i] = sx[i] + (tx[i] - sx[i]) * p
-      ys[i] = sy[i] + (ty[i] - sy[i]) * p
-    }
-  }
+  return STRAIGHT.path(t.sx, t.sy, t.tx, t.ty)
 }
 
 /** Which in-between anchors belong to the new outline, by in-between glyph (settleInBetween). */
 const keptAnchors = new WeakMap<PolygonGlyph, Uint8Array[]>()
+
+/** Where Whorl's mesh stands in an in-between glyph of a mesh glide, for a glide that goes on from it. */
+const meshPoses = new WeakMap<PolygonGlyph, () => MeshPose>()
 
 /**
  * The glyph at progress `p` (eased, 0–1) of `plan`: the old outline itself at 0, the new one itself at 1, and in
@@ -553,10 +724,18 @@ const keptAnchors = new WeakMap<PolygonGlyph, Uint8Array[]>()
 export function morphAt(plan: MorphPlan, p: number): PolygonGlyph {
   if (!(p > 0)) return plan.from
   if (p >= 1) return plan.to
-  const xs = new Float64Array(plan.points)
-  const ys = new Float64Array(plan.points)
+  const { xs, ys, mesh } = plan
   const contours: PolygonContour[] = []
   const kept: Uint8Array[] = []
+  if (mesh) {
+    mesh.at(p, xs, ys)
+    for (const { start, n, clockwise } of mesh.contours) {
+      const points: Point[] = new Array(n)
+      for (let i = 0; i < n; i++) points[i] = { x: xs[start + i], y: ys[start + i] }
+      contours.push({ points, clockwise })
+      kept.push(new Uint8Array(n).fill(1))
+    }
+  }
   for (const track of plan.tracks) {
     if (!track.path) {
       contours.push(track.still!)
@@ -564,11 +743,9 @@ export function morphAt(plan: MorphPlan, p: number): PolygonGlyph {
       continue
     }
     const n = track.sx.length
-    const tx = xs.subarray(0, n)
-    const ty = ys.subarray(0, n)
-    track.path(p, tx, ty)
+    track.path(p, xs, ys)
     const points: Point[] = new Array(n)
-    for (let i = 0; i < n; i++) points[i] = { x: tx[i], y: ty[i] }
+    for (let i = 0; i < n; i++) points[i] = { x: xs[i], y: ys[i] }
     contours.push({ points, clockwise: track.clockwise })
     kept.push(track.kept)
   }
@@ -577,6 +754,7 @@ export function morphAt(plan: MorphPlan, p: number): PolygonGlyph {
   if (motion) glyph.motion = motion
   else delete glyph.motion
   keptAnchors.set(glyph, kept)
+  if (mesh) meshPoses.set(glyph, () => mesh.pose(p))
   return glyph
 }
 
@@ -593,20 +771,29 @@ function motionAt(from: GlyphMotion | undefined, to: GlyphMotion | undefined, p:
 /**
  * An in-between glyph (morphAt) ready to glide on from towards `next`: the anchors only the old outline brought are
  * dropped where they lie within MORPH_LIMITS.settleShare of an em of the outline without them, and contours on their
- * way out once they are that small; when they outnumber the anchors of `next`, all of them are dropped, so a run of
- * changes faster than the glides never piles anchors up. Any other glyph is returned as it is.
+ * way out once they are that small or that thin. While those anchors still outnumber the anchors of `next` (a run of
+ * changes faster than the glides), the tolerance doubles, up to MORPH_LIMITS.settleMaxShare of an em, so anchors never
+ * pile up and nothing that still clearly shows is dropped at once. Any other glyph is returned as it is.
  */
 export function settleInBetween(glyph: PolygonGlyph, next?: PolygonGlyph): PolygonGlyph {
   const kept = keptAnchors.get(glyph)
   if (!kept) return glyph
   const em = glyph.metrics.unitsPerEm > 0 ? glyph.metrics.unitsPerEm : 1000
-  // More anchors on their way out than the next outline has (quick changes faster than the glides): all of them go.
-  let leaving = 0
-  for (const flags of kept) for (const f of flags) leaving += 1 - f
   const nextAnchors = next ? next.contours.reduce((n, c) => n + c.points.length, 0) : Infinity
-  const tolerance = leaving > nextAnchors ? Infinity : MORPH_LIMITS.settleShare * em
+  let tolerance = MORPH_LIMITS.settleShare * em
+  let settled = settleWithin(glyph, kept, tolerance)
+  while (settled.leaving > nextAnchors && tolerance < MORPH_LIMITS.settleMaxShare * em) {
+    tolerance = Math.min(2 * tolerance, MORPH_LIMITS.settleMaxShare * em)
+    settled = settleWithin(glyph, kept, tolerance)
+  }
+  return settled.glyph
+}
+
+/** settleInBetween at one tolerance; `leaving`: the anchors only the old outline brought that are left. */
+function settleWithin(glyph: PolygonGlyph, kept: Uint8Array[], tolerance: number): { glyph: PolygonGlyph; leaving: number } {
   const contours: PolygonContour[] = []
   let changed = false
+  let leaving = 0
   glyph.contours.forEach((contour, c) => {
     const flags = kept[c]
     const pts = contour.points
@@ -622,18 +809,13 @@ export function settleInBetween(glyph: PolygonGlyph, next?: PolygonGlyph): Polyg
     }
     changed = true
     if (anchors === 0) {
-      // On its way out: kept while it still shows.
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      for (const { x, y } of pts) {
-        minX = Math.min(minX, x)
-        maxX = Math.max(maxX, x)
-        minY = Math.min(minY, y)
-        maxY = Math.max(maxY, y)
+      // On its way out: kept while it still shows (not yet that small, nor that thin).
+      const r = ringOf(contour)
+      const thickness = r.length > 0 ? (2 * Math.abs(r.area)) / r.length : 0
+      if (2 * r.size > 2 * tolerance && thickness > tolerance) {
+        contours.push(contour)
+        leaving += pts.length
       }
-      if (Math.hypot(maxX - minX, maxY - minY) > 2 * tolerance) contours.push(contour)
       return
     }
     const keep = Uint8Array.from(flags)
@@ -644,9 +826,10 @@ export function settleInBetween(glyph: PolygonGlyph, next?: PolygonGlyph): Polyg
       const to = k + 1 < anchorsAt.length ? anchorsAt[k + 1] : anchorsAt[0] + pts.length
       if (to - from > 1) simplifyRun(pts, from, to, tolerance, keep)
     }
+    for (let i = 0; i < pts.length; i++) if (keep[i] && !flags[i]) leaving++
     contours.push({ points: pts.filter((_, i) => keep[i]), clockwise: contour.clockwise })
   })
-  return changed ? { ...glyph, contours } : glyph
+  return { glyph: changed ? { ...glyph, contours } : glyph, leaving }
 }
 
 /** Douglas–Peucker between the kept anchors `from` and `to` (indices may run past the end: they wrap). */

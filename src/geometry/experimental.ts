@@ -124,6 +124,7 @@ export function applyExperimental(
   const rippleBox = rippleIsOn(params.ripple) ? inkBox(result) : null
   if (rippleBox) stats.ripple = warp(rippleBox, (scale, box) => rippleWarp(params.ripple, box ?? rippleBox, unitsPerEm, scale))
   const whorlBox = whorlIsOn(params.whorl) ? inkBox(result) : null
+  const beforeWhorl = result
   if (whorlBox) stats.whorl = warp(whorlBox, (scale, box) => whorlWarp(params.whorl, box ?? whorlBox, unitsPerEm, scale))
   const slipstreamBox = slipstreamIsOn(params.slipstream) ? inkBox(result) : null
   // True once Slipstream's cuts have redrawn the outline, which merges any folds so far.
@@ -185,7 +186,11 @@ export function applyExperimental(
     ;({ polygon: result, stats: stats.dissolve } = applyDissolve(result, params.dissolve, seed, unitsPerEm, budget.maxVertices))
   }
   // Whorl's centre and settings ride along for Glide (display only; PolygonGlyph.motion).
-  const motion = whorlBox ? { whorl: whorlMotion(params.whorl, whorlBox, unitsPerEm) } : null
+  const motion = whorlBox ? { whorl: whorlMotion(params.whorl, whorlBox, unitsPerEm, beforeWhorl) } : null
+  if (motion) {
+    const last = !stats.whorl.tooComplex && !slipstreamIsOn(params.slipstream) && !thornIsOn(params.thorn) && !dissolveIsOn(params.dissolve)
+    if (last) motion.whorl.last = true
+  }
   return { polygon: layout || motion ? { ...result, ...layout, ...(motion ? { motion } : {}) } : result, stats }
 }
 

@@ -23,7 +23,7 @@
 // overlaps.ts).
 
 import type { Box } from './ripple'
-import type { WhorlMotion, WhorlParams, Point } from './types'
+import type { PolygonGlyph, WhorlMotion, WhorlParams, Point } from './types'
 import type { Warp } from './warp'
 
 export const WHORL_LIMITS = {
@@ -50,11 +50,14 @@ export function whorlFolds(params: WhorlParams | undefined): boolean {
 
 /**
  * What Glide needs to turn the letter's anchors the way Whorl turns them (PolygonGlyph.motion): its centre, Sides,
- * settings, the outermost ring's distance from the centre (along a side's normal), and how far each ring turned.
+ * settings, the outermost ring's distance from the centre (along a side's normal), how far each ring turned, and the
+ * letter as Whorl received it (`before`).
  */
-export function whorlMotion(params: WhorlParams, box: Box, unitsPerEm: number): WhorlMotion {
+export function whorlMotion(params: WhorlParams, box: Box, unitsPerEm: number, before?: PolygonGlyph): WhorlMotion {
   const { rings, sides, amount, pinned, centre, radius, turn } = whorlSetup(params, box, unitsPerEm, 1)
-  return { x: centre.x, y: centre.y, sides, rings, amount, pinned, radius, turns: Array.from({ length: rings + 1 }, (_, k) => turn(k)) }
+  const motion: WhorlMotion = { x: centre.x, y: centre.y, sides, rings, amount, pinned, radius, turns: Array.from({ length: rings + 1 }, (_, k) => turn(k)) }
+  if (before) motion.outline = before.contours.map((c) => c.points)
+  return motion
 }
 
 /** Whorl's mesh and turns for a glyph with this ink box, at `scale` × its strength (shared by the warp and Glide). */
@@ -218,6 +221,171 @@ export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, sca
         }
       }
     },
+  }
+}
+
+/**
+ * The inverse of Whorl's warp, for Glide (specimen/trajectory.ts): where a point of the turned letter lay before Whorl
+ * turned it, found exactly by the mesh triangle whose turned image holds it (the warp moves each triangle as a whole).
+ * The turns are the motion's own (an in-between glyph's may lie part of the way). Where the letter folds, several
+ * triangles hold the point: the answer with the lowest `score` wins. Null when none holds it.
+ */
+export function whorlUnwarp(motion: WhorlMotion): (p: Point, score: (x: number, y: number) => number) => Point | null {
+  const params: WhorlParams = { enabled: true, amount: motion.amount, rings: motion.rings, sides: motion.sides, pinned: motion.pinned }
+  const box: Box = { minX: motion.x - 1, maxX: motion.x + 1, minY: motion.y - motion.radius, maxY: motion.y + motion.radius }
+  const { rings, sides, centre, spacing, half, tanHalf, first, rising } = whorlSetup(params, box, 0, 1)
+  const last = motion.turns.length - 1
+  const turn = (k: number) => (last >= 0 ? motion.turns[Math.min(k, last)] : 0)
+  const frames = Array.from({ length: sides }, (_, j) => {
+    const mid = first + (2 * j + 1) * half
+    return { mx: Math.cos(mid), my: Math.sin(mid) }
+  })
+  // Every triangle: its corners before (pre) and after (image) the turn, flat: x0 y0 x1 y1 x2 y2.
+  const pre: number[] = []
+  const image: number[] = []
+  for (let j = 0; j < sides; j++) {
+    const { mx, my } = frames[j]
+    for (let k = 0; k < rings; k++) {
+      const a: Corner = [k, -k]
+      const b: Corner = [k, k]
+      const c: Corner = [k + 1, k + 1]
+      const d: Corner = [k + 1, -(k + 1)]
+      const triangles: Corner[][] = k === 0 ? [[a, c, d]] : rising ? [[a, b, c], [a, c, d]] : [[b, c, d], [a, b, d]]
+      for (const triangle of triangles)
+        for (const [cs, cx] of triangle) {
+          const along = cs * spacing
+          const across = cx * spacing * tanHalf
+          const px = mx * along - my * across
+          const py = my * along + mx * across
+          const t = turn(cs)
+          pre.push(centre.x + px, centre.y + py)
+          image.push(centre.x + Math.cos(t) * px - Math.sin(t) * py, centre.y + Math.sin(t) * px + Math.cos(t) * py)
+        }
+    }
+  }
+  const count = pre.length / 6
+  const outer = turn(rings)
+  return (p, score) => {
+    let best: Point | null = null
+    let bestD = Infinity
+    const consider = (x: number, y: number) => {
+      const d = score(x, y)
+      if (d < bestD) {
+        bestD = d
+        best = { x, y }
+      }
+    }
+    for (let t = 0; t < count; t++) {
+      const o = 6 * t
+      const x0 = image[o]
+      const y0 = image[o + 1]
+      const e1x = image[o + 2] - x0
+      const e1y = image[o + 3] - y0
+      const e2x = image[o + 4] - x0
+      const e2y = image[o + 5] - y0
+      const area = e1x * e2y - e2x * e1y
+      if (Math.abs(area) < 1e-12 * (e1x * e1x + e1y * e1y + e2x * e2x + e2y * e2y)) continue
+      const qx = p.x - x0
+      const qy = p.y - y0
+      const w1 = (qx * e2y - e2x * qy) / area
+      const w2 = (e1x * qy - qx * e1y) / area
+      const eps = 1e-9
+      if (w1 < -eps || w2 < -eps || w1 + w2 > 1 + eps) continue
+      const w0 = 1 - w1 - w2
+      consider(w0 * pre[o] + w1 * pre[o + 2] + w2 * pre[o + 4], w0 * pre[o + 1] + w1 * pre[o + 3] + w2 * pre[o + 5])
+    }
+    // Beyond the outermost ring everything turned as one.
+    const c = Math.cos(-outer)
+    const s = Math.sin(-outer)
+    const dx = p.x - centre.x
+    const dy = p.y - centre.y
+    const ux = c * dx - s * dy
+    const uy = s * dx + c * dy
+    const angle = (Math.atan2(uy, ux) - first) / (2 * half)
+    const j = ((Math.floor(angle) % sides) + sides) % sides
+    if ((frames[j].mx * ux + frames[j].my * uy) / spacing >= rings - 1e-9) consider(centre.x + ux, centre.y + uy)
+    return best
+  }
+}
+
+/** Whorl's mesh as Glide moves it (specimen/whorlGlide.ts). */
+export interface WhorlMesh {
+  /** Equal for the same mesh (centre, size, Rings, Sides and diagonals): the same corners and triangles. */
+  key: string
+  rings: number
+  sides: number
+  centre: Point
+  /** The distance between rings, along a side's normal. */
+  spacing: number
+  /** The corners before the turn and their rings: corner 0 is the centre, then ring by ring (1 to Rings), ray by ray. */
+  cornerX: Float64Array
+  cornerY: Float64Array
+  cornerRing: Int32Array
+  /** The triangle a point (before the turn) lies in, as its corners and weights; null beyond the outermost ring. */
+  locate(p: Point): { ids: [number, number, number]; weights: [number, number, number] } | null
+  /** Where the segment a → b (before the turn) crosses the mesh, as in Warp.creases. */
+  creases(a: Point, b: Point): number[]
+}
+
+/** The mesh Whorl turned a glyph's letter with, from its motion (PolygonGlyph.motion). */
+export function whorlMesh(motion: WhorlMotion): WhorlMesh {
+  const params: WhorlParams = { enabled: true, amount: motion.amount, rings: motion.rings, sides: motion.sides, pinned: motion.pinned }
+  const box: Box = { minX: motion.x - 1, maxX: motion.x + 1, minY: motion.y - motion.radius, maxY: motion.y + motion.radius }
+  const { rings, sides, centre, spacing, half, tanHalf, first, rising } = whorlSetup(params, box, 0, 1)
+  const count = 1 + rings * sides
+  const cornerX = new Float64Array(count)
+  const cornerY = new Float64Array(count)
+  const cornerRing = new Int32Array(count)
+  cornerX[0] = centre.x
+  cornerY[0] = centre.y
+  const corner = (k: number, ray: number) => (k === 0 ? 0 : 1 + (k - 1) * sides + (((ray % sides) + sides) % sides))
+  for (let k = 1; k <= rings; k++)
+    for (let ray = 0; ray < sides; ray++) {
+      const angle = first + 2 * ray * half
+      // Ray corners lie on the ring polygon's corners: the apothem over cos(half) from the centre.
+      const r = (k * spacing) / Math.cos(half)
+      const id = corner(k, ray)
+      cornerX[id] = centre.x + r * Math.cos(angle)
+      cornerY[id] = centre.y + r * Math.sin(angle)
+      cornerRing[id] = k
+    }
+  const warp = whorlWarp(params, box, 0, 1)
+  return {
+    key: [centre.x, centre.y, motion.radius, rings, sides, rising].join(' '),
+    rings,
+    sides,
+    centre,
+    spacing,
+    cornerX,
+    cornerY,
+    cornerRing,
+    locate(p) {
+      if (p.x === centre.x && p.y === centre.y) return { ids: [0, 0, 0], weights: [1, 0, 0] }
+      const angle = (Math.atan2(p.y - centre.y, p.x - centre.x) - first) / (2 * half)
+      const j = ((Math.floor(angle) % sides) + sides) % sides
+      const mid = first + (2 * j + 1) * half
+      const mx = Math.cos(mid)
+      const my = Math.sin(mid)
+      const dx = p.x - centre.x
+      const dy = p.y - centre.y
+      const s = (mx * dx + my * dy) / spacing
+      const x = (mx * dy - my * dx) / (spacing * tanHalf)
+      if (s >= rings) return null
+      const k = Math.floor(s)
+      const a: Corner = [k, -k]
+      const b: Corner = [k, k]
+      const c: Corner = [k + 1, k + 1]
+      const d: Corner = [k + 1, -(k + 1)]
+      let triangle: [Corner, Corner, Corner]
+      if (k === 0) triangle = [a, c, d]
+      else if (rising) triangle = x >= -k + (2 * k + 1) * (s - k) ? [a, b, c] : [a, c, d]
+      else triangle = x >= k - (2 * k + 1) * (s - k) ? [b, c, d] : [a, b, d]
+      const weights = barycentric(s, x, ...triangle)
+      // [k, -k] lies on ray j, [k, k] on ray j + 1.
+      const ids = triangle.map(([cs, cx]) => corner(cs, cx < 0 || (cs > 0 && cx === -cs) ? j : j + 1)) as [number, number, number]
+      return { ids, weights }
+    },
+    creases: (a, b) => warp.creases(a, b),
   }
 }
 

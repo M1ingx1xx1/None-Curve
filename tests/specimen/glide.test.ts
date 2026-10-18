@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, Point, PolygonContour, PolygonGlyph, WhorlMotion } from '../../src/geometry/types'
 import { easeOut, GLIDE_LIMITS, SceneGlide } from '../../src/specimen/glide'
-import { MORPH_LIMITS, morphAt, planMorph, settleInBetween } from '../../src/specimen/morph'
+import { MORPH_LIMITS, morphAt, planMorph, settleInBetween, type MorphPlan } from '../../src/specimen/morph'
 import { placePolygons, shapeSpecimen, type SpecimenScene } from '../../src/specimen/scene'
-import { chooseTrajectory, ringPolygon, STRAIGHT, whorlTrajectory } from '../../src/specimen/trajectory'
+import { chooseTrajectory, ringPolygon, STRAIGHT, whorlTrajectory, whorlUnturn } from '../../src/specimen/trajectory'
+import { whorlMotion, whorlWarp } from '../../src/geometry/whorl'
 import { GlideStore, type GlideClock } from '../../src/state/useGlide'
 import { loadFixture } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
@@ -46,6 +47,33 @@ function distanceTo(c: PolygonContour, p: Point): number {
 }
 const onOutline = (g: PolygonGlyph, p: Point) => Math.min(...g.contours.map((c) => distanceTo(c, p)))
 const count = (g: PolygonGlyph) => g.contours.reduce((n, c) => n + c.points.length, 0)
+
+/**
+ * How the anchors of `plan` travel, sampled finely: `bent` is the share of sample triples whose middle is off the line
+ * through its neighbours (a path of straight pieces bends only at its few corners; a curve bends at every sample), and
+ * `most` the largest number of bends on one anchor's path.
+ */
+function bends(plan: MorphPlan, samples = 1500): { bent: number; most: number } {
+  const frames = Array.from({ length: samples - 1 }, (_, i) => morphAt(plan, (i + 1) / samples))
+  let bent = 0
+  let total = 0
+  let most = 0
+  frames[0].contours.forEach((c, ci) =>
+    c.points.forEach((_, pi) => {
+      let here = 0
+      for (let k = 1; k < frames.length - 1; k++) {
+        const a = frames[k - 1].contours[ci].points[pi]
+        const m = frames[k].contours[ci].points[pi]
+        const b = frames[k + 1].contours[ci].points[pi]
+        total++
+        if (Math.hypot(m.x - (a.x + b.x) / 2, m.y - (a.y + b.y) / 2) > 1e-6) here++
+      }
+      bent += here
+      most = Math.max(most, here)
+    }),
+  )
+  return { bent: bent / total, most }
+}
 
 describe('morph: pairing anchors and the in-between outlines', () => {
   const from = glyph(square(0, 0, 100))
@@ -123,6 +151,35 @@ describe('morph: pairing anchors and the in-between outlines', () => {
     ])
   })
 
+  it('keeps each anchor in place when only the contour\'s first anchor moved round it', () => {
+    const turned = glyph(contour([1, 2, 3, 0].map((i) => [from.contours[0].points[i].x + 2, from.contours[0].points[i].y] as [number, number])))
+    const mid = morphAt(planMorph(from, turned)!, 0.5).contours[0].points
+    // Anchor to anchor by place, not by index: everything moves 1 unit, nothing slides round to the next corner.
+    for (const p of mid) expect(Math.min(...from.contours[0].points.map((q) => Math.hypot(q.x - p.x, q.y - p.y)))).toBeCloseTo(1, 9)
+  })
+
+  it('pairs an outline wound the other way (a merged outline) with its own outline, not with a small hole', () => {
+    const a = glyph(contour([[0, 0], [0, 300], [300, 300], [300, 0]], true))
+    // The same letter merged: wound the other way, with a small contour wound the old way.
+    const b = glyph(contour([[0, 0], [310, 0], [310, 300], [0, 300]], false), contour([[100, 100], [100, 140], [140, 140], [140, 100]], true))
+    const mid = morphAt(planMorph(a, b)!, 0.5)
+    const xs = mid.contours[0].points.map((p) => p.x)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(295)
+  })
+
+  it('grows a contour that splits off out of the outline it splits from, not out of a point', () => {
+    const whole = glyph(contour([[0, 0], [400, 0], [400, 100], [0, 100]]))
+    const split = glyph(contour([[0, 0], [180, 0], [180, 100], [0, 100]]), contour([[220, 0], [400, 0], [400, 100], [220, 100]]))
+    const plan = planMorph(whole, split)!
+    const start = morphAt(plan, 1e-12)
+    for (const c of start.contours) for (const p of c.points) expect(onOutline(whole, p)).toBeLessThan(1e-6)
+    // Halfway, both halves show at about their size.
+    for (const c of morphAt(plan, 0.5).contours) {
+      const xs = c.points.map((p) => p.x)
+      expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150)
+    }
+  })
+
   it('is deterministic and keeps every in-between anchor finite', () => {
     const a = planMorph(from, spiked)!
     const b = planMorph(from, spiked)!
@@ -137,6 +194,15 @@ describe('morph: pairing anchors and the in-between outlines', () => {
       glyph(contour(Array.from({ length: n }, (_, i) => [r * Math.cos((2 * Math.PI * i) / n), r * Math.sin((2 * Math.PI * i) / n)] as [number, number])))
     expect(planMorph(many(MORPH_LIMITS.maxPoints / 2 + 10, 100), many(MORPH_LIMITS.maxPoints / 2 + 3, 300))).toBeNull()
     expect(planMorph(many(400, 100), many(300, 300))).not.toBeNull()
+  })
+
+  it('drops a half-sunk spike gradually, never at once, when quick changes bring more anchors than the next outline has', () => {
+    const tall = glyph(contour([[0, 0], [100, 0], [100, 40], [500, 50], [100, 60], [100, 100], [0, 100]]))
+    const half = morphAt(planMorph(tall, from)!, 0.5)
+    const next = glyph(contour([[0, 0], [100, 0], [50, 100]]))
+    // Its tip still stands 200 units out (more than settleMaxShare of an em): it stays.
+    const settled = settleInBetween(half, next)
+    expect(Math.max(...settled.contours[0].points.map((p) => p.x))).toBeGreaterThan(250)
   })
 
   it('drops the anchors only the old outline brought once they no longer show, so quick changes never pile anchors up', () => {
@@ -201,6 +267,52 @@ describe('trajectories', () => {
     // A straight line between the ends would cut across the ring.
     const chordMid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
     expect(ring.size(chordMid.x, chordMid.y)).toBeLessThan(90)
+  })
+
+  it('moves in straight pieces between the ring\'s corners while the ring grows, and covers the rest in a straight line', () => {
+    const trajectory = whorlTrajectory(motion(0, 0), motion(1, 2))!
+    const ring = ringPolygon(6)
+    const start = ring.at(-Math.PI / 2, 60)
+    const end = ring.at(-Math.PI / 2 + 2 * (60 / 100), 90)
+    const fill = trajectory.path(Float64Array.of(start.x), Float64Array.of(start.y), Float64Array.of(end.x), Float64Array.of(end.y))
+    const xs = new Float64Array(1)
+    const ys = new Float64Array(1)
+    const at = (p: number) => {
+      fill(p, xs, ys)
+      return { x: xs[0], y: ys[0] }
+    }
+    expect(at(1).x).toBeCloseTo(end.x, 9)
+    expect(at(1).y).toBeCloseTo(end.y, 9)
+    let bent = 0
+    for (let k = 1; k < 999; k++) {
+      const a = at((k - 1) / 1000)
+      const m = at(k / 1000)
+      const b = at((k + 1) / 1000)
+      if (Math.hypot(m.x - (a.x + b.x) / 2, m.y - (a.y + b.y) / 2) > 1e-9) bent++
+    }
+    // 1.2 radians round a hexagon: one or two corners, each bending at most two sample triples.
+    expect(bent).toBeGreaterThan(0)
+    expect(bent).toBeLessThanOrEqual(4)
+  })
+
+  it('finds where Whorl turned a point from: its ring along the side it faced, exactly, at Sides 3 and beyond 100%', () => {
+    const box = { minX: -300, minY: -400, maxX: 300, maxY: 400 }
+    const params = { enabled: true, amount: 1.8, rings: 5, sides: 3, pinned: true }
+    const warp = whorlWarp(params, box, 1000)
+    // A letter-like outline: two squares.
+    const outline = [square(-250, -350, 500).points, square(-80, -60, 120).points]
+    const motion = whorlMotion(params, box, 1000, glyph(...outline.map((points) => ({ points, clockwise: false }))))
+    for (const pts of outline)
+      for (let i = 0; i < pts.length; i++)
+        for (const t of [0, 0.37, 0.81]) {
+          const a = pts[i]
+          const b = pts[(i + 1) % pts.length]
+          const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+          const q = warp.map(p)
+          const back = whorlUnturn(motion, q.x - motion.x, q.y - motion.y)
+          expect(back.x + motion.x).toBeCloseTo(p.x, 6)
+          expect(back.y + motion.y).toBeCloseTo(p.y, 6)
+        }
   })
 
   it('turns the whole way the rings turned, beyond half a circle', () => {
@@ -273,32 +385,51 @@ describe('Glide on Roboto', async () => {
     })
   }
 
-  it('glides Whorl around the centre: the anchors keep their distance from it and turn', () => {
-    const sa = sceneFor(whorl(0.3))
-    const sb = sceneFor(whorl(0.9))
-    const k = 1 // "a"
-    const a = glyphsOf(sa)[k].polygon!
-    const b = glyphsOf(sb)[k].polygon!
-    const plan = planMorph(a, b)!
-    expect(plan.trajectory).toBe('whorl')
-    const centre = b.motion!.whorl!
-    const ring = ringPolygon(centre.sides)
-    // Pairs whose ends lie on the same ring stay on it all the way.
-    const start = morphAt(plan, 1e-12)
-    const half = morphAt(plan, 0.5)
-    const end = morphAt(plan, 1 - 1e-12)
-    let same = 0
-    start.contours.forEach((c, ci) =>
-      c.points.forEach((p, pi) => {
-        const q = end.contours[ci].points[pi]
-        const s0 = ring.size(p.x - centre.x, p.y - centre.y)
-        if (Math.abs(ring.size(q.x - centre.x, q.y - centre.y) - s0) > 1e-6 * s0) return
-        same++
-        const m = half.contours[ci].points[pi]
-        expect(ring.size(m.x - centre.x, m.y - centre.y)).toBeCloseTo(s0, 6)
-      }),
-    )
-    expect(same).toBeGreaterThan(0)
+  it('glides Whorl on its own by its mesh: in straight pieces, from the shape shown to the shape computed, folds and all', () => {
+    for (const [from, to] of [
+      [BASE, whorl(1.5)],
+      [whorl(1), whorl(1.1)],
+      [whorl(0.3), whorl(0.9)],
+    ] as const) {
+      const a = glyphsOf(sceneFor(from))[0].polygon! // "H"
+      const b = glyphsOf(sceneFor(to))[0].polygon!
+      const plan = planMorph(a, b)!
+      expect(plan.trajectory).toBe('whorl-mesh')
+      // Every anchor travels in straight pieces that turn at a few corners.
+      const { bent, most } = bends(plan)
+      expect(bent).toBeLessThan(0.02)
+      expect(most).toBeLessThan(80)
+      // The ends are the outlines themselves.
+      expect(morphAt(plan, 0)).toBe(a)
+      expect(morphAt(plan, 1)).toBe(b)
+    }
+  })
+
+  it('a Whorl glide that goes on carries on from the mesh as shown, with no jump', () => {
+    const s1 = sceneFor(whorl(0.3))
+    const s2 = sceneFor(whorl(0.9))
+    const s3 = sceneFor(whorl(1.4))
+    const glide = glideBetween(s1, s2, 150)
+    const before = glide.frame(40)!
+    glide.retarget(s3, 40, { durationMs: 150, glide: true, key: 'k' })
+    const after = glide.frame(40)!
+    glyphsOf(after).forEach((g, k) => expect(g.polygon!.contours).toEqual(glyphsOf(before)[k].polygon!.contours))
+    expect(glide.frame(40 + 150)).toBe(s3)
+  })
+
+  it('glides Whorl with other changes around the centre in straight pieces; spikes grow straight out of their base', () => {
+    const thorny = (amount: number, reach: number) =>
+      exp({ seed: 1, whorl: { ...BASE.experimental.whorl, enabled: true, amount }, thorn: { ...BASE.experimental.thorn, enabled: true, canvasReach: reach, canvasEm: 30 } })
+    for (const [from, to] of [
+      [thorny(0.3, 0.03), thorny(0.9, 0.12)],
+      [whorl(0.6), exp({ whorl: { ...BASE.experimental.whorl, enabled: true, amount: 0.6, rings: 3 } })],
+    ] as const) {
+      const a = glyphsOf(sceneFor(from))[1].polygon! // "a"
+      const b = glyphsOf(sceneFor(to))[1].polygon!
+      const plan = planMorph(a, b)!
+      expect(plan.trajectory).toBe('whorl')
+      expect(bends(plan).bent).toBeLessThan(0.02)
+    }
   })
 
   it('a new shape on the way glides on from the shape on screen, with no jump', () => {
@@ -414,6 +545,29 @@ describe('the page store', () => {
     store.show(scene(30), { durationMs: 100, live: false, key: 'k' })
     expect(fake.queued).toBe(false)
     expect(store.getSnapshot().scene!.lines[0].glyphs[0].x).toBe(30)
+  })
+
+  it('lets every glyph of a long text take its turn while new shapes keep coming faster than they can all be paired', () => {
+    // A clock that runs 10 ms on every reading: each frame pairs one glyph, then its budget is spent.
+    let t = 0
+    const glide = new SceneGlide(() => (t += 10))
+    const many = (shift: number): SpecimenScene => {
+      const base = scene(0)
+      const glyphs = Array.from({ length: 12 }, (_, k) => ({ ...base.lines[0].glyphs[0], x: 100 * k, polygon: glyph(square(0, 0, 100 + shift)) }))
+      return { ...base, lines: [{ ...base.lines[0], glyphs }] }
+    }
+    glide.retarget(many(0), 0, { durationMs: 100, glide: false, key: 'k' })
+    const reshaped = new Set<number>()
+    for (let frame = 1; frame <= 36; frame++) {
+      const now = 16 * frame
+      // A new shape every second frame.
+      if (frame % 2 === 1) glide.retarget(many(frame), now, { durationMs: 100, glide: true, key: 'k' })
+      glide.frame(now)!.lines[0].glyphs.forEach((g, k) => {
+        const width = Math.max(...g.polygon!.contours[0].points.map((p) => p.x))
+        if (width > 100) reshaped.add(k)
+      })
+    }
+    expect(reshaped.size).toBe(12)
   })
 
   it('arrives early enough that a glide nearly done is not glided again', () => {

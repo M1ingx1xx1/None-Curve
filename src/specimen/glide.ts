@@ -11,10 +11,13 @@
 // when it has no outline on either side or its in-between would be too large (MORPH_LIMITS.maxPoints).
 //
 // Pairing the anchors of a glyph costs time on the page, so each animation frame spends at most
-// GLIDE_LIMITS.planBudgetMs on it, in reading order; a glyph whose turn has not come yet holds the shape it had on screen
-// and starts its glide (of the full time) in the frame that pairs it. A glide nearly done (GLIDE_LIMITS.arrived) when the
-// next shape comes counts as arrived, so at slower frame rates every glide starts from a computed shape, whose plans are
-// shared between frames and repeated letters.
+// GLIDE_LIMITS.planBudgetMs on it; a glyph whose turn has not come yet holds the shape it had on screen and starts its
+// glide (of the full time) in the frame that pairs it. The glyphs take turns: each frame goes on where the last one
+// stopped (in reading order, round to the start), also across new shapes, so in a long text that Sound reshapes faster
+// than all its glyphs can be paired, every glyph still gets its turn instead of the last ones waiting for good. A glide
+// nearly done (GLIDE_LIMITS.arrived) when the next shape comes counts as arrived: its next glide starts from the
+// computed shape, whose plans are shared between frames and repeated letters (the jump this takes is at most 1% of the
+// last move, too small to see).
 //
 // Glide never decides what is computed or when: the live scheduler, its flash limit and its frame rate work as without
 // it. The flash limit counts how often the shapes change; Glide only softens each change on screen.
@@ -28,7 +31,7 @@ export const GLIDE_LIMITS = {
    * A glyph this far along its glide (eased) when a new shape arrives counts as arrived: its next glide starts from the
    * shape it was heading for (a jump of at most this share of the last move's rest).
    */
-  arrived: 0.95,
+  arrived: 0.99,
   /** Page time (ms) each animation frame may spend pairing anchors; the glyphs left wait for the next frame. */
   planBudgetMs: 6,
 } as const
@@ -89,6 +92,8 @@ export class SceneGlide {
   private tween: Tween | null = null
   /** Plans by old and new outline: repeated letters, and glides from computed outlines, share them. */
   private plans = new WeakMap<PolygonGlyph, WeakMap<PolygonGlyph, MorphPlan | null>>()
+  /** Where the next frame starts pairing (the glyph after the last one paired), so every glyph gets its turn. */
+  private cursor = 0
   /** The last frame drawn, for the same time asked again (several views draw each frame). */
   private last: { now: number; scene: SpecimenScene | null } | null = null
 
@@ -176,17 +181,31 @@ export class SceneGlide {
     return moves ? { start: now, duration, fromSlant: shown.slant, glyphs, pending } : null
   }
 
-  /** Pairs the glyphs still waiting, in reading order, within this frame's budget; they start gliding at `now`. */
+  /**
+   * Pairs the glyphs still waiting within this frame's budget, from where the last frame stopped (see the top of the
+   * file); they start gliding at `now`.
+   */
   private pair(tween: Tween, now: number) {
     const started = this.clock()
-    for (const glide of tween.glyphs) {
-      if (tween.pending === 0) return
+    const count = tween.glyphs.length
+    if (count === 0) return
+    const first = this.cursor % count
+    // At least one glyph each frame, however slow, so the glide always moves on.
+    let planned = false
+    for (let k = 0; k < count && tween.pending > 0; k++) {
+      const index = (first + k) % count
+      const glide = tween.glyphs[index]
       if (!glide || glide.plan !== undefined) continue
       const known = this.plans.get(glide.from!)?.has(glide.to!)
-      if (!known && this.clock() - started > GLIDE_LIMITS.planBudgetMs) return
+      if (!known && planned && this.clock() - started > GLIDE_LIMITS.planBudgetMs) {
+        this.cursor = index
+        return
+      }
+      if (!known) planned = true
       glide.plan = this.planFor(glide.from!, glide.to!)
       glide.start = now
       tween.pending--
+      this.cursor = index + 1
     }
   }
 
