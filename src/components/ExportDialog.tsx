@@ -15,7 +15,7 @@ import {
   type GlyphSet,
   type KnownGlyph,
 } from '../export/fontFile'
-import { svgToPng } from '../export/png'
+import { pngSize, svgToPng } from '../export/png'
 import { getRecorder, useRecording } from '../export/recorder'
 import { OUTLINE_STROKE_PX, specimenToSvg, type SvgLook } from '../export/svg'
 import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
@@ -280,8 +280,7 @@ export default function ExportDialog(props: ExportDialogProps) {
     if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background, blur: 0, outlineOnly }
     return { ...previewColors(palette, previewLook), background, blur: previewBlur(previewLook.blur, previewScale, unitsPerPx), outlineOnly }
   }
-  const pngWidth = artboard.width * artboard.scale
-  const pngHeight = artboard.height * artboard.scale
+  const { width: pngWidth, height: pngHeight, capped: pngCapped } = pngSize(artboard.width, artboard.height, artboard.scale)
   const lookName = `${
     usePreviewLook
       ? `preview look (${previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}${previewLook.inverted ? ', inverted' : ''})`
@@ -516,8 +515,9 @@ export default function ExportDialog(props: ExportDialogProps) {
                   </div>
                 ) : (
                   <p className="field-hint">
-                    Image size: {pngWidth} × {pngHeight} px (canvas {artboard.width} × {artboard.height} px at {artboard.scale}×). Change it
-                    under Canvas size, below the canvas.
+                    Image size: {pngWidth} × {pngHeight} px (canvas {artboard.width} × {artboard.height} px at {artboard.scale}×
+                    {pngCapped ? ', scaled down to what a browser can draw' : ''}). Change it under Canvas size,
+                    below the canvas.
                   </p>
                 )}
                 <p className="export-summary">

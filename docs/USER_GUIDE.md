@@ -223,9 +223,9 @@ The **Preview** (bottom right) shows the whole canvas exactly as an SVG export w
 
 The text sits on a **canvas** of a fixed size in pixels, like a page or an artboard. Click the **Canvas size** bar under the big canvas to open or close its settings:
 
-- **W** and **H** — the width and height in pixels. Drag the slider or type a number (it takes effect when you press Enter or click elsewhere).
+- **W** and **H** — the width and height in pixels, from 100 to 10000. Drag the slider or type a number (it takes effect when you press Enter or click elsewhere).
 - **1:1, 4:3, 16:9, 4:5, 3:2, 3:4** — common picture shapes. The width stays and the height follows. **Swap** turns a landscape canvas into a portrait one and back.
-- **1×, 2×, 3×, 4×** — how many times larger a PNG export is. The layout stays the same; a higher number just gives a sharper, larger image (shown underneath, for example 2400 × 1600 px). A video uses the same size, unless that is larger than 4K (see [Record a video](#record-a-video)).
+- **1×, 2×, 3×, 4×** — how many times larger a PNG export is. The layout stays the same; a higher number just gives a sharper, larger image (shown underneath, for example 2400 × 1600 px). A browser cannot draw an image of any size, so a very large one (longer than 16,384 pixels on a side, as with a 10000-pixel canvas at 2×) is made smaller to fit, keeping its shape; the line underneath then says “scaled down to what a browser can draw”. A video uses the same size, unless that is larger than 4K (see [Record a video](#record-a-video)).
 
 If the text is too big for the canvas, a red note appears on the big canvas ("The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography → Fit text."); the preview and exports cut the text off at the edge. **Typography → Fit text** makes it fit.
 
@@ -675,7 +675,7 @@ If a take goes wrong, the box and the header say why:
 
 The **Typography**, **Glyphs**, and **Color** tabs are at the bottom left. These place the text on the canvas. They do not change the shape of the letters or the exported font file.
 
-- **Size** — the letter size in pixels (how tall one em is on the canvas). It stays the same when you change the canvas size. You can drag the slider or type a number.
+- **Size** — the letter size in pixels (how tall one em is on the canvas), from 4 to 2000. It stays the same when you change the canvas size. You can drag the slider or type a number.
 - **Fit text** — makes the text as large as possible while keeping a 25-pixel gap to the canvas edges. Thorns do not count: they may still reach past the edges (see Thorn in the Experimental tab).
 - **Tracking** — extra space between letters. Negative values pull letters closer.
 - **Line height** — space between lines. 1 is the font's own line spacing; 2 is double.

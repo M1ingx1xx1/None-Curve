@@ -79,7 +79,7 @@ export interface ArtboardParams {
 
 export const TYPOGRAPHY_LIMITS = {
   minSize: 4,
-  maxSize: 1000,
+  maxSize: 2000,
   minTracking: -200,
   maxTracking: 1000,
   minLineHeight: 0.5,
@@ -87,7 +87,7 @@ export const TYPOGRAPHY_LIMITS = {
   maxSlant: 30,
 } as const
 
-export const ARTBOARD_LIMITS = { min: 100, max: 4000, scales: [1, 2, 3, 4] as const } as const
+export const ARTBOARD_LIMITS = { min: 100, max: 10000, scales: [1, 2, 3, 4] as const } as const
 
 export const DEFAULT_TYPOGRAPHY: TypographyParams = {
   size: 48,

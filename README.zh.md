@@ -86,9 +86,9 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 
 文字排在一个固定像素尺寸的画布（画板）上；缩放 100% 时完整显示整个画布。背景色铺满整个视图。画板以外（工作区）比背景色暗 7%（深色背景则亮 6%），并铺有屏幕网格（每 24 像素一格），浅色背景上用黑色、深色背景上用白色，不透明度取到与背景的对比度为 1.3 : 1——无论文字是什么颜色，每种配色下的可见度都一样（`src/specimen/color.ts` 中的 `gridLineColor`；Grid & angles 的吸附网格为 1.5 : 1）；画板以内和导出效果完全一样。只有在需要对齐时，网格才会淡入到画板内：拖动文字时（Free 位置），或缩放到 200% 及以上时。一条带柔和阴影的 1.5 像素外框（目前设为透明，只留阴影）标出导出区域，并让它从周围的背景上浮起——外框用界面的薄荷绿（#adfce7；在背景上更显眼时用 #0f7a5c），而不是文字颜色，所以不会被误认为文字的一部分；阴影在浅色背景上是深色投影，在深色背景上是浅色光晕（`src/styles.css` 中的 `.artboard-frame`）；度量线也用文字颜色绘制。透明背景显示为棋盘格，由背景色和叠了文字颜色的背景色组成，因此文字依然清晰。画布下方的抽屉包含：
 
-- **W** / **H**：画布宽和高，100–4000 像素，每档 1（滑块或数字框；数字框在按回车或离开时生效，并限制在范围内）。
+- **W** / **H**：画布宽和高，100–10000 像素，每档 1（滑块或数字框；数字框在按回车或离开时生效，并限制在范围内）。
 - 画幅比例 **1:1**、**4:3**、**16:9**、**4:5**、**3:2**、**3:4**：保持宽度、按比例设定高度（若超出范围则改为保持高度）；与当前尺寸相符的比例会高亮。**Swap** 交换宽和高。
-- **1×–4×**：导出倍数。PNG 的尺寸为宽 × 倍数、高 × 倍数，排版不变，倍数越高越清晰。
+- **1×–4×**：导出倍数。PNG 的尺寸为宽 × 倍数、高 × 倍数，排版不变，倍数越高越清晰；超出浏览器能画的大小（长边 16,384 px 或总共 2^27 像素，见 `src/export/png.ts` 的 `PNG_LIMITS`）时按比例缩小，倍数下方的尺寸行和导出对话框会加上 “scaled down to what a browser can draw”。
 - 开启 Thorn 时，**W** 和 **H** 还决定刺按 em 计能伸多远（Reach 是画布对角线的比例，见[实验效果](#实验效果crumpleripplewhorlslipstreamthorn-与-dissolve)），所以改变它们会重新计算字母；导出倍数不会。
 
 超出画布边缘的文字在画布上仍可见并给出提示（“The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography → Fit text.”）；预览和导出会裁到画布边缘。这条提示量的是不带 Thorn 刺尖的字母（`src/specimen/artboard.ts` 中的 `textOverflows`）：刺本来就可以伸出画布，在工作区上照样显示，在预览和 SVG、PNG 导出中则在画布边缘被裁掉，不会给出提示。声音驱动字母时，这条提示量的是滑块值下的字母，也就是决定文字块位置的那些字母（`useGeometry` 给出的 `placement`；见[排版](#排版)），而不是实时字母：声音把某个实时字母扭得比滑块值更远时，它可能伸出画布边缘而没有提示，在预览和视频中就会被裁掉（画布上仍完整显示）。
@@ -97,7 +97,7 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 
 `src/specimen/artboard.ts` 与 `src/specimen/scene.ts`。这些设置改变排版和 SVG/PNG 导出，不改变字形几何，也不影响字体文件，只有一个例外：开启 Thorn 时，**Size**（和画布尺寸一样）决定刺按 em 计能伸多远，因为 Reach 是画布的比例（见[实验效果](#实验效果crumpleripplewhorlslipstreamthorn-与-dissolve)），所以改变字号会重新计算字母。
 
-- **Size（字号）**（4–1000 像素，默认 48）：每个 em 在画布上的像素数；改变画布尺寸不会改变字号。**Fit text** 设为能让轮廓的范围（含倾斜）在两个方向上都放进边距内的最大整数像素字号。
+- **Size（字号）**（4–2000 像素，默认 48）：每个 em 在画布上的像素数；改变画布尺寸不会改变字号。**Fit text** 设为能让轮廓的范围（含倾斜）在两个方向上都放进边距内的最大整数像素字号。
 - **边距**：位置锚点和 Fit text 在轮廓的范围与画布四边之间固定保留 25 个画布像素，与字号无关（`src/specimen/artboard.ts` 中的 `EDGE_MARGIN_PX`），没有对应的控件。
 - **排版不计 Thorn 的刺。** Fit text、位置锚点、Free 和超出画布的提示，量的都是每个字母在 Thorn 之前的样子：Thorn 的根部、刺尖和折射之前的墨迹范围（`PolygonGlyph.layoutBox`），文字倾斜时再加上同一个字母的凸包（`PolygonGlyph.layoutHull`），逐点倾斜，所以无论倾斜多少，文字的位置、Fit text 和超出提示都与关闭 Thorn 时完全相同（只有字形没有凸包时，才退而用范围框倾斜后的四角，它们伸得更远）。它们汇总为 `src/specimen/scene.ts` 中的 `SpecimenScene.body`，所以刺从不移动、缩小或挡住文字，也可以伸出画布边缘。本节中的“轮廓的范围”都指这个范围；没有 Thorn 时就是轮廓本身的范围。
 - **声音不移动文字。** 声音驱动字母时，文字块的位置由滑块值下的字母（滑块场景）决定，而不是由实时字母决定（`src/specimen/artboard.ts` 中的 `placementScene`，由 `src/state/useDerivedGeometry.ts` 中的 `useGeometry` 使用），实时字母就画在这个位置上。两者的行和笔位相同（都来自步进宽度），不同的只有在轮廓上量出的范围。所以无论效果、种子、预设或 Response 设置把实时轮廓变成什么样，文字块都停在没有声音时的位置。滑块值下的字母通常在平常编辑时就已算好；声音驱动期间滑块、文字、字体或排版有变化时，还缺的字形要等这些设置停下 200 ms（`SLIDER_SCENE_DELAY_MS`）后才去计算，所以拖动滑块只请求一次，而不是每帧一次。结果到来之前，文字块保持同一段排好的文字上一次按滑块值得到的位置；没有这样的位置时，由实时字母决定（与以前相同）。超出画布的提示也量滑块值下的字母（见[画布尺寸](#画布尺寸)），所以比它们扭得更远的实时字母可能伸出画布边缘，在预览和视频中被裁掉。视频把实时字母画在同一个位置，所以视频里的文字块同样不动。Freeze 会把实时值写进滑块，所以那时文字块可能移动一次。没有声音时一切不变。
@@ -393,7 +393,7 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
   - Experimental：Crumple 的 Amount、Facet size 和 Turn；Ripple 的 Amount、Wavelength、Sides、Center X、Center Y、Fade 和 Petals；Whorl 的 Amount、Rings 和 Sides；Slipstream 的 Direction、Strength、Slip、Gust size、Gustiness、Cuts 和 Trails；Thorn 的 Anchors、Reach、Root、Spread、Width、Refraction、Flute width、Burst anchors（Burst 中的 Anchors）和 Dent；Dissolve 的 Amount、Grain、Spread、Specks、Curl 和 Facets；以及共用的 **Seed**。
 - **更多目标**（NOCUR-73；`mapping.ts` 中 `tab` 为 `typography`、`color`、`axes` 的目标，以及 `kind: 'switch'`），在 Target 列表里有各自的分组，排在上面 50 个之后：
   - **开关**（9 个）：每个效果的 **Use …** 勾选框、Ripple 的 **Reverse**，以及 Thorn 的 **Burst** 和 **Reverse**，作为 0/1 目标。开关行没有 Depth 旋钮、Range 和 Curve，只提供 **Trigger**（脉冲持续期间开关处于相反状态：Smooth，至少 80 ms）和 **Toggle**（从一次上升到下一次上升处于相反状态，平滑后的状态过半时切换）。以 Follow 保存的行（来自文件；标签页不提供）在整形后的特征达到 50% 及以上时翻转。Depth 的大小和正负不起作用，但 0 表示关闭；同一个开关上无论多少行同时触发，都只翻转一次。选中开关时，Follow 改为 Toggle，Depth 为 0 时改为 +50%。开关先于其他所有目标应用，所以把 Thorn 打开的行能让 Thorn 的滑块行在同一帧起作用；Ripple 的 Reverse 以及 Thorn 的 Burst 和 Reverse 需要各自的效果打开（Enable 会打开它）。Thorn 的开关和它的滑块一样按轮次变化。
-  - **Typography**（4 个）：Size（4–1000 px）、Tracking（−200 到 1000）、Line height（0.5–3，档位 0.01）和 Slant（−30° 到 30°），范围与 Typography 标签页相同（`TYPOGRAPHY_LIMITS`）。实时帧用它们排版文字；Thorn 的画布 Reach 仍按滑块上的 Size 计算。
+  - **Typography**（4 个）：Size（4–2000 px）、Tracking（−200 到 1000）、Line height（0.5–3，档位 0.01）和 Slant（−30° 到 30°），范围与 Typography 标签页相同（`TYPOGRAPHY_LIMITS`）。实时帧用它们排版文字；Thorn 的画布 Reach 仍按滑块上的 Size 计算。
   - **Color**（4 个）：文字颜色和背景颜色的 **Hue**（0–360°，档位 1°，与其他滑块一样在两端截止，不绕回）和 **Lightness**（0–1，档位 0.01），在 OKLCH 中移动，保持颜色自己的彩度（`color.ts` 中的 `hexToLch`、`lchToHex`）。灰色没有色相可移动（显示提示，没有 Enable）；背景的目标需要有背景（Enable 会关闭 **Transparent background**）。
   - **可变轴**（所载入字体的每个轴一个，`axis.<tag>`，例如 `axis.wght`；`setTargetFont`、`axisTargets`）：从字体自己的值出发，在轴的范围内移动，档位是不大于 1、且至少给出 100 档的 10 的幂。实时帧从字体在这些值下的实例读取字形（`LoadedFont.at`，保留最近 24 个实例）；只有当这些值与字体自己的值不同时，它们才加入几何键（`GeometryParams.variation`，从不保存）。字体没有的轴上的行会保留并保存，提示 "This font has no wdth axis: load a font with one to hear this."，载入带有该轴的字体后重新起作用。
   - 这些目标从不按 Thorn 轮次变化，Typography 和 Color 也从不按字母级别缩放。调度器把实时的排版和颜色作为帧的 `look` 提交（`lookChanges`，由 `lookKey` 接到帧键上），所以画布、预览和视频都会显示它们。标记：Typography 滑块上的实时细线、每个颜色行里的小实时色块、每个被驱动的勾选框旁的小方块（开时填满），以及字体信息里轴旁边的实时值。Freeze 写入开关、Typography 和颜色；轴没有滑块，所以 Freeze 让字体保持它自己的值。
