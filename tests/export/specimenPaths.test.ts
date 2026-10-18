@@ -1,7 +1,8 @@
 // The artboard's glyph paths (src/export/svg.ts, specimenPaths): path data is built once per polygon, not once per
 // glyph id. Occurrences of a glyph that share one polygon (every glyph today, and every letter at the shared level
 // of a live frame) give the same strings as before; occurrences with polygons of their own (letters that react to
-// Sound by their own amount) each get their own path.
+// Sound by their own amount) each get their own path. Each distinct path is listed once in `shapes`, which the preview
+// draws once and places with <use>.
 
 import { describe, expect, it } from 'vitest'
 import { specimenPaths, specimenToSvg, type SvgPathCache } from '../../src/export/svg'
@@ -64,10 +65,11 @@ describe('specimenPaths', () => {
     expect(paths).toEqual({
       transform: 'scale(0.5) translate(100 900)',
       paths: [
-        { transform: 'translate(0 0) scale(1 -1)', d: 'M50 0L650 0L650 700L50 700Z' },
-        { transform: 'translate(700 0) scale(1 -1)', d: 'M50 0L250 0L250 700L50 700Z' },
-        { transform: 'translate(1000 0) scale(1 -1)', d: 'M50 0L650 0L650 700L50 700Z' },
+        { transform: 'translate(0 0) scale(1 -1)', d: 'M50 0L650 0L650 700L50 700Z', shape: 0 },
+        { transform: 'translate(700 0) scale(1 -1)', d: 'M50 0L250 0L250 700L50 700Z', shape: 1 },
+        { transform: 'translate(1000 0) scale(1 -1)', d: 'M50 0L650 0L650 700L50 700Z', shape: 0 },
       ],
+      shapes: ['M50 0L650 0L650 700L50 700Z', 'M50 0L250 0L250 700L50 700Z'],
       vertices: 12,
     })
   })
@@ -78,6 +80,9 @@ describe('specimenPaths', () => {
     const paths = specimenPaths(scene, LAYOUT, 2, cache)
     expect(paths.paths.map((p) => p.d)).toEqual(['M50 0L650 0L650 700L50 700Z', 'M50 0L250 0L250 700L50 700Z', 'M20 0L680 0L680 700L20 700ZM300 750L400 750L400 800L300 800Z'])
     expect(paths.vertices).toBe(4 + 4 + 8)
+    // Three distinct outlines, one shape each.
+    expect(paths.paths.map((p) => p.shape)).toEqual([0, 1, 2])
+    expect(paths.shapes).toEqual(paths.paths.map((p) => p.d))
     // Each polygon is rounded once and cached by itself.
     expect(cache.get(H)?.d).toBe(paths.paths[0].d)
     expect(cache.get(WIDE_H)?.d).toBe(paths.paths[2].d)
@@ -89,5 +94,18 @@ describe('specimenPaths', () => {
       blur: 0,
     }).svg
     for (const path of paths.paths) expect(svg).toContain(`<path transform="${path.transform}" d="${path.d}"/>`)
+  })
+
+  it('only rounds, without the export check, when unchecked (the preview while Sound moves the letters)', () => {
+    const scene = placePolygons(shaped, (index) => ({ polygon: index === 1 ? H : I }))
+    const cache: SvgPathCache = new WeakMap()
+    const unchecked = specimenPaths(scene, LAYOUT, 2, cache, false)
+    expect(unchecked).toEqual(specimenPaths(scene, LAYOUT, 2))
+    expect(cache.get(H)?.checked).toBe(false)
+    // A checked build never takes an unchecked path from the cache; an unchecked one takes a checked path.
+    specimenPaths(scene, LAYOUT, 2, cache)
+    expect(cache.get(H)?.checked).toBe(true)
+    specimenPaths(scene, LAYOUT, 2, cache, false)
+    expect(cache.get(H)?.checked).toBe(true)
   })
 })

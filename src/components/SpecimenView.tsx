@@ -15,6 +15,7 @@ import type { Extent, SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
 import { gridLines, metricGuides } from './canvasGuides'
 import GlyphLayers from './GlyphLayers'
+import { sharedOutlines } from './sharedOutlines'
 import { usePanZoom } from './usePanZoom'
 
 interface SpecimenViewProps {
@@ -52,7 +53,15 @@ interface SpecimenGlyphProps {
   ascender: number
   descender: number
   source: SourceGlyph
+  /**
+   * The glyph's outline. With the shared ids below (the canvas), only the vertex markers read it: the view passes null
+   * while they are off, so a new outline alone does not re-render the glyph.
+   */
   polygon: PolygonGlyph | null
+  /** Ids of the shared paths (sharedOutlines, in the view's <defs>) with its outline, font outline and click outline; without them the glyph draws its own. */
+  polygonHref?: string | null
+  sourceHref?: string
+  clickHref?: string | null
   view: ViewParams
   markerRadius: number
   showMarkers: boolean
@@ -65,14 +74,15 @@ interface SpecimenGlyphProps {
  * glyphs whose shape and place did not change are not drawn again.
  */
 export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
-  const { index, text, x, y, advance, skew, ascender, descender, source, polygon, view, markerRadius, showMarkers, selected, onSelect } = props
+  const { index, text, x, y, advance, skew, ascender, descender, source, polygon, polygonHref, sourceHref, clickHref, view, markerRadius, showMarkers, selected, onSelect } =
+    props
   // The click target: the advance by the line (so small text and the inside of letters like "o" are
   // easy to hit) and the drawn outlines. With Thorn, the drawn outlines ignore the pointer (see
   // .specimen-glyph-thorned in styles.css), so thorns reaching across the canvas never catch clicks or
   // drags; an invisible copy of the font's own outline, flattened (PolygonGlyph.clickOutline, straight
   // segments only), takes the letter's clicks instead.
-  const clickOutline = polygon?.clickOutline
-  const thorned = clickOutline !== undefined
+  const ownClick = clickHref === undefined ? polygon?.clickOutline : undefined
+  const thorned = clickHref === undefined ? ownClick !== undefined : clickHref !== null
   return (
     <g
       className={`specimen-glyph${selected ? ' specimen-glyph-selected' : ''}${thorned ? ' specimen-glyph-thorned' : ''}`}
@@ -81,10 +91,24 @@ export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphPro
     >
       <title>{text}</title>
       <rect className="glyph-box" x={0} y={descender} width={advance} height={ascender - descender} />
-      {clickOutline && <path className="glyph-box" d={contoursToPath(clickOutline)} />}
-      <GlyphLayers source={source} polygon={polygon} view={view} markerRadius={markerRadius} showMarkers={showMarkers} />
+      {clickHref && <use className="glyph-box" href={`#${clickHref}`} />}
+      {ownClick && <path className="glyph-box" d={contoursToPath(ownClick)} />}
+      <GlyphLayers
+        source={source}
+        polygon={polygon}
+        polygonHref={polygonHref}
+        sourceHref={sourceHref}
+        view={view}
+        markerRadius={markerRadius}
+        showMarkers={showMarkers}
+      />
     </g>
   )
+})
+
+/** One outline in the view's <defs>, drawn by every copy of its glyph with <use>; memoised, so it is written again only when its shape changes. */
+const SharedPath = memo(function SharedPath({ id, d }: { id: string; d: string }) {
+  return <path id={id} d={d} vectorEffect="non-scaling-stroke" />
 })
 
 /** From this zoom on, the grid also shows inside the artboard (for placing details precisely). */
@@ -275,6 +299,66 @@ export default function SpecimenView({
   const guideLeft = Math.max(left, layout.x)
   const guideRight = Math.min(right, layout.x + layout.width)
 
+  const shared = sharedOutlines(`${ids}-o`)
+  // The font's outlines are drawn only in these views; the flattened view needs none of them.
+  const needSource = view.outline !== 'flattened' || view.showSkeleton
+  const showVertexMarkers = view.showVertices && showMarkers
+
+  const glyphs = scene.lines.map((line, l) => {
+    const band = line.baseline - ascender - margin <= sceneBottom && line.baseline - descender + margin >= sceneTop
+    if (!band && !inView(line.ink)) return null
+    return (
+      <g key={l}>
+        {line.glyphs.map((g, i) => {
+          const near = band && g.x + g.advance + margin >= left && g.x - margin <= right
+          if (!near && !inView(g.ink)) return null
+          if (g.missing) {
+            return (
+              <rect
+                key={i}
+                className="strip-missing"
+                x={g.x + g.advance * 0.1}
+                y={g.y - ascender * 0.7}
+                width={g.advance * 0.8}
+                height={ascender * 0.7}
+                vectorEffect="non-scaling-stroke"
+              >
+                <title>Missing from the font: {g.text}</title>
+              </rect>
+            )
+          }
+          const source = sourceFor(g.index)
+          if (!source || source.contours.length === 0) return null
+          const polygon = g.polygon
+          return (
+            <SpecimenGlyph
+              key={i}
+              index={g.index}
+              text={g.text}
+              x={g.x}
+              y={g.y}
+              advance={g.advance}
+              skew={skew}
+              ascender={ascender}
+              descender={descender}
+              source={source}
+              polygon={showVertexMarkers ? polygon : null}
+              polygonHref={polygon ? shared.polygon(g.index, polygon) : null}
+              sourceHref={needSource ? shared.source(g.index, source) : undefined}
+              clickHref={polygon ? shared.click(g.index, polygon) : null}
+              view={view}
+              markerRadius={3.5 * u}
+              showMarkers={showMarkers}
+              selected={selectedGlyph?.index === g.index}
+              onSelect={onGlyphSelect}
+            />
+          )
+        })}
+      </g>
+    )
+  })
+  const sharedPaths = shared.defs.map(({ id, d }) => <SharedPath key={id} id={id} d={d} />)
+
   return (
     <div
       ref={containerRef}
@@ -315,6 +399,7 @@ export default function SpecimenView({
               </pattern>
             )}
           </defs>
+          <defs>{sharedPaths}</defs>
           {/* The background covers the whole view. */}
           <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
           {/* Outside the artboard (the pasteboard): a little darker (lighter on a dark background)
@@ -375,57 +460,7 @@ export default function SpecimenView({
                 )
               })}
 
-            <g>
-              {scene.lines.map((line, l) => {
-                const band = line.baseline - ascender - margin <= sceneBottom && line.baseline - descender + margin >= sceneTop
-                if (!band && !inView(line.ink)) return null
-                return (
-                  <g key={l}>
-                    {line.glyphs.map((g, i) => {
-                      const near = band && g.x + g.advance + margin >= left && g.x - margin <= right
-                      if (!near && !inView(g.ink)) return null
-                      if (g.missing) {
-                        return (
-                          <rect
-                            key={i}
-                            className="strip-missing"
-                            x={g.x + g.advance * 0.1}
-                            y={g.y - ascender * 0.7}
-                            width={g.advance * 0.8}
-                            height={ascender * 0.7}
-                            vectorEffect="non-scaling-stroke"
-                          >
-                            <title>Missing from the font: {g.text}</title>
-                          </rect>
-                        )
-                      }
-                      const source = sourceFor(g.index)
-                      if (!source || source.contours.length === 0) return null
-                      return (
-                        <SpecimenGlyph
-                          key={i}
-                          index={g.index}
-                          text={g.text}
-                          x={g.x}
-                          y={g.y}
-                          advance={g.advance}
-                          skew={skew}
-                          ascender={ascender}
-                          descender={descender}
-                          source={source}
-                          polygon={g.polygon}
-                          view={view}
-                          markerRadius={3.5 * u}
-                          showMarkers={showMarkers}
-                          selected={selectedGlyph?.index === g.index}
-                          onSelect={onGlyphSelect}
-                        />
-                      )
-                    })}
-                  </g>
-                )
-              })}
-            </g>
+            <g>{glyphs}</g>
           </g>
         </svg>
       )}
