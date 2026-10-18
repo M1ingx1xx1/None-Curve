@@ -273,7 +273,8 @@ export const DEFAULT_FEATURE_SETTINGS: FeatureSettings = { sensitivity: 0, relea
 
 /**
  * How the letters answer the sound, over every mapping (the Response group). Neutral (NEUTRAL_RESPONSE) is Sound as
- * it was before these existed, exactly.
+ * it was before these existed, exactly. The defaults (DEFAULT_RESPONSE: a new visit, Reset sound, and a saved session
+ * that lacks a value) are neutral but for Glide, which only changes how the shapes are shown, never the shapes.
  */
 export interface ResponseSettings {
   /** Multiplies every slider mapping's sum and every seed's Rate (0 holds the letters still, 1 is neutral). */
@@ -287,6 +288,12 @@ export interface ResponseSettings {
   pitchReactive: number
   /** Melody tracking, 0–2: adds the Melody pulse to every slider mapping's feature; 0 is neutral. */
   melody: number
+  /**
+   * Glide, 0–1000 ms: how long the letters on screen take to reach each new shape Sound gives them (specimen/glide.ts),
+   * every anchor travelling there along its effect's path. Display only: the live frames, their geometry, the flash
+   * limit, the markers and Freeze are the same at any value. 0 is neutral (each shape at once).
+   */
+  glideMs: number
 }
 
 export const RESPONSE_LIMITS = {
@@ -294,11 +301,18 @@ export const RESPONSE_LIMITS = {
   contrast: { min: 0, max: 1, step: 0.01 },
   pitchReactive: { min: 0, max: 2, step: 0.01 },
   melody: { min: 0, max: 2, step: 0.01 },
+  glideMs: { min: 0, max: 1000, step: 10 },
   /** Melody tracking 1 adds this × Melody to a slider mapping's feature (capped at 1). */
   melodyBoost: 0.5,
 } as const
 
-export const NEUTRAL_RESPONSE: ResponseSettings = { strength: 1, contrast: 0, pitchReactive: 0, melody: 0 }
+export const NEUTRAL_RESPONSE: ResponseSettings = { strength: 1, contrast: 0, pitchReactive: 0, melody: 0, glideMs: 0 }
+
+/**
+ * The Response group's defaults: neutral, with Glide at 150 ms, about five live frames at their fastest, so the letters
+ * move smoothly from the start while still following the beat closely.
+ */
+export const DEFAULT_RESPONSE: ResponseSettings = { ...NEUTRAL_RESPONSE, glideMs: 150 }
 
 /**
  * Thorn turns (letters.ts, live.ts): while Sound drives the letters with Thorn on, their thorns change a few letters
@@ -311,10 +325,10 @@ export const NEUTRAL_RESPONSE: ResponseSettings = { strength: 1, contrast: 0, pi
  */
 export const THORN_TURNS = { groups: 5, gapMs: 250 } as const
 
-/** Everything the Response group sets: the engine's Sensitivity and Release, and the four response values. Saved and undone. */
+/** Everything the Response group sets: the engine's Sensitivity and Release, and the five response values. Saved and undone. */
 export type SoundSettings = FeatureSettings & ResponseSettings
 
-export const DEFAULT_SOUND_SETTINGS: SoundSettings = { ...DEFAULT_FEATURE_SETTINGS, ...NEUTRAL_RESPONSE }
+export const DEFAULT_SOUND_SETTINGS: SoundSettings = { ...DEFAULT_FEATURE_SETTINGS, ...DEFAULT_RESPONSE }
 
 /** `value` rounded to a multiple of `step`, as the nearest double to the decimal (0.15, not 0.15000000000000002). */
 export function snapToStep(value: number, step: number): number {
@@ -323,13 +337,13 @@ export function snapToStep(value: number, step: number): number {
   return Math.round(value * inverse) / inverse
 }
 
-const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody'] as const
+const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody', 'glideMs'] as const
 
 /**
  * `current` with `patch` applied: each patched value clamped to RESPONSE_LIMITS and snapped to its step; one that is
  * not a finite number keeps the current value.
  */
-export function clampResponse(patch: Partial<ResponseSettings>, current: ResponseSettings = NEUTRAL_RESPONSE): ResponseSettings {
+export function clampResponse(patch: Partial<ResponseSettings>, current: ResponseSettings = DEFAULT_RESPONSE): ResponseSettings {
   const next = { ...current }
   for (const key of RESPONSE_KEYS) {
     const value = patch[key]

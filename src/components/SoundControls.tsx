@@ -33,7 +33,7 @@ import { MAPPING_LIMITS, mappingStore, useMappingState } from '../sound/mappingS
 import { PRESETS, presetSettings, type Preset } from '../sound/presets'
 import {
   DEFAULT_FEATURE_SETTINGS,
-  NEUTRAL_RESPONSE,
+  DEFAULT_RESPONSE,
   RESPONSE_LIMITS,
   SILENT_FRAME,
   SOUND_LIMITS,
@@ -884,10 +884,10 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
 const percent = (value: number) => Math.round(value * 100)
 
 /**
- * Each response value's knob: its label under the knob, its full name (when longer) and ⓘ explanation (percent on
- * the knob, a fraction in the store).
+ * Each response value's knob: its label under the knob, its full name (when longer) and ⓘ explanation, and its unit:
+ * percent on the knob for a fraction in the store (scale 100), or milliseconds as they are (Glide).
  */
-const RESPONSE_FIELDS: Record<keyof ResponseSettings, { label: string; name?: string; hint: string }> = {
+const RESPONSE_FIELDS: Record<keyof ResponseSettings, { label: string; name?: string; hint: string; unit?: 'ms' }> = {
   strength: {
     label: 'Strength',
     hint:
@@ -916,14 +916,23 @@ const RESPONSE_FIELDS: Record<keyof ResponseSettings, { label: string; name?: st
       'Melody tracking adds movement each time the melody moves to a new note, even at a steady loudness. Melody can also be ' +
       'mapped like any other reading.',
   },
+  glideMs: {
+    label: 'Glide',
+    unit: 'ms',
+    hint:
+      'Glide lets the letters travel to each new shape instead of jumping: every anchor slides from where it is to where the ' +
+      'sound puts it, over this time, along its effect\'s own path (Whorl turns the rings round their centre; the other ' +
+      'effects move straight). 0 ms shows each shape at once. Only the canvas, the preview and videos glide; the shapes, ' +
+      'markers and Freeze are the same at any value. Off while your system asks for reduced motion.',
+  },
 }
 
 const RESPONSE_KEYS = Object.keys(RESPONSE_FIELDS) as (keyof ResponseSettings)[]
 
 /**
- * How the letters answer the sound: the response values over every mapping (the mapping store), four knobs in a
- * row (two by two on a narrow panel), and Reset sound, which also resets Input's Sensitivity and Release. All
- * six are saved and undone; presets leave them alone.
+ * How the letters answer the sound: the response values over every mapping (the mapping store), five knobs in a
+ * row (fewer on a narrow panel), and Reset sound, which also resets Input's Sensitivity and Release. All
+ * seven are saved and undone; presets leave them alone.
  */
 function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: FeatureSettings }) {
   const { response } = useMappingState()
@@ -932,41 +941,45 @@ function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
     contrast: useHint(),
     pitchReactive: useHint(),
     melody: useHint(),
+    glideMs: useHint(),
   }
   const isDefault =
     settings.sensitivity === DEFAULT_FEATURE_SETTINGS.sensitivity &&
     settings.releaseMs === DEFAULT_FEATURE_SETTINGS.releaseMs &&
-    RESPONSE_KEYS.every((key) => response[key] === NEUTRAL_RESPONSE[key])
+    RESPONSE_KEYS.every((key) => response[key] === DEFAULT_RESPONSE[key])
 
   const resetSound = () =>
     undoHistory.transaction(() => {
       undoHistory.record(null)
       engine.setSettings(DEFAULT_FEATURE_SETTINGS)
-      mappingStore.setResponse(NEUTRAL_RESPONSE)
+      mappingStore.setResponse(DEFAULT_RESPONSE)
     })
 
   return (
     <SoundBox legend="Response">
       <div className="knob-row">
         {RESPONSE_KEYS.map((field) => {
-          const { label, name } = RESPONSE_FIELDS[field]
+          const { label, name, unit } = RESPONSE_FIELDS[field]
           const { min, max, step } = RESPONSE_LIMITS[field]
-          const value = percent(response[field])
+          // Milliseconds as they are; fractions as whole percentages.
+          const scale = unit === 'ms' ? 1 : 100
+          const shown = (v: number) => Math.round(v * scale)
+          const value = shown(response[field])
           return (
             <Knob
               key={field}
               label={label}
               name={name}
               value={value}
-              min={percent(min)}
-              max={percent(max)}
-              step={percent(step)}
-              defaultValue={percent(NEUTRAL_RESPONSE[field])}
-              format={(v) => formatPercent(v)}
-              valueText={`${value} percent`}
-              unit="%"
+              min={shown(min)}
+              max={shown(max)}
+              step={shown(step)}
+              defaultValue={shown(DEFAULT_RESPONSE[field])}
+              format={(v) => (unit === 'ms' ? `${v} ms` : formatPercent(v))}
+              valueText={unit === 'ms' ? `${value} milliseconds` : `${value} percent`}
+              unit={unit ?? '%'}
               hint={hints[field]}
-              onChange={(next) => mappingStore.setResponse({ [field]: next / 100 })}
+              onChange={(next) => mappingStore.setResponse({ [field]: next / scale })}
             />
           )
         })}
