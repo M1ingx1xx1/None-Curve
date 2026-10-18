@@ -95,12 +95,12 @@
   - 映射到步骤、效果或模式未打开的目标时不起作用，该行会注明。
   - 没有载入字体时没有字母可动，所以 Sound 不驱动：什么都不变，标记和实时种子保持隐藏，状态栏不显示 Live，种子也不跳变。载入字体后才开始驱动；Sound 驱动时字体没了，滑块和种子会完全恢复。
 - **和设置一起保存与撤销：**
-  - 映射和 Response 的六个值（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking；第 5.1 节）和设置一起保存在浏览器里，下次打开时恢复。Drive letters 不保存：它开始时是打开的，开启减少动态效果时则是关闭的（第 10 节）。来源和录制选项（第 9 节）也不保存。
-  - 添加或删除一行，改变它的 Feature、Target 或开关，拖动一次 Depth 或 Rate（每次拖动一步），拖动一次六个声音旋钮中的任一个（每次拖动一步），Reset sound，选择目标连同它打开的设置，Load，以及 Freeze，各是一个撤销步骤，和设置共用同一段历史。撤销和重做也会清掉上一次 Load 或所选目标的提示，因为它们已不再描述当前状态。实时帧从不进入历史。
+  - 映射和 Response 的七个值（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking、Glide；第 5.1 节）和设置一起保存在浏览器里，下次打开时恢复。Drive letters 不保存：它开始时是打开的，开启减少动态效果时则是关闭的（第 10 节）。来源和录制选项（第 9 节）也不保存。
+  - 添加或删除一行，改变它的 Feature、Target 或开关，拖动一次 Depth 或 Rate（每次拖动一步），拖动一次七个声音旋钮中的任一个（每次拖动一步），Reset sound，选择目标连同它打开的设置，Load，以及 Freeze，各是一个撤销步骤，和设置共用同一段历史。撤销和重做也会清掉上一次 Load 或所选目标的提示，因为它们已不再描述当前状态。实时帧从不进入历史。
 
 ### 5.1 响应控件
 
-Response 设置决定字母如何回应声音，作用于所有映射。它的六个旋钮（Sensitivity 和 Release 在 Input 框里，其余四个在 Response 框里）：
+Response 设置决定字母如何回应声音，作用于所有映射。它的七个旋钮（Sensitivity 和 Release 在 Input 框里，其余四个在 Response 框里）：
 
 | 控件 | 范围、步长 | 默认值 | 作用 |
 |---|---|---|---|
@@ -110,12 +110,13 @@ Response 设置决定字母如何回应声音，作用于所有映射。它的�
 | **Release** | 20–1000 ms，1 ms | 150 ms | 读数回落得多慢（第 4 节） |
 | **Pitch reactive** | 0–200%，1% | 0% | 近来旋律中的低音让左边的字母动得更多，高音让右边的字母动得更多；需要清晰的单个音符（第 5.2 节） |
 | **Melody tracking** | 0–200%，1% | 0% | 给每个滑块映射的特征加上 0.5 × Melody tracking × Melody 脉冲（上限为 1），Pan 行和读 Melody 的行除外。种子不受影响。所以即使响度不变，字母也会在每个新音符上动起来。 |
+| **Glide** | 0–1000 ms，10 ms | 150 ms | 只影响显示（第 5.4 节）：每个新的实时形状在这段时间内到达，而不是立刻出现。默认值不是中性值，但它不改变任何计算出的形状，所以固定的哈希不变；`NEUTRAL_RESPONSE` 保持 0 ms，`DEFAULT_RESPONSE` 是中性值加上 150 ms。 |
 
 - 默认值是中性的：Sound 的表现和 H 阶段之前完全一样，所以已保存的会话和预设看起来不变；只有 Thorn 打开时例外：它的设置现在按轮换传到字母（第 5.3 节），这有意改变了 Flare 的实时帧。`tests/sound/neutral.test.ts` 对照 4a54e5d 锁定了这一点，其调度器哈希不含 Flare（第 12 节）。
 - `ResponseSettings`、`RESPONSE_LIMITS` 和 `NEUTRAL_RESPONSE` 在 `src/sound/types.ts` 中；Strength 和 Melody tracking 在 `modulate` 和 `JumpTracker.advance` 中生效，Motion contrast 和 Pitch reactive 在 `src/sound/letters.ts` 和调度器中生效。
-- **保存：** 会话保存全部六个值（`Session.sound`）。读取时，每个值必须是有限的数字，会被截断到它的范围并取整到它的步长，否则读作默认值。H 阶段之前保存的会话读到的是默认值；会话版本号不变。
-- **撤销：** 每次拖动是一步（撤销键为 `sound:` 加字段名）；Reset sound 用一步把六个值都恢复为默认，已经是默认值时它不可用。
-- 预设的 Load 不动这六个值（第 7 节）。
+- **保存：** 会话保存全部七个值（`Session.sound`）。读取时，每个值必须是有限的数字，会被截断到它的范围并取整到它的步长，否则读作默认值。H 阶段之前保存的会话读到的是默认值；会话版本号不变。
+- **撤销：** 每次拖动是一步（撤销键为 `sound:` 加字段名）；Reset sound 用一步把七个值都恢复为默认，已经是默认值时它不可用。
+- 预设的 Load 不动这七个值（第 7 节）。
 
 ### 5.2 逐字母响应
 
@@ -151,6 +152,15 @@ Sound 驱动字母且 Thorn 打开时，会移动刺的设置每次只传到少�
 - **Thorn 关闭时**，没有任何东西按轮换：调度器的请求、提交和 Freeze 与 Thorn 轮换之前完全一样（第 12 节）。
 - **每个字母仍然是滑块和种子输入框能得到的结果：** 一个组的状态是滑块和种子曾经有过的一组实时值，字母的级别照第 5.2 节施加在上面。
 - **开销：** 一帧的字母对每个级别和每个组最多显示一组参数，总共 15 组，和共享参数一起放在一次请求里（第 8 节）。因为每组由完整的字形 id 组成，每组参数只为显示它的字母的字形计算，共享参数也只为显示共享值的字母的字形（以及所选字形，为了它的统计）计算，所以没有级别时每个字形每帧大约只算一次，和以前一样。
+
+### 5.4 Glide（NOCUR-74）
+
+- **是什么：** 在实时形状之间做显示时的补间。实时调度、它的缓存、闪烁限制、标记、状态、Freeze 和导出都看不到它；只有画布、预览和录制绘制中间场景。`SceneGlide`（`src/specimen/glide.ts`）是纯的，时钟由外部传入；`GlideStore` 和 `useSceneGlide`（`src/state/useGlide.ts`）在 `requestAnimationFrame` 上运行它，没有东西在动时停止循环；`<Glided>`（`src/components/Glided.tsx`）每帧只重新渲染这三个视图。
+- **何时：** 声音驱动字母时（`useLiveDriving`），以及停止时显示的那个场景再滑一次。字体或文字改变（字形序列不同）时立刻显示。Glide 为 0 或 `prefers-reduced-motion` 时每个场景都立刻显示，和以前完全一样。缓动是 Glide 时长内的三次缓出；滑行途中到来的形状从屏幕上的样子开始，已完成至少 95% 的滑行（`GLIDE_LIMITS.arrived`）算作已到达。
+- **对应关系**（`src/specimen/morph.ts`）：闭合路径按质心距离除以尺寸、再加上面积之比的对数贪心配对，外轮廓配外轮廓，孔配孔（超过 48 条路径时只尝试最近的 4 条）。没有配对的路径从质心长出或缩回质心。配对的路径先按弧长找最佳的循环错位；锚点数相同且移动很小（≤ 0.35 × 尺寸）时逐点对应，否则把两边锚点的并集投影到另一条路径上（在错位后弧长位置附近的窗口内取最近点，再修正为单调）。两端精确：进度 0 和 1 返回旧轮廓和新轮廓本身。只有旧轮廓才有的锚点，若离一段直线不到 0.004 em 就去掉（数量多于新轮廓锚点时全部去掉），所以多次滑行不会让锚点越积越多。中间形状超过 12,000 个点时立刻切换。
+- **轨迹**（`src/specimen/trajectory.ts`）：所有效果都走直线（刺从根部笔直长出、笔直缩回），只有 Whorl 自身的设置（Amount、Rings、Sides、Pinned 或 Whorl 开关）改变时例外。这时使用 worker 给出的 `PolygonGlyph.motion.whorl`（中心、边数、环数、半径、每个环转过的角度）：锚点在每个环转回之后配对，每个锚点绕中心的角度和所在环的大小同时插值，并始终停在该环的正多边形上，所以它沿多边形的直边走、在角上转折，转过的角度与它所在的环相同（必要时超过半圈）。几个效果同时改变时，只要 Whorl 自身的设置变了，就用 Whorl 的转动。有自己路径的新效果添加一个 `TrajectoryModel`，并把数据加到 `GlyphMotion`。
+- **开销：** 配对在主线程上进行，每个动画帧最多 6 ms（`GLIDE_LIMITS.planBudgetMs`），按阅读顺序；还没配对的字形保持屏幕上的形状，配对后开始完整的滑行。配对结果按新旧轮廓缓存（WeakMap），重复的字母每帧共用一个中间形状。在 54 个字形、每 33 ms 一个新形状的情况下测得：重新定目标 0.1–0.5 ms；含配对的帧平均 6–7 ms，只插值的帧 0.1–1.3 ms；单个很大的 Dissolve 字形偶尔一次可达约 50 ms。
+- **保存：** `glideMs` 属于 `Session.sound`；没有它的会话读作 150 ms。由 `tests/specimen/glide.test.ts`（两端精确、刺走直线、Whorl 路径在多边形上、孔的配对、重新定目标时连续、Glide 为 0 和没有声音时完全相同、时间预算）和 `tests/state/persist.test.ts` 检查。
 
 ## 6. 目标
 
@@ -355,7 +365,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - **Add mapping**，以及每行详情里的 Remove。删除一行后，键盘焦点移到下一行的展开按钮（没有时移到上一行的，都没有时移到 Add mapping）。
   - **Freeze**，在这个分组的末尾，旁边显示 "Live · N fps"。录制视频期间它不可用（`aria-disabled`，保留键盘焦点），并显示 "Freeze is off while recording."。它的 ⓘ 还说明，按不同幅度响应的字母会取共享值。
   - 变慢的提示，低于约 8 fps 时显示："Too slow to follow the sound: try fewer effects or a shorter text."；Motion contrast 或 Pitch reactive 大于 0 时改为 "Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive."。
-- **Response**（取代原来的 Analysis 分组）：依次是 Sensitivity、Strength、Motion contrast、Release、Pitch reactive 和 Melody tracking（第 5.1 节），每个都是带数值（dB、% 或 ms）和通俗 ⓘ 说明的滑块；然后是 **Reset sound**，它用一个撤销步骤把六个值都恢复，已经是默认值时不可用。
+- **Response**（取代原来的 Analysis 分组）：依次是 Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking 和 Glide（第 5.1 节），每个都是带数值（dB、% 或 ms）和通俗 ⓘ 说明的滑块；然后是 **Reset sound**，它用一个撤销步骤把七个值都恢复，已经是默认值时不可用。
 - **Record**（第 9 节）：
   - **Record**，录制期间变成 **Stop**（图标加文字），已录的时间（"0:12"，设了 Length 时为 "0:12 / 0:30"），以及 "Live · N fps"。
   - 一次录制的选项，与 Export 对话框共用：**Format**（MP4 或 WebM；浏览器不能写的那个会变灰，并显示 "(not supported in this browser)"）、**Length**（Until stopped、5 s、10 s、15 s、30 s、60 s、Whole file；Whole file 需要音频文件）、**Include audio**（默认打开；用麦克风时，它的声音会进入文件）、**Use the preview look**（默认关闭），以及一行尺寸说明，例如 "1200 × 800 px · up to 30 fps · MP4"，被缩小时加上 " (scaled down to the 4K limit)"，调色板透明时还有一行说明背景会被画上。录制期间这些选项锁定。

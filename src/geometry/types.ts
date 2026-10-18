@@ -317,6 +317,34 @@ export interface PolygonGlyph {
    * without Thorn.
    */
   clickOutline?: PolygonContour[]
+  /**
+   * How the letter's anchors travel when the shape changes on screen (Glide, specimen/glide.ts): what an effect that
+   * moves anchors along a path of its own tells the canvas. Display only: never part of the outline, the exports or a
+   * hash. Missing while no such effect is on.
+   */
+  motion?: GlyphMotion
+}
+
+/** Per-glyph data for Glide's trajectories (specimen/trajectory.ts), one entry per effect with a path of its own. */
+export interface GlyphMotion {
+  whorl?: WhorlMotion
+}
+
+/**
+ * Whorl as it turned this glyph: its centre (font units, glyph space: the middle of the ink box it was placed by), its
+ * Sides and clamped settings, the outermost ring's distance from the centre, and how far each ring turned.
+ */
+export interface WhorlMotion {
+  x: number
+  y: number
+  sides: number
+  rings: number
+  amount: number
+  pinned: boolean
+  /** The outermost ring's distance from the centre along a side's normal (font units); rings are evenly spaced inside. */
+  radius: number
+  /** turns[k]: how far ring k turned (radians, counter-clockwise), k = 0 (the centre) to `rings`; beyond, as the last. */
+  turns: number[]
 }
 
 export interface DerivedGeometry {

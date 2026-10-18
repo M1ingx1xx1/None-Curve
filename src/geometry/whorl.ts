@@ -23,7 +23,7 @@
 // overlaps.ts).
 
 import type { Box } from './ripple'
-import type { WhorlParams, Point } from './types'
+import type { WhorlMotion, WhorlParams, Point } from './types'
 import type { Warp } from './warp'
 
 export const WHORL_LIMITS = {
@@ -48,8 +48,17 @@ export function whorlFolds(params: WhorlParams | undefined): boolean {
   return whorlIsOn(params) && Math.abs(params!.amount) > 1
 }
 
-/** The Whorl warp for a glyph with this ink box, at `scale` × its strength. */
-export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, scale = 1): Warp {
+/**
+ * What Glide needs to turn the letter's anchors the way Whorl turns them (PolygonGlyph.motion): its centre, Sides,
+ * settings, the outermost ring's distance from the centre (along a side's normal), and how far each ring turned.
+ */
+export function whorlMotion(params: WhorlParams, box: Box, unitsPerEm: number): WhorlMotion {
+  const { rings, sides, amount, pinned, centre, radius, turn } = whorlSetup(params, box, unitsPerEm, 1)
+  return { x: centre.x, y: centre.y, sides, rings, amount, pinned, radius, turns: Array.from({ length: rings + 1 }, (_, k) => turn(k)) }
+}
+
+/** Whorl's mesh and turns for a glyph with this ink box, at `scale` × its strength (shared by the warp and Glide). */
+function whorlSetup(params: WhorlParams, box: Box, unitsPerEm: number, scale: number) {
   const rings = Math.round(clamp(finite(params.rings, 6), WHORL_LIMITS.minRings, WHORL_LIMITS.maxRings))
   const sides = Math.round(clamp(finite(params.sides, 8), WHORL_LIMITS.minSides, WHORL_LIMITS.maxSides))
   const amount = clamp(finite(params.amount, 0), -WHORL_LIMITS.maxAmount, WHORL_LIMITS.maxAmount) * scale
@@ -76,6 +85,12 @@ export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, sca
     const r = Math.min(k, rings)
     return sign * step * (pinned ? rings - r : r)
   }
+  return { rings, sides, amount, pinned, centre, radius, spacing, half, tanHalf, first, rising, turn }
+}
+
+/** The Whorl warp for a glyph with this ink box, at `scale` × its strength. */
+export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, scale = 1): Warp {
+  const { rings, sides, centre, spacing, half, tanHalf, first, rising, turn } = whorlSetup(params, box, unitsPerEm, scale)
 
   const frames = Array.from({ length: sides }, (_, j) => {
     const mid = first + (2 * j + 1) * half

@@ -21,7 +21,7 @@ import { emptySlipstreamStats, slipstreamFolds, slipstreamIsOn, slipstreamMerges
 import { applyThorn, emptyThornStats, ThornAnchors, thornBursts, thornIsOn, withoutSpecks, type ThornStats } from './thorn'
 import type { ExperimentalParams, Point, PolygonGlyph } from './types'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type Warp, type WarpStats } from './warp'
-import { whorlFolds, whorlIsOn, whorlWarp } from './whorl'
+import { whorlFolds, whorlIsOn, whorlMotion, whorlWarp } from './whorl'
 
 export const EXPERIMENTAL_LIMITS = {
   maxSeed: 999_999,
@@ -184,7 +184,9 @@ export function applyExperimental(
   if (dissolveIsOn(params.dissolve)) {
     ;({ polygon: result, stats: stats.dissolve } = applyDissolve(result, params.dissolve, seed, unitsPerEm, budget.maxVertices))
   }
-  return { polygon: layout ? { ...result, ...layout } : result, stats }
+  // Whorl's centre and settings ride along for Glide (display only; PolygonGlyph.motion).
+  const motion = whorlBox ? { whorl: whorlMotion(params.whorl, whorlBox, unitsPerEm) } : null
+  return { polygon: layout || motion ? { ...result, ...layout, ...(motion ? { motion } : {}) } : result, stats }
 }
 
 /**

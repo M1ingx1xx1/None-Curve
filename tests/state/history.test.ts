@@ -8,7 +8,7 @@ import type { GeometryParams } from '../../src/geometry/types'
 import { mappingStore } from '../../src/sound/mappingStore'
 import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { LiveScheduler, type LiveCommit } from '../../src/sound/live'
-import { DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureSettings } from '../../src/sound/types'
+import { DEFAULT_FEATURE_SETTINGS, DEFAULT_RESPONSE, SILENT_FRAME, type FeatureSettings } from '../../src/sound/types'
 import { editorReducer, initialState, type Action } from '../../src/state/editorState'
 import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory, type Snapshot } from '../../src/state/history'
 import { parseConfig, readSession, serializeConfig } from '../../src/state/persist'
@@ -168,7 +168,7 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
   beforeEach(() => {
     a = app(undoHistory)
     mappingStore.restore([])
-    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+    mappingStore.restoreResponse(DEFAULT_RESPONSE)
     // Start from a history with nothing in it.
     while (undoHistory.undo());
     undoHistory.endStep()
@@ -176,7 +176,7 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
   afterEach(() => {
     a.disconnect()
     mappingStore.restore([])
-    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+    mappingStore.restoreResponse(DEFAULT_RESPONSE)
   })
 
   it('makes one step of a Strength drag, and of a Release drag, and puts both back', () => {
@@ -185,15 +185,15 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     for (const releaseMs of [200, 300]) a.setSetting('releaseMs', releaseMs)
     undoHistory.endGesture()
     mappingStore.setResponse({ contrast: 0.4 })
-    expect(mappingStore.getState().response).toEqual({ ...NEUTRAL_RESPONSE, strength: 2.25, contrast: 0.4 })
+    expect(mappingStore.getState().response).toEqual({ ...DEFAULT_RESPONSE, strength: 2.25, contrast: 0.4 })
     undoHistory.undo()
-    expect(mappingStore.getState().response).toEqual({ ...NEUTRAL_RESPONSE, strength: 2.25 })
+    expect(mappingStore.getState().response).toEqual({ ...DEFAULT_RESPONSE, strength: 2.25 })
     expect(a.engine.settings.releaseMs).toBe(300)
     undoHistory.undo()
     expect(a.engine.settings.releaseMs).toBe(DEFAULT_FEATURE_SETTINGS.releaseMs)
     expect(mappingStore.getState().response.strength).toBe(2.25)
     undoHistory.undo()
-    expect(mappingStore.getState().response).toEqual(NEUTRAL_RESPONSE)
+    expect(mappingStore.getState().response).toEqual(DEFAULT_RESPONSE)
     expect(undoHistory.undo()).toBe(false)
     undoHistory.redo()
     undoHistory.redo()
@@ -205,13 +205,18 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     expect(undoHistory.getState().canUndo).toBe(false)
     // Melody snaps to its 0.01 step (0.05 before NOCUR-63, when 0.52 snapped to 0.5).
     mappingStore.setResponse({ strength: 9, contrast: 0.333, pitchReactive: -1, melody: 0.523 })
-    expect(mappingStore.getState().response).toEqual({ strength: 4, contrast: 0.33, pitchReactive: 0, melody: 0.52 })
+    expect(mappingStore.getState().response).toEqual({ strength: 4, contrast: 0.33, pitchReactive: 0, melody: 0.52, glideMs: 150 })
+    // Glide: 0–1000 ms in steps of 10.
+    mappingStore.setResponse({ glideMs: 1234 })
+    expect(mappingStore.getState().response.glideMs).toBe(1000)
+    mappingStore.setResponse({ glideMs: 47 })
+    expect(mappingStore.getState().response.glideMs).toBe(50)
   })
 
   it('undoes Reset sound in one step, and leaves the response alone on a preset Load', () => {
     a.setSetting('sensitivity', 9)
     undoHistory.endGesture()
-    mappingStore.setResponse({ strength: 0.5, pitchReactive: 1.5, melody: 2 })
+    mappingStore.setResponse({ strength: 0.5, pitchReactive: 1.5, melody: 2, glideMs: 400 })
     undoHistory.endGesture()
     const before = { settings: a.engine.settings, response: mappingStore.getState().response }
     // A preset replaces the mappings only.
@@ -222,9 +227,9 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     undoHistory.transaction(() => {
       undoHistory.record(null)
       a.engine.setSettings(DEFAULT_FEATURE_SETTINGS)
-      mappingStore.setResponse(NEUTRAL_RESPONSE)
+      mappingStore.setResponse(DEFAULT_RESPONSE)
     })
-    expect([a.engine.settings, mappingStore.getState().response]).toEqual([DEFAULT_FEATURE_SETTINGS, NEUTRAL_RESPONSE])
+    expect([a.engine.settings, mappingStore.getState().response]).toEqual([DEFAULT_FEATURE_SETTINGS, DEFAULT_RESPONSE])
     undoHistory.undo()
     expect([a.engine.settings, mappingStore.getState().response]).toEqual([before.settings, before.response])
   })
@@ -297,7 +302,7 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     expect(a.text).toBe(before.text)
     expect(mappingStore.getState().mappings).toEqual(before.mappings)
     expect(a.engine.settings).toEqual(before.settings)
-    expect(mappingStore.getState().response).toEqual(NEUTRAL_RESPONSE)
+    expect(mappingStore.getState().response).toEqual(DEFAULT_RESPONSE)
   })
 
   it('never records live Sound frames', () => {
@@ -345,14 +350,14 @@ describe('Reset all', () => {
   beforeEach(() => {
     a = app(undoHistory)
     mappingStore.restore([])
-    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+    mappingStore.restoreResponse(DEFAULT_RESPONSE)
     while (undoHistory.undo());
     undoHistory.endStep()
   })
   afterEach(() => {
     a.disconnect()
     mappingStore.restore([])
-    mappingStore.restoreResponse(NEUTRAL_RESPONSE)
+    mappingStore.restoreResponse(DEFAULT_RESPONSE)
   })
 
   /** Every kind of setting changed, each as its own step, with the text typed. */
@@ -384,7 +389,7 @@ describe('Reset all', () => {
     expect(a.text).toBe(DEFAULT_TEXT)
     expect(START_SNAPSHOT.text).toBe(DEFAULT_TEXT)
     expect(mappingStore.getState().mappings).toEqual([])
-    expect(soundNow()).toEqual({ settings: DEFAULT_FEATURE_SETTINGS, response: NEUTRAL_RESPONSE })
+    expect(soundNow()).toEqual({ settings: DEFAULT_FEATURE_SETTINGS, response: DEFAULT_RESPONSE })
     // A panel drops its notices about the state the reset replaced, as after an undo.
     expect(undoHistory.getState().restores).toBe(restores + 1)
   })
@@ -450,7 +455,7 @@ describe('Reset all', () => {
   })
 
   it('looks at every setting, mapping and Sound value', () => {
-    const defaults = { params: DEFAULT_SETTINGS, mappings: [], sound: { ...DEFAULT_FEATURE_SETTINGS, ...NEUTRAL_RESPONSE } }
+    const defaults = { params: DEFAULT_SETTINGS, mappings: [], sound: { ...DEFAULT_FEATURE_SETTINGS, ...DEFAULT_RESPONSE } }
     expect(isDefaultSnapshot(defaults)).toBe(true)
     expect(isDefaultSnapshot({ ...defaults, params: { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, snap: true } } })).toBe(false)
     expect(isDefaultSnapshot({ ...defaults, mappings: [{ id: 'm1', enabled: true, feature: 'level', target: 'distortion.amount', depth: 0.5 }] })).toBe(false)

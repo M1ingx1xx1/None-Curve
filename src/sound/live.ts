@@ -495,7 +495,10 @@ export class LiveScheduler {
     this.update()
   }
 
-  /** The mappings, Drive letters, and the Response group's settings (Strength, Motion contrast, Pitch reactive, Melody tracking). */
+  /**
+   * The mappings, Drive letters, and the Response group's settings (Strength, Motion contrast, Pitch reactive, Melody
+   * tracking; Glide only changes how the canvas shows the frames, so the scheduler never reads it).
+   */
   setMappings(mappings: readonly Mapping[], drive: boolean, response: ResponseSettings = NEUTRAL_RESPONSE) {
     this.mappings = mappings
     this.drive = drive

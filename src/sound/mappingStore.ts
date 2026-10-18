@@ -1,12 +1,12 @@
 // The Sound tab's mappings, the Response group's response values (Strength, Motion contrast, Pitch
-// reactive, Melody tracking) and the "Drive letters" switch: a small store outside React state, read
+// reactive, Melody tracking, Glide) and the "Drive letters" switch: a small store outside React state, read
 // with hooks. The mappings and the response are saved between visits with the settings
 // (state/persist.ts) and their changes can be undone (state/history.ts); Drive letters is neither.
 
 import { useSyncExternalStore } from 'react'
 import { undoHistory } from '../state/history'
 import { clampShaping, shapingOf, type FeatureId, type Mapping, type Shaping } from './mapping'
-import { clampResponse, NEUTRAL_RESPONSE, type ResponseSettings } from './types'
+import { clampResponse, DEFAULT_RESPONSE, type ResponseSettings } from './types'
 
 export const MAPPING_LIMITS = {
   /** Mappings the Sound tab holds at most. */
@@ -44,7 +44,7 @@ class MappingStore {
   constructor() {
     const query = reducedMotionQuery()
     const reducedMotion = query?.matches ?? false
-    this.state = { mappings: [], response: NEUTRAL_RESPONSE, drive: !reducedMotion, reducedMotion }
+    this.state = { mappings: [], response: DEFAULT_RESPONSE, drive: !reducedMotion, reducedMotion }
     // Follow the system setting while the page is open (as ThemeToggle does): turning reduced motion on
     // switches Drive letters off and shows the note; turning it off leaves Drive letters as it is.
     query?.addEventListener?.('change', (e) => {
@@ -126,9 +126,12 @@ class MappingStore {
     this.set({ response: next })
   }
 
-  /** Puts back response values as they were (undo and redo, or a saved session). Not recorded for undo. */
+  /**
+   * Puts back response values as they were (undo and redo, or a saved session). Not recorded for undo. A value left out
+   * (Glide, in sessions saved before it existed) is its default.
+   */
   restoreResponse(response: Partial<ResponseSettings>) {
-    const next = clampResponse(response, NEUTRAL_RESPONSE)
+    const next = clampResponse(response, DEFAULT_RESPONSE)
     const current = this.state.response
     if ((Object.keys(next) as (keyof ResponseSettings)[]).every((key) => next[key] === current[key])) return
     this.set({ response: next })

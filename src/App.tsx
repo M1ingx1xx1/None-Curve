@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import CanvasViewport from './components/CanvasViewport'
 import ExportDialog from './components/ExportDialog'
 import GeometryPanel from './components/GeometryPanel'
+import Glided from './components/Glided'
 import GoogleFontsDialog from './components/GoogleFontsDialog'
 import Header from './components/Header'
 import { HintsContext, useShowAllHints } from './components/Hint'
@@ -17,7 +18,7 @@ import { useRecordingContext } from './export/recorder'
 import type { LoadedFont } from './font/model'
 import type { GeometryParams, GlyphRef } from './geometry/types'
 import { getSoundEngine } from './sound/engine'
-import { useLiveFrame, useLiveLetters } from './sound/live'
+import { useLiveDriving, useLiveFrame, useLiveLetters } from './sound/live'
 import { setTargetFont, type DrivenParams } from './sound/mapping'
 import { mappingStore } from './sound/mappingStore'
 import type { SoundSettings } from './sound/types'
@@ -42,6 +43,7 @@ import { DEFAULT_RESET_EXTRAS, resetHistory } from './state/reset'
 import type { AppState, EditorParams, SettingsParams, ViewParams } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
+import { useSceneGlide } from './state/useGlide'
 
 /** Every parameter group but the canvas view: what undo restores and the session saves (never Thorn's derived canvasEm). */
 function settingsOf({ view: _view, ...settings }: EditorParams): SettingsParams {
@@ -128,6 +130,9 @@ export default function App({ restored }: AppProps) {
   )
   // After useGeometry, so a new text's first live frame asks for the glyphs the canvas now shows.
   useLiveLetters(letterSlots)
+  // Glide: while Sound moves the letters, the canvas, the preview and the video glide into each new shape (useGlide.ts).
+  const driving = useLiveDriving()
+  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.
@@ -523,27 +528,31 @@ export default function App({ restored }: AppProps) {
             />
           }
           canvas={
-            <CanvasViewport
-              document={canvasDocument}
-              view={state.params.view}
-              scene={scene}
-              layout={layout}
-              placement={placement}
-              palette={shownPalette}
-              ownPalette={palette}
-              artboard={artboard}
-              onArtboardChange={setArtboard}
-              gridSize={gridSize}
-              highlightSelection={highlight}
-              onSelectGlyph={selectGlyph}
-              onClearHighlight={clearHighlight}
-              onMoveText={typography.position === 'free' ? moveText : undefined}
-              onViewChange={onViewChange}
-              onResetView={() => dispatch({ type: 'resetView' })}
-              onLocalFile={importLocalFont}
-              onOpenGoogleFonts={openGoogleFonts}
-              note={sessionNote}
-            />
+            <Glided store={glide} scene={scene}>
+              {(shown) => (
+                <CanvasViewport
+                  document={canvasDocument}
+                  view={state.params.view}
+                  scene={shown}
+                  layout={layout}
+                  placement={placement}
+                  palette={shownPalette}
+                  ownPalette={palette}
+                  artboard={artboard}
+                  onArtboardChange={setArtboard}
+                  gridSize={gridSize}
+                  highlightSelection={highlight}
+                  onSelectGlyph={selectGlyph}
+                  onClearHighlight={clearHighlight}
+                  onMoveText={typography.position === 'free' ? moveText : undefined}
+                  onViewChange={onViewChange}
+                  onResetView={() => dispatch({ type: 'resetView' })}
+                  onLocalFile={importLocalFont}
+                  onOpenGoogleFonts={openGoogleFonts}
+                  note={sessionNote}
+                />
+              )}
+            </Glided>
           }
           textTools={
             <TextTools
@@ -575,18 +584,22 @@ export default function App({ restored }: AppProps) {
                 />
               }
               preview={
-                <TextPreview
-                  font={state.document.font}
-                  scene={scene}
-                  layout={layout}
-                  palette={shownPalette}
-                  artboard={artboard}
-                  precision={precision}
-                  look={previewLook}
-                  fill={state.params.view.showFill}
-                  onLookChange={setPreviewLook}
-                  onScaleChange={setPreviewScale}
-                />
+                <Glided store={glide} scene={scene}>
+                  {(shown) => (
+                    <TextPreview
+                      font={state.document.font}
+                      scene={shown}
+                      layout={layout}
+                      palette={shownPalette}
+                      artboard={artboard}
+                      precision={precision}
+                      look={previewLook}
+                      fill={state.params.view.showFill}
+                      onLookChange={setPreviewLook}
+                      onScaleChange={setPreviewScale}
+                    />
+                  )}
+                </Glided>
               }
             />
           }
@@ -624,15 +637,19 @@ export default function App({ restored }: AppProps) {
         onExported={onExported}
       />
       {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
-      <RecordingCanvas
-        scene={scene}
-        layout={layout}
-        artboard={artboard}
-        palette={shownPalette}
-        previewLook={previewLook}
-        previewScale={previewScale}
-        fill={state.params.view.showFill}
-      />
+      <Glided store={glide} scene={scene}>
+        {(shown) => (
+          <RecordingCanvas
+            scene={shown}
+            layout={layout}
+            artboard={artboard}
+            palette={shownPalette}
+            previewLook={previewLook}
+            previewScale={previewScale}
+            fill={state.params.view.showFill}
+          />
+        )}
+      </Glided>
     </div>
   )
 }

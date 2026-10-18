@@ -2490,16 +2490,16 @@ input.number-field {
   display: none;
 }
 
-/* Response: four knobs in a row, two by two on a narrow panel. */
+/* Response: five knobs in a row, three and two on a narrow panel. */
 .knob-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px 6px;
 }
 
-@container (max-width: 300px) {
+@container (max-width: 340px) {
   .knob-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
