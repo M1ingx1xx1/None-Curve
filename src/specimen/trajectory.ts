@@ -26,6 +26,7 @@
 
 import type { GlyphMotion, Point, WhorlMotion } from '../geometry/types'
 import { whorlUnwarp } from '../geometry/whorl'
+import type { WhorlPlanParams, WhorlTrack } from './planData'
 
 /** How the anchors of two outlines are paired before they travel (morph.ts). */
 export type Correspondence =
@@ -55,6 +56,8 @@ export interface Trajectory {
    * only the old outline had, which goes to its place on the new one.
    */
   path(sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base?: Uint8Array): TrackPath
+  /** Whorl's sweep as data (planData.ts): the plan's centres and Sides, and each contour's arrays (`path` runs on them). */
+  whorl?: { params: WhorlPlanParams; arrays(sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base?: Uint8Array): WhorlArrays }
 }
 
 export interface TrajectoryModel {
@@ -263,6 +266,106 @@ export function along(
   out.y = fy + (ty - fy) * w
 }
 
+/** A Whorl track's arrays, worked out once per contour (planData.ts WhorlTrack without the pairs). */
+export type WhorlArrays = Pick<WhorlTrack, 'a0' | 'turn' | 'sizeA' | 'sizeB' | 'ox' | 'oy' | 'ex' | 'ey' | 'rx' | 'ry' | 'mx' | 'my'>
+
+/** The centres and Sides a Whorl plan sweeps by: from the old outline's Whorl (or the new one's) to the new one's. */
+export function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlanParams {
+  return { startX: start.x, startY: start.y, endX: end.x, endY: end.y, sidesA: start.sides, sidesB: end.sides }
+}
+
+/**
+ * The sweep of every anchor of one contour from (sx, sy) to (tx, ty) (whorlTrajectory's path), as arrays: each
+ * anchor's start angle and turn, its ring sizes, where the sweep starts and ends (from the moving centre), the straight
+ * rest of the way and, with Sides changed, where the two halves meet. `from` or `to` may be missing, not both.
+ */
+export function whorlTrackData(
+  from: WhorlMotion | undefined,
+  to: WhorlMotion | undefined,
+  sx: Float64Array,
+  sy: Float64Array,
+  tx: Float64Array,
+  ty: Float64Array,
+  base?: Uint8Array,
+): WhorlArrays {
+  const start = (from ?? to)!
+  const end = (to ?? from)!
+  const ringA = ringPolygon(start.sides)
+  const ringB = ringPolygon(end.sides)
+  // Sides changed: the first half of the sweep runs along the old polygon, the second along the new one.
+  const twoRings = ringA.n !== ringB.n
+  const n = sx.length
+  const a0 = new Float64Array(n)
+  const turn = new Float64Array(n)
+  const sizeA = new Float64Array(n)
+  const sizeB = new Float64Array(n)
+  // Where the sweep starts and ends (from the moving centre), and the straight rest of the way.
+  const ox = new Float64Array(n)
+  const oy = new Float64Array(n)
+  const ex = new Float64Array(n)
+  const ey = new Float64Array(n)
+  const rx = new Float64Array(n)
+  const ry = new Float64Array(n)
+  // Sides changed: where the two halves meet.
+  const mx = twoRings ? new Float64Array(n) : null
+  const my = twoRings ? new Float64Array(n) : null
+  for (let i = 0; i < n; i++) {
+    const dx0 = sx[i] - start.x
+    const dy0 = sy[i] - start.y
+    // The ring the anchor sits on, as it was before Whorl: its base's (see the top of the file).
+    let size: number
+    if (base && base[i]) {
+      const q = to ? whorlUnturn(to, tx[i] - end.x, ty[i] - end.y, ringB) : { x: tx[i] - end.x, y: ty[i] - end.y }
+      size = ringB.size(q.x, q.y)
+    } else {
+      const q = from ? whorlUnturn(from, dx0, dy0, ringA) : { x: dx0, y: dy0 }
+      size = ringA.size(q.x, q.y)
+    }
+    const angle0 = Math.atan2(dy0, dx0)
+    const d = turnAtSize(to, size) - turnAtSize(from, size)
+    a0[i] = angle0
+    turn[i] = d
+    ox[i] = dx0
+    oy[i] = dy0
+    sizeA[i] = ringA.size(dx0, dy0)
+    sizeB[i] = twoRings ? ringB.size(dx0, dy0) : sizeA[i]
+    const e = ringB.at(angle0 + d, sizeB[i])
+    ex[i] = e.x
+    ey[i] = e.y
+    rx[i] = tx[i] - end.x - e.x
+    ry[i] = ty[i] - end.y - e.y
+    if (mx && my) {
+      const m = angle0 + d / 2
+      const pa = ringA.at(m, sizeA[i])
+      const pb = ringB.at(m, sizeB[i])
+      mx[i] = (pa.x + pb.x) / 2
+      my[i] = (pa.y + pb.y) / 2
+    }
+  }
+  return { a0, turn, sizeA, sizeB, ox, oy, ex, ey, rx, ry, mx, my }
+}
+
+/** The path of a Whorl track, from its arrays (whorlTrackData) and its plan's centres and Sides. */
+export function whorlTrackPath(track: WhorlArrays, plan: WhorlPlanParams): TrackPath {
+  const ringA = ringPolygon(plan.sidesA)
+  const ringB = ringPolygon(plan.sidesB)
+  const { a0, turn, sizeA, sizeB, ox, oy, ex, ey, rx, ry, mx, my } = track
+  const n = a0.length
+  return (p, xs, ys) => {
+    const cx = plan.startX + (plan.endX - plan.startX) * p
+    const cy = plan.startY + (plan.endY - plan.startY) * p
+    for (let i = 0; i < n; i++) {
+      const angle = a0[i] + turn[i] * p
+      const a1 = a0[i] + turn[i]
+      if (!mx || !my) along(ringA, sizeA[i], a0[i], ox[i], oy[i], a1, ex[i], ey[i], angle)
+      else if (p < 0.5) along(ringA, sizeA[i], a0[i], ox[i], oy[i], a0[i] + turn[i] / 2, mx[i], my[i], angle)
+      else along(ringB, sizeB[i], a0[i] + turn[i] / 2, mx[i], my[i], a1, ex[i], ey[i], angle)
+      xs[i] = cx + at.x + rx[i] * p
+      ys[i] = cy + at.y + ry[i] * p
+    }
+  }
+}
+
 /** The swirl around Whorl's centre (see the top of the file). */
 export function whorlTrajectory(from: WhorlMotion | undefined, to: WhorlMotion | undefined): Trajectory | null {
   const start = from ?? to
@@ -270,8 +373,9 @@ export function whorlTrajectory(from: WhorlMotion | undefined, to: WhorlMotion |
   if (!start || !end) return null
   const ringA = ringPolygon(start.sides)
   const ringB = ringPolygon(end.sides)
-  // Sides changed: the first half of the sweep runs along the old polygon, the second along the new one.
-  const twoRings = ringA.n !== ringB.n
+  const params = whorlPlanParams(start, end)
+  const arrays = (sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base?: Uint8Array) =>
+    whorlTrackData(from, to, sx, sy, tx, ty, base)
   return {
     id: 'whorl',
     correspondence: 'nearest',
@@ -283,69 +387,8 @@ export function whorlTrajectory(from: WhorlMotion | undefined, to: WhorlMotion |
       const q = w ? whorlUnturn(w, x - c.x, y - c.y, side === 'from' ? ringA : ringB, hint) : { x: x - c.x, y: y - c.y }
       return { x: end.x + q.x, y: end.y + q.y }
     },
-    path(sx, sy, tx, ty, base) {
-      const n = sx.length
-      const a0 = new Float64Array(n)
-      const turn = new Float64Array(n)
-      const sizeA = new Float64Array(n)
-      const sizeB = new Float64Array(n)
-      // Where the sweep starts and ends (from the moving centre), and the straight rest of the way.
-      const ox = new Float64Array(n)
-      const oy = new Float64Array(n)
-      const ex = new Float64Array(n)
-      const ey = new Float64Array(n)
-      const rx = new Float64Array(n)
-      const ry = new Float64Array(n)
-      // Sides changed: where the two halves meet.
-      const mx = twoRings ? new Float64Array(n) : null
-      const my = twoRings ? new Float64Array(n) : null
-      for (let i = 0; i < n; i++) {
-        const dx0 = sx[i] - start.x
-        const dy0 = sy[i] - start.y
-        // The ring the anchor sits on, as it was before Whorl: its base's (see the top of the file).
-        let size: number
-        if (base && base[i]) {
-          const q = to ? whorlUnturn(to, tx[i] - end.x, ty[i] - end.y, ringB) : { x: tx[i] - end.x, y: ty[i] - end.y }
-          size = ringB.size(q.x, q.y)
-        } else {
-          const q = from ? whorlUnturn(from, dx0, dy0, ringA) : { x: dx0, y: dy0 }
-          size = ringA.size(q.x, q.y)
-        }
-        const angle0 = Math.atan2(dy0, dx0)
-        const d = turnAtSize(to, size) - turnAtSize(from, size)
-        a0[i] = angle0
-        turn[i] = d
-        ox[i] = dx0
-        oy[i] = dy0
-        sizeA[i] = ringA.size(dx0, dy0)
-        sizeB[i] = twoRings ? ringB.size(dx0, dy0) : sizeA[i]
-        const e = ringB.at(angle0 + d, sizeB[i])
-        ex[i] = e.x
-        ey[i] = e.y
-        rx[i] = tx[i] - end.x - e.x
-        ry[i] = ty[i] - end.y - e.y
-        if (mx && my) {
-          const m = angle0 + d / 2
-          const pa = ringA.at(m, sizeA[i])
-          const pb = ringB.at(m, sizeB[i])
-          mx[i] = (pa.x + pb.x) / 2
-          my[i] = (pa.y + pb.y) / 2
-        }
-      }
-      return (p, xs, ys) => {
-        const cx = start.x + (end.x - start.x) * p
-        const cy = start.y + (end.y - start.y) * p
-        for (let i = 0; i < n; i++) {
-          const angle = a0[i] + turn[i] * p
-          const a1 = a0[i] + turn[i]
-          if (!mx || !my) along(ringA, sizeA[i], a0[i], ox[i], oy[i], a1, ex[i], ey[i], angle)
-          else if (p < 0.5) along(ringA, sizeA[i], a0[i], ox[i], oy[i], a0[i] + turn[i] / 2, mx[i], my[i], angle)
-          else along(ringB, sizeB[i], a0[i] + turn[i] / 2, mx[i], my[i], a1, ex[i], ey[i], angle)
-          xs[i] = cx + at.x + rx[i] * p
-          ys[i] = cy + at.y + ry[i] * p
-        }
-      }
-    },
+    whorl: { params, arrays },
+    path: (sx, sy, tx, ty, base) => whorlTrackPath(arrays(sx, sy, tx, ty, base), params),
   }
 }
 
