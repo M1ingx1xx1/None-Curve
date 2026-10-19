@@ -63,6 +63,10 @@ export interface DirectorDeps {
   ahead(): AheadGeometry | null
   /** Asks the canvas lane for these glyphs: false when they are all there already (geometryClient.prefetchJobs). */
   prefetch(jobs: readonly FrameJob[]): boolean
+  /** Every glyph of these jobs has its result (geometryClient.lookup, not stale). */
+  has(jobs: readonly FrameJob[]): boolean
+  /** The canvas lane has a request in flight (geometryClient.isComputing). */
+  busy(): boolean
   /** The jobs with their glyph ids filled (the glyphs the canvas shows), and the font; null without a font. */
   resolve(jobs: readonly FrameJob[]): { fontId: string; jobs: GeometryJob[] } | null
   /** Glide's time (0: no glide, no lineages). */
@@ -89,7 +93,10 @@ export class PlaybackDirector {
   /** The commit on screen (its seq and media time), while following. */
   private shownSeq = -1
   private shownMs = -Infinity
-  /** Since when (page time) the commit due has not been ready, or the plan has not covered the playhead. */
+  /**
+   * Since when (page time) the screen has waited: the commit due is not ready (or the plan does not reach the
+   * playhead) and nothing newer was shown since.
+   */
   private holdSince: number | null = null
   private lastGeneration = -1
   private inputs: LiveInputs | null = null
@@ -141,7 +148,11 @@ export class PlaybackDirector {
           break
         }
       }
-      if (pick >= 0) this.show(selected, pick, ph)
+      if (pick >= 0) {
+        this.show(selected, pick, ph)
+        // The screen moved on: a commit still late waits from now (geometry slower than 30 Hz still shows each).
+        this.holdSince = null
+      }
       const late = due < 0 || (selected[due].seq !== this.shownSeq && pick !== due)
       if (late) {
         this.holdSince ??= now
@@ -249,21 +260,36 @@ export class PlaybackDirector {
   private ready(ahead: AheadGeometry | null, commit: PlannedCommit): boolean {
     if (commit.jobs.length === 0) return true
     if (ahead) return ahead.ready(commit.seq)
-    if (this.fetched.has(commit.seq)) return true
+    if (this.has(commit)) return true
+    // One request at a time: a newer request would replace the one in flight, and neither would arrive.
+    if (this.deps.busy()) return false
     if (this.deps.prefetch(commit.jobs)) return false
+    this.fetched.add(commit.seq)
+    return true
+  }
+
+  /** Without an ahead lane: the canvas lane already has the commit's glyphs (asks for nothing). */
+  private has(commit: PlannedCommit): boolean {
+    if (commit.jobs.length === 0 || this.fetched.has(commit.seq)) return true
+    if (!this.deps.has(commit.jobs)) return false
     this.fetched.add(commit.seq)
     return true
   }
 
   /**
    * Takes over when the commit due is ready and the plan covers the next enterReadyMs; with an ahead lane, every
-   * selected commit in it must be ready too (without one, they are fetched one at a time as they come).
+   * selected commit in it must be ready too (without one, commits are fetched one at a time on the canvas lane).
    */
   private canEnter(ahead: AheadGeometry | null, selected: readonly PlannedCommit[], due: number, ph: Playhead): boolean {
     const until = ph.mediaMs + PRECOMPUTE_LIMITS.enterReadyMs
     if (!this.deps.planner.isDone() && this.deps.planner.plannedUntil() < until) return false
+    if (!ahead) {
+      if (this.has(selected[due])) return true
+      // Fetches a commit holdMs ahead, so that it is there when the playhead reaches it (the one due would be past).
+      this.ready(null, selected[Math.max(due, lastAtOrBefore(selected, ph.mediaMs + PRECOMPUTE_LIMITS.holdMs))])
+      return false
+    }
     if (!this.ready(ahead, selected[due])) return false
-    if (!ahead) return true
     for (let i = due + 1; i < selected.length && selected[i].mediaMs <= until; i++) if (!ahead.ready(selected[i].seq)) return false
     return true
   }
@@ -393,6 +419,12 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
     commit,
     ahead: getAheadGeometry,
     prefetch: (jobs) => geometryClient.prefetchJobs(jobs),
+    has: (jobs) => {
+      const shown = geometryClient.shownGlyphSet()
+      if (!shown) return true
+      return jobs.every(({ key, indices, within }) => (indices ?? shownGlyphs(shown.indices, within)).every((i) => geometryClient.lookup(key, i)?.stale === false))
+    },
+    busy: () => geometryClient.isComputing(),
     resolve: (jobs) => {
       const shown = geometryClient.shownGlyphSet()
       if (!shown) return null

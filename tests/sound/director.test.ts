@@ -73,7 +73,7 @@ class FakePlanner implements DirectorPlanner {
   }
 }
 
-function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefetchMisses?: Set<string> } = {}) {
+function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefetchMisses?: Set<string>; fetchMs?: number } = {}) {
   let now = 1000
   let ph: Playhead = { mediaMs: 0, wallMs: now, playing: true, generation: 0 }
   let following = false
@@ -92,6 +92,16 @@ function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefe
     clear: () => {},
   }
   const prefetched: string[] = []
+  // The canvas lane: one request at a time, each taking `fetchMs` (0: there at once, unless it misses).
+  const fetched = new Set<string>()
+  let inFlight: { key: string; until: number } | null = null
+  const settle = () => {
+    if (inFlight && now >= inFlight.until) {
+      fetched.add(inFlight.key)
+      inFlight = null
+    }
+  }
+  const missing = (key: string) => (options.prefetchMisses?.has(key) ?? false) || (options.fetchMs !== undefined && !fetched.has(key))
   let adoptSeq = 100
   const director = new PlaybackDirector({
     now: () => now,
@@ -117,7 +127,17 @@ function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefe
     ahead: () => (options.ahead === false ? null : ahead),
     prefetch: (jobs) => {
       prefetched.push(jobs[0].key)
-      return options.prefetchMisses?.has(jobs[0].key) ?? false
+      if (!missing(jobs[0].key)) return false
+      if (options.fetchMs !== undefined) inFlight = { key: jobs[0].key, until: now + options.fetchMs }
+      return true
+    },
+    has: (jobs) => {
+      settle()
+      return !missing(jobs[0].key)
+    },
+    busy: () => {
+      settle()
+      return inFlight !== null
     },
     resolve: (jobs) => ({ fontId: 'font', jobs: jobs.map((j) => ({ params: j.params, key: j.key, indices: [3, 4] })) }),
     glideMs: () => 150,
@@ -281,6 +301,19 @@ describe('playback director', () => {
     misses.clear()
     r.play(next.mediaMs + 30)
     expect(r.commits.some((c) => c!.timing!.seq === next.seq)).toBe(true)
+  })
+
+  it('without an ahead lane, keeps one canvas request in flight and keeps showing when geometry is slower than 30 Hz', () => {
+    const r = rig({ ahead: false, fetchMs: 50 })
+    r.play(3000)
+    // Never handed back: each commit shows late, but the screen keeps moving.
+    expect(r.log).not.toContain('back')
+    expect(r.following).toBe(true)
+    // One request per commit fetched, never a second one replacing it.
+    expect(new Set(r.prefetched).size).toBe(r.prefetched.length)
+    const shown = r.commits.map((c) => c!.timing!.seq)
+    expect(shown.length).toBeGreaterThan(30)
+    expect(shown.length).toBeLessThan(3000 / STEP)
   })
 })
 
