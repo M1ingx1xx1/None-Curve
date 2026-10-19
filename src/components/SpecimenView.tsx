@@ -3,7 +3,7 @@ import type { LoadedFont } from '../font/model'
 import { contoursToPath } from '../geometry/sourcePath'
 import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
-import { probeOn, reportFrame } from '../render/probe'
+import { measureDraw, probeOn, reportFrame } from '../render/probe'
 import { artboardEdgeColor, highlightColor, isDarkColor } from '../specimen/color'
 import type { Extent, SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
@@ -338,10 +338,13 @@ export default function SpecimenView({
   })
   const sharedPaths = shared.defs.map(({ id, d }) => <SharedPath key={id} id={id} d={d} />)
 
-  // The measurement probe (?probe=1): every committed render of the glyphs is a frame drawn.
-  const renderStart = probeOn ? performance.now() : 0
+  // The measurement probe (?probe=1) and the nc-draw measure: every committed render of the glyphs is a frame drawn.
+  const renderStart = performance.now()
   useLayoutEffect(() => {
-    if (probeOn && ready) reportFrame('canvas', 'svg', performance.now() - renderStart, () => scene, (window.devicePixelRatio || 1) / u)
+    if (!ready) return
+    const end = performance.now()
+    measureDraw('canvas', renderStart, end)
+    if (probeOn) reportFrame('canvas', 'svg', end - renderStart, () => scene, (window.devicePixelRatio || 1) / u)
   })
 
   return (

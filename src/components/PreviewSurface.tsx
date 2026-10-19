@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMe
 import { ExportError } from '../export/quantize'
 import { outlineStrokeWidth, specimenPaths, type SvgPathCache } from '../export/svg'
 import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
-import { probeOn, reportFrame } from '../render/probe'
+import { measureDraw, probeOn, reportFrame } from '../render/probe'
 import type { GlideFrame, GlyphRenderer, RenderStyle } from '../render/types'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
@@ -99,7 +99,9 @@ export default function PreviewSurface({
     if (!renderer || renderer.broken) return
     const start = performance.now()
     if (!renderer.draw()) return
-    if (probeOn) reportFrame('preview', effectiveOf(renderer), performance.now() - start, () => null, 0)
+    const end = performance.now()
+    measureDraw('preview', start, end)
+    if (probeOn) reportFrame('preview', effectiveOf(renderer), end - start, () => null, 0)
   }, [])
 
   const fallBack = useCallback(() => {

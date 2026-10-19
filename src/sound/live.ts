@@ -1203,6 +1203,8 @@ export interface LiveView {
   letters: LetterFrame | null
   /** The typography and colours sound moved from the sliders': null while it moves none (always while not driving). */
   look: LookChanges | null
+  /** When a planned commit (director.ts) is shown, for Glide (useSceneGlide); null on the live path. */
+  timing: CommitTiming | null
 }
 
 /**
@@ -1226,7 +1228,8 @@ export function useLiveFrame(base: DrivenParams, hasFont = true): LiveView {
   const params = commit?.params ?? base
   const letters = commit?.params ? commit.letters : null
   const look = commit?.params ? commit.look : null
-  return useMemo(() => ({ params, letters, look }), [params, letters, look])
+  const timing = commit?.timing ?? null
+  return useMemo(() => ({ params, letters, look, timing }), [params, letters, look, timing])
 }
 
 /**

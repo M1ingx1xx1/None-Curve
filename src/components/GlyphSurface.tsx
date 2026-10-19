@@ -3,7 +3,7 @@ import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
 import { hitBlock } from '../render/hitTest'
-import { probeOn, reportFrame } from '../render/probe'
+import { measureDraw, probeOn, reportFrame } from '../render/probe'
 import { probeReader, ThemeColors } from '../render/theme'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, SourceLookup } from '../render/types'
 import { artboardEdgeColor, highlightColor, isDarkColor } from '../specimen/color'
@@ -156,7 +156,9 @@ export default function GlyphSurface({
     if (!renderer || renderer.broken) return
     const start = performance.now()
     if (!renderer.draw()) return
-    const ms = performance.now() - start
+    const end = performance.now()
+    const ms = end - start
+    measureDraw('canvas', start, end)
     if (probeOn) {
       const shown = frameNow()
       reportFrame('canvas', effectiveOf(renderer), ms, () => shown.scene(), latest.current.dpr / latest.current.u)

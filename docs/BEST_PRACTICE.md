@@ -61,6 +61,13 @@ Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_G
 - Font export runs in a worker of its own for each build (`src/export/fontExport.worker.ts`). Cancel terminates it at once, and so does a minute without progress. Only when that worker cannot start does the build run on the page.
 - Test the worker logic and the client without a browser: `tests/worker` runs `workerCore` with a fake `post`, and the client with a fake worker and fake timers.
 
+## Renderers and flags
+
+- The canvas and the preview draw their letters with one of three renderers: SVG (`SpecimenView`, the reference), Canvas2D (`src/render/canvas2d.ts`) or WebGL2 (`src/render/webgl2.ts`, the default). WebGL falls back to Canvas2D when it cannot start or loses its context, and Canvas2D to SVG. Backgrounds, grids, guides and the block hit stay in an SVG underlay (`SpecimenUnderlay`); the canvas renderers draw only the glyph layer, from `GlideStore` without React re-rendering per frame. Recording and every export keep drawing the CPU scene, unchanged.
+- Every renderer draws straight segments only (miter joins with a bevel fallback, never round ones), and Whorl's glide follows the faceted ring on the GPU too: the shaders' JS mirror (`gpuReference.ts`) is tested against `morphAt` on real plans (`tests/render/gpuVsMorph.test.ts`). A change to a plan's maths changes `planData.ts`, `morph.ts`, the shaders and the mirror together.
+- Runtime switches (`src/state/flags.ts`), read once at start-up from the URL, then `localStorage` (`none-curve:render`, `none-curve:precompute`, `none-curve:workerplans`): `?render=svg|canvas|webgl`, `?precompute=0|1` (a playing file's features, Sound's commits and their geometry and Glide plans made ahead of the playhead; files over 6 minutes and the microphone stay on the live path), `?workerplans=0|1` (Glide's plans made in the geometry workers) and `?probe=1` (`window.__noneCurveFrames` for the measurement driver; it hashes every drawn frame, so measure timing without it). Renderers always emit the `nc-draw` and `nc-draw-preview` user timing measures.
+- The geometry pool has three lanes: `canvas` (as before; `isComputing()` reports only this one), `plan` (Glide plans on demand) and `ahead` (the precompute window, pinned per glyph to one worker so Glide chains stay in one worker). Canvas work always goes first; no lane cancels another's request.
+
 ## Slider ranges
 
 - Every Geometry and Experimental slider's range and step is written once, in `src/state/sliderScales.ts`: `SLIDER_RANGES`, keyed by the slider's Sound target id (`"group.key"`, `"experimental.effect.key"`), and `TOLERANCE` for the logarithmic Tolerance slider.
