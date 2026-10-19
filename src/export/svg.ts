@@ -99,6 +99,8 @@ function header(width: number, height: number, decimals: number, meta: SvgMeta):
 export interface SvgGlyphPath {
   transform: string
   d: string
+  /** Its place in SpecimenPaths.shapes: occurrences with the same path data share one, so the preview draws each once. */
+  shape: number
 }
 
 /** The artboard's glyph outlines, exactly as specimenToSvg writes them; the preview draws the same. */
@@ -106,6 +108,8 @@ export interface SpecimenPaths {
   /** The glyph group's transform, from font units (scene coordinates) to artboard pixels. */
   transform: string
   paths: SvgGlyphPath[]
+  /** The distinct path data among `paths`, in order of first use. */
+  shapes: string[]
   vertices: number
 }
 
@@ -113,20 +117,24 @@ export interface SpecimenPaths {
  * Path data by polygon, so a caller that builds often (the preview, at every change) rounds only the
  * glyphs whose shape changed. Entries for polygons no longer in use are dropped with them.
  */
-export type SvgPathCache = WeakMap<PolygonGlyph, { decimals: number; d: string; vertices: number }>
+export type SvgPathCache = WeakMap<PolygonGlyph, { decimals: number; checked: boolean; d: string; vertices: number }>
 
 /**
  * Every glyph of the scene as one path in its own font units (y up, quantized and validated), placed
  * by a transform with its position and slant; the group transform scales font units to artboard pixels,
  * so coordinates keep full precision in font units. Glyphs without outlines (spaces, missing characters,
  * glyphs not computed yet) are left out. Throws ExportError when a glyph cannot be rounded.
+ *
+ * With `checked` false (the preview while Sound moves the letters, whose shapes no export uses) the points are only
+ * rounded: no repair and no check, and so no ExportError. The export always checks.
  */
-export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, decimals: number, cache?: SvgPathCache): SpecimenPaths {
+export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, decimals: number, cache?: SvgPathCache, checked = true): SpecimenPaths {
   const scale = Number((1 / layout.unitsPerPx).toPrecision(8))
   const skew = scene.slant ? ` skewX(${num(-scene.slant, 4)})` : ''
   // By polygon, not glyph id: a letter that reacts to Sound by its own amount has a shape of its own.
   const shapes = new Map<PolygonGlyph, { d: string; vertices: number }>()
   const paths: SvgGlyphPath[] = []
+  const shapeOf = new Map<string, number>()
   let vertices = 0
   for (const line of scene.lines) {
     for (const glyph of line.glyphs) {
@@ -135,21 +143,26 @@ export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, deci
       let shape = shapes.get(polygon)
       if (!shape) {
         const cached = cache?.get(polygon)
-        if (cached && cached.decimals === decimals) shape = cached
+        // An unchecked path serves only another unchecked build; a checked one serves both.
+        if (cached && cached.decimals === decimals && (cached.checked || !checked)) shape = cached
         else {
-          const contours = quantizePolygon(polygon, decimals, `Glyph “${glyph.text}”`, 'Use a higher precision.')
-          const entry = { decimals, d: pathData(contours, decimals), vertices: contours.reduce((n, c) => n + c.length, 0) }
+          const contours = checked
+            ? quantizePolygon(polygon, decimals, `Glyph “${glyph.text}”`, 'Use a higher precision.')
+            : polygon.contours.map((c) => c.points)
+          const entry = { decimals, checked, d: pathData(contours, decimals), vertices: contours.reduce((n, c) => n + c.length, 0) }
           cache?.set(polygon, entry)
           shape = entry
         }
         shapes.set(polygon, shape)
       }
-      paths.push({ transform: `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`, d: shape.d })
+      let n = shapeOf.get(shape.d)
+      if (n === undefined) shapeOf.set(shape.d, (n = shapeOf.size))
+      paths.push({ transform: `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`, d: shape.d, shape: n })
       vertices += shape.vertices
     }
   }
   const transform = `scale(${scale}) translate(${num(-layout.x, decimals)} ${num(-layout.y, decimals)})`
-  return { transform, paths, vertices }
+  return { transform, paths, shapes: [...shapeOf.keys()], vertices }
 }
 
 /**

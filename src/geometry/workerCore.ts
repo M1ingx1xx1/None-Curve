@@ -91,7 +91,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
       while (fonts.size > MAX_FONTS) fonts.delete(fonts.keys().next().value!)
     } else if (message.type === 'cancel') {
       if (latestRequest === message.requestId) latestRequest = 0
-    } else {
+    } else if (message.type === 'compute') {
       latestRequest = message.requestId
       compute(message).catch((error) => fail(message.requestId, error))
     }

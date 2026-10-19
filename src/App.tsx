@@ -596,6 +596,7 @@ export default function App({ restored }: AppProps) {
                       precision={precision}
                       look={previewLook}
                       fill={state.params.view.showFill}
+                      live={driving}
                       onLookChange={setPreviewLook}
                       onScaleChange={setPreviewScale}
                     />
