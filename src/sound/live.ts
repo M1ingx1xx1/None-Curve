@@ -765,9 +765,9 @@ export class LiveScheduler {
     this.update()
   }
 
-  /** How many flash edges the budget holds at page time `time` or later (the director's handover check). */
-  recentEdges(time: number): number {
-    return this.budget.countSince(time)
+  /** The flash edges the budget holds at page time `time` or later, oldest first (the director's handover check). */
+  recentEdges(time: number): readonly number[] {
+    return this.budget.since(time)
   }
 
   /**

@@ -49,11 +49,11 @@ export class FlashBudget {
     this.edges.push(time)
   }
 
-  /** How many of the remembered edges are at `time` or later (the precompute director's handover check). */
-  countSince(time: number): number {
-    let count = 0
-    for (let i = this.edges.length - 1; i >= 0 && this.edges[i] >= time; i--) count++
-    return count
+  /** The remembered edges at `time` or later, oldest first (the precompute director's handover check). */
+  since(time: number): number[] {
+    let i = this.edges.length
+    while (i > 0 && this.edges[i - 1] >= time) i--
+    return this.edges.slice(i)
   }
 
   private sameFrame(time: number): boolean {
@@ -64,4 +64,11 @@ export class FlashBudget {
   private forget(time: number) {
     while (this.edges.length && time - this.edges[0] >= FLASH_LIMITS.windowMs) this.edges.shift()
   }
+}
+
+/** True when no window of windowMs among these edge times (ascending, ms) holds more than 2 × maxFlashes edges. */
+export function edgesFit(times: readonly number[]): boolean {
+  const most = 2 * FLASH_LIMITS.maxFlashes
+  for (let i = most; i < times.length; i++) if (times[i] - times[i - most] < FLASH_LIMITS.windowMs) return false
+  return true
 }

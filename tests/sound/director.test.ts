@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FrameJob } from '../../src/geometry/types'
 import { PlaybackDirector, type DirectorPlanner } from '../../src/sound/director'
+import { FLASH_LIMITS } from '../../src/sound/flash'
 import { LiveScheduler, PLANNER_CLOCK_OFFSET, plannedEdges, type LiveCommit, type LiveDeps, type LiveInputs } from '../../src/sound/live'
 import type { Mapping } from '../../src/sound/mapping'
 import { PlaybackPlanner } from '../../src/sound/planner'
@@ -86,7 +87,7 @@ function rig(
     prefetchMisses?: Set<string>
     fetchMs?: number
     /** The page budget's edges in the last window. */
-    recentEdges?: () => number
+    recentEdges?: (since: number) => readonly number[]
     /** Each planned commit's flash edges (planner frame times). */
     edgesOf?: (seq: number, mediaMs: number) => number[]
   } = {},
@@ -138,7 +139,7 @@ function rig(
         return ++adoptSeq
       },
       inputs: () => INPUTS,
-      recentEdges: () => options.recentEdges?.() ?? 0,
+      recentEdges: (since: number) => options.recentEdges?.(since) ?? [],
     },
     commit: (commit) => {
       commits.push(commit)
@@ -342,24 +343,29 @@ describe('the director and the flash limit', () => {
   // A planned edge on every 6th commit: about 5 a second, 6 within a window.
   const edgesOf = (seq: number, mediaMs: number) => (seq % 6 === 0 ? [mediaMs + PLANNER_CLOCK_OFFSET] : [])
 
-  it('takes over only when the edges the screen showed lately and the planned ones fit one window', () => {
-    let recent = 3
-    const r = rig({ recentEdges: () => recent, edgesOf })
+  // `count` edges the screen showed just now (the newest window ends at since + windowMs).
+  const lately = (count: number) => (since: number) =>
+    Array.from({ length: count }, (_, k) => since + FLASH_LIMITS.windowMs - 1 - (count - k))
+
+  it('takes over only when the edges the screen showed lately and the planned ones fit every window', () => {
+    let recent = lately(3)
+    const r = rig({ recentEdges: (since) => recent(since), edgesOf })
     r.play(400)
-    // 3 recent and 6 planned within the next window: more than 2 × maxFlashes.
+    // 3 just now and about 6 planned within the next window: more than 2 × maxFlashes in one window.
     expect(r.following).toBe(false)
-    recent = 0
+    recent = lately(0)
     r.play(420)
     expect(r.following).toBe(true)
   })
 
+
   it('takes over at once without recent edges, and a new generation waits for room too', () => {
-    let recent = 0
-    const r = rig({ recentEdges: () => recent, edgesOf })
+    let recent = lately(0)
+    const r = rig({ recentEdges: (since) => recent(since), edgesOf })
     r.play(300)
     expect(r.following).toBe(true)
     const shown = r.commits.length
-    recent = 6
+    recent = lately(6)
     r.planner.reseed(r.ph.mediaMs)
     r.play(300 + PRECOMPUTE_LIMITS.holdMs / 2)
     // Nothing of the new generation shows while the budget is full.
@@ -460,7 +466,7 @@ describe('the page scheduler following planned commits', () => {
     // Quiet now: the slider falls back from where the screen shows it.
     p.live.setFrame({ ...frameAt(15), time: 6000 })
     p.live.follow(false)
-    expect(p.live.recentEdges(5999)).toBe(1)
+    expect(p.live.recentEdges(5999)).toHaveLength(1)
     expect(p.commits.at(-1)?.params?.distortion.seed).toBe(high.commit!.params!.distortion.seed)
   })
 

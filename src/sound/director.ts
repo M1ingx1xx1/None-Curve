@@ -16,7 +16,7 @@ import { geometryClient, shownGlyphs } from '../state/geometryClient'
 import { getSoundEngine } from './engine'
 import { FeatureTimeline } from './featureTimeline'
 import { DECIMATION_LEVELS, LineageBook, selectCommits, stepsOf } from './lineage'
-import { FLASH_LIMITS } from './flash'
+import { edgesFit, FLASH_LIMITS } from './flash'
 import { PLANNER_CLOCK_OFFSET, plannedEdges, type LiveCommit, type LiveInputs } from './live'
 import { mappingStore } from './mappingStore'
 import { PlaybackPlanner } from './planner'
@@ -29,8 +29,8 @@ export interface DirectorScheduler {
   isFollowing(): boolean
   adopt(adopted: AdoptedState, toWall: (plannerTime: number) => number, edges?: readonly number[]): number
   inputs(): LiveInputs
-  /** The flash edges the page's budget holds at page time `time` or later. */
-  recentEdges(time: number): number
+  /** The flash edges the page's budget holds at page time `time` or later, oldest first. */
+  recentEdges(time: number): readonly number[]
 }
 
 /** What the director needs of the planner (PlaybackPlanner). */
@@ -305,20 +305,24 @@ export class PlaybackDirector {
   /**
    * The flash limit across a switch of what the screen follows (from the live path into the plan, or to a new
    * generation of it): the edges the page's budget counted in the last window (what the screen showed) and the planned
-   * edges that will show within the next must together fit one window (flash.ts), so no window across the switch holds
-   * more. Without recent edges nothing needs checking; otherwise the plan must reach a window past the playhead.
+   * edges that will show within the next, on one clock, must fit every window across the switch (flash.ts). Without
+   * recent edges nothing needs checking; otherwise the plan must reach a window past the playhead.
    */
   private flashFits(selected: readonly PlannedCommit[], i: number, ph: Playhead, now: number): boolean {
     const recent = this.deps.scheduler.recentEdges(now - FLASH_LIMITS.windowMs)
-    if (recent === 0) return true
+    if (recent.length === 0) return true
     const planner = this.deps.planner
     const until = ph.mediaMs + FLASH_LIMITS.windowMs
     if (!planner.isDone() && planner.plannedUntil() < until) return false
-    let planned = 0
+    const times = [...recent]
+    const toWall = (plannerTime: number) => ph.wallMs - (ph.mediaMs - (plannerTime - PLANNER_CLOCK_OFFSET))
     for (const commit of planner.commits) {
-      if (commit.mediaMs >= selected[i].mediaMs && commit.mediaMs <= until) planned += plannedEdges(commit.adopted).length
+      if (commit.mediaMs < selected[i].mediaMs || commit.mediaMs > until) continue
+      // Edges of the commit due (already past) reach the screen with the switch, now.
+      for (const edge of plannedEdges(commit.adopted)) times.push(Math.max(toWall(edge), now))
     }
-    return recent + planned <= 2 * FLASH_LIMITS.maxFlashes
+    times.sort((a, b) => a - b)
+    return edgesFit(times)
   }
 
   /**
