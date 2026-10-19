@@ -23,6 +23,8 @@ interface ExportedArtboardProps {
   blur: number
   /** Outlines only (the canvas's Fill off): stroked as the SVG export strokes them, with no fill. */
   outlineOnly: boolean
+  /** False while Sound moves the letters: the outlines are only rounded, without the export's check (specimenPaths). */
+  checked?: boolean
   label: string
 }
 
@@ -31,17 +33,32 @@ interface ExportedArtboardProps {
  * and glyph paths as specimenToSvg writes, filled or (outlineOnly) stroked. Only a transparent background differs: the file leaves it
  * out, the preview shows it as a checkerboard.
  */
-export default function ExportedArtboard({ scene, layout, width, height, precision, ink, paper, transparent, pixelsPerArtboardPixel, blur, outlineOnly, label }: ExportedArtboardProps) {
+export default function ExportedArtboard({
+  scene,
+  layout,
+  width,
+  height,
+  precision,
+  ink,
+  paper,
+  transparent,
+  pixelsPerArtboardPixel,
+  blur,
+  outlineOnly,
+  checked = true,
+  label,
+}: ExportedArtboardProps) {
   const ids = useId()
   const blurId = `${ids}-blur`
   const checkerId = `${ids}-checker`
+  const shapeId = `${ids}-shape`
   // Rounded outlines by polygon: only the glyphs whose shape changed are rounded again. Deferred, so
   // rounding a heavy text never holds up the canvas (while Sound moves the letters, frames may be skipped here).
   const [cache] = useState<SvgPathCache>(() => new WeakMap())
-  const shown = useDeferredValue(useMemo(() => ({ scene, layout, precision }), [scene, layout, precision]))
+  const shown = useDeferredValue(useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]))
   const outlines = useMemo<SpecimenPaths | { error: string }>(() => {
     try {
-      return specimenPaths(shown.scene, shown.layout, shown.precision, cache)
+      return specimenPaths(shown.scene, shown.layout, shown.precision, cache, shown.checked)
     } catch (error) {
       if (error instanceof ExportError) return { error: error.message }
       throw error
@@ -91,8 +108,15 @@ export default function ExportedArtboard({ scene, layout, width, height, precisi
                   }
                 : { fill: ink, fillRule: 'nonzero' as const })}
             >
+              {/* Each distinct outline once, drawn at every occurrence with <use>: the browser reads it once, and a
+                  live frame rewrites only the outlines that changed. The SVG export writes every path in full. */}
+              <defs>
+                {outlines.shapes.map((d, n) => (
+                  <path key={n} id={`${shapeId}-${n}`} d={d} />
+                ))}
+              </defs>
               {outlines.paths.map((path, i) => (
-                <path key={i} transform={path.transform} d={path.d} />
+                <use key={i} transform={path.transform} href={`#${shapeId}-${path.shape}`} />
               ))}
             </g>
           </g>

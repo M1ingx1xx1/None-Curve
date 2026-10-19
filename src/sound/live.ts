@@ -58,6 +58,7 @@ import {
 import { lookChanges, lookKey, modulate, targetById, type DrivenParams, type LookChanges, type Mapping, type Modulated, type ParamPatch } from './mapping'
 import { mappingStore } from './mappingStore'
 import { NO_SHAPING, ShapingTracker, type ShapedFrame } from './shaping'
+import type { CommitTiming } from './timelineTypes'
 import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame, type ResponseSettings, type SoundState } from './types'
 
 export interface LiveStatus {
@@ -257,6 +258,8 @@ export interface LiveCommit {
   look: LookChanges | null
   /** Counts commits, so each one renders and its render can be recognised. */
   seq: number
+  /** Set by the director for planned commits. */
+  timing?: CommitTiming
 }
 
 /** What the scheduler needs from the page; tests/sound replaces it with fakes (a fake clock, client and React). */
