@@ -6,58 +6,14 @@
 
 import { analyserFftSize } from '../../src/sound/engine'
 import { FeatureExtractor } from '../../src/sound/features'
+import { blackmanWindow as blackman, fftInPlace } from '../../src/sound/offline'
 import { DEFAULT_FEATURE_SETTINGS, type FeatureFrame, type FeatureSettings } from '../../src/sound/types'
 
 export const SR = 48000
 
 // ---------- the analyser ----------
 
-const windows = new Map<number, Float64Array>()
-function blackman(n: number): Float64Array {
-  let w = windows.get(n)
-  if (!w) {
-    w = new Float64Array(n)
-    for (let i = 0; i < n; i++) w[i] = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / n) + 0.08 * Math.cos((4 * Math.PI * i) / n)
-    windows.set(n, w)
-  }
-  return w
-}
-
-/** In-place radix-2 FFT. */
-export function fft(re: Float64Array, im: Float64Array): void {
-  const n = re.length
-  for (let i = 1, j = 0; i < n; i++) {
-    let bit = n >> 1
-    for (; j & bit; bit >>= 1) j ^= bit
-    j ^= bit
-    if (i < j) {
-      ;[re[i], re[j]] = [re[j], re[i]]
-      ;[im[i], im[j]] = [im[j], im[i]]
-    }
-  }
-  for (let size = 2; size <= n; size <<= 1) {
-    const angle = (-2 * Math.PI) / size
-    const wr = Math.cos(angle)
-    const wi = Math.sin(angle)
-    for (let i = 0; i < n; i += size) {
-      let cr = 1
-      let ci = 0
-      for (let k = 0; k < size / 2; k++) {
-        const a = i + k
-        const b = a + size / 2
-        const xr = re[b] * cr - im[b] * ci
-        const xi = re[b] * ci + im[b] * cr
-        re[b] = re[a] - xr
-        im[b] = im[a] - xi
-        re[a] += xr
-        im[a] += xi
-        const t = cr * wr - ci * wi
-        ci = cr * wi + ci * wr
-        cr = t
-      }
-    }
-  }
-}
+// The window and the FFT are the offline analyser's (src/sound/offline.ts), so the two measure alike bit for bit.
 
 /** A frame with whether the kick detector fired in it (Beat merges both detectors; read from the extractor). */
 export type ProbedFrame = FeatureFrame & { kick: boolean }
@@ -121,7 +77,7 @@ export function analyse(left: Float64Array, right: Float64Array | null = null, r
       re[i] = samples[i] * win[i]
       im[i] = 0
     }
-    fft(re, im)
+    fftInPlace(re, im)
     for (let k = 0; k < n / 2; k++) {
       const magnitude = Math.hypot(re[k], im[k]) / n
       spectrum[k] = magnitude > 0 ? 20 * Math.log10(magnitude) : -Infinity

@@ -314,6 +314,11 @@ export class GeometryClient {
     this.shown = font ? { font, indices } : null
   }
 
+  /** The font and glyphs the canvas shows (show), for frames whose jobs are resolved ahead (sound/director.ts). */
+  shownGlyphSet(): { fontId: string; indices: readonly number[] } | null {
+    return this.shown ? { fontId: this.shown.font.id, indices: this.shown.indices } : null
+  }
+
   /**
    * Asks for a live frame's glyphs before React renders it, every parameter set its letters show in one
    * request (a job without `indices` asks for the glyphs the canvas shows): the live scheduler commits the

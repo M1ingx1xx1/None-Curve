@@ -26,12 +26,20 @@
 // next group, at most every THORN_TURNS.gapMs on screen, as a change of its own from the same budget. Levels do not
 // scale them. The frame's own parameters stay the shared live values: the markers, the status and Freeze keep to them,
 // and only the glyphs of letters that show them are computed with them.
+//
+// While a file plays with precompute on (state/flags.ts), the director (director.ts) shows commits planned ahead of the
+// playhead by a second scheduler on a virtual clock (planner.ts). The page's scheduler then follows (follow): it
+// measures nothing and commits nothing, and adopts each planned commit's markers, seeds, status, Freeze state and flash
+// edges (adopt). When the plan cannot cover the playhead, the director hands back, and the scheduler goes on from the
+// next measured frame as before.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type Dispatch } from 'react'
 import { paramsKey } from '../geometry/cache'
 import type { FrameJob, GeometryParams } from '../geometry/types'
 import { withThornCanvasEm, type Action } from '../state/editorState'
+import { RUNTIME_FLAGS } from '../state/flags'
 import { geometryClient } from '../state/geometryClient'
+import { connectDirector } from './director'
 import { getSoundEngine } from './engine'
 import { FLASH_LIMITS, FlashBudget } from './flash'
 import { JumpTracker } from './jumps'
@@ -58,7 +66,7 @@ import {
 import { lookChanges, lookKey, modulate, targetById, type DrivenParams, type LookChanges, type Mapping, type Modulated, type ParamPatch } from './mapping'
 import { mappingStore } from './mappingStore'
 import { NO_SHAPING, ShapingTracker, type ShapedFrame } from './shaping'
-import type { CommitTiming } from './timelineTypes'
+import type { AdoptedState, CommitTiming } from './timelineTypes'
 import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame, type ResponseSettings, type SoundState } from './types'
 
 export interface LiveStatus {
@@ -128,6 +136,76 @@ const NO_JUMPS: Jumps = new Map()
 type Shown = { key: string; frame: FeatureFrame; shaped: ShapedFrame; jumps: Jumps; holds: Holds | null; isBase: boolean; differs: boolean }
 /** A frame waiting to be committed to React: its glyphs are being computed. `turn`: the Thorn turns it shows. */
 type Next = { shown: Shown; params: DrivenParams | null; letters: LetterFrame | null; look: LookChanges | null; turn: number }
+
+/**
+ * The planner's flash budget (planner.ts): also notes the time of every edge it lets through, so each planned commit
+ * carries the edges that reach the screen with it, and the page's budget can count them (adopt).
+ */
+class RecordingBudget extends FlashBudget {
+  private recorded: number[] = []
+
+  take(time: number): boolean {
+    const allowed = super.take(time)
+    if (allowed) this.note(time)
+    return allowed
+  }
+
+  spend(time: number): void {
+    super.spend(time)
+    this.note(time)
+  }
+
+  /** The edges noted since the last call. */
+  drain(): number[] {
+    const out = this.recorded
+    this.recorded = []
+    return out
+  }
+
+  private note(time: number) {
+    const last = this.recorded[this.recorded.length - 1]
+    // One measured frame's edges count once (FlashBudget's own rule).
+    if (last === undefined || Math.abs(time - last) >= 1) this.recorded.push(time)
+  }
+}
+
+/**
+ * What a planned commit leaves the page's scheduler with (AdoptedState, opaque outside this file): whether Sound
+ * drives, the frame as shown (Freeze, the status), the markers and seeds, and the flash edges since the last commit
+ * (in the planner's frame times: media ms + PLANNER_CLOCK_OFFSET).
+ */
+interface PlannedState extends AdoptedState {
+  readonly brand: 'adopted'
+  driving: boolean
+  shown: Shown | null
+  holdsCommit: boolean
+  positions: ReadonlyMap<string, number>
+  seeds: ReadonlyMap<string, number>
+  edges: readonly number[]
+}
+
+/** The flash edges (planner frame times) a planned commit brings to the screen: selection keeps such commits. */
+export function plannedEdges(adopted: AdoptedState): readonly number[] {
+  return (adopted as PlannedState).edges
+}
+
+/** Planner frame times are media ms plus this (JumpTracker ignores frames at time 0). */
+export const PLANNER_CLOCK_OFFSET = 1
+
+/** What the scheduler is fed besides the frames (setBase, setMappings, setSlots): the planner mirrors it. */
+export interface LiveInputs {
+  base: DrivenParams | null
+  hasFont: boolean
+  mappings: readonly Mapping[]
+  drive: boolean
+  response: ResponseSettings
+  slots: LetterSlots
+}
+
+export interface LiveOptions {
+  /** Note the flash edges for planned commits (the planner's scheduler). */
+  recordEdges?: boolean
+}
 
 /** The levels letters show besides the shared one, for the flash limit: every level's offset is measured from `base`. */
 export interface LevelSpread {
@@ -393,9 +471,9 @@ export class LiveScheduler {
   readonly seeds: LiveValueStore
   readonly status = new StatusStore()
   /** The flash limit's budget: the sliders' turns and the seeds' jumps together. Kept when Sound stops driving. */
-  private readonly budget = new FlashBudget()
-  private readonly flash = new FlashLimiter(this.budget)
-  private readonly jumpTracker = new JumpTracker(this.budget)
+  private readonly budget: FlashBudget
+  private readonly flash: FlashLimiter
+  private readonly jumpTracker: JumpTracker
   private readonly shapingTracker = new ShapingTracker()
 
   private base: DrivenParams | null = null
@@ -477,10 +555,23 @@ export class LiveScheduler {
   private slowSince: number | null = null
   /** Smoothed milliseconds from a measured frame to its commit; null before the first. Kept when Sound stops. */
   private latency: number | null = null
+  /** Following the director's planned commits (follow): frames are kept, nothing is committed. */
+  private following = false
+  /** When the last planned commit was adopted (page time), for the frame rate. */
+  private lastAdoptAt: number | null = null
+  /** The newest planned edge counted into the budget (page time). */
+  private lastImported = -Infinity
+  private readonly inputListeners = new Set<Listener>()
 
-  constructor(private readonly deps: LiveDeps) {
+  constructor(
+    private readonly deps: LiveDeps,
+    options: LiveOptions = {},
+  ) {
     this.positions = new LiveValueStore(deps, (position) => Math.round(position * POSITION_GRID) / POSITION_GRID)
     this.seeds = new LiveValueStore(deps, (seed) => seed)
+    this.budget = options.recordEdges ? new RecordingBudget() : new FlashBudget()
+    this.flash = new FlashLimiter(this.budget)
+    this.jumpTracker = new JumpTracker(this.budget)
   }
 
   /**
@@ -495,6 +586,7 @@ export class LiveScheduler {
     }
     this.base = base
     this.hasFont = hasFont
+    this.inputsChanged()
     this.update()
   }
 
@@ -514,6 +606,7 @@ export class LiveScheduler {
       this.screenTrail = []
     }
     this.response = response
+    this.inputsChanged()
     this.update()
   }
 
@@ -529,11 +622,14 @@ export class LiveScheduler {
       this.screenTrail = []
     }
     this.slots = slots
+    this.inputsChanged()
     if ((this.levels || this.turns.groups) && this.driving) this.update()
   }
 
   setFrame(frame: FeatureFrame) {
     this.frame = frame
+    // Following planned commits: the frame is only kept, for when the live path takes over again.
+    if (this.following) return
     // Shaping and jumps are counted only while Sound can drive; stop() forgets them.
     if (this.base && this.canDrive()) {
       this.shaped = this.shapingTracker.advance(frame, this.mappings)
@@ -603,7 +699,92 @@ export class LiveScheduler {
 
   /** Stops everything (the app unmounted). */
   dispose() {
+    this.following = false
     this.stop()
+  }
+
+  /** What the scheduler is fed besides the frames, for the planner. */
+  inputs(): LiveInputs {
+    return { base: this.base, hasFont: this.hasFont, mappings: this.mappings, drive: this.drive, response: this.response, slots: this.slots }
+  }
+
+  /** Calls `listener` whenever the inputs change; returns the unsubscribe function. */
+  subscribeInputs(listener: Listener): () => void {
+    this.inputListeners.add(listener)
+    return () => {
+      this.inputListeners.delete(listener)
+    }
+  }
+
+  /** Whether the scheduler follows planned commits (follow). */
+  isFollowing(): boolean {
+    return this.following
+  }
+
+  /**
+   * Follows planned commits (true): frames are kept but neither shaped nor committed, and adopt sets what the scheduler
+   * shows. Back (false): shaping starts afresh (as after a seek), and the live path goes on from the newest frame.
+   */
+  follow(on: boolean) {
+    if (on === this.following) return
+    this.following = on
+    if (this.timer !== null) this.deps.clearTimer(this.timer)
+    this.timer = null
+    this.awaiting = null
+    this.lastAdoptAt = null
+    if (on) return
+    this.seeked()
+    this.latest = null
+    this.update()
+  }
+
+  /**
+   * Takes on a planned commit the director is about to hand to React: its markers, seeds, status and Freeze state, and
+   * its flash edges into the budget (`toWall` maps planner frame times to page time). Returns the commit's seq.
+   */
+  adopt(adopted: AdoptedState, toWall: (plannerTime: number) => number): number {
+    const state = adopted as PlannedState
+    const now = this.deps.now()
+    for (const edge of state.edges) {
+      const at = toWall(edge)
+      if (at <= this.lastImported) continue
+      this.budget.spend(at)
+      this.lastImported = at
+    }
+    if (this.lastAdoptAt !== null) this.period += SMOOTHING * (Math.max(MIN_COMMIT_MS, now - this.lastAdoptAt) - this.period)
+    this.lastAdoptAt = now
+    this.driving = state.driving
+    this.committed = state.shown
+    this.holdsCommit = state.holdsCommit
+    this.latest = null
+    if (state.driving) {
+      this.positions.set(state.positions)
+      this.seeds.set(state.seeds)
+    } else {
+      this.positions.clear()
+      this.seeds.clear()
+    }
+    this.publishStatus()
+    return ++this.seq
+  }
+
+  /** The planner's scheduler, at a commit: what the page adopts with it (and the edges since the last commit). */
+  plannedState(): AdoptedState {
+    const latest = this.latest
+    const state: PlannedState = {
+      brand: 'adopted',
+      driving: this.driving,
+      shown: this.committed,
+      holdsCommit: this.holdsCommit,
+      positions: latest?.modulated.positions ?? new Map(),
+      seeds: latest?.modulated.seeds ?? new Map(),
+      edges: this.budget instanceof RecordingBudget ? this.budget.drain() : [],
+    }
+    return state
+  }
+
+  private inputsChanged() {
+    for (const listener of this.inputListeners) listener()
   }
 
   /** A font is loaded, the slider values are known, Drive letters is on, Strength is above 0, and a source runs. */
@@ -612,6 +793,8 @@ export class LiveScheduler {
   }
 
   private update() {
+    // Following planned commits: the inputs are kept (the planner reads them), nothing else changes.
+    if (this.following) return
     const base = this.base
     if (!base || !this.canDrive()) return this.stop()
     const unlimited = modulate(base, this.frame, this.mappings, this.jumps, this.response, this.shaped.values)
@@ -1001,7 +1184,11 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
     engine.subscribeSeeks(() => live.seeked()),
     geometryClient.subscribeIdle(() => live.idle()),
   ]
+  // A file plays from its precomputed timeline (director.ts); the microphone, and gaps in the plan, stay live.
+  const disconnectDirector = RUNTIME_FLAGS.precompute ? connectDirector(live, (commit) => commitTo?.(commit)) : null
   return () => {
+    // The director first: it hands back to the live path, which then stops like before.
+    disconnectDirector?.()
     for (const off of unsubscribe) off()
     // Stop first: stop() hands React null (exact restore) through commitTo, which must still point here.
     live.dispose()
@@ -1099,10 +1286,15 @@ export function freezeLive(dispatch: Dispatch<Action>): void {
   live.pauseSound()
 }
 
+/** The delay a recording's audio is given while planned commits show: they are timed to the sound as heard. */
+const FOLLOWING_LATENCY_MS = Math.max(40, 1000 / 60)
+
 /**
  * The smoothed delay (ms) from a measured sound frame to its letters reaching React; null before the first
- * live frame. The last value is kept while Sound is not driving.
+ * live frame. The last value is kept while Sound is not driving. While planned commits show (the director), the
+ * letters already line up with the sound as heard: about one frame.
  */
 export function liveLatencyMs(): number | null {
+  if (scheduler?.isFollowing()) return FOLLOWING_LATENCY_MS
   return scheduler?.latencyMs() ?? null
 }
