@@ -5,8 +5,12 @@ import type { SpecimenScene } from '../specimen/scene'
 import CanvasSizeControls from './CanvasSizeControls'
 import { useGeometryProblem } from '../state/geometryClient'
 import type { DocumentState, OutlineView, ViewParams } from '../state/types'
+import type { GlideStore } from '../state/useGlide'
+import { RENDERER_CHOICE } from '../render/createRenderer'
 import ErrorBoundary from './ErrorBoundary'
 import FileDropTarget from './FileDropTarget'
+import Glided from './Glided'
+import GlyphSurface from './GlyphSurface'
 import SpecimenView from './SpecimenView'
 import { clampZoom } from './usePanZoom'
 import Icon from './Icon'
@@ -42,6 +46,11 @@ interface CanvasViewportProps {
   onOpenGoogleFonts: () => void
   /** About the session restored from the last visit (a font to import again), or null. */
   note?: string | null
+  /**
+   * Glide's store, for a canvas renderer (?render=canvas or webgl): `scene` is then the scene glided into, and the
+   * glyphs are drawn from the store frame by frame. Without it (the SVG renderer), `scene` is the frame as shown.
+   */
+  glide?: GlideStore
 }
 
 const SIZE_OPEN_KEY = 'none-curve:canvas-size-open'
@@ -121,11 +130,16 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     onLocalFile,
     onOpenGoogleFonts,
     note,
+    glide,
   } = props
   const { font, selectedGlyph } = document
   // The geometry worker cannot compute glyphs (it could not start, or keeps failing): the glyphs show as failed.
   const problem = useGeometryProblem()
   const [dragging, setDragging] = useState(false)
+  // A canvas renderer that could not start (no 2D context either): the SVG renderer draws the glyphs instead.
+  const [svgFallback, setSvgFallback] = useState(false)
+  const onRendererFallback = useCallback(() => setSvgFallback(true), [])
+  const canvasRenderer = glide !== undefined && RENDERER_CHOICE !== 'svg' && !svgFallback
   // The canvas size drawer below the canvas; remembered per browser.
   const [sizeOpen, setSizeOpen] = useState(() => {
     try {
@@ -163,6 +177,28 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     const file = e.dataTransfer.files[0]
     if (file) onLocalFile(file)
   }
+
+  // The SVG renderer's canvas for the scene as shown.
+  const specimen = (shown: SpecimenScene) =>
+    interactive && (
+      <SpecimenView
+        font={font}
+        scene={shown}
+        layout={layout}
+        ink={palette.ink}
+        paper={palette.paper}
+        highlightFrom={ownPalette}
+        transparent={palette.transparent}
+        view={view}
+        gridSize={gridSize}
+        selectedGlyph={highlightSelection ? selectedGlyph : null}
+        label={`Text, ${outlineDescription}`}
+        onViewChange={onViewChange}
+        onSelectGlyph={onSelectGlyph}
+        onClearSelection={onClearHighlight}
+        onMoveText={onMoveText}
+      />
+    )
 
   return (
     <section
@@ -229,23 +265,34 @@ export default function CanvasViewport(props: CanvasViewportProps) {
 
         {interactive && (
           <ErrorBoundary resetKey={`${font.id}:text`} label="The canvas">
-            <SpecimenView
-              font={font}
-              scene={scene}
-              layout={layout}
-              ink={palette.ink}
-              paper={palette.paper}
-              highlightFrom={ownPalette}
-              transparent={palette.transparent}
-              view={view}
-              gridSize={gridSize}
-              selectedGlyph={highlightSelection ? selectedGlyph : null}
-              label={`Text, ${outlineDescription}`}
-              onViewChange={onViewChange}
-              onSelectGlyph={onSelectGlyph}
-              onClearSelection={onClearHighlight}
-              onMoveText={onMoveText}
-            />
+            {glide === undefined ? (
+              specimen(scene)
+            ) : canvasRenderer ? (
+              <GlyphSurface
+                font={font}
+                scene={scene}
+                glide={glide}
+                layout={layout}
+                ink={palette.ink}
+                paper={palette.paper}
+                highlightFrom={ownPalette}
+                transparent={palette.transparent}
+                view={view}
+                gridSize={gridSize}
+                selectedGlyph={highlightSelection ? selectedGlyph : null}
+                label={`Text, ${outlineDescription}`}
+                choice={RENDERER_CHOICE === 'canvas' ? 'canvas' : 'webgl'}
+                onFallback={onRendererFallback}
+                onViewChange={onViewChange}
+                onSelectGlyph={onSelectGlyph}
+                onClearSelection={onClearHighlight}
+                onMoveText={onMoveText}
+              />
+            ) : (
+              <Glided store={glide} scene={scene}>
+                {(shown) => specimen(shown ?? scene)}
+              </Glided>
+            )}
             <p className="canvas-badge" aria-hidden="true">
               {scene.glyphCount} glyphs · {outlineDescription}
               {/* Glyphs still being computed in the background keep their previous shape meanwhile. */}

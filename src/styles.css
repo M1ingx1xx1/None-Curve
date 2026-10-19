@@ -1909,6 +1909,23 @@ input.number-field {
   height: 100%;
 }
 
+/* The canvas renderers' glyph layer (GlyphSurface, PreviewSurface): canvases stacked over the SVG underlay, the
+   pointer left to the view around them, which hit-tests the glyphs itself. */
+.glyph-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The preview's artboard on a canvas renderer: the paper or checkerboard, with nothing showing outside it. */
+.preview-artboard {
+  position: absolute;
+  overflow: hidden;
+}
+
 .metric-lines line {
   stroke: var(--artboard-ink, var(--guide));
   stroke-opacity: 0.3;
