@@ -21,6 +21,8 @@ interface TextPreviewProps {
   look: PreviewLook
   /** The canvas's Fill: off, the preview shows outlines only, as the exports draw them. */
   fill: boolean
+  /** Sound moves the letters: their shapes are only rounded, not checked for export (no export uses them). */
+  live?: boolean
   onLookChange: (look: PreviewLook) => void
   /** Reports the preview's scale (screen pixels per font unit), so exports can size the blur alike. */
   onScaleChange: (pixelsPerUnit: number) => void
@@ -43,6 +45,7 @@ export default function TextPreview({
   precision,
   look,
   fill,
+  live = false,
   onLookChange,
   onScaleChange,
 }: TextPreviewProps) {
@@ -111,6 +114,7 @@ export default function TextPreview({
             {scale > 0 && (
               <ExportedArtboard
                 scene={scene}
+                checked={!live}
                 layout={layout}
                 width={artboard.width}
                 height={artboard.height}

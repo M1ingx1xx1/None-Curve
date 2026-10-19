@@ -30,6 +30,7 @@
 // does not pile up anchors.
 
 import type { GlyphMotion, Point, PolygonContour, PolygonGlyph } from '../geometry/types'
+import type { PlanData } from './planData'
 import { planWhorlMesh, type MeshGlide, type MeshPose } from './whorlGlide'
 import { chooseTrajectory, STRAIGHT, TRAJECTORY_MODELS, WHORL_MODEL, type Correspondence, type TrackPath, type TrajectoryModel } from './trajectory'
 
@@ -300,6 +301,8 @@ export interface MorphPlan {
   ys: Float64Array
   /** Whorl on its own, glided by its mesh (whorlGlide.ts) instead of by tracks. */
   mesh?: MeshGlide
+  /** The plan as data (planData.ts); every plan has it once P-B lands. */
+  data?: PlanData
 }
 
 /** Pairs listed as plain arrays while they are built. */

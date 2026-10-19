@@ -711,7 +711,7 @@ export class GeometryClient {
       this.endIfComplete(inFlight)
     } else if (message.type === 'failed') {
       this.failed(slot, message.requestId, message.reason, message.message)
-    } else if (message.fontId === this.fontId) {
+    } else if (message.type === 'font-error' && message.fontId === this.fontId) {
       this.fontProblem = { fontId: message.fontId, message: `The geometry worker could not open this font (${message.message}).` }
       this.notify()
     }

@@ -9,6 +9,7 @@
 // is off then anyway).
 
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { GlideFrame } from '../render/types'
 import { mappingStore } from '../sound/mappingStore'
 import { SceneGlide } from '../specimen/glide'
 import type { SpecimenScene } from '../specimen/scene'
@@ -18,6 +19,13 @@ export interface GlideSnapshot {
   target: SpecimenScene | null
   /** The scene to draw now. */
   scene: SpecimenScene | null
+  /** The same frame for the canvas renderers (render/types.ts); morphs stay null until Glide hands them over. */
+  frame: GlideFrame
+}
+
+/** A frame with nothing morphing: `scene` as it is. */
+function stillFrame(target: SpecimenScene | null, scene: SpecimenScene | null): GlideFrame {
+  return { target, layout: scene, morphs: null, scene: () => scene }
 }
 
 export interface GlideClock {
@@ -34,7 +42,7 @@ const pageClock: GlideClock = {
 
 export class GlideStore {
   private readonly glide = new SceneGlide()
-  private snapshot: GlideSnapshot = { target: null, scene: null }
+  private snapshot: GlideSnapshot = { target: null, scene: null, frame: stillFrame(null, null) }
   private listeners = new Set<() => void>()
   private handle: number | null = null
   private lastLive = false
@@ -68,7 +76,9 @@ export class GlideStore {
   private tick = () => {
     this.handle = null
     const now = this.clock.now()
-    this.snapshot = { target: this.glide.current, scene: this.glide.frame(now) }
+    const target = this.glide.current
+    const scene = this.glide.frame(now)
+    this.snapshot = { target, scene, frame: stillFrame(target, scene) }
     for (const listener of this.listeners) listener()
     if (this.glide.moving(now)) this.schedule()
   }
