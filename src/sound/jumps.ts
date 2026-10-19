@@ -114,6 +114,15 @@ export class JumpTracker {
   }
 
   /**
+   * Goes on from `jumps` (the precomputed commit on screen, live.ts follow): the seeds stay where the screen shows them
+   * instead of jumping back to this tracker's own count. The accumulators are kept; the next frame's time step is 0.
+   */
+  restore(jumps: ReadonlyMap<string, number>): void {
+    this.current = jumps
+    this.lastTime = null
+  }
+
+  /**
    * Forgets every jump and accumulator (Sound stopped driving): the seeds go back to their fields' values. The
    * budget keeps its edges, and going back spends one (at the last frame's time) when a seed had moved, so a quick
    * pause and play (or Drive letters off and on) cannot let a second burst of jumps through.

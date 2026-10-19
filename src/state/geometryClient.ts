@@ -389,11 +389,6 @@ export class GeometryClient {
     return this.keys.get(polygon) ?? null
   }
 
-  /** The font the results held here belong to (the ahead lane works for it), or null. */
-  currentFontId(): string | null {
-    return this.fontId
-  }
-
   /** The ahead lane's listener (aheadGeometry.ts); one at a time. */
   setAheadListener(listener: AheadListener | null) {
     this.aheadListener = listener

@@ -16,7 +16,8 @@ import { geometryClient, shownGlyphs } from '../state/geometryClient'
 import { getSoundEngine } from './engine'
 import { FeatureTimeline } from './featureTimeline'
 import { DECIMATION_LEVELS, LineageBook, selectCommits, stepsOf } from './lineage'
-import { PLANNER_CLOCK_OFFSET, type LiveCommit, type LiveInputs } from './live'
+import { FLASH_LIMITS } from './flash'
+import { PLANNER_CLOCK_OFFSET, plannedEdges, type LiveCommit, type LiveInputs } from './live'
 import { mappingStore } from './mappingStore'
 import { PlaybackPlanner } from './planner'
 import { PRECOMPUTE_LIMITS, type AdoptedState, type CommitTiming, type PlannedCommit, type Playhead } from './timelineTypes'
@@ -26,8 +27,10 @@ import type { FeatureSettings, ResponseSettings } from './types'
 export interface DirectorScheduler {
   follow(on: boolean): void
   isFollowing(): boolean
-  adopt(adopted: AdoptedState, toWall: (plannerTime: number) => number): number
+  adopt(adopted: AdoptedState, toWall: (plannerTime: number) => number, edges?: readonly number[]): number
   inputs(): LiveInputs
+  /** The flash edges the page's budget holds at page time `time` or later. */
+  recentEdges(time: number): number
 }
 
 /** What the director needs of the planner (PlaybackPlanner). */
@@ -93,6 +96,8 @@ export class PlaybackDirector {
   /** The commit on screen (its seq and media time), while following. */
   private shownSeq = -1
   private shownMs = -Infinity
+  /** The plan generation of the commit on screen (−1: none since following began). */
+  private shownGeneration = -1
   /**
    * Since when (page time) the screen has waited: the commit due is not ready (or the plan does not reach the
    * playhead) and nothing newer was shown since.
@@ -148,6 +153,8 @@ export class PlaybackDirector {
           break
         }
       }
+      // A new generation of the plan did not count the edges the screen showed: it waits until they fit.
+      if (pick >= 0 && selected[pick].generation !== this.shownGeneration && !this.flashFits(selected, pick, ph, now)) pick = -1
       if (pick >= 0) {
         this.show(selected, pick, ph)
         // The screen moved on: a commit still late waits from now (geometry slower than 30 Hz still shows each).
@@ -169,7 +176,7 @@ export class PlaybackDirector {
       if (!ahead && !late && due + 1 < selected.length) ready(due + 1)
     } else {
       this.counters.live++
-      if (due >= 0 && this.canEnter(ahead, selected, due, ph)) {
+      if (due >= 0 && this.canEnter(ahead, selected, due, ph) && this.flashFits(selected, due, ph, now)) {
         deps.scheduler.follow(true)
         this.holdSince = null
         this.shownSeq = -1
@@ -253,6 +260,7 @@ export class PlaybackDirector {
     if (!this.deps.scheduler.isFollowing()) return
     this.shownSeq = -1
     this.shownMs = -Infinity
+    this.shownGeneration = -1
     this.deps.scheduler.follow(false)
   }
 
@@ -294,13 +302,41 @@ export class PlaybackDirector {
     return true
   }
 
-  /** Hands commit `i` of the selection to React, adopted first. */
+  /**
+   * The flash limit across a switch of what the screen follows (from the live path into the plan, or to a new
+   * generation of it): the edges the page's budget counted in the last window (what the screen showed) and the planned
+   * edges that will show within the next must together fit one window (flash.ts), so no window across the switch holds
+   * more. Without recent edges nothing needs checking; otherwise the plan must reach a window past the playhead.
+   */
+  private flashFits(selected: readonly PlannedCommit[], i: number, ph: Playhead, now: number): boolean {
+    const recent = this.deps.scheduler.recentEdges(now - FLASH_LIMITS.windowMs)
+    if (recent === 0) return true
+    const planner = this.deps.planner
+    const until = ph.mediaMs + FLASH_LIMITS.windowMs
+    if (!planner.isDone() && planner.plannedUntil() < until) return false
+    let planned = 0
+    for (const commit of planner.commits) {
+      if (commit.mediaMs >= selected[i].mediaMs && commit.mediaMs <= until) planned += plannedEdges(commit.adopted).length
+    }
+    return recent + planned <= 2 * FLASH_LIMITS.maxFlashes
+  }
+
+  /**
+   * Hands commit `i` of the selection to React, adopted first. Planned commits skipped since the one on screen (not
+   * selected, or late) bring their flash edges along, so the page's budget counts every edge the screen shows.
+   */
   private show(selected: readonly PlannedCommit[], i: number, ph: Playhead) {
     const commit = selected[i]
     const toWall = (plannerTime: number) => ph.wallMs - (ph.mediaMs - (plannerTime - PLANNER_CLOCK_OFFSET))
-    const seq = this.deps.scheduler.adopt(commit.adopted, toWall)
+    let edges: number[] | undefined
+    if (this.shownMs > -Infinity && commit.generation === this.shownGeneration) {
+      edges = []
+      for (const c of this.deps.planner.commits) if (c.mediaMs > this.shownMs && c.mediaMs <= commit.mediaMs) edges.push(...plannedEdges(c.adopted))
+    }
+    const seq = this.deps.scheduler.adopt(commit.adopted, toWall, edges)
     this.shownSeq = commit.seq
     this.shownMs = commit.mediaMs
+    this.shownGeneration = commit.generation
     this.counters.shown++
     if (!commit.commit) {
       this.deps.commit(null)
@@ -440,36 +476,54 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
     settings: () => engine.getState().settings,
   })
   let frame: number | null = null
+  // A tick that throws stops the director until the next file: the live path plays on, and the error shows once.
+  let failed = false
   const loop = () => {
     frame = requestAnimationFrame(loop)
-    director.tick()
+    try {
+      director.tick()
+    } catch (error) {
+      console.error('Sound: precomputed playback stopped; the live path goes on', error)
+      failed = true
+      sync()
+    }
   }
   const sync = () => {
     const s = engine.getState()
-    const run = s.playing && s.source === 'file' && timeline.isLoaded()
+    const run = !failed && s.playing && s.source === 'file' && timeline.isLoaded()
     if (run) {
       if (frame === null && typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(loop)
       return
     }
     if (frame !== null) cancelAnimationFrame(frame)
     frame = null
-    director.stop()
+    try {
+      director.stop()
+    } catch (error) {
+      console.error('Sound: precomputed playback could not hand back', error)
+    }
   }
   let loading = 0
   const off = [
     engine.subscribeState(sync),
     engine.subscribeTimelineEvents((event) => {
       const token = ++loading
+      failed = false
       director.reset()
-      if (event.type === 'unload') {
+      // A file longer than precompute keeps in memory is not even decoded: it plays on the live path.
+      const { duration } = engine.getState()
+      if (event.type === 'unload' || !(duration <= PRECOMPUTE_LIMITS.maxSeconds)) {
         timeline.clear()
         sync()
         return
       }
       const at = engine.playhead()?.mediaMs ?? 0
-      void timeline.load(event.file, event.decode, engine.getState().settings, at).then(() => {
-        if (token === loading) sync()
-      })
+      timeline.load(event.file, event.decode, engine.getState().settings, at).then(
+        () => {
+          if (token === loading) sync()
+        },
+        (error) => console.error('Sound: the file could not be precomputed; it plays live', error),
+      )
     }),
   ]
   return () => {

@@ -233,10 +233,6 @@ export class SoundEngine {
       this.timelineListeners.delete(listener)
     }
   }
-  /** The loaded file (kept for the precomputed timeline), or null. */
-  fileBytes(): File | null {
-    return this.file
-  }
   /**
    * Where the file's playback is, as heard: the element's position smoothed (MediaClock), minus the context's output
    * latency. Null without a loaded file or when File is not the source.

@@ -49,6 +49,13 @@ export class FlashBudget {
     this.edges.push(time)
   }
 
+  /** How many of the remembered edges are at `time` or later (the precompute director's handover check). */
+  countSince(time: number): number {
+    let count = 0
+    for (let i = this.edges.length - 1; i >= 0 && this.edges[i] >= time; i--) count++
+    return count
+  }
+
   private sameFrame(time: number): boolean {
     const last = this.edges[this.edges.length - 1]
     return last !== undefined && Math.abs(time - last) < SAME_FRAME_MS

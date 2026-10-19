@@ -22,7 +22,7 @@ const STEP = 1000 / 30
 const lastAt = (commits: readonly PlannedCommit[], ms: number) => commits.filter((c) => c.mediaMs <= ms).at(-1)!
 const INPUTS: LiveInputs = { base: BASE, hasFont: true, mappings: [], drive: true, response: NEUTRAL_RESPONSE, slots: NO_SLOTS }
 
-function planned(seq: number, mediaMs: number, generation = 1): PlannedCommit {
+function planned(seq: number, mediaMs: number, generation = 1, edges: number[] = []): PlannedCommit {
   const job: FrameJob = { params: BASE, key: `k${seq}` }
   return {
     generation,
@@ -32,7 +32,7 @@ function planned(seq: number, mediaMs: number, generation = 1): PlannedCommit {
     jobs: [job],
     keys: [`k${seq}`, `k${seq}`],
     indices: Int32Array.from([3, 4]),
-    adopted: { brand: 'adopted', edges: [] } as unknown as AdoptedState,
+    adopted: { brand: 'adopted', edges } as unknown as AdoptedState,
   }
 }
 
@@ -43,7 +43,10 @@ class FakePlanner implements DirectorPlanner {
   reseeds: number[] = []
   until = 0
   private seq = 0
-  constructor(private readonly lengthMs = 20_000) {
+  constructor(
+    private readonly lengthMs = 20_000,
+    private readonly edgesOf: (seq: number, mediaMs: number) => number[] = () => [],
+  ) {
     this.fill(0)
   }
   setInputs(_: LiveInputs, atMs: number) {
@@ -68,18 +71,33 @@ class FakePlanner implements DirectorPlanner {
   }
   private fill(from: number) {
     this.commits = []
-    for (let t = from; t < this.lengthMs; t += STEP) this.commits.push(planned(++this.seq, t, this.generation))
+    for (let t = from; t < this.lengthMs; t += STEP) {
+      const seq = ++this.seq
+      this.commits.push(planned(seq, t, this.generation, this.edgesOf(seq, t)))
+    }
     this.until = this.lengthMs
   }
 }
 
-function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefetchMisses?: Set<string>; fetchMs?: number } = {}) {
+function rig(
+  options: {
+    ahead?: boolean
+    ready?: (seq: number) => boolean
+    prefetchMisses?: Set<string>
+    fetchMs?: number
+    /** The page budget's edges in the last window. */
+    recentEdges?: () => number
+    /** Each planned commit's flash edges (planner frame times). */
+    edgesOf?: (seq: number, mediaMs: number) => number[]
+  } = {},
+) {
   let now = 1000
   let ph: Playhead = { mediaMs: 0, wallMs: now, playing: true, generation: 0 }
   let following = false
   const log: string[] = []
   const commits: (LiveCommit | null)[] = []
-  const planner = new FakePlanner()
+  const planner = new FakePlanner(undefined, options.edgesOf)
+  const adoptedEdges: (readonly number[] | undefined)[] = []
   let ready = options.ready ?? (() => true)
   const windows: AheadWindow[] = []
   const released: number[] = []
@@ -114,11 +132,13 @@ function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefe
         log.push(on ? 'follow' : 'back')
       },
       isFollowing: () => following,
-      adopt: (_, toWall) => {
+      adopt: (_, toWall, edges) => {
         log.push(`adopt ${Math.round(toWall(PLANNER_CLOCK_OFFSET))}`)
+        adoptedEdges.push(edges)
         return ++adoptSeq
       },
       inputs: () => INPUTS,
+      recentEdges: () => options.recentEdges?.() ?? 0,
     },
     commit: (commit) => {
       commits.push(commit)
@@ -159,6 +179,7 @@ function rig(options: { ahead?: boolean; ready?: (seq: number) => boolean; prefe
     windows,
     released,
     prefetched,
+    adoptedEdges,
     play,
     get following() {
       return following
@@ -317,6 +338,50 @@ describe('playback director', () => {
   })
 })
 
+describe('the director and the flash limit', () => {
+  // A planned edge on every 6th commit: about 5 a second, 6 within a window.
+  const edgesOf = (seq: number, mediaMs: number) => (seq % 6 === 0 ? [mediaMs + PLANNER_CLOCK_OFFSET] : [])
+
+  it('takes over only when the edges the screen showed lately and the planned ones fit one window', () => {
+    let recent = 3
+    const r = rig({ recentEdges: () => recent, edgesOf })
+    r.play(400)
+    // 3 recent and 6 planned within the next window: more than 2 × maxFlashes.
+    expect(r.following).toBe(false)
+    recent = 0
+    r.play(420)
+    expect(r.following).toBe(true)
+  })
+
+  it('takes over at once without recent edges, and a new generation waits for room too', () => {
+    let recent = 0
+    const r = rig({ recentEdges: () => recent, edgesOf })
+    r.play(300)
+    expect(r.following).toBe(true)
+    const shown = r.commits.length
+    recent = 6
+    r.planner.reseed(r.ph.mediaMs)
+    r.play(300 + PRECOMPUTE_LIMITS.holdMs / 2)
+    // Nothing of the new generation shows while the budget is full.
+    expect(r.commits.length).toBe(shown)
+    r.play(300 + PRECOMPUTE_LIMITS.holdMs + 60)
+    expect(r.following).toBe(false)
+  })
+
+  it('brings the edges of planned commits it skipped along with the next one it shows', () => {
+    const r = rig({ edgesOf })
+    r.play(300)
+    expect(r.following).toBe(true)
+    // The next commit with an edge is not ready; the one after it is.
+    const edged = r.planner.commits.find((c) => c.mediaMs > 300 && plannedEdges(c.adopted).length > 0)!
+    r.setReady((seq) => seq !== edged.seq)
+    r.play(edged.mediaMs + STEP + 1)
+    expect(r.commits.some((c) => c!.timing!.seq === edged.seq)).toBe(false)
+    const edges = r.adoptedEdges.at(-1)!
+    expect(edges).toContain(plannedEdges(edged.adopted)[0])
+  })
+})
+
 describe('the page scheduler following planned commits', () => {
   const mapping: Mapping = { id: 'm', enabled: true, feature: 'level', target: 'distortion.amount', depth: 1 }
   const seedMapping: Mapping = { id: 's', enabled: true, feature: 'level', target: 'distortion.seed', depth: 1 }
@@ -375,6 +440,28 @@ describe('the page scheduler following planned commits', () => {
     // A level no planned commit showed.
     p.live.setFrame({ ...frameAt(3), level: 0.5, time: 6000 })
     expect(p.commits.length).toBeGreaterThan(before)
+  })
+
+  it('hands back with the flash state on screen: a move back from the planned sliders is a turn, and the seeds stay', () => {
+    const frames = Array.from({ length: 180 }, (_, k) => frameAt(k))
+    const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
+    planner.setInputs(inputs, 0)
+    planner.ensure(Infinity, Infinity)
+    // A commit in a loud stretch after the sliders turned, with the seed moved on by its jumps.
+    const high = planner.commits.find(
+      (c) => c.mediaMs > 1000 && c.commit?.params && frames[Math.round((c.mediaMs * 60) / 1000)].level > 0.5 && c.commit.params.distortion.seed !== inputs.base!.distortion.seed,
+    )!
+    expect(high).toBeDefined()
+    const p = page()
+    p.at(6000)
+    p.live.follow(true)
+    // Its own edges far in the past, apart from the one counted below.
+    p.live.adopt(high.adopted, (t) => t - 100_000)
+    // Quiet now: the slider falls back from where the screen shows it.
+    p.live.setFrame({ ...frameAt(15), time: 6000 })
+    p.live.follow(false)
+    expect(p.live.recentEdges(5999)).toBe(1)
+    expect(p.commits.at(-1)?.params?.distortion.seed).toBe(high.commit!.params!.distortion.seed)
   })
 
   it('stops with the sliders’ own when the sound stops after handing back', () => {

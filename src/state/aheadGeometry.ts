@@ -15,6 +15,7 @@ import type { PolygonGlyph } from '../geometry/types'
 import { planMorph, settleInBetween, type MorphPlan } from '../specimen/morph'
 import { decodePlan, encodeGlyph } from '../specimen/planCodec'
 import type { PlanData, PlanFrom } from '../specimen/planData'
+import { PRECOMPUTE_LIMITS } from '../sound/timelineTypes'
 import {
   setAheadGeometry,
   setPlanSource,
@@ -34,6 +35,8 @@ export const AHEAD_PAGE_LIMITS = {
   rateWeight: 0.2,
   /** The rate assumed before the lane has computed anything (glyphs per second). */
   defaultRate: 100,
+  /** Polygon points the page's ahead store may hold; past it, only the window's nearest stretch is worked on and kept. */
+  maxPoints: 1_500_000,
 } as const
 
 /** A commit's chain step as the worker sent it. */
@@ -202,7 +205,17 @@ export class PageAhead implements AheadGeometry, PlanSource {
     const items: AheadItem[] = []
     let glyphs = 0
     const parts: string[] = []
-    for (const commit of window.commits) {
+    let commits = window.commits
+    if (commits.length && client.aheadPoints() > AHEAD_PAGE_LIMITS.maxPoints) {
+      // Over the memory budget: the window past its shortest horizon waits (and its glyphs go) until the near part is shown.
+      const near = commits[0].mediaMs + PRECOMPUTE_LIMITS.geometryAheadMs[0]
+      commits = commits.filter((c) => c.mediaMs <= near)
+      const kept = new Set<string>()
+      for (const commit of commits) for (const { key, indices } of commit.jobs) for (const index of indices) kept.add(pairId(key, index))
+      client.retainAhead((key, index) => kept.has(pairId(key, index)))
+      for (const id of this.held) if (!kept.has(id)) this.held.delete(id)
+    }
+    for (const commit of commits) {
       for (const { params, key, indices } of commit.jobs) {
         // With Glide on, a step needs its glyph in the worker's own store too.
         const missing = indices.filter((index) => !client.has(key, index) || (glide && !this.held.has(pairId(key, index))))

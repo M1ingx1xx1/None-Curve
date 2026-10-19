@@ -171,8 +171,9 @@ class RecordingBudget extends FlashBudget {
 
 /**
  * What a planned commit leaves the page's scheduler with (AdoptedState, opaque outside this file): whether Sound
- * drives, the frame as shown (Freeze, the status), the markers and seeds, and the flash edges since the last commit
- * (in the planner's frame times: media ms + PLANNER_CLOCK_OFFSET).
+ * drives, the frame as shown (Freeze, the status), the markers and seeds, the flash edges since the last commit
+ * (in the planner's frame times: media ms + PLANNER_CLOCK_OFFSET), and the flash limit's state (the sliders' swings and
+ * the seeds' jumps), which the live path goes on from when the director hands back.
  */
 interface PlannedState extends AdoptedState {
   readonly brand: 'adopted'
@@ -182,6 +183,8 @@ interface PlannedState extends AdoptedState {
   positions: ReadonlyMap<string, number>
   seeds: ReadonlyMap<string, number>
   edges: readonly number[]
+  limiter: LimiterSnapshot
+  jumps: ReadonlyMap<string, number>
 }
 
 /** The flash edges (planner frame times) a planned commit brings to the screen: selection keeps such commits. */
@@ -236,7 +239,7 @@ const backMove = (dir: number, extreme: number, position: number) =>
  */
 export class FlashLimiter {
   /** Per target: the value and position last passed on, the extreme of its current swing, and its direction (−1, 0, 1). */
-  private targets = new Map<string, { value: number; position: number; extreme: number; dir: number }>()
+  private targets = new Map<string, LimiterTarget>()
   /** How far each target moves back in this frame (reused). */
   private readonly back = new Map<string, number>()
 
@@ -315,7 +318,32 @@ export class FlashLimiter {
   reset() {
     this.targets.clear()
   }
+
+  /** A copy of every slider's swing (the planner's, carried by each planned commit). */
+  snapshot(): LimiterSnapshot {
+    const copy = new Map<string, LimiterTarget>()
+    for (const [id, state] of this.targets) copy.set(id, { ...state })
+    return copy
+  }
+
+  /** Goes on from `snapshot` (the planned commit on screen), so the next turn is counted from what the screen shows. */
+  restore(snapshot: LimiterSnapshot) {
+    this.targets.clear()
+    for (const [id, state] of snapshot) this.targets.set(id, { ...state })
+  }
 }
+
+/** One slider's swing in FlashLimiter: the value and position last passed on, its extreme and direction. */
+interface LimiterTarget {
+  value: number
+  position: number
+  extreme: number
+  dir: number
+}
+
+/** FlashLimiter's swings, copied (snapshot, restore). */
+type LimiterSnapshot = ReadonlyMap<string, Readonly<LimiterTarget>>
+
 
 /** Applies held values to modulated parameters (Freeze, from the frame on screen). */
 function applyHolds(params: DrivenParams, holds: Holds | null): DrivenParams {
@@ -561,7 +589,8 @@ export class LiveScheduler {
   private lastAdoptAt: number | null = null
   /** The newest planned edge counted into the budget (page time). */
   private lastImported = -Infinity
-  private readonly inputListeners = new Set<Listener>()
+  /** The planned commit adopted last, while following: the live path goes on from its flash state. */
+  private adopted: PlannedState | null = null
 
   constructor(
     private readonly deps: LiveDeps,
@@ -586,7 +615,6 @@ export class LiveScheduler {
     }
     this.base = base
     this.hasFont = hasFont
-    this.inputsChanged()
     this.update()
   }
 
@@ -606,7 +634,6 @@ export class LiveScheduler {
       this.screenTrail = []
     }
     this.response = response
-    this.inputsChanged()
     this.update()
   }
 
@@ -622,7 +649,6 @@ export class LiveScheduler {
       this.screenTrail = []
     }
     this.slots = slots
-    this.inputsChanged()
     if ((this.levels || this.turns.groups) && this.driving) this.update()
   }
 
@@ -708,14 +734,6 @@ export class LiveScheduler {
     return { base: this.base, hasFont: this.hasFont, mappings: this.mappings, drive: this.drive, response: this.response, slots: this.slots }
   }
 
-  /** Calls `listener` whenever the inputs change; returns the unsubscribe function. */
-  subscribeInputs(listener: Listener): () => void {
-    this.inputListeners.add(listener)
-    return () => {
-      this.inputListeners.delete(listener)
-    }
-  }
-
   /** Whether the scheduler follows planned commits (follow). */
   isFollowing(): boolean {
     return this.following
@@ -732,20 +750,36 @@ export class LiveScheduler {
     this.timer = null
     this.awaiting = null
     this.lastAdoptAt = null
+    const adopted = this.adopted
+    this.adopted = null
     if (on) return
+    // The flash limit goes on from the commit on screen: its sliders' swings and its seeds' jumps, not the live path's
+    // own from before (a move back from what is shown counts as a turn; the seeds do not jump back unbudgeted).
+    if (adopted) {
+      this.flash.restore(adopted.limiter)
+      this.jumpTracker.restore(adopted.jumps)
+      this.jumps = adopted.jumps
+    }
     this.seeked()
     this.latest = null
     this.update()
   }
 
+  /** How many flash edges the budget holds at page time `time` or later (the director's handover check). */
+  recentEdges(time: number): number {
+    return this.budget.countSince(time)
+  }
+
   /**
    * Takes on a planned commit the director is about to hand to React: its markers, seeds, status and Freeze state, and
-   * its flash edges into the budget (`toWall` maps planner frame times to page time). Returns the commit's seq.
+   * its flash edges into the budget (`toWall` maps planner frame times to page time; `edges`, in ascending planner
+   * time, replaces the commit's own when the director skipped planned commits since the last one shown, so their edges
+   * are counted too). Returns the commit's seq.
    */
-  adopt(adopted: AdoptedState, toWall: (plannerTime: number) => number): number {
+  adopt(adopted: AdoptedState, toWall: (plannerTime: number) => number, edges?: readonly number[]): number {
     const state = adopted as PlannedState
     const now = this.deps.now()
-    for (const edge of state.edges) {
+    for (const edge of edges ?? state.edges) {
       const at = toWall(edge)
       if (at <= this.lastImported) continue
       this.budget.spend(at)
@@ -757,6 +791,7 @@ export class LiveScheduler {
     this.committed = state.shown
     this.holdsCommit = state.holdsCommit
     this.latest = null
+    if (this.following) this.adopted = state
     if (state.driving) {
       this.positions.set(state.positions)
       this.seeds.set(state.seeds)
@@ -779,12 +814,10 @@ export class LiveScheduler {
       positions: latest?.modulated.positions ?? new Map(),
       seeds: latest?.modulated.seeds ?? new Map(),
       edges: this.budget instanceof RecordingBudget ? this.budget.drain() : [],
+      limiter: this.flash.snapshot(),
+      jumps: this.committed?.jumps ?? NO_JUMPS,
     }
     return state
-  }
-
-  private inputsChanged() {
-    for (const listener of this.inputListeners) listener()
   }
 
   /** A font is loaded, the slider values are known, Drive letters is on, Strength is above 0, and a source runs. */

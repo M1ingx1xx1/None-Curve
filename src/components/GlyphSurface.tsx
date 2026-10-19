@@ -151,11 +151,22 @@ export default function GlyphSurface({
   }, [glide])
 
   /** Draws now if anything changed, and reports the frame to the probe. */
+  /** Gives the renderer up (fallBack, below): set once fallBack is made. */
+  const broke = useRef<() => void>(() => {})
   const paint = useCallback(() => {
     const renderer = rendererRef.current
     if (!renderer || renderer.broken) return
     const start = performance.now()
-    if (!renderer.draw()) return
+    let drew: boolean
+    try {
+      drew = renderer.draw()
+    } catch (error) {
+      // A renderer that throws is given up like a lost one: the next renderer draws from here on.
+      console.error('The glyph renderer failed; falling back', error)
+      broke.current()
+      return
+    }
+    if (!drew) return
     const end = performance.now()
     const ms = end - start
     measureDraw('canvas', start, end)
@@ -172,6 +183,7 @@ export default function GlyphSurface({
     if (next === 'svg') onFallback()
     else setKind(next)
   }, [kind, onFallback])
+  broke.current = fallBack
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current

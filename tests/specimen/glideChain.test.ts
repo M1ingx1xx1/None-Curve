@@ -135,6 +135,7 @@ describe('Glide chains', async () => {
         },
         releaseAhead: () => {},
         retainAhead: () => {},
+        aheadPoints: () => 0,
         requestPlan: () => null,
       } as unknown as GeometryClient
       const ahead = new PageAhead(() => client)
@@ -186,6 +187,7 @@ describe('Glide chains', async () => {
       sendAhead: () => true,
       releaseAhead: () => {},
       retainAhead: () => {},
+      aheadPoints: () => 0,
     } as unknown as GeometryClient
     const ahead = new PageAhead(() => client)
     ahead.want({ generation: 1, fontId: 'roboto', glideMs: GLIDE, commits: [] })

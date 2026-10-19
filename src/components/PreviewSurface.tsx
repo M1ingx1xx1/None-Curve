@@ -94,11 +94,22 @@ export default function PreviewSurface({
     return snapshot.target === latest.current.scene ? snapshot.frame : latest.current.still
   }, [glide])
 
+  /** Gives the renderer up (fallBack, below): set once fallBack is made. */
+  const broke = useRef<() => void>(() => {})
   const paint = useCallback(() => {
     const renderer = rendererRef.current
     if (!renderer || renderer.broken) return
     const start = performance.now()
-    if (!renderer.draw()) return
+    let drew: boolean
+    try {
+      drew = renderer.draw()
+    } catch (error) {
+      // A renderer that throws is given up like a lost one: the next renderer draws from here on.
+      console.error('The glyph renderer failed; falling back', error)
+      broke.current()
+      return
+    }
+    if (!drew) return
     const end = performance.now()
     measureDraw('preview', start, end)
     if (probeOn) reportFrame('preview', effectiveOf(renderer), end - start, () => null, 0)
@@ -111,6 +122,7 @@ export default function PreviewSurface({
     if (next === 'svg') onFallback()
     else setKind(next)
   }, [kind, onFallback])
+  broke.current = fallBack
 
   const hasCanvas = error === null
   useLayoutEffect(() => {
