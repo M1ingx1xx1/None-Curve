@@ -13,12 +13,21 @@
 // worker that falls silent is restarted on its own, and the glyph it was stuck on is marked failed so the
 // rest of the text goes on. If no worker can start, the workers cannot open the font, or they keep failing
 // (counted for the whole pool), the glyphs fail and the canvas says why (getProblem).
+//
+// Besides the canvas's requests, two more lanes run in the same workers (protocol.ts Lane), each apart from the others:
+// the precompute window ('ahead', driven by aheadGeometry.ts), whose glyphs are kept in a store of their own and stand
+// in for the canvas's like any result, and Glide plans on demand ('plan'). Ahead work is pinned to one worker per glyph
+// (homeAhead), so a glyph's Glide chain stays in the worker that holds its states. Only the canvas lane counts as
+// computing (isComputing), so the live scheduler never waits on the others.
 
 import { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import type { LoadedFont } from '../font/model'
-import type { WorkerGeometry, WorkerRequest, WorkerResponse } from '../geometry/protocol'
-import type { FrameJob, GeometryJob, GeometryParams } from '../geometry/types'
+import type { AheadItem, EncodedGlyph, Lane, WorkerGeometry, WorkerRequest, WorkerResponse } from '../geometry/protocol'
+import type { FrameJob, GeometryJob, GeometryParams, PolygonGlyph } from '../geometry/types'
+import type { PlanData } from '../specimen/planData'
 import type { PolygonLookup } from '../specimen/scene'
+// Registers the ahead lane's page side and the worker plans (aheadTypes.ts) wherever the client is used.
+import './aheadGeometry'
 
 /** A result. `transient` marks a glyph that was not computed (the worker stopped): not a fault of the glyph. */
 export type GeometryEntry = { geometry: WorkerGeometry } | { error: string; transient?: boolean }
@@ -90,12 +99,26 @@ interface Slot {
   worker: Worker | null
   /** When the worker last sent anything (or started). */
   lastHeard: number
-  /** The glyph (and its font and settings) the worker said it started, while nothing has been heard since. */
-  current: { requestId: number; fontId: string | undefined; key: string; index: number; at: number } | null
+  /** The glyph (and its font, settings and lane) the worker said it started, while nothing has been heard since. */
+  current: { requestId: number; fontId: string | undefined; key: string; index: number; at: number; lane: Lane } | null
   /** The font was sent again after the worker said it did not have it (once per font). */
   resentFont: boolean
   /** Out of the pool until the next font: it could not start. */
   retired: boolean
+  /** Its ahead request not ended yet, and when it was sent (the watchdog's clock). */
+  ahead: { id: number; sentAt: number } | null
+  /** Its plan requests not answered yet. */
+  plans: Set<number>
+}
+
+/** Hears the ahead lane (aheadGeometry.ts). */
+export interface AheadListener {
+  /** These glyphs of commit `seq` are in the ahead store now. */
+  results(seq: number, key: string, indices: number[], times: (number | null)[]): void
+  /** Commit `seq`'s chain steps. */
+  plans(message: Extract<WorkerResponse, { type: 'ahead-plans' }>): void
+  /** An ahead request ended (done, stopped, or its worker restarted or was replaced): what is missing may be sent again. */
+  ended(stopped: boolean): void
 }
 
 /** A worker's share of a request: its glyphs, by parameter set, in the request's order. */
@@ -190,6 +213,17 @@ export class GeometryClient {
   private stopped: string | null = null
   /** Why the worker cannot open a font. */
   private fontProblem: { fontId: string; message: string } | null = null
+  /** The precompute window's results, by parameter set (aheadGeometry.ts decides what stays). */
+  private aheadByKey = new Map<string, Map<number, GeometryEntry>>()
+  private aheadListener: AheadListener | null = null
+  /** Plan requests on their way, by id. */
+  private planRequests = new Map<number, { slot: Slot; sentAt: number; done: (data: PlanData | null) => void }>()
+  /** The key each polygon held here was computed under (Glide matches a chained plan's `from` by it). */
+  private keys = new WeakMap<PolygonGlyph, string>()
+  /** Ahead requests from this id on are for the current font (older answers are dropped). */
+  private aheadSince = 0
+  /** Ahead work was sent for the current font (the workers hold some to forget when it changes). */
+  private aheadSent = false
 
   constructor(options: GeometryClientOptions = {}) {
     this.createWorker = options.createWorker ?? startGeometryWorker
@@ -201,6 +235,8 @@ export class GeometryClient {
       current: null,
       resentFont: false,
       retired: false,
+      ahead: null,
+      plans: new Set(),
     }))
   }
 
@@ -335,7 +371,143 @@ export class GeometryClient {
   }
 
   private entry(key: string, index: number): GeometryEntry | undefined {
-    return this.byKey.get(key)?.get(index) ?? this.liveByKey.get(key)?.get(index)
+    return this.byKey.get(key)?.get(index) ?? this.liveByKey.get(key)?.get(index) ?? this.aheadByKey.get(key)?.get(index)
+  }
+
+  /** True when a result for this glyph under these settings is held (in any of the three stores). */
+  has(key: string, index: number): boolean {
+    return this.entry(key, index) !== undefined
+  }
+
+  /** The key a polygon held here was computed under, or null (an in-between shape, or not from here). */
+  keyOf(polygon: PolygonGlyph): string | null {
+    return this.keys.get(polygon) ?? null
+  }
+
+  /** The font the results held here belong to (the ahead lane works for it), or null. */
+  currentFontId(): string | null {
+    return this.fontId
+  }
+
+  /** The ahead lane's listener (aheadGeometry.ts); one at a time. */
+  setAheadListener(listener: AheadListener | null) {
+    this.aheadListener = listener
+  }
+
+  /** The worker a glyph's ahead work goes to: one per glyph index among the workers running, so its chain stays there. */
+  private homeAhead(index: number, slots: readonly Slot[]): Slot {
+    return slots[index % slots.length]
+  }
+
+  /**
+   * Sends the precompute window's work (aheadGeometry.ts) for the font the canvas shows (`fontId`): each worker gets its
+   * glyphs and chain steps, in order, replacing what it was sent before; a worker with nothing to do is told to stop.
+   * False when that is not the font held here, or no worker runs.
+   */
+  sendAhead(fontId: string, generation: number, glideMs: number, items: readonly AheadItem[]): boolean {
+    const font = this.font
+    if (!font || font.id !== fontId) return false
+    this.startWorkers()
+    const slots = this.slots.filter((slot) => slot.worker)
+    if (!slots.length || this.getProblem()) return false
+    const parts = new Map<Slot, AheadItem[]>()
+    const add = (slot: Slot, item: AheadItem) => {
+      let part = parts.get(slot)
+      if (!part) parts.set(slot, (part = []))
+      part.push(item)
+    }
+    for (const item of items) {
+      if (item.kind === 'step') {
+        add(this.homeAhead(item.index, slots), item)
+        continue
+      }
+      const bySlot = new Map<Slot, number[]>()
+      for (const index of item.indices) {
+        const slot = this.homeAhead(index, slots)
+        let indices = bySlot.get(slot)
+        if (!indices) bySlot.set(slot, (indices = []))
+        indices.push(index)
+      }
+      for (const [slot, indices] of bySlot) add(slot, { ...item, indices })
+    }
+    const now = performance.now()
+    for (const slot of slots) {
+      const part = parts.get(slot)
+      if (!part) {
+        if (slot.ahead) this.send(slot, { type: 'cancel', requestId: slot.ahead.id })
+        slot.ahead = null
+        continue
+      }
+      const id = this.nextId++
+      this.aheadSent = true
+      slot.ahead = { id, sentAt: now }
+      this.send(slot, { type: 'ahead', requestId: id, fontId: font.id, generation, glideMs, items: part })
+    }
+    this.armWatchdog(this.watchdogMs)
+    return true
+  }
+
+  /** Commits before `beforeSeq` will not be shown: every worker forgets their glyphs and chain states. */
+  releaseAhead(beforeSeq: number) {
+    for (const slot of this.slots) this.send(slot, { type: 'ahead-release', beforeSeq })
+  }
+
+  /** Drops the ahead store's results the keep test refuses (aheadGeometry.ts's window moved on). */
+  retainAhead(keep: (key: string, index: number) => boolean) {
+    for (const [key, results] of this.aheadByKey) {
+      for (const index of results.keys()) if (!keep(key, index)) results.delete(index)
+      if (!results.size) this.aheadByKey.delete(key)
+    }
+  }
+
+  /** Points held in the ahead store (aheadGeometry.ts keeps it within its budget). */
+  aheadPoints(): number {
+    let points = 0
+    for (const results of this.aheadByKey.values()) for (const entry of results.values()) if ('geometry' in entry) points += entry.geometry.vertexCount
+    return points
+  }
+
+  /**
+   * Asks a worker to plan a glide (the plan lane): `from` by value with its side tables, `to` by value or by the key
+   * and glyph it was computed under. `done` gets the plan's data (null: change at once; also when its worker was
+   * restarted). Returns a cancel, after which `done` is never called; null when no worker can take it (nothing sent).
+   */
+  requestPlan(from: EncodedGlyph, to: EncodedGlyph | { key: string; index: number }, done: (data: PlanData | null) => void): (() => void) | null {
+    const font = this.font
+    if (font) this.startWorkers()
+    const slots = this.slots.filter((slot) => slot.worker)
+    if (!font || !slots.length || this.getProblem()) return null
+    // The glyph's home worker when it is free of plans, else the worker with fewest plans waiting.
+    const index = from.glyph.ref.index
+    const home = this.homes.get(index)
+    const slot = home && slots.includes(home) && home.plans.size === 0 ? home : slots.reduce((a, b) => (b.plans.size < a.plans.size ? b : a))
+    const id = this.nextId++
+    slot.plans.add(id)
+    this.planRequests.set(id, { slot, sentAt: performance.now(), done })
+    this.send(slot, { type: 'plan', requestId: id, fontId: font.id, from, to })
+    this.armWatchdog(this.watchdogMs)
+    return () => {
+      if (!this.planRequests.delete(id)) return
+      slot.plans.delete(id)
+      this.send(slot, { type: 'cancel', requestId: id })
+    }
+  }
+
+  /**
+   * Ends this worker's ahead request and plans without answers (it was restarted or replaced, or the font changed):
+   * the plans change at once, and the ahead lane hears it once the pool is settled (it may send the window again).
+   */
+  private dropLanes(slot: Slot) {
+    const hadAhead = slot.ahead !== null
+    slot.ahead = null
+    const dropped = [...slot.plans].map((id) => this.planRequests.get(id))
+    for (const id of slot.plans) this.planRequests.delete(id)
+    slot.plans.clear()
+    if (!hadAhead && !dropped.length) return
+    queueMicrotask(() => {
+      for (const pending of dropped) pending?.done(null)
+      if (hadAhead) this.aheadListener?.ended(true)
+    })
   }
 
   /**
@@ -518,6 +690,14 @@ export class GeometryClient {
     this.latest.clear()
     this.homes.clear()
     this.costs.clear()
+    // The window and its chains were the old font's: every worker forgets them, and answers still on their way are dropped.
+    this.aheadByKey.clear()
+    this.aheadSince = this.nextId
+    for (const slot of this.slots) {
+      this.dropLanes(slot)
+      if (this.aheadSent) this.send(slot, { type: 'ahead-release', beforeSeq: Infinity })
+    }
+    this.aheadSent = false
     // A new font is a fresh start after geometry stopped: every worker is back in the pool.
     this.stopped = null
     this.restarts = []
@@ -579,6 +759,7 @@ export class GeometryClient {
     slot.worker = null
     slot.current = null
     this.forgetHomes(slot)
+    this.dropLanes(slot)
   }
 
   /** A new worker in place of one busy with a glyph nobody needs (not a fault: no restart is counted). */
@@ -647,30 +828,53 @@ export class GeometryClient {
     this.idle()
   }
 
-  /** One timer, re-armed lazily: when it fires, a worker on a part of the request in flight after watchdogMs of silence is restarted. */
+  /** When this worker's newest request still waiting for an answer was sent (any lane), or null when it has none. */
+  private busySince(slot: Slot): number | null {
+    let since: number | null = null
+    const later = (t: number) => (since = since === null ? t : Math.max(since, t))
+    const inFlight = this.inFlight
+    if (inFlight?.parts.get(slot)?.pending) later(inFlight.sentAt)
+    if (slot.ahead) later(slot.ahead.sentAt)
+    for (const id of slot.plans) {
+      const pending = this.planRequests.get(id)
+      if (pending) later(pending.sentAt)
+    }
+    return since
+  }
+
+  /**
+   * One timer, re-armed lazily: when it fires, a worker with a request waiting (in any lane) after watchdogMs of silence
+   * is restarted, and the glyph it said it started is blamed in that glyph's lane.
+   */
   private armWatchdog(ms: number) {
     if (this.watchdog !== null) return
     this.watchdog = setTimeout(() => {
       this.watchdog = null
-      const inFlight = this.inFlight
-      if (!inFlight) return
       let wait = Infinity
-      for (const [slot, part] of inFlight.parts) {
-        if (!part.pending || !slot.worker) continue
-        const silent = performance.now() - Math.max(slot.lastHeard, inFlight.sentAt)
+      for (const slot of this.slots) {
+        const since = slot.worker ? this.busySince(slot) : null
+        if (since === null) continue
+        const silent = performance.now() - Math.max(slot.lastHeard, since)
         if (silent < this.watchdogMs) {
           wait = Math.min(wait, this.watchdogMs - silent)
           continue
         }
         // Blame the glyph the worker said it started, so asking again does not get stuck again.
         const current = slot.current
-        const blamed = current && this.requests.get(current.requestId)
-        if (current && blamed) {
-          this.store(current.key, current.index, { error: `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings` }, blamed.live)
+        const error = `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings`
+        if (current?.lane === 'ahead') {
+          if (current.fontId === this.fontId) {
+            let results = this.aheadByKey.get(current.key)
+            if (!results) this.aheadByKey.set(current.key, (results = new Map()))
+            results.set(current.index, { error })
+          }
+        } else {
+          const blamed = current && this.requests.get(current.requestId)
+          if (current && blamed) this.store(current.key, current.index, { error }, blamed.live)
         }
         this.restart(slot, 'stopped responding')
       }
-      if (wait < Infinity && this.inFlight === inFlight) this.armWatchdog(wait)
+      if (wait < Infinity) this.armWatchdog(wait)
     }, ms)
   }
 
@@ -682,8 +886,9 @@ export class GeometryClient {
     const now = performance.now()
     slot.lastHeard = now
     if (message.type === 'glyph') {
-      const fontId = this.requests.get(message.requestId)?.fontId
-      slot.current = { requestId: message.requestId, fontId, key: message.key, index: message.index, at: now }
+      const ahead = slot.ahead?.id === message.requestId
+      const fontId = ahead ? (this.fontId ?? undefined) : this.requests.get(message.requestId)?.fontId
+      slot.current = { requestId: message.requestId, fontId, key: message.key, index: message.index, at: now, lane: ahead ? 'ahead' : 'canvas' }
       return
     }
     if (message.type !== 'font-error') slot.current = null
@@ -714,6 +919,31 @@ export class GeometryClient {
     } else if (message.type === 'font-error' && message.fontId === this.fontId) {
       this.fontProblem = { fontId: message.fontId, message: `The geometry worker could not open this font (${message.message}).` }
       this.notify()
+    } else if (message.type === 'ahead-results') {
+      // Requests sent before the font changed are over.
+      if (message.requestId < this.aheadSince) return
+      const indices: number[] = []
+      for (const result of message.results) {
+        const entry: GeometryEntry = 'error' in result ? { error: result.error } : { geometry: result.geometry }
+        let results = this.aheadByKey.get(message.key)
+        if (!results) this.aheadByKey.set(message.key, (results = new Map()))
+        results.set(result.index, entry)
+        if ('geometry' in entry) this.keys.set(entry.geometry.polygon, message.key)
+        indices.push(result.index)
+      }
+      this.aheadListener?.results(message.seq, message.key, indices, message.times)
+    } else if (message.type === 'ahead-plans') {
+      if (message.requestId >= this.aheadSince) this.aheadListener?.plans(message)
+    } else if (message.type === 'ahead-done') {
+      if (slot.ahead?.id !== message.requestId) return
+      slot.ahead = null
+      this.aheadListener?.ended(message.stopped === true)
+    } else if (message.type === 'plan-result') {
+      const pending = this.planRequests.get(message.requestId)
+      if (!pending) return
+      this.planRequests.delete(message.requestId)
+      pending.slot.plans.delete(message.requestId)
+      pending.done(message.data)
     }
   }
 
@@ -752,6 +982,7 @@ export class GeometryClient {
       while (kept.size > max) kept.delete(kept.keys().next().value!)
     }
     results.set(index, entry)
+    if ('geometry' in entry) this.keys.set(entry.geometry.polygon, key)
     if (standsIn) this.latest.set(index, entry)
   }
 

@@ -48,6 +48,13 @@ export function isCached(font: LoadedFont, index: number, key: string): boolean 
   return caches.get(font)?.entries.has(cacheKey) === true || liveCaches.get(font)?.entries.has(cacheKey) === true
 }
 
+/** The cached result for this glyph and key without computing or reordering anything; undefined when none is held. */
+export function cachedGeometry(font: LoadedFont, index: number, key: string): DerivedGeometry | undefined {
+  const cacheKey = `${index}|${key}`
+  const entry = caches.get(font)?.entries.get(cacheKey) ?? liveCaches.get(font)?.entries.get(cacheKey)
+  return entry && 'geometry' in entry ? entry.geometry : undefined
+}
+
 const caches = new WeakMap<LoadedFont, FontCache>()
 const liveCaches = new WeakMap<LoadedFont, FontCache>()
 
@@ -68,6 +75,9 @@ export function paramsKey(params: GeometryParams): string {
  * `live` marks a frame of parameters Sound is driving: it reads the main cache without changing it
  * and keeps its own results in the live cache. A normal call that finds its result only in the live
  * cache (a frame Freeze kept) moves it to the main cache instead of computing it again.
+ *
+ * The 'ahead' tier (the precompute window, aheadCore.ts keeps its own results) reads both caches without changing
+ * either, and keeps nothing: the canvas's caches stay as they were, and so does how quickly the canvas answers.
  */
 export function glyphGeometry(
   font: LoadedFont,
@@ -75,10 +85,13 @@ export function glyphGeometry(
   params: GeometryParams,
   key = paramsKey(params),
   live = false,
+  tier: 'normal' | 'ahead' = 'normal',
 ): DerivedGeometry {
   const cacheKey = `${index}|${key}`
   let entry: Entry | undefined
-  if (live) {
+  if (tier === 'ahead') {
+    entry = caches.get(font)?.entries.get(cacheKey) ?? liveCaches.get(font)?.entries.get(cacheKey) ?? derive(font, index, params)
+  } else if (live) {
     entry = caches.get(font)?.entries.get(cacheKey)
     if (!entry) {
       const cache = fontCache(liveCaches, font)
