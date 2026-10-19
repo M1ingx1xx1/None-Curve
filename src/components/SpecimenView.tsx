@@ -3,19 +3,14 @@ import type { LoadedFont } from '../font/model'
 import { contoursToPath } from '../geometry/sourcePath'
 import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
 import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
-import {
-  artboardEdgeColor,
-  GRID_CONTRAST,
-  gridLineColor,
-  highlightColor,
-  isDarkColor,
-  SNAP_GRID_CONTRAST,
-} from '../specimen/color'
+import { probeOn, reportFrame } from '../render/probe'
+import { artboardEdgeColor, highlightColor, isDarkColor } from '../specimen/color'
 import type { Extent, SpecimenScene } from '../specimen/scene'
 import type { ViewParams } from '../state/types'
-import { gridLines, metricGuides } from './canvasGuides'
+import { gridLines } from './canvasGuides'
 import GlyphLayers from './GlyphLayers'
 import { sharedOutlines } from './sharedOutlines'
+import SpecimenUnderlay from './SpecimenUnderlay'
 import { usePanZoom } from './usePanZoom'
 
 interface SpecimenViewProps {
@@ -115,8 +110,6 @@ const SharedPath = memo(function SharedPath({ id, d }: { id: string; d: string }
 const GRID_INSIDE_ZOOM = 2
 /** Point markers (skeleton, vertices) are drawn only when an em is at least this many pixels. */
 const MARKER_MIN_PX_PER_EM = 48
-/** Metric labels are drawn only when an em is at least this many pixels. */
-const LABEL_MIN_PX_PER_EM = 28
 
 /**
  * The text specimen in the result canvas: every glyph of the input text, set with advances and
@@ -145,8 +138,6 @@ export default function SpecimenView({
   // Scene coordinates are y down (first baseline at 0); the canvas works in y up. Zoom 1 fits the artboard.
   const frame = useMemo(() => artboardViewFrame(layout), [layout])
   const ids = useId()
-  const gridId = `${ids}-grid`
-  const checkerId = `${ids}-checker`
   // Selected and hovered glyphs: a colour computed from the text and background to stand out.
   // Searched for (slow, and kept per pair): from the sliders' colours, not every live frame's.
   const highlightInk = highlightFrom?.ink ?? ink
@@ -156,9 +147,6 @@ export default function SpecimenView({
   // shadow (elevation, styled in .artboard-frame) is dark on a light background and light on a dark one.
   const edge = useMemo(() => artboardEdgeColor(paper), [paper])
   const darkPaper = isDarkColor(paper)
-  // Grid lines from the background's brightness, so they show equally in every palette.
-  const gridColor = useMemo(() => gridLineColor(paper, GRID_CONTRAST), [paper])
-  const snapGridColor = useMemo(() => gridLineColor(paper, SNAP_GRID_CONTRAST), [paper])
   const block = textBox(scene)
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
@@ -167,15 +155,10 @@ export default function SpecimenView({
   const [draggingText, setDraggingText] = useState(false)
   const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange)
   const { left, right, top, bottom } = box
-  // The view minus the artboard, as one even-odd path (scene coordinates, y down).
-  const pasteboard =
-    `M ${left} ${-top} h ${visW} v ${visH} h ${-visW} Z ` +
-    `M ${layout.x} ${layout.y} h ${layout.width} v ${layout.height} h ${-layout.width} Z`
   const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
   const pxPerEm = unitsPerEm / u
   const showMarkers = pxPerEm >= MARKER_MIN_PX_PER_EM
   const markersHidden = (view.showSkeleton || view.showVertices) && !showMarkers
-  const guides = metricGuides(font.metrics)
   const grid = ready ? gridLines(box, gridSize, u) : null
 
   const sources = useMemo(() => new Map<number, SourceGlyph | null>(), [font])
@@ -294,10 +277,6 @@ export default function SpecimenView({
   // A line or glyph is drawn when its metric box (advance by line, plus an em for overhangs and the
   // original outlines) or its ink is in view, so thorns reaching in from far away do not pop in and out.
   const inView = (b: Extent | null) => b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
-  const firstVisibleLine = scene.lines.findIndex((line) => line.baseline - descender >= sceneTop)
-  // Metric guides span the artboard (or the visible part of it), not the whole view.
-  const guideLeft = Math.max(left, layout.x)
-  const guideRight = Math.min(right, layout.x + layout.width)
 
   const shared = sharedOutlines(`${ids}-o`)
   // The font's outlines are drawn only in these views; the flattened view needs none of them.
@@ -359,6 +338,12 @@ export default function SpecimenView({
   })
   const sharedPaths = shared.defs.map(({ id, d }) => <SharedPath key={id} id={id} d={d} />)
 
+  // The measurement probe (?probe=1): every committed render of the glyphs is a frame drawn.
+  const renderStart = probeOn ? performance.now() : 0
+  useLayoutEffect(() => {
+    if (probeOn && ready) reportFrame('canvas', 'svg', performance.now() - renderStart, () => scene, (window.devicePixelRatio || 1) / u)
+  })
+
   return (
     <div
       ref={containerRef}
@@ -373,96 +358,28 @@ export default function SpecimenView({
       onClick={onClick}
     >
       {ready && (
-        <svg
-          viewBox={`${left} ${-top} ${visW} ${visH}`}
-          preserveAspectRatio="none"
-          aria-hidden="true"
-          style={
-            {
-              '--artboard-ink': ink,
-              '--artboard-highlight': highlight,
-              '--artboard-grid': gridColor,
-              '--artboard-snap-grid': snapGridColor,
-            } as CSSProperties
-          }
+        <SpecimenUnderlay
+          ids={ids}
+          scene={scene}
+          layout={layout}
+          metrics={font.metrics}
+          ink={ink}
+          highlight={highlight}
+          paper={paper}
+          transparent={transparent}
+          view={view}
+          box={box}
+          u={u}
+          visW={visW}
+          visH={visH}
+          grid={grid}
+          showGridInside={showGridInside}
+          freeMove={freeMove}
+          movingRef={movingRef}
+          defs={sharedPaths}
         >
-          <defs>
-            {/* A 24 px screen grid, fixed to the view like graph paper. */}
-            <pattern id={gridId} patternUnits="userSpaceOnUse" x={left} y={-top} width={24 * u} height={24 * u}>
-              <path className="view-grid-line" d={`M ${24 * u} 0 H 0 V ${24 * u}`} strokeWidth={u} />
-            </pattern>
-            {transparent && (
-              <pattern id={checkerId} patternUnits="userSpaceOnUse" x={layout.x} y={layout.y} width={16 * u} height={16 * u}>
-                <rect width={16 * u} height={16 * u} fill={paper} />
-                <rect className="checker-tint" width={8 * u} height={8 * u} />
-                <rect className="checker-tint" x={8 * u} y={8 * u} width={8 * u} height={8 * u} />
-              </pattern>
-            )}
-          </defs>
-          <defs>{sharedPaths}</defs>
-          {/* The background covers the whole view. */}
-          <rect x={left} y={-top} width={visW} height={visH} fill={transparent ? `url(#${checkerId})` : paper} />
-          {/* Outside the artboard (the pasteboard): a little darker (lighter on a dark background)
-              and covered by the grid, so the artboard stands out as the page that is exported. */}
-          <path className="pasteboard" data-paper={darkPaper ? 'dark' : 'light'} d={pasteboard} fillRule="evenodd" />
-          <path d={pasteboard} fillRule="evenodd" fill={`url(#${gridId})`} />
-          {/* Inside, the artboard looks like the export; the grid only fades in while it helps
-              placing things: while dragging the text, or zoomed in to 200 % or more. */}
-          <rect
-            className="artboard-grid"
-            data-visible={showGridInside || undefined}
-            x={layout.x}
-            y={layout.y}
-            width={layout.width}
-            height={layout.height}
-            fill={`url(#${gridId})`}
-          />
-          {grid && (
-            <g className="snap-grid">
-              {grid.xs.map((x) => (
-                <line key={`x${x}`} x1={x} x2={x} y1={-top} y2={-bottom} vectorEffect="non-scaling-stroke" />
-              ))}
-              {grid.ys.map((y) => (
-                <line key={`y${y}`} x1={left} x2={right} y1={-y} y2={-y} vectorEffect="non-scaling-stroke" />
-              ))}
-            </g>
-          )}
-          {/* The text and its guides, moved as one while the text is dragged (Free position). */}
-          <g ref={movingRef}>
-            {freeMove && (
-              // Free position: the whole text block (gaps between words included) is the drag handle.
-              <rect
-                className="text-block-hit"
-                x={block.minX}
-                y={block.minY}
-                width={block.width}
-                height={block.height}
-              />
-            )}
-            {view.showMetrics &&
-              scene.lines.map((line, l) => {
-                if (line.baseline - ascender > sceneBottom || line.baseline - descender < sceneTop) return null
-                // Label only the first visible line so labels of neighbouring lines do not pile up.
-                const labelled = l === firstVisibleLine
-                return (
-                  <g key={l} className="metric-lines">
-                    {guides.map(([name, y]) => (
-                      <g key={name} className={y === 0 ? 'metric-baseline' : undefined}>
-                        <line x1={guideLeft} x2={guideRight} y1={line.baseline - y} y2={line.baseline - y} vectorEffect="non-scaling-stroke" />
-                        {labelled && pxPerEm >= LABEL_MIN_PX_PER_EM && (
-                          <text x={guideLeft + 8 * u} y={line.baseline - y - 4 * u} fontSize={10 * u}>
-                            {name}
-                          </text>
-                        )}
-                      </g>
-                    ))}
-                  </g>
-                )
-              })}
-
-            <g>{glyphs}</g>
-          </g>
-        </svg>
+          <g>{glyphs}</g>
+        </SpecimenUnderlay>
       )}
       {ready && (
         // The canvas edge, lifted off the background by a shadow: an HTML box over the SVG (screen
