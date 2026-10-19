@@ -113,4 +113,13 @@ describe('selection', () => {
     const later = selectCommits(steady, 3).filter((c) => c.seq < 15)
     expect(later).toEqual(early)
   })
+
+  it.each([2, 3, 4])('keeps its choice as older commits are pruned (level %i)', (level) => {
+    const all = selectCommits(steady, level).slice(1)
+    for (let drop = 1; drop < 8; drop++) {
+      // The first commit left is always kept; every later choice stays.
+      const pruned = selectCommits(steady.slice(drop), level).slice(1)
+      expect(pruned.filter((c) => c.seq > steady[drop].seq)).toEqual(all.filter((c) => c.seq > steady[drop].seq))
+    }
+  })
 })

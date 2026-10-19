@@ -4,15 +4,15 @@
 // Selection (decimation): when the geometry cannot keep up with every planned commit (30 a second at most), the
 // director shows every 2nd, 3rd or 4th one's worth (15, 10, 7.5 Hz) by media time. A commit is never dropped when it
 // carries a flash edge (the budget counted it), when it is the sliders' own (exact restore), or when it stays on screen
-// for a whole step (nothing replaces it soon). Selection walks forward from a fixed start, so a commit near the
-// playhead keeps its choice as later ones arrive.
+// for a whole step (nothing replaces it soon). Otherwise the first commit of each step on the media grid is kept, so a
+// commit's choice depends only on it and its neighbours: it stays as later commits arrive and older ones are pruned.
 //
 // Lineages: an occurrence's glide history is the run of glyphs (key and glyph id) it showed at the selected commits.
 // Each (parent lineage, key, glyph id) gets one id, so occurrences with the same history share one, and the worker
 // steps each lineage's glide once. A history starts afresh (parent −1) at the first selected commit of a run.
 
 import { LIVE_LIMITS, plannedEdges } from './live'
-import type { PlannedCommit } from './timelineTypes'
+import { PRECOMPUTE_LIMITS, type PlannedCommit } from './timelineTypes'
 
 /** Show every n-th commit's worth: 30, 15, 10 and 7.5 Hz. */
 export const DECIMATION_LEVELS = [1, 2, 3, 4] as const
@@ -26,22 +26,23 @@ export function mandatory(commit: PlannedCommit): boolean {
 }
 
 /**
- * The commits shown at decimation `level` (1–4), in media order: the first, then each one at least a step after the
- * last kept, each mandatory one, and each one nothing replaces within a step.
+ * The commits shown at decimation `level` (1–4), in media order: the first, then the first of each step on the media
+ * grid (level 30 Hz frames, counted from media time 0), each mandatory one, and each one nothing replaces within a step.
  */
 export function selectCommits(commits: readonly PlannedCommit[], level: number): PlannedCommit[] {
   if (level <= 1) return commits.slice()
   // live.ts is read here, not at load: it imports this module through the director.
   const step = (level * 1000) / LIVE_LIMITS.maxFps - SPACING_SLACK_MS
+  /** Grid frames (PRECOMPUTE_LIMITS.gridHz) per step: planned commits sit on that grid. */
+  const frames = (level * PRECOMPUTE_LIMITS.gridHz) / LIVE_LIMITS.maxFps
+  const stepOf = (commit: PlannedCommit) => Math.floor(Math.round((commit.mediaMs * PRECOMPUTE_LIMITS.gridHz) / 1000) / frames)
   const out: PlannedCommit[] = []
-  let last = -Infinity
   for (let i = 0; i < commits.length; i++) {
     const commit = commits[i]
+    const prev = commits[i - 1]
     const next = commits[i + 1]
-    const keep = commit.mediaMs - last >= step || mandatory(commit) || !next || next.mediaMs - commit.mediaMs >= step
-    if (!keep) continue
-    out.push(commit)
-    last = commit.mediaMs
+    const keep = !prev || stepOf(commit) !== stepOf(prev) || mandatory(commit) || !next || next.mediaMs - commit.mediaMs >= step
+    if (keep) out.push(commit)
   }
   return out
 }
