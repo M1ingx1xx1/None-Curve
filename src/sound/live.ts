@@ -37,7 +37,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExte
 import { paramsKey } from '../geometry/cache'
 import type { FrameJob, GeometryParams } from '../geometry/types'
 import { withThornCanvasEm, type Action } from '../state/editorState'
+import { RUNTIME_FLAGS } from '../state/flags'
 import { geometryClient } from '../state/geometryClient'
+import { connectDirector } from './director'
 import { getSoundEngine } from './engine'
 import { FLASH_LIMITS, FlashBudget } from './flash'
 import { JumpTracker } from './jumps'
@@ -1182,7 +1184,11 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
     engine.subscribeSeeks(() => live.seeked()),
     geometryClient.subscribeIdle(() => live.idle()),
   ]
+  // A file plays from its precomputed timeline (director.ts); the microphone, and gaps in the plan, stay live.
+  const disconnectDirector = RUNTIME_FLAGS.precompute ? connectDirector(live, (commit) => commitTo?.(commit)) : null
   return () => {
+    // The director first: it hands back to the live path, which then stops like before.
+    disconnectDirector?.()
     for (const off of unsubscribe) off()
     // Stop first: stop() hands React null (exact restore) through commitTo, which must still point here.
     live.dispose()
@@ -1280,10 +1286,15 @@ export function freezeLive(dispatch: Dispatch<Action>): void {
   live.pauseSound()
 }
 
+/** The delay a recording's audio is given while planned commits show: they are timed to the sound as heard. */
+const FOLLOWING_LATENCY_MS = Math.max(40, 1000 / 60)
+
 /**
  * The smoothed delay (ms) from a measured sound frame to its letters reaching React; null before the first
- * live frame. The last value is kept while Sound is not driving.
+ * live frame. The last value is kept while Sound is not driving. While planned commits show (the director), the
+ * letters already line up with the sound as heard: about one frame.
  */
 export function liveLatencyMs(): number | null {
+  if (scheduler?.isFollowing()) return FOLLOWING_LATENCY_MS
   return scheduler?.latencyMs() ?? null
 }

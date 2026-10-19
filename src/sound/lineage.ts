@@ -86,6 +86,11 @@ export class LineageBook {
     return lineage
   }
 
+  /** The selected commit `seq`'s lineages were made after (−1: a root), or undefined when none were made. */
+  prevOf(seq: number): number | undefined {
+    return this.made.get(seq)?.prevSeq
+  }
+
   /** The parent of each lineage made at `seq` (−1 for a root), by lineage id. */
   parentsAt(seq: number): Map<number, number> {
     const out = new Map<number, number>()

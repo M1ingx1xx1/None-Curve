@@ -1,13 +1,15 @@
 // The feature worker's core (src/sound/featureWorkerCore.ts) with a fake `post`: it measures the file in chunks, in
 // order, exactly as one offline pass would; a seek beyond what is covered is measured first, from a warm-up before it
-// with a fresh extractor; and new settings drop the old generation's work.
+// with a fresh extractor; and new settings drop the old generation's work. The page's timeline
+// (src/sound/featureTimeline.ts) over a fake worker running that core keeps what arrives for the current generation.
 
 import { describe, expect, it } from 'vitest'
 import { analyserFftSize } from '../../src/sound/engine'
 import { FeatureExtractor } from '../../src/sound/features'
-import { CHUNK_FRAMES, FeatureWorkerCore, type FeatureWorkerResponse } from '../../src/sound/featureWorkerCore'
+import { FeatureTimeline, type FeatureWorkerLike } from '../../src/sound/featureTimeline'
+import { CHUNK_FRAMES, FeatureWorkerCore, type FeatureWorkerRequest, type FeatureWorkerResponse } from '../../src/sound/featureWorkerCore'
 import { gridFrameCount, highpassInPlace, measureFrames } from '../../src/sound/offline'
-import { FEATURE_STRIDE, packFrame, PRECOMPUTE_LIMITS } from '../../src/sound/timelineTypes'
+import { FEATURE_STRIDE, packFrame, PRECOMPUTE_LIMITS, unpackFrame } from '../../src/sound/timelineTypes'
 import { DEFAULT_FEATURE_SETTINGS, type FeatureSettings } from '../../src/sound/types'
 import { drumHits, glide, hitTimes, mix, SR } from '../helpers/audio'
 
@@ -105,5 +107,75 @@ describe('feature worker core', () => {
     const values = new Float64Array(later[0].start * FEATURE_STRIDE)
     for (const chunk of linear) values.set(chunk.values, chunk.start * FEATURE_STRIDE)
     expect(values).toEqual(expected(0, later[0].start, louder))
+  })
+})
+
+describe('feature timeline', () => {
+  /** A worker running the real core; `pump` lets it measure (its messages arrive one by one, as a worker's would). */
+  function fakeWorker() {
+    const outbox: FeatureWorkerResponse[] = []
+    const worker: FeatureWorkerLike & { pump: () => void; sent: FeatureWorkerRequest[] } = {
+      onmessage: null,
+      sent: [],
+      postMessage(message) {
+        this.sent.push(message)
+        core.handle(message)
+      },
+      terminate() {},
+      pump() {
+        while (core.step()) {
+          for (const m of outbox.splice(0)) this.onmessage?.({ data: m } as MessageEvent<FeatureWorkerResponse>)
+        }
+        for (const m of outbox.splice(0)) this.onmessage?.({ data: m } as MessageEvent<FeatureWorkerResponse>)
+      },
+    }
+    const core = new FeatureWorkerCore((message) => outbox.push(message))
+    return worker
+  }
+
+  /** A decoded AudioBuffer stand-in. */
+  const decoded = (seconds: number) => {
+    const data = signal().subarray(0, SR * seconds)
+    return async () => ({ duration: data.length / SR, length: data.length, sampleRate: SR, numberOfChannels: 1, getChannelData: () => data }) as unknown as AudioBuffer
+  }
+  const blob = new Blob([new Uint8Array(4)])
+
+  it('keeps the frames the worker measures, and reads them back by index and time', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    expect(await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS)).toBe(true)
+    expect(timeline.frameCount()).toBe(FRAMES)
+    expect(timeline.covered(1000)).toBe(false)
+    worker.pump()
+    const want = expected(0, FRAMES)
+    for (const index of [0, 1, 60, FRAMES - 1]) expect(timeline.frameAt(index)).toEqual(unpackFrame(want, index, (index * 1000) / GRID.hz))
+    expect(timeline.covered(SECONDS * 1000 - 10)).toBe(true)
+    // Between two grid frames: interpolated, events from the earlier one.
+    const a = timeline.frameAt(60)!
+    const b = timeline.frameAt(61)!
+    const mid = timeline.at(1000 + 500 / GRID.hz)!
+    expect(mid.level).toBeCloseTo((a.level + b.level) / 2, 12)
+    expect(mid.onset).toBe(a.onset)
+  })
+
+  it('measures again with new settings, and drops frames of the old generation', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS)
+    worker.pump()
+    const generation = timeline.currentGeneration()
+    const louder = { ...DEFAULT_FEATURE_SETTINGS, sensitivity: 12 }
+    timeline.setSettings(louder, 2000)
+    expect(timeline.currentGeneration()).toBe(generation + 1)
+    expect(timeline.covered(2000)).toBe(false)
+    // A stale chunk of the old generation is ignored.
+    worker.onmessage?.({ data: { type: 'columns', generation, start: 0, count: 1, values: new Float64Array(FEATURE_STRIDE) } } as MessageEvent<FeatureWorkerResponse>)
+    expect(timeline.covered(0)).toBe(false)
+    worker.pump()
+    expect(timeline.frameAt(10)).toEqual(unpackFrame(expected(0, 11, louder), 10, (10 * 1000) / GRID.hz))
+    // Too long a file stays live.
+    const long = async () => ({ duration: PRECOMPUTE_LIMITS.maxSeconds + 1, length: 10, sampleRate: SR, numberOfChannels: 1, getChannelData: () => new Float32Array(10) }) as unknown as AudioBuffer
+    expect(await timeline.load(blob, long, DEFAULT_FEATURE_SETTINGS)).toBe(false)
+    expect(timeline.isLoaded()).toBe(false)
   })
 })
