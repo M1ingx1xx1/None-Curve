@@ -90,6 +90,7 @@ function rig(
     recentEdges?: (since: number) => readonly number[]
     /** Each planned commit's flash edges (planner frame times). */
     edgesOf?: (seq: number, mediaMs: number) => number[]
+    lengthMs?: number
   } = {},
 ) {
   let now = 1000
@@ -97,7 +98,7 @@ function rig(
   let following = false
   const log: string[] = []
   const commits: (LiveCommit | null)[] = []
-  const planner = new FakePlanner(undefined, options.edgesOf)
+  const planner = new FakePlanner(options.lengthMs, options.edgesOf)
   const adoptedEdges: (readonly number[] | undefined)[] = []
   let ready = options.ready ?? (() => true)
   const windows: AheadWindow[] = []
@@ -108,8 +109,11 @@ function rig(
     stats: () => ({ glyphsPerSecond: 0, backlogMs: 0 }),
     release: (seq) => released.push(seq),
     subscribeReady: () => () => {},
-    clear: () => {},
+    clear: () => {
+      clears++
+    },
   }
+  let clears = 0
   const prefetched: string[] = []
   // The canvas lane: one request at a time, each taking `fetchMs` (0: there at once, unless it misses).
   const fetched = new Set<string>()
@@ -184,6 +188,9 @@ function rig(
     play,
     get following() {
       return following
+    },
+    get clears() {
+      return clears
     },
     setReady: (fn: (seq: number) => boolean) => (ready = fn),
     seek: (mediaMs: number) => {
@@ -486,5 +493,62 @@ describe('the page scheduler following planned commits', () => {
     p.live.follow(false)
     expect(p.commits.at(-1)).toBeNull()
     expect(p.live.status.get().driving).toBe(false)
+  })
+})
+
+describe('the director backing off', () => {
+  const { tryMs } = PRECOMPUTE_LIMITS
+  const [firstPause] = PRECOMPUTE_LIMITS.backoffMs
+
+  it('stops preparing geometry when it cannot take over for tryMs, and tries again after a pause twice as long each time', () => {
+    const r = rig({ ready: () => false, lengthMs: 60_000 })
+    r.play(tryMs - 100)
+    expect(r.clears).toBe(0)
+    r.play(tryMs + 100)
+    // The geometry ahead is handed back and nothing more is asked for during the pause.
+    expect(r.clears).toBe(1)
+    const asked = r.windows.length
+    const reseeds = r.planner.reseeds.length
+    r.play(tryMs + firstPause - 100)
+    expect(r.windows.length).toBe(asked)
+    expect(r.planner.reseeds.length).toBe(reseeds)
+    // After the pause it plans again from the playhead and asks for geometry.
+    r.play(tryMs + firstPause + 200)
+    expect(r.planner.reseeds.at(-1)).toBeGreaterThan(tryMs + firstPause - 100)
+    expect(r.windows.length).toBeGreaterThan(asked)
+    // A second failed try: the pause doubles.
+    const second = 2 * tryMs + firstPause + 200
+    r.play(second)
+    expect(r.clears).toBe(2)
+    const asked2 = r.windows.length
+    r.play(second + 2 * firstPause - 200)
+    expect(r.windows.length).toBe(asked2)
+    r.play(second + 2 * firstPause + 200)
+    expect(r.windows.length).toBeGreaterThan(asked2)
+    expect(r.following).toBe(false)
+  })
+
+  it('takes over after a pause when the geometry keeps up again, and starts the pauses over', () => {
+    const r = rig({ ready: () => false, lengthMs: 60_000 })
+    r.play(tryMs + 100)
+    expect(r.clears).toBe(1)
+    r.setReady(() => true)
+    r.play(tryMs + firstPause + 500)
+    expect(r.following).toBe(true)
+    // Not following again: the next pause is the first one's length.
+    r.setReady(() => false)
+    const from = r.ph.mediaMs
+    r.play(from + PRECOMPUTE_LIMITS.holdMs + tryMs + 200)
+    expect(r.clears).toBe(2)
+    const asked = r.windows.length
+    r.play(from + PRECOMPUTE_LIMITS.holdMs + tryMs + firstPause + 300)
+    expect(r.windows.length).toBeGreaterThan(asked)
+  })
+
+  it('does not back off while following, nor count a pause in playback', () => {
+    const r = rig({ lengthMs: 60_000 })
+    r.play(tryMs * 2)
+    expect(r.following).toBe(true)
+    expect(r.clears).toBe(0)
   })
 })

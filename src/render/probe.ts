@@ -20,7 +20,7 @@ export interface ProbeState {
   /** Ring of the last DRAW_MS_KEEP draw times. */
   drawMs: number[]
   last: ProbeFrame | null
-  precompute: { covered: boolean; shown: number; live: number; misses: number; held: number; generation: number }
+  precompute: { covered: boolean; shown: number; live: number; misses: number; held: number; backoffs: number; generation: number }
   preview: { frames: number; drawMs: number[] }
 }
 
@@ -39,7 +39,7 @@ function probeState(): ProbeState {
     effective: '',
     drawMs: [],
     last: null,
-    precompute: { covered: false, shown: 0, live: 0, misses: 0, held: 0, generation: 0 },
+    precompute: { covered: false, shown: 0, live: 0, misses: 0, held: 0, backoffs: 0, generation: 0 },
     preview: { frames: 0, drawMs: [] },
   }
   if (typeof window !== 'undefined') (window as unknown as { __noneCurveFrames?: ProbeState }).__noneCurveFrames = state

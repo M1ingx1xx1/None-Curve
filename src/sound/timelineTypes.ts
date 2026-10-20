@@ -21,6 +21,14 @@ export const PRECOMPUTE_LIMITS = {
   /** A late commit is waited for this long before handing back to live. */
   holdMs: 250,
   planSliceMs: 4,
+  /**
+   * The director tries to take over for this long (ms of playback off the plan); when it cannot (the geometry ahead
+   * does not keep up), it stops planning and preparing geometry for a while, so precompute costs nothing it does not
+   * give back.
+   */
+  tryMs: 5000,
+  /** The first pause after a failed try (ms); each failed try in a row doubles it, up to the second value. */
+  backoffMs: [5000, 40000] as const,
 } as const
 
 /** FeatureFrame's numeric fields in pack order (time is the grid's; onset and silent as 0/1). */

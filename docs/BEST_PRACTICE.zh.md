@@ -65,7 +65,7 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 
 - 画布和预览用三种渲染器之一绘制字母：SVG（`SpecimenView`，作为基准）、Canvas2D（`src/render/canvas2d.ts`）或 WebGL2（`src/render/webgl2.ts`，默认）。WebGL 无法启动或丢失上下文时退回 Canvas2D，Canvas2D 不行时退回 SVG。背景、网格、参考线和文字块的点击区域留在 SVG 底层（`SpecimenUnderlay`）里；画布渲染器只画字形层，直接从 `GlideStore` 取帧，不会每帧让 React 重新渲染。录制和所有导出照旧绘制 CPU 场景，不受影响。
 - 每种渲染器都只画直线段（斜接，超限时改为斜切，从不用圆角），Whorl 的滑行在 GPU 上也沿着多边形的环走：着色器的 JS 镜像（`gpuReference.ts`）在真实计划上和 `morphAt` 对照测试（`tests/render/gpuVsMorph.test.ts`）。改动计划的数学时，`planData.ts`、`morph.ts`、着色器和镜像要一起改。
-- 运行时开关（`src/state/flags.ts`）在启动时读一次，先读 URL，再读 `localStorage`（`none-curve:render`、`none-curve:precompute`、`none-curve:workerplans`）：`?render=svg|canvas|webgl`；`?precompute=0|1`（在播放头之前提前算好正在播放的文件的特征、Sound 的提交以及它们的几何和 Glide 计划；超过 6 分钟的文件和麦克风仍走实时路径）；`?workerplans=0|1`（在几何 Worker 里生成 Glide 计划）；`?probe=1`（给测量脚本用的 `window.__noneCurveFrames`；它会对每个绘制的帧做哈希，所以测时间时不要打开）。渲染器总会发出 `nc-draw` 和 `nc-draw-preview` 这两个 user timing 测量。
+- 运行时开关（`src/state/flags.ts`）在启动时读一次，先读 URL，再读 `localStorage`（`none-curve:render`、`none-curve:precompute`、`none-curve:workerplans`）：`?render=svg|canvas|webgl`；`?precompute=0|1`（在播放头之前提前算好正在播放的文件的特征、Sound 的提交以及它们的几何和 Glide 计划；超过 6 分钟的文件和麦克风仍走实时路径；导演在 `tryMs` 内接管不了时，会清空 ahead 通道并在 `backoffMs` 内停止规划，每失败一次时长加倍）；`?workerplans=0|1`（在几何 Worker 里生成 Glide 计划）；`?probe=1`（给测量脚本用的 `window.__noneCurveFrames`；它会对每个绘制的帧做哈希，所以测时间时不要打开）。渲染器总会发出 `nc-draw` 和 `nc-draw-preview` 这两个 user timing 测量。
 - 几何 Worker 池有三条通道：`canvas`（和以前一样；`isComputing()` 只报告这一条）、`plan`（按需生成 Glide 计划）和 `ahead`（预计算窗口，每个字形固定交给同一个 Worker，让 Glide 的链留在同一个 Worker 里）。画布的工作总是优先；任何通道都不会取消别的通道的请求。
 
 ## 滑块范围

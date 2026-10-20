@@ -112,7 +112,12 @@ export class PlaybackDirector {
   private windowKey = ''
   /** Commits whose glyphs the canvas lane has (no ahead lane). */
   private fetched = new Set<number>()
-  private counters = { shown: 0, live: 0, misses: 0, held: 0 }
+  private counters = { shown: 0, live: 0, misses: 0, held: 0, backoffs: 0 }
+  /** Since when (page time) the director has tried to take over without success; null while following or paused. */
+  private tryingSince: number | null = null
+  /** Until when (page time) it neither plans nor prepares geometry, and how long the next pause lasts. */
+  private backoffUntil = -Infinity
+  private backoffMs: number = PRECOMPUTE_LIMITS.backoffMs[0]
 
   constructor(private readonly deps: DirectorDeps) {}
 
@@ -131,6 +136,7 @@ export class PlaybackDirector {
     }
     const now = deps.now()
     const planner = deps.planner
+    if (this.backingOff(ph, now)) return
     const reseeded = this.syncInputs(ph)
     if (ph.generation !== this.lastGeneration) this.seeked(ph, reseeded)
     // One planning slice a frame; two while the plan is behind what the director needs to take over.
@@ -177,6 +183,8 @@ export class PlaybackDirector {
     } else {
       this.counters.live++
       if (due >= 0 && this.canEnter(ahead, selected, due, ph) && this.flashFits(selected, due, ph, now)) {
+        this.tryingSince = null
+        this.backoffMs = PRECOMPUTE_LIMITS.backoffMs[0]
         deps.scheduler.follow(true)
         this.holdSince = null
         this.shownSeq = -1
@@ -201,12 +209,16 @@ export class PlaybackDirector {
   /** Playback stopped (paused, ended, another source, unmounted): the live path takes over. */
   stop() {
     this.handBack()
+    this.tryingSince = null
     reportPrecompute({ covered: this.deps.timeline.isLoaded() })
   }
 
   /** Another file (or none): the live path takes over, and the plan starts again from the start. */
   reset() {
     this.handBack()
+    this.tryingSince = null
+    this.backoffUntil = -Infinity
+    this.backoffMs = PRECOMPUTE_LIMITS.backoffMs[0]
     this.lastGeneration = -1
     this.deps.planner.reseed(0)
     this.newGeneration()
@@ -244,6 +256,46 @@ export class PlaybackDirector {
     planner.reseed(ph.mediaMs)
     this.newGeneration()
     this.handBack()
+  }
+
+  /**
+   * The back-off: after tryMs of playback in which the director could not take over, it hands the geometry ahead back
+   * (clear) and stops planning for backoffMs, doubling after each failed try; the live path plays on meanwhile. True
+   * while paused this way. Afterwards the plan starts again at the playhead.
+   */
+  private backingOff(ph: Playhead, now: number): boolean {
+    if (now < this.backoffUntil) {
+      this.counters.live++
+      reportPrecompute({ covered: true, ...this.counters })
+      return true
+    }
+    if (this.backoffUntil > -Infinity) {
+      // The pause is over: plan from the playhead (what was planned before is long past).
+      this.backoffUntil = -Infinity
+      this.lastGeneration = ph.generation
+      this.deps.timeline.seek(ph.mediaMs)
+      this.deps.planner.reseed(ph.mediaMs)
+      this.newGeneration()
+      this.tryingSince = now
+      return false
+    }
+    if (this.isFollowing()) {
+      this.tryingSince = null
+      return false
+    }
+    this.tryingSince ??= now
+    if (now - this.tryingSince < PRECOMPUTE_LIMITS.tryMs) return false
+    this.handBack()
+    this.deps.ahead()?.clear()
+    this.deps.planner.reseed(ph.mediaMs)
+    this.newGeneration()
+    this.tryingSince = null
+    this.backoffUntil = now + this.backoffMs
+    this.backoffMs = Math.min(PRECOMPUTE_LIMITS.backoffMs[1], this.backoffMs * 2)
+    this.counters.backoffs++
+    this.counters.live++
+    reportPrecompute({ covered: true, ...this.counters })
+    return true
   }
 
   /** The plan starts afresh: lineages and the wanted window too. */
