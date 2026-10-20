@@ -50,6 +50,7 @@ import {
   levelPosition,
   levelSets,
   NO_SLOTS,
+  pulsedTargets,
   QUIET,
   sameThornState,
   SHARED,
@@ -648,6 +649,8 @@ export class LiveScheduler {
    */
   setMappings(mappings: readonly Mapping[], drive: boolean, response: ResponseSettings = NEUTRAL_RESPONSE) {
     this.mappings = mappings
+    // Hits on the beat (Trigger, Toggle) reach every letter at once, not by Thorn turns.
+    this.turns.setPulsed(pulsedTargets(mappings))
     this.drive = drive
     const r = this.response
     if (response.contrast !== r.contrast || response.pitchReactive !== r.pitchReactive) {

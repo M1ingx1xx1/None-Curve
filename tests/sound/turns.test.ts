@@ -997,3 +997,72 @@ describe('the live scheduler with Thorn turns', () => {
     }
   })
 })
+
+// Kept last: it builds letter frames, and the pinned hash above counts the letter sets made before it (nextSerial).
+describe('hits on the beat with Thorn on', () => {
+  // Follow still goes by turns: the Flare cases above (Squaring, the seed, Anchors) check it.
+  // Thorn on (Burst, Reach 0: no thorns, but the turns run), and each effect at rest on its sliders.
+  const thorn = thornWith(THORN_ON, { burst: true, spikes: 40, canvasReach: 0 })
+  const rest = {
+    ...thorn,
+    experimental: {
+      ...thorn.experimental,
+      ...on('whorl', { amount: 0 }),
+      ...on('slipstream', { strength: 0, slip: 0, cuts: 0, trails: 0 }),
+      ripple: { ...thorn.experimental.ripple, enabled: false, amount: 0.4 },
+    },
+  }
+
+  it('with Thorn on, a Trigger or Toggle on another effect reaches every letter together', () => {
+    const slots = lettersOf(40)
+    const cases: [string, number, Mapping['mode']][] = [
+      ['experimental.whorl.amount', 0.15, 'trigger'],
+      ['experimental.slipstream.strength', 0.3, 'trigger'],
+      ['experimental.ripple.enabled', 1, 'trigger'],
+      ['experimental.whorl.amount', 0.15, 'toggle'],
+    ]
+    for (const [id, depth, mode] of cases) {
+      const spec = targetById(id)!
+      const r = rig(slots)
+      r.live.setBase(rest)
+      r.live.setSlots(slots)
+      r.live.setMappings([{ ...row(id, depth, 'beat'), mode, smoothMs: 150 }], true)
+      r.play(6000, beatStream(7))
+      let mixed = 0
+      let rises = 0
+      expect(r.commits.length, `${id} ${mode}`).toBeGreaterThan(10)
+      let was = spec.get(rest)
+      for (const { commit } of r.commits) {
+        const { byKey, keys } = lettersAt(commit, slots, rest)
+        const values = new Set(keys.map((key) => spec.get(byKey.get(key)!)))
+        if (values.size > 1) mixed++
+        const value = [...values][0]
+        if (was === spec.get(rest) && value !== spec.get(rest)) rises++
+        was = value
+      }
+      // Every letter shows one value on every commit.
+      expect(mixed, `${id} ${mode}`).toBe(0)
+      // A Trigger is back on the slider before each hit (a Toggle eases towards each flip, so it may not be).
+      if (mode === 'trigger') expect(rises, `${id} ${mode}`).toBeGreaterThanOrEqual(8)
+    }
+  })
+
+  it('with Thorn on, a Follow that moves a turn target by less than half a flash swing still reaches the letters', () => {
+    const slots = lettersOf(40)
+    const spec = targetById('experimental.whorl.amount')!
+    const r = rig(slots)
+    r.live.setBase(rest)
+    r.live.setSlots(slots)
+    r.live.setMappings([{ ...row(spec.id, 0.15, 'beat'), mode: 'follow', smoothMs: 150 }], true)
+    r.play(6000, beatStream(7))
+    // Whorl Amount swings by under 5% of its travel (-4 to 4): each group still takes it once it has kept its state
+    // THORN_SETTLE_MS, so the frames keep coming and the letters twist.
+    expect(r.commits.length).toBeGreaterThan(10)
+    const shown = new Set<number>()
+    for (const { commit } of r.commits) {
+      const { byKey, keys } = lettersAt(commit, slots, rest)
+      for (const key of keys) shown.add(spec.get(byKey.get(key)!))
+    }
+    expect([...shown].some((value) => value > 0)).toBe(true)
+  })
+})
