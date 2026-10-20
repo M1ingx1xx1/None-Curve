@@ -12,8 +12,8 @@
 // could produce, and without Thorn one frame asks for at most three parameter sets.
 //
 // Thorn turns (THORN_TURNS): while Thorn is on, the settings that decide where the thorns sit and which way they point
-// (isTurnTarget: Thorn's own, the Experimental seed, and the shapes Thorn picks its anchors on or follows them through)
-// reach the letters a few at a time. The drawn letters are split into turn groups of whole glyph ids (turnGroups), each
+// (isTurnTarget: Thorn's own but Reach, the Experimental seed, and the shapes Thorn picks its anchors on or follows them
+// through) reach the letters a few at a time. The drawn letters are split into turn groups of whole glyph ids (turnGroups), each
 // showing the turn state it took at its last turn (live.ts hands the live state to one group per turn); levels never
 // scale them. A letter shows its level's values with its group's turn state (turnSets), so a frame asks for at most a
 // parameter set per level and group, each for the glyph ids that show it.
@@ -211,8 +211,12 @@ export function assignLevels(
 /** Thorn's sliders: never scaled by a level, with Thorn on (they come from the letters' turn groups) or off. */
 export const isThornTarget = (id: string): boolean => id.startsWith('experimental.thorn.')
 
-/** The Amounts the thorns keep through (thorn.ts), as they keep through Distortion: they stay with the shared values. */
-const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount'])
+/**
+ * What the thorns keep through (thorn.ts), as they keep through Distortion: Crumple's and Ripple's Amount, and Thorn's
+ * Reach, which sets how long the thorns are, not where they sit or which way they point. They stay with the shared
+ * values, so a beat on Reach grows and sinks every letter's thorns together.
+ */
+const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount', 'experimental.thorn.canvasReach'])
 
 /** Dissolve runs after Thorn (experimental.ts), so its sliders never move a thorn. */
 const AFTER_THORN = 'experimental.dissolve.'
@@ -228,11 +232,12 @@ const isAxisTarget = (id: string): boolean => id.startsWith('axis.')
 
 /**
  * Whether a target reaches the letters by Thorn turns while Thorn is on (THORN_TURNS): it decides where the thorns sit
- * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders and switches and the Experimental
- * seed; every Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every slider and
- * switch of Crumple, Ripple, Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor those two
- * Amounts: the thorns keep their anchors and directions through their moves (thorn.ts), so they stay with the shared
- * values and levels. Nor Dissolve's: it runs after Thorn. Nor the canvas targets (isCanvasTarget) or the font's axes.
+ * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders but Reach, its switches and the
+ * Experimental seed; every Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every
+ * slider and switch of Crumple, Ripple, Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor
+ * those two Amounts, nor Thorn's Reach: the thorns keep their anchors and directions through their moves (thorn.ts), so
+ * they stay with the shared values (and the two Amounts with the levels). Nor Dissolve's: it runs after Thorn. Nor the
+ * canvas targets (isCanvasTarget) or the font's axes.
  */
 export const isTurnTarget = (id: string): boolean =>
   !id.startsWith('distortion.') && !KEPT_THROUGH.has(id) && !id.startsWith(AFTER_THORN) && !isCanvasTarget(id) && !isAxisTarget(id)

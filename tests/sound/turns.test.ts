@@ -48,6 +48,7 @@ const THORN_ON: GeometryParams = { ...BASE, experimental: { ...BASE.experimental
 
 const REACH = targetById('experimental.thorn.canvasReach')!
 const SPREAD = targetById('experimental.thorn.spread')!
+const WIDTH = targetById('experimental.thorn.width')!
 const DISTORTION = targetById('distortion.amount')!
 const THORN_IDS = TARGETS.filter((t) => isThornTarget(t.id)).map((t) => t.id)
 
@@ -61,10 +62,10 @@ function thornWith(params: GeometryParams, patch: Partial<NonNullable<GeometryPa
 const seedState = (seed: number): ThornState => thornState(thornWith(THORN_ON, {}, seed))
 /** Thorn's own state with Spread `dp` of its travel away (Spread moves in steps of 5%). */
 const spreadState = (dp: number): ThornState => thornState(SPREAD.set(THORN_ON, SPREAD.fromSlider(SPREAD.toSlider(SPREAD.get(THORN_ON)) + dp)))
-/** Thorn with Reach half way along its (cubic, finely stepped) slider. */
-const MID_REACH = thornWith(THORN_ON, { canvasReach: 0.125 })
-/** MID_REACH's Thorn state with Reach `dp` of its travel away. */
-const reachState = (dp: number): ThornState => thornState(REACH.set(MID_REACH, REACH.fromSlider(REACH.toSlider(REACH.get(MID_REACH)) + dp)))
+/** Thorn with Reach and Width half way along their sliders. */
+const MID_REACH = thornWith(THORN_ON, { canvasReach: 0.125, width: 0.5 })
+/** MID_REACH's Thorn state with Width `dp` of its travel away. */
+const widthState = (dp: number): ThornState => thornState(WIDTH.set(MID_REACH, WIDTH.fromSlider(WIDTH.toSlider(WIDTH.get(MID_REACH)) + dp)))
 
 /** `count` letters across one line, glyph ids cycling through `ids`, every sixth a space. */
 function lettersOf(count: number, ids = 8): LetterSlots {
@@ -280,7 +281,8 @@ function rig(slots: LetterSlots) {
  * Experimental seed, Geometry before Distortion, the warps' shapes), as one string.
  */
 function thornOf(params: GeometryParams): string {
-  const { canvasEm: _canvasEm, ...thorn } = params.experimental.thorn ?? {}
+  // Reach is kept through (it goes to every letter at once): not part of what a turn hands on.
+  const { canvasEm: _canvasEm, canvasReach: _canvasReach, ...thorn } = params.experimental.thorn ?? {}
   return JSON.stringify([thorn, thornState(params).values])
 }
 
@@ -489,8 +491,8 @@ describe('Thorn state', () => {
     const ids = TARGETS.filter((t) => isTurnTarget(t.id)).map((t) => t.id)
     const upstream = ['flatten.segmentsPerCurve', 'squaring.amount', 'anchors.simplify', 'grid.size', 'random.seed']
     const warps = ['experimental.crumple.facet', 'experimental.ripple.petals', 'experimental.whorl.amount', 'experimental.slipstream.slip']
-    expect(ids).toEqual(expect.arrayContaining([...THORN_IDS, 'experimental.seed', ...upstream, ...warps]))
-    for (const id of ['distortion.amount', 'distortion.frequency', 'distortion.seed', 'experimental.crumple.amount', 'experimental.ripple.amount']) {
+    expect(ids).toEqual(expect.arrayContaining([...THORN_IDS.filter((id) => id !== REACH.id), 'experimental.seed', ...upstream, ...warps]))
+    for (const id of ['distortion.amount', 'distortion.frequency', 'distortion.seed', 'experimental.crumple.amount', 'experimental.ripple.amount', REACH.id]) {
       expect(ids).not.toContain(id)
     }
     expect(thornState(THORN_ON).values).toHaveLength(ids.length)
@@ -499,6 +501,30 @@ describe('Thorn state', () => {
     const reseeded = thornState(RANDOM_SEED.set(THORN_ON, RANDOM_SEED.get(THORN_ON) + 1))
     expect(thornDiffers(thornState(THORN_ON), reseeded, thornState(THORN_ON))).toBe(true)
     expect(turnSwing(0.2, thornState(THORN_ON), reseeded)).toBeCloseTo(0.2, 12)
+  })
+
+  it('a beat on Reach grows and sinks the thorns of every letter together, back to none after each beat', () => {
+    // Burst with Reach 0 shows the letters as they are; a Trigger on Beat shoots the spikes out on each hit.
+    const slots = lettersOf(40)
+    const base = thornWith(THORN_ON, { burst: true, spikes: 40, canvasReach: 0 })
+    const r = rig(slots)
+    r.live.setBase(base)
+    r.live.setSlots(slots)
+    r.live.setMappings([{ ...row(REACH.id, 0.4, 'beat'), mode: 'trigger', smoothMs: 150 }], true)
+    r.play(6000, beatStream(7))
+    let rises = 0
+    let was = 0
+    for (const { commit } of r.commits) {
+      const { byKey, keys } = lettersAt(commit, slots, base)
+      const reaches = new Set(keys.map((key) => byKey.get(key)!.experimental.thorn!.canvasReach))
+      // Every letter shows one Reach: no turn group keeps an older one.
+      expect(reaches.size).toBe(1)
+      const reach = [...reaches][0]
+      if (was === 0 && reach > 0) rises++
+      was = reach
+    }
+    // About 10 hits in 6 s at 120 bpm (one beat in eight is skipped): the thorns are back to none before each.
+    expect(rises).toBeGreaterThanOrEqual(8)
   })
 
   it('withThornState sets the Thorn settings and the seed, and keeps the same object when they are there', () => {
@@ -517,12 +543,12 @@ describe('Thorn state', () => {
     expect(thornDiffers(own, thornState(thornWith(MID_REACH, {}, MID_REACH.experimental.seed + 1)), own)).toBe(true)
     expect(thornDiffers(own, thornState(thornWith(MID_REACH, { count: 2 })), own)).toBe(true)
     expect(thornDiffers(own, thornState(thornWith(MID_REACH, { enabled: false })), own)).toBe(true)
-    expect(thornDiffers(own, reachState(half - 0.01), own)).toBe(false)
-    expect(thornDiffers(own, reachState(half + 0.01), own)).toBe(true)
-    expect(thornDiffers(own, reachState(-half - 0.01), own)).toBe(true)
+    expect(thornDiffers(own, widthState(half - 0.01), own)).toBe(false)
+    expect(thornDiffers(own, widthState(half + 0.01), own)).toBe(true)
+    expect(thornDiffers(own, widthState(-half - 0.01), own)).toBe(true)
     // Back on the sliders' own value: taken however near, so quiet ends exactly there.
-    expect(thornDiffers(reachState(0.02), own, own)).toBe(true)
-    expect(thornDiffers(reachState(0.02), reachState(0.03), own)).toBe(false)
+    expect(thornDiffers(widthState(0.02), own, own)).toBe(true)
+    expect(thornDiffers(widthState(0.02), widthState(0.03), own)).toBe(false)
   })
 
   it('a turn is as large as its share of the text times how far its sliders move, a new seed a whole travel', () => {

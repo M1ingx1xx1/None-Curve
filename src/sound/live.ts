@@ -20,7 +20,7 @@
 // font's axes (GeometryParams.variation, which are). A frame's key is its geometry key with its look (lookKey); a frame
 // whose glyphs are the sliders' own asks for nothing and is committed at once, its look changes (lookChanges) with it.
 //
-// While Thorn is on, the settings that decide where the thorns sit and which way they point (Thorn's own, the
+// While Thorn is on, the settings that decide where the thorns sit and which way they point (Thorn's own but Reach, the
 // Experimental seed and the shapes before Thorn: isTurnTarget, letters.ts) reach the letters by turns (THORN_TURNS):
 // each turn group of letters shows the turn state it took at its last turn, and a turn hands the live state to the
 // next group, at most every THORN_TURNS.gapMs on screen, as a change of its own from the same budget. Levels do not
