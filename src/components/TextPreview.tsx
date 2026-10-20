@@ -1,11 +1,15 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import { artboardViewFrame, type ArtboardLayout, type ArtboardParams, type PaletteParams } from '../specimen/artboard'
 import { MAX_PREVIEW_BLUR, PREVIEW_BLUR_STEP, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import type { SpecimenScene } from '../specimen/scene'
+import { RENDERER_CHOICE } from '../render/createRenderer'
+import type { GlideStore } from '../state/useGlide'
 import ErrorBoundary from './ErrorBoundary'
 import ExportedArtboard from './ExportedArtboard'
+import Glided from './Glided'
 import Icon from './Icon'
+import PreviewSurface from './PreviewSurface'
 import SliderNumber from './SliderNumber'
 
 interface TextPreviewProps {
@@ -21,9 +25,16 @@ interface TextPreviewProps {
   look: PreviewLook
   /** The canvas's Fill: off, the preview shows outlines only, as the exports draw them. */
   fill: boolean
+  /** Sound moves the letters: their shapes are only rounded, not checked for export (no export uses them). */
+  live?: boolean
   onLookChange: (look: PreviewLook) => void
   /** Reports the preview's scale (screen pixels per font unit), so exports can size the blur alike. */
   onScaleChange: (pixelsPerUnit: number) => void
+  /**
+   * Glide's store, for a canvas renderer (?render=canvas or webgl): `scene` is then the scene glided into, and the
+   * preview follows the store frame by frame. Without it (the SVG renderer), `scene` is the frame as shown.
+   */
+  glide?: GlideStore
 }
 
 /**
@@ -43,8 +54,10 @@ export default function TextPreview({
   precision,
   look,
   fill,
+  live = false,
   onLookChange,
   onScaleChange,
+  glide,
 }: TextPreviewProps) {
   const id = useId()
   const { blur, inverted } = look
@@ -67,6 +80,30 @@ export default function TextPreview({
     scale = Math.min(size.width / frame.width, size.height / frame.height)
   }
   useEffect(() => onScaleChange(scale), [scale, onScaleChange])
+  // A canvas renderer that could not start: the SVG preview instead.
+  const [svgFallback, setSvgFallback] = useState(false)
+  const onRendererFallback = useCallback(() => setSvgFallback(true), [])
+
+  const label = `Preview of the export${fill ? '' : ', outlines only'}${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`
+  // The SVG preview of the scene as shown.
+  const artboardOf = (shown: SpecimenScene) =>
+    hasText && (
+      <ExportedArtboard
+        scene={shown}
+        checked={!live}
+        layout={layout}
+        width={artboard.width}
+        height={artboard.height}
+        precision={precision}
+        ink={colors.ink}
+        paper={colors.paper}
+        transparent={palette.transparent}
+        pixelsPerArtboardPixel={scale * layout.unitsPerPx}
+        blur={previewBlur(blur, scale, layout.unitsPerPx)}
+        outlineOnly={!fill}
+        label={label}
+      />
+    )
 
   return (
     <section className="text-preview" aria-labelledby={`${id}-title`}>
@@ -108,22 +145,33 @@ export default function TextPreview({
       <div ref={canvasRef} className="text-preview-canvas">
         {hasText ? (
           <ErrorBoundary resetKey={`${font.id}:preview`} label="The preview">
-            {scale > 0 && (
-              <ExportedArtboard
-                scene={scene}
-                layout={layout}
-                width={artboard.width}
-                height={artboard.height}
-                precision={precision}
-                ink={colors.ink}
-                paper={colors.paper}
-                transparent={palette.transparent}
-                pixelsPerArtboardPixel={scale * layout.unitsPerPx}
-                blur={previewBlur(blur, scale, layout.unitsPerPx)}
-                outlineOnly={!fill}
-                label={`Preview of the export${fill ? '' : ', outlines only'}${inverted ? ', colours inverted' : ''}${blur > 0 ? `, blurred by ${blur} pixels` : ''}`}
-              />
-            )}
+            {scale > 0 &&
+              (glide && RENDERER_CHOICE !== 'svg' && !svgFallback ? (
+                <PreviewSurface
+                  scene={scene}
+                  glide={glide}
+                  checked={!live}
+                  layout={layout}
+                  width={artboard.width}
+                  height={artboard.height}
+                  precision={precision}
+                  ink={colors.ink}
+                  paper={colors.paper}
+                  transparent={palette.transparent}
+                  pixelsPerArtboardPixel={scale * layout.unitsPerPx}
+                  blur={previewBlur(blur, scale, layout.unitsPerPx)}
+                  outlineOnly={!fill}
+                  label={label}
+                  choice={RENDERER_CHOICE === 'canvas' ? 'canvas' : 'webgl'}
+                  onFallback={onRendererFallback}
+                />
+              ) : glide ? (
+                <Glided store={glide} scene={scene}>
+                  {(shown) => artboardOf(shown ?? scene)}
+                </Glided>
+              ) : (
+                artboardOf(scene)
+              ))}
           </ErrorBoundary>
         ) : (
           <p className="text-preview-empty">{font ? 'Type text to preview it here.' : 'Import a font to see a preview.'}</p>

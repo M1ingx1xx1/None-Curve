@@ -3,11 +3,20 @@
 // more parameter sets each), sending results back in small batches. A newer request or a cancel stops
 // a request between glyphs, and every request ends with one answer ('done' or 'failed'), so the page
 // never waits on a request that is over.
+//
+// Requests come in three lanes (protocol.ts Lane), each with its own latest request, so none cancels another's:
+// 'canvas' (compute: what the canvas shows now), 'plan' (a Glide plan on demand) and 'ahead' (the precompute window's
+// glyphs and Glide chains, aheadCore.ts). They take turns by priority, between glyphs and items: a plan waits while
+// the canvas lane computes, and the ahead lane waits while either does.
 
 import type { LoadedFont } from '../font/model'
 import { parseFont } from '../font/parse'
-import { glyphGeometry, isCached, shareCacheLimits } from './cache'
-import type { GlyphResult, WorkerRequest, WorkerResponse } from './protocol'
+import { planMorph, settleInBetween } from '../specimen/morph'
+import { decodeGlyph, encodePlan, encodeSettled } from '../specimen/planCodec'
+import { AheadCore, type StepRecord } from './aheadCore'
+import { cachedGeometry, glyphGeometry, isCached, shareCacheLimits } from './cache'
+import type { GlyphResult, Lane, WorkerRequest, WorkerResponse } from './protocol'
+import type { PolygonGlyph } from './types'
 
 /** How long the worker computes before sending what it has and checking for newer requests (ms). */
 const BATCH_MS = 40
@@ -16,10 +25,20 @@ const MAX_FONTS = 2
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+/** Lets newer messages in before going on (a lower lane resumes once the higher one has posted its answer). */
+const idle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 /** The worker's message handler; `post` sends a message to the page. */
 export function createGeometryWorker(post: (message: WorkerResponse) => void): (message: WorkerRequest) => void {
   const fonts = new Map<string, Promise<LoadedFont>>()
-  let latestRequest = 0
+  /** Each lane's latest request (0: none, or cancelled). Plans run each to its end unless cancelled. */
+  const latest: Record<Exclude<Lane, 'plan'>, number> = { canvas: 0, ahead: 0 }
+  /** Requests running in each lane, for the priority between them. */
+  const busy: Record<Lane, number> = { canvas: 0, ahead: 0, plan: 0 }
+  /** Plan requests not answered yet, and those of them the page cancelled. */
+  const plans = new Set<number>()
+  const cancelledPlans = new Set<number>()
+  const core = new AheadCore()
 
   async function compute(request: Extract<WorkerRequest, { type: 'compute' }>) {
     const { requestId, fontId } = request
@@ -43,7 +62,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
     }
     for (const { params, key, indices } of request.jobs) {
       for (const index of indices) {
-        if (latestRequest !== requestId) {
+        if (latest.canvas !== requestId) {
           // Superseded or cancelled: the page wants other settings now, or has everything.
           flush(key)
           return post({ type: 'done', requestId, stopped: true })
@@ -62,7 +81,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
         if (performance.now() - started > BATCH_MS) {
           flush(key)
           // Let newer requests and cancels in before going on.
-          await new Promise((resolve) => setTimeout(resolve, 0))
+          await idle()
           started = performance.now()
         }
       }
@@ -72,12 +91,128 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
     post({ type: 'done', requestId })
   }
 
+  /** The window's glyphs (into the ahead store) and chain steps, item after item, below the other lanes. */
+  async function ahead(request: Extract<WorkerRequest, { type: 'ahead' }>) {
+    const { requestId, fontId, generation, glideMs, items } = request
+    const stopped = () => latest.ahead !== requestId
+    let font: LoadedFont
+    try {
+      const loading = fonts.get(fontId)
+      if (!loading) throw new Error('no font')
+      font = await loading
+    } catch {
+      // Without the font nothing of the window can be done; the page sends the font again (or gives up on it).
+      return post({ type: 'ahead-done', requestId, stopped: true })
+    }
+    core.begin(fontId, generation)
+    core.reserve(items.flatMap((item) => (item.kind === 'step' ? [item] : item.indices.map((index) => ({ seq: item.seq, key: item.key, index })))))
+    let started = performance.now()
+    let plansOf: { seq: number; plans: StepRecord[] } | null = null
+    const flushPlans = () => {
+      if (plansOf && plansOf.plans.length) post({ type: 'ahead-plans', requestId, generation, seq: plansOf.seq, plans: plansOf.plans })
+      plansOf = null
+    }
+    /** Waits while a higher lane works, and between batches; false once a newer ahead request replaced this one. */
+    const turn = async (): Promise<boolean> => {
+      if (performance.now() - started > BATCH_MS) {
+        await idle()
+        started = performance.now()
+      }
+      while (!stopped() && (busy.canvas > 0 || busy.plan > 0)) {
+        await idle()
+        started = performance.now()
+      }
+      return !stopped()
+    }
+    for (const item of items) {
+      if (!(await turn())) {
+        flushPlans()
+        return post({ type: 'ahead-done', requestId, stopped: true })
+      }
+      if (item.kind === 'step') {
+        if (plansOf && plansOf.seq !== item.seq) flushPlans()
+        plansOf ??= { seq: item.seq, plans: [] }
+        plansOf.plans.push(core.step(item.seq, item.mediaMs, item.lineage, item.parent, item.index, item.key, glideMs))
+        continue
+      }
+      flushPlans()
+      const { seq, key, params, indices } = item
+      let results: GlyphResult[] = []
+      let times: (number | null)[] = []
+      const flush = () => {
+        if (results.length) post({ type: 'ahead-results', requestId, generation, seq, key, results, times })
+        results = []
+        times = []
+      }
+      for (const index of indices) {
+        if (results.length && performance.now() - started > BATCH_MS) flush()
+        if (!(await turn())) {
+          flush()
+          return post({ type: 'ahead-done', requestId, stopped: true })
+        }
+        let entry = core.get(key, index, seq)
+        let ms: number | null = null
+        if (!entry) {
+          post({ type: 'glyph', requestId, key, index })
+          const begun = performance.now()
+          try {
+            const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, true, 'ahead')
+            entry = { geometry }
+          } catch (error) {
+            entry = { error: errorText(error) }
+          }
+          ms = performance.now() - begun
+          core.put(key, index, entry, seq)
+        }
+        results.push({ index, ...entry } as GlyphResult)
+        times.push(ms)
+      }
+      flush()
+    }
+    flushPlans()
+    post({ type: 'ahead-done', requestId })
+  }
+
+  /** One glide planned on demand, after whatever the canvas lane is computing. */
+  async function plan(request: Extract<WorkerRequest, { type: 'plan' }>) {
+    const { requestId } = request
+    try {
+      while (busy.canvas > 0 && !cancelledPlans.has(requestId)) await idle()
+      if (cancelledPlans.has(requestId)) return
+      const from = decodeGlyph(request.from)
+      let to: PolygonGlyph | null = null
+      if ('glyph' in request.to) to = decodeGlyph(request.to)
+      else {
+        const { key, index } = request.to
+        const stored = core.get(key, index)
+        if (stored && 'geometry' in stored) to = stored.geometry.polygon
+        else {
+          const font = await fonts.get(request.fontId)?.catch(() => undefined)
+          to = (font && cachedGeometry(font, index, key)?.polygon) ?? null
+        }
+      }
+      const settled = to ? settleInBetween(from, to) : from
+      const planned = to ? planMorph(settled, to) : null
+      const data = planned ? encodePlan(planned).data : null
+      post({ type: 'plan-result', requestId, data: data && settled !== from ? { ...data, settled: encodeSettled(settled) } : data })
+    } finally {
+      plans.delete(requestId)
+      cancelledPlans.delete(requestId)
+    }
+  }
+
   const fail = (requestId: number, error: unknown) => {
     try {
       post({ type: 'failed', requestId, reason: 'internal', message: errorText(error) })
     } catch {
       // Nothing more can reach the page; its watchdog restarts a worker that has gone silent.
     }
+  }
+
+  /** Runs a request in its lane, counted as busy while it runs. */
+  const run = (lane: Lane, work: Promise<void>, onError: (error: unknown) => void) => {
+    busy[lane]++
+    work.catch(onError).finally(() => busy[lane]--)
   }
 
   return (message) => {
@@ -90,10 +225,22 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
       fonts.set(message.fontId, loading)
       while (fonts.size > MAX_FONTS) fonts.delete(fonts.keys().next().value!)
     } else if (message.type === 'cancel') {
-      if (latestRequest === message.requestId) latestRequest = 0
-    } else {
-      latestRequest = message.requestId
-      compute(message).catch((error) => fail(message.requestId, error))
+      // Request ids are unique across lanes: the cancel stops whichever lane runs it.
+      if (latest.canvas === message.requestId) latest.canvas = 0
+      if (latest.ahead === message.requestId) latest.ahead = 0
+      if (plans.has(message.requestId)) cancelledPlans.add(message.requestId)
+    } else if (message.type === 'compute') {
+      latest.canvas = message.requestId
+      run('canvas', compute(message), (error) => fail(message.requestId, error))
+    } else if (message.type === 'ahead') {
+      latest.ahead = message.requestId
+      run('ahead', ahead(message), () => post({ type: 'ahead-done', requestId: message.requestId, stopped: true }))
+    } else if (message.type === 'plan') {
+      plans.add(message.requestId)
+      run('plan', plan(message), () => post({ type: 'plan-result', requestId: message.requestId, data: null }))
+    } else if (message.type === 'ahead-release') {
+      if (message.beforeSeq === Infinity) core.clear()
+      else core.release(message.beforeSeq)
     }
   }
 }

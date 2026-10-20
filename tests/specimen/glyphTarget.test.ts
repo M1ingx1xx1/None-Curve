@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { sharedOutlines } from '../../src/components/sharedOutlines'
 import { SpecimenGlyph } from '../../src/components/SpecimenView'
 import type { LoadedFont } from '../../src/font/model'
 import { flattenGlyph } from '../../src/geometry/flatten'
@@ -171,5 +172,59 @@ describe('the outlines ignore the pointer only on glyphs with thorns', () => {
     for (const [, selector] of rules) {
       for (const part of selector.split(',')) expect(part).toContain('.specimen-glyph-thorned')
     }
+  })
+})
+
+describe('glyph click targets on the canvas, drawn from shared outlines (sharedOutlines)', () => {
+  const shapes = (char: string, params: GeometryParams) => {
+    const index = glyphIndex(char)
+    const source = font.getGlyph(index)
+    const polygon = deriveGeometry(source, params).polygon
+    const shared = sharedOutlines('v')
+    const { ascender, descender } = font.metrics
+    const markup = renderToStaticMarkup(
+      createElement(
+        'svg',
+        null,
+        createElement(SpecimenGlyph, {
+          index,
+          text: char,
+          x: 0,
+          y: 0,
+          advance: advanceOf(char),
+          skew: '',
+          ascender,
+          descender,
+          source,
+          polygon: null,
+          polygonHref: shared.polygon(index, polygon),
+          sourceHref: undefined,
+          clickHref: shared.click(index, polygon),
+          view: view(),
+          markerRadius: 4,
+          showMarkers: false,
+          selected: false,
+          onSelect: () => {},
+        }),
+      ),
+    )
+    const group = /<g class="([^"]*)"/.exec(markup)![1].split(' ')
+    const uses = [...markup.matchAll(/<use class="([^"]*)" href="#([^"]*)"/g)].map((m) => [m[1], m[2]])
+    return { polygon, shared, group, uses, markup }
+  }
+
+  it('use the shared click outline with thorns: the same straight path as a glyph drawing its own', () => {
+    const glyph = shapes('l', paramsWith({}, THORN_FARTHEST))
+    expect(glyph.group).toEqual(['specimen-glyph', 'specimen-glyph-thorned'])
+    const click = glyph.uses.find(([className]) => className === 'glyph-box')!
+    expect(glyph.shared.defs.find((d) => d.id === click[1])!.d).toEqual(contoursToPath(glyph.polygon.clickOutline!))
+    expect(glyph.uses).toContainEqual(['glyph-fill', glyph.shared.polygon(glyphIndex('l'), glyph.polygon)])
+    expect(glyph.markup).not.toContain('<path')
+  })
+
+  it('without thorns: the advance and the shared outline, no click outline', () => {
+    const glyph = shapes('l', BASE)
+    expect(glyph.group).toEqual(['specimen-glyph'])
+    expect(glyph.uses.map(([className]) => className)).toEqual(['glyph-fill'])
   })
 })

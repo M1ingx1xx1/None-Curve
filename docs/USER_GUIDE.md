@@ -211,7 +211,7 @@ The **Preview** (bottom right) shows the whole canvas exactly as an SVG export w
 - It always shows the finished letters and nothing else: solid, or as outlines when **Fill** is off, just as they will be exported. Apart from Fill, it does not follow the big canvas's Original / Flattened / Compare and layer buttons, its zoom, the snap grid, or the dashed boxes for missing characters: those only help you on the big canvas and are never exported.
 - Its outlines are rounded the same way as the SVG file (see **Coordinate precision** in [Saving your work](#10-saving-your-work-export)), so what you see here is what you get.
 - With **Transparent background** (Color tab) on, the empty background shows as a checkerboard.
-- If saving the text as an SVG would fail, the preview says "Export would fail: …" with the reason instead.
+- If saving the text as an SVG would fail, the preview says "Export would fail: …" with the reason instead. While the sound moves the letters this is not checked, since exports use your sliders and not the moving letters; it is checked again once the sound stops.
 - While the Sound tab moves the letters, the preview moves with them. SVG, PNG, and font exports still use your sliders (see **Freeze**); a video records the moving letters (see [Record a video](#record-a-video)).
 
 - **Blur** softens the preview, as if you looked at the text from far away or squinted. This shows the overall shape and rhythm of the letters without the details — a quick way to check whether a rough or faceted style still reads well.
@@ -459,6 +459,7 @@ The tab is laid out like the front panel of a synthesizer, in five boxes from to
   - **Play** / **Pause** — the triangle button at the left plays the file through your speakers or headphones; while it plays, it shows two bars and pauses it. **Play** and **Position** stay greyed out until you have chosen a file.
   - **Loop** — starts the file again from the beginning when it ends. It is on at the start.
   - **Position** — the long slider under the file: drag it to jump to another part of the file. The time beside the file's name shows where you are and the total length, for example "0:42 / 3:15".
+  - **Smooth playback** — while a file plays, the app reads the music a few seconds ahead and prepares the letters' shapes before you hear them, so they move evenly in time with the sound. This happens on its own and needs nothing from you. Right after you choose a file, jump with **Position**, or change a setting during playback, the letters follow the sound directly for a moment until the shapes ahead are ready again. On a very heavy canvas (hundreds of letters with many effects) the computer may not get the shapes ready in time; the app then follows the sound directly and tries again a little later, so playback is never slower than without it. Files longer than 6 minutes, and the microphone, are always followed directly.
 - **Microphone** — the sound around you, for example music playing in the room, your voice, or clapping.
   - Choosing **Microphone** pauses the file and shows the **Start listening** button; the microphone turns on only when you click it. The first time, your browser asks whether this page may use the microphone: click **Allow**.
   - **Stop listening** turns the microphone off; **Start listening** turns it on again.

@@ -30,8 +30,18 @@
 // does not pile up anchors.
 
 import type { GlyphMotion, Point, PolygonContour, PolygonGlyph } from '../geometry/types'
-import { planWhorlMesh, type MeshGlide, type MeshPose } from './whorlGlide'
-import { chooseTrajectory, STRAIGHT, TRAJECTORY_MODELS, WHORL_MODEL, type Correspondence, type TrackPath, type TrajectoryModel } from './trajectory'
+import { PLAN_DATA_VERSION, type PlanData, type TrackData } from './planData'
+import { meshGlideFrom, planWhorlMesh, preparedFor, type MeshGlide, type MeshPose, type Prepared } from './whorlGlide'
+import {
+  chooseTrajectory,
+  STRAIGHT,
+  TRAJECTORY_MODELS,
+  WHORL_MODEL,
+  whorlTrackPath,
+  type Correspondence,
+  type TrackPath,
+  type TrajectoryModel,
+} from './trajectory'
 
 export const MORPH_LIMITS = {
   /** Anchors of an in-between glyph at most; a glyph that would need more changes at once. */
@@ -300,6 +310,8 @@ export interface MorphPlan {
   ys: Float64Array
   /** Whorl on its own, glided by its mesh (whorlGlide.ts) instead of by tracks. */
   mesh?: MeshGlide
+  /** The plan as data (planData.ts): the tracks and mesh run on it; planMorph and planFromData always set it. */
+  data?: PlanData
 }
 
 /** Pairs listed as plain arrays while they are built. */
@@ -609,14 +621,18 @@ function attachPairs(r: Ring, r2: Ring, hosts: Ring[], hosts2: Ring[], entering:
   return pairs
 }
 
-/** Plans `from` → `to`: null when the glyph should change at once (too many anchors). */
+/**
+ * Plans `from` → `to`: null when the glyph should change at once (too many anchors). The plan is built as data first
+ * (planData.ts) and run from it (planFromData), so a plan sent from a worker runs the same as one made here.
+ */
 export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonly TrajectoryModel[]): MorphPlan | null {
   // Whorl on its own glides by its mesh (whorlGlide.ts).
   if ((models ?? TRAJECTORY_MODELS).includes(WHORL_MODEL)) {
     const mesh = planWhorlMesh(from, to, meshPoses.get(from)?.(), keptAnchors.has(from))
     if (mesh) {
       if (mesh.points > MORPH_LIMITS.maxPoints) return null
-      return { from, to, trajectory: 'whorl-mesh', tracks: [], points: mesh.points, xs: new Float64Array(mesh.points), ys: new Float64Array(mesh.points), mesh }
+      const data: PlanData = { version: PLAN_DATA_VERSION, trajectory: 'whorl-mesh', points: mesh.points, longest: mesh.points, whorl: null, mesh: mesh.data, tracks: [], settled: null }
+      return runPlan(data, from, to, mesh)
     }
   }
   const trajectory = chooseTrajectory(from.motion, to.motion, models)
@@ -637,7 +653,7 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
   }
   const a2 = straighten ? a.map((r) => flat(r, 'from')) : a
   const b2 = straighten ? b.map((r) => flat(r, 'to')) : b
-  const built: { pairs: Pairs | null; clockwise: boolean; still: PolygonContour | null }[] = []
+  const built: { pairs: Pairs | null; clockwise: boolean; still: number }[] = []
   let points = 0
   const pairs = pairContours(a2, b2)
   const pairedA = new Uint8Array(a.length)
@@ -652,13 +668,13 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
     if (i >= 0) {
       const p = a[i]
       if (sameContour(p.contour, q.contour)) {
-        built.push({ pairs: null, clockwise: q.contour.clockwise, still: q.contour })
+        built.push({ pairs: null, clockwise: q.contour.clockwise, still: j })
         points += q.n
         continue
       }
       if (p.length > 0 && q.length > 0) {
         const paired = directPairs(p, q, a2[i], b2[j]) ?? unionPairs(p, q, a2[i], b2[j], trajectory.correspondence)
-        built.push({ pairs: paired, clockwise: q.contour.clockwise, still: null })
+        built.push({ pairs: paired, clockwise: q.contour.clockwise, still: -1 })
         points += paired.sx.length
         continue
       }
@@ -669,7 +685,7 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
       grow = new Pairs()
       for (let k = 0; k < q.n; k++) grow.push(q.cx, q.cy, q.xs[k], q.ys[k], true, false)
     }
-    built.push({ pairs: grow, clockwise: q.contour.clockwise, still: null })
+    built.push({ pairs: grow, clockwise: q.contour.clockwise, still: -1 })
     points += grow.sx.length
   }
   for (let i = 0; i < a.length; i++) {
@@ -681,34 +697,91 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
       shrink = new Pairs()
       for (let k = 0; k < p.n; k++) shrink.push(p.xs[k], p.ys[k], p.cx, p.cy, false, true)
     }
-    built.push({ pairs: shrink, clockwise: p.contour.clockwise, still: null })
+    built.push({ pairs: shrink, clockwise: p.contour.clockwise, still: -1 })
     points += shrink.sx.length
   }
   if (points > MORPH_LIMITS.maxPoints) return null
   let longest = 0
-  const tracks: Track[] = built.map(({ pairs, clockwise, still }) => {
+  const tracks: TrackData[] = built.map(({ pairs, clockwise, still }): TrackData => {
     if (!pairs) {
-      const n = still!.points.length
-      const none = new Float64Array(0)
-      return { clockwise, sx: none, sy: none, tx: none, ty: none, kept: new Uint8Array(n).fill(1), base: new Uint8Array(0), path: null, still }
+      const contour = b[still].contour
+      const kept = new Uint8Array(contour.points.length).fill(1)
+      if (contour === to.contours[still]) return { kind: 'still', clockwise, contour: still, kept }
+      // The target's contour wound the other way (see windsClockwise): its anchors as a track that stays in place.
+      const xs = Float64Array.from(contour.points, (q) => q.x)
+      const ys = Float64Array.from(contour.points, (q) => q.y)
+      longest = Math.max(longest, xs.length)
+      return { kind: 'straight', clockwise, sx: xs, sy: ys, tx: xs, ty: ys, kept, base: new Uint8Array(xs.length) }
     }
     const t = pairs.track(clockwise)
     longest = Math.max(longest, t.sx.length)
     // Contours that grow out of or shrink into their centre go straight whatever the trajectory.
-    const path = isPoint(t) ? straightPath(t) : trajectory.path(t.sx, t.sy, t.tx, t.ty, t.base)
-    return { ...t, path, still: null }
+    if (isPoint(t) || !trajectory.whorl) return { kind: 'straight', ...t }
+    return { kind: 'whorl', ...t, ...trajectory.whorl.arrays(t.sx, t.sy, t.tx, t.ty, t.base) }
   })
-  return { from, to, trajectory: trajectory.id, tracks, points, xs: new Float64Array(longest), ys: new Float64Array(longest) }
+  const data: PlanData = { version: PLAN_DATA_VERSION, trajectory: trajectory.id, points, longest, whorl: trajectory.whorl?.params ?? null, mesh: null, tracks, settled: null }
+  return runPlan(data, from, to)
 }
 
 /** True when a track starts or ends in a single point (a contour that grows or shrinks). */
-function isPoint(t: Omit<Track, 'path' | 'still'>): boolean {
+function isPoint(t: { sx: Float64Array; sy: Float64Array; tx: Float64Array; ty: Float64Array }): boolean {
   const single = (xs: Float64Array, ys: Float64Array) => xs.every((x) => x === xs[0]) && ys.every((y) => y === ys[0])
   return t.sx.length > 0 && (single(t.sx, t.sy) || single(t.tx, t.ty))
 }
 
-function straightPath(t: Omit<Track, 'path' | 'still'>): TrackPath {
-  return STRAIGHT.path(t.sx, t.sy, t.tx, t.ty)
+/**
+ * The plan a plan's data describes, between `from` and `to` (the outlines it was planned between, or equal ones: a
+ * plan sent from a worker runs on the page's own glyphs). With `data.settled`, `from` is the settled shape it holds.
+ */
+export function planFromData(data: PlanData, from: PolygonGlyph, to: PolygonGlyph): MorphPlan {
+  const settled = data.settled
+  if (settled) {
+    const contours: PolygonContour[] = []
+    let at = 0
+    settled.counts.forEach((n, c) => {
+      const points: Point[] = new Array(n)
+      for (let i = 0; i < n; i++, at++) points[i] = { x: settled.points[2 * at], y: settled.points[2 * at + 1] }
+      contours.push({ points, clockwise: settled.clockwise[c] === 1 })
+    })
+    from = { ...from, contours }
+  }
+  return runPlan(data, from, to)
+}
+
+/** The plan run from its data; `mesh` is the mesh glide when it was just made (its letter is prepared already). */
+function runPlan(data: PlanData, from: PolygonGlyph, to: PolygonGlyph, mesh?: MeshGlide): MorphPlan {
+  const tracks = data.tracks.map((track): Track => {
+    if (track.kind === 'still') {
+      const none = new Float64Array(0)
+      return { clockwise: track.clockwise, sx: none, sy: none, tx: none, ty: none, kept: track.kept, base: new Uint8Array(0), path: null, still: to.contours[track.contour] }
+    }
+    const path = track.kind === 'whorl' ? whorlTrackPath(track, data.whorl!) : STRAIGHT.path(track.sx, track.sy, track.tx, track.ty)
+    const { clockwise, sx, sy, tx, ty, kept, base } = track
+    return { clockwise, sx, sy, tx, ty, kept, base, path, still: null }
+  })
+  if (!mesh && data.mesh) {
+    const meshData = data.mesh
+    let prepared: Prepared | null = null
+    mesh = meshGlideFrom(meshData, () => {
+      prepared ??= preparedFor(meshData.meshKey, from, to)
+      if (!prepared) throw new Error('The outlines do not carry the mesh this glide turns by.')
+      return prepared
+    })
+  }
+  const plan: MorphPlan = { from, to, trajectory: data.trajectory, tracks, points: data.points, xs: new Float64Array(data.longest), ys: new Float64Array(data.longest), data }
+  if (mesh) plan.mesh = mesh
+  return plan
+}
+
+/** An in-between glyph's side tables (which anchors the new outline brought, and the mesh pose), to send it by value. */
+export function sideTablesOf(glyph: PolygonGlyph): { kept: Uint8Array[] | null; pose: MeshPose | null } {
+  return { kept: keptAnchors.get(glyph) ?? null, pose: meshPoses.get(glyph)?.() ?? null }
+}
+
+/** Gives a glyph received by value its side tables back, so it settles and glides on as the one it was made from. */
+export function registerSideTables(glyph: PolygonGlyph, kept: Uint8Array[] | null, pose: MeshPose | null) {
+  if (kept) keptAnchors.set(glyph, kept)
+  if (pose) meshPoses.set(glyph, () => pose)
 }
 
 /** Which in-between anchors belong to the new outline, by in-between glyph (settleInBetween). */
