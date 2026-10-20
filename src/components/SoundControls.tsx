@@ -49,6 +49,7 @@ import { useSoundEngine, useSoundFrames, useSoundState } from '../sound/useSound
 import type { Action } from '../state/editorState'
 import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
 import type { EditorParams } from '../state/types'
+import BufferedBar from './BufferedBar'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
 import Knob from './Knob'
@@ -321,6 +322,7 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
   const stillId = useId()
   const recordingId = useId()
   const presetSelectId = useId()
+  const bufferId = useId()
   const fileInput = useRef<HTMLInputElement>(null)
   const [presetId, setPresetId] = useState(PRESETS[0]?.id ?? '')
   // What the user last asked for, to word an "unsupported" error.
@@ -460,23 +462,28 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
               }}
             />
           </div>
-          <input
-            id="sound-position"
-            className="sound-position"
-            type="range"
-            aria-label="Position"
-            min={0}
-            max={loaded ? state.duration : 0}
-            step={1}
-            value={loaded ? position : 0}
-            disabled={!loaded}
-            aria-valuetext={`${formatTime(spokenPosition)} of ${formatTime(state.duration)}`}
-            onChange={(e) => {
-              const time = Number(e.target.value)
-              setSpokenPosition(time)
-              engine.seek(time)
-            }}
-          />
+          {/* The buffered bar under the track: what precomputed playback has prepared (BufferedBar.tsx). */}
+          <span className="sound-position-slider">
+            <input
+              id="sound-position"
+              className="sound-position"
+              type="range"
+              aria-label="Position"
+              aria-describedby={loaded ? bufferId : undefined}
+              min={0}
+              max={loaded ? state.duration : 0}
+              step={1}
+              value={loaded ? position : 0}
+              disabled={!loaded}
+              aria-valuetext={`${formatTime(spokenPosition)} of ${formatTime(state.duration)}`}
+              onChange={(e) => {
+                const time = Number(e.target.value)
+                setSpokenPosition(time)
+                engine.seek(time)
+              }}
+            />
+            {loaded && <BufferedBar id={bufferId} position={spokenPosition} format={formatTime} />}
+          </span>
         </div>
       )}
 

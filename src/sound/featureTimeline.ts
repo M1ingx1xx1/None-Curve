@@ -1,8 +1,9 @@
 // The precomputed feature timeline of the file loaded in the Sound tab (page side). It decodes the file at the audio
 // context's rate, hands the samples to the feature worker (features.worker.ts), and keeps the packed frames it posts:
 // the planner (planner.ts) reads them by grid index. Files longer than PRECOMPUTE_LIMITS.maxSeconds are not decoded
-// (the samples would take too much memory) and stay on the live path. New Sensitivity or Release settings start a new
-// generation: every frame is measured again, around the playhead first.
+// (the samples would take too much memory) and stay on the live path. The whole file is measured in order from its
+// start (the plan is made from 0 too, planner.ts); new Sensitivity or Release settings start a new generation, and
+// every frame is measured again from the start.
 
 import { gridFrameCount } from './offline'
 import type { FeatureWorkerRequest, FeatureWorkerResponse } from './featureWorkerCore'
@@ -32,6 +33,8 @@ export class FeatureTimeline implements FeatureSource {
   /** Bumped by every load and clear, so a decode overtaken by a newer one is dropped. */
   private token = 0
   private settings: FeatureSettings | null = null
+  /** Frames measured contiguously from the start. */
+  private contiguous = 0
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly createWorker: () => FeatureWorkerLike = startFeatureWorker) {}
@@ -86,18 +89,24 @@ export class FeatureTimeline implements FeatureSource {
     return this.frames > 0
   }
 
-  /** Sensitivity or Release changed: a new generation, measured from `playheadMs` first. */
-  setSettings(settings: FeatureSettings, playheadMs: number) {
+  /** Sensitivity or Release changed: a new generation, measured again from `fromMs` (the start, by default). */
+  setSettings(settings: FeatureSettings, fromMs = 0) {
     const s = this.settings
     if (!this.frames || (s && s.sensitivity === settings.sensitivity && s.releaseMs === settings.releaseMs)) return
     this.settings = settings
     this.generation++
     this.have.fill(0)
-    this.worker?.postMessage({ type: 'settings', generation: this.generation, settings, fromMs: playheadMs })
+    this.contiguous = 0
+    this.worker?.postMessage({ type: 'settings', generation: this.generation, settings, fromMs })
     this.notify()
   }
 
-  /** The playhead jumped: the worker measures there first when it is not covered. */
+  /** Media ms up to which every frame from the start is measured (0 before any). */
+  measuredUntil(): number {
+    return (this.contiguous * 1000) / this.hz
+  }
+
+  /** Measures around `ms` first when it is not covered (kept for the protocol; the director measures in order). */
   seek(ms: number) {
     if (!this.frames || this.covered(ms)) return
     this.worker?.postMessage({ type: 'seek', generation: this.generation, ms })
@@ -158,6 +167,7 @@ export class FeatureTimeline implements FeatureSource {
     this.values = new Float64Array(0)
     this.have = new Uint8Array(0)
     this.settings = null
+    this.contiguous = 0
     this.generation++
   }
 
@@ -180,6 +190,7 @@ export class FeatureTimeline implements FeatureSource {
     if (start < 0 || start + count > this.frames) return
     this.values.set(values, start * FEATURE_STRIDE)
     this.have.fill(1, start, start + count)
+    while (this.contiguous < this.frames && this.have[this.contiguous] === 1) this.contiguous++
     this.notify()
   }
 

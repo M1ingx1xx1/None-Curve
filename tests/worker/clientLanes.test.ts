@@ -7,12 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
 import type { AheadItem, EncodedGlyph, WorkerGeometry, WorkerRequest } from '../../src/geometry/protocol'
 import type { PlanData } from '../../src/specimen/planData'
+import { packGeometry } from '../../src/geometry/packed'
 import { GeometryClient } from '../../src/state/geometryClient'
 import { FakeWorker } from '../helpers/fakeWorker'
 import { BASE } from '../helpers/params'
 
 const font = (id: string) => ({ id, bytes: new Uint8Array(4), source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 } }) as unknown as LoadedFont
 const geometry = (index: number) => ({ polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] }, vertexCount: index }) as unknown as WorkerGeometry
+const packed = (index: number) => packGeometry(geometry(index)).packed
 const shape = (index: number): EncodedGlyph => ({ glyph: geometry(index).polygon, kept: null, pose: null })
 const glyphs = (seq: number, key: string, indices: number[]): AheadItem => ({ kind: 'glyphs', seq, key, params: BASE, indices })
 const step = (seq: number, index: number): AheadItem => ({ kind: 'step', seq, mediaMs: 0, lineage: index, parent: -1, index, key: 'k' })
@@ -55,7 +57,7 @@ describe('geometry client lanes', () => {
   it('pins ahead work to one worker per glyph, and steps go with their glyphs', () => {
     pool(3)
     expect(workers).toHaveLength(3)
-    expect(client.sendAhead('f', 1, 150, [glyphs(1, 'k', [0, 1, 2, 3, 4, 5]), step(1, 4), step(1, 2)])).toBe(true)
+    expect(client.sendAhead('f', 1, 150, 0, [glyphs(1, 'k', [0, 1, 2, 3, 4, 5]), step(1, 4), step(1, 2)])).toBe(true)
     workers.forEach((w, n) => {
       const items = aheadOf(w)!.items
       expect(items[0]).toMatchObject({ kind: 'glyphs', indices: [0, 1, 2, 3, 4, 5].filter((i) => i % 3 === n) })
@@ -64,22 +66,22 @@ describe('geometry client lanes', () => {
     // Request ids are unique across workers (a cancel names one request).
     expect(new Set(workers.map((w) => aheadOf(w)!.requestId)).size).toBe(3)
     // Work for one glyph only: the other workers are told to stop.
-    client.sendAhead('f', 1, 150, [glyphs(2, 'k', [3])])
+    client.sendAhead('f', 1, 150, 0, [glyphs(2, 'k', [3])])
     expect(aheadOf(workers[0])!.items).toEqual([glyphs(2, 'k', [3])])
     expect(workers[1].received.at(-1)?.type).toBe('cancel')
     expect(workers[2].received.at(-1)?.type).toBe('cancel')
     // Another font than the one held: nothing is sent.
-    expect(client.sendAhead('g', 1, 150, [glyphs(3, 'k', [0])])).toBe(false)
+    expect(client.sendAhead('g', 1, 150, 0, [glyphs(3, 'k', [0])])).toBe(false)
   })
 
   it('isComputing ignores the ahead and plan lanes; ahead results stand in like any result', () => {
     pool(1)
     const w = workers[0]
-    client.sendAhead('f', 1, 0, [glyphs(1, 'k', [1, 2])])
+    client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [1, 2])])
     expect(client.requestPlan(shape(1), { key: 'k', index: 1 }, () => {})).not.toBeNull()
     expect(client.isComputing()).toBe(false)
     const { requestId } = aheadOf(w)!
-    w.reply({ type: 'ahead-results', requestId, generation: 1, seq: 1, key: 'k', results: [{ index: 1, geometry: geometry(1) }, { index: 2, geometry: geometry(2) }], times: [3, 4] })
+    w.reply({ type: 'ahead-results', requestId, generation: 1, seq: 1, key: 'k', results: [{ index: 1, packed: packed(1) }, { index: 2, packed: packed(2) }], times: [3, 4] })
     expect(client.lookup('k', 1)).toEqual({ entry: { geometry: geometry(1) }, stale: false })
     expect(client.has('k', 2)).toBe(true)
     const held = client.lookup('k', 2)!.entry as { geometry: WorkerGeometry }
@@ -114,7 +116,7 @@ describe('geometry client lanes', () => {
     const ended: boolean[] = []
     client.setAheadListener({ results: () => {}, plans: () => {}, ended: (stopped) => ended.push(stopped) })
     client.requestPlan(shape(1), { key: 'k', index: 1 }, (d) => answers.push(d))
-    client.sendAhead('f', 1, 0, [glyphs(1, 'k', [7, 8])])
+    client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7, 8])])
     first.reply({ type: 'glyph', requestId: aheadOf(first)!.requestId, key: 'k', index: 7 })
     await vi.advanceTimersByTimeAsync(4_000)
     expect(workers).toHaveLength(1)

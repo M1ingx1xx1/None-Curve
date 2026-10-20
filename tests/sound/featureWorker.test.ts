@@ -178,4 +178,25 @@ describe('feature timeline', () => {
     expect(await timeline.load(blob, long, DEFAULT_FEATURE_SETTINGS)).toBe(false)
     expect(timeline.isLoaded()).toBe(false)
   })
+
+  it('measured from the start, reports how far every frame is measured; a chunk out of order does not count yet', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS, 0)
+    expect(worker.sent.at(-1)).toMatchObject({ type: 'load', fromMs: 0 })
+    expect(timeline.measuredUntil()).toBe(0)
+    const generation = timeline.currentGeneration()
+    const chunk = (start: number, count: number) =>
+      worker.onmessage?.({ data: { type: 'columns', generation, start, count, values: new Float64Array(count * FEATURE_STRIDE) } } as MessageEvent<FeatureWorkerResponse>)
+    chunk(60, 30)
+    expect(timeline.measuredUntil()).toBe(0)
+    chunk(0, 60)
+    expect(timeline.measuredUntil()).toBe((90 * 1000) / GRID.hz)
+    worker.pump()
+    expect(timeline.measuredUntil()).toBe((FRAMES * 1000) / GRID.hz)
+    // New settings: measured again from the start.
+    timeline.setSettings({ ...DEFAULT_FEATURE_SETTINGS, sensitivity: 12 })
+    expect(worker.sent.at(-1)).toMatchObject({ type: 'settings', fromMs: 0 })
+    expect(timeline.measuredUntil()).toBe(0)
+  })
 })

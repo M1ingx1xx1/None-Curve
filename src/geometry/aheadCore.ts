@@ -6,35 +6,39 @@
 // (a glide nearly done counts as arrived; an in-between shape is settled before it glides on), and plans the glide from
 // there to the commit's glyph. The page uses the plan only when the shape it shows matches the plan's `from` (PlanFrom);
 // otherwise it pairs as without the chain. Pure: no messages, no timers.
+//
+// Glyphs are kept packed (packed.ts) within PRECOMPUTE_LIMITS.workerStoreBytes, and only the part ahead of the commit
+// due (release). Past the budget, the glyph whose newest use is farthest ahead goes first.
 
 import type { PolygonGlyph } from './types'
 import { easeOut, GLIDE_LIMITS } from '../specimen/glide'
 import { morphAt, planMorph, settleInBetween, type MorphPlan } from '../specimen/morph'
 import { encodePlan, encodeSettled } from '../specimen/planCodec'
 import type { PlanData, PlanFrom } from '../specimen/planData'
-import type { WorkerGeometry } from './protocol'
+import { PRECOMPUTE_LIMITS } from '../sound/timelineTypes'
+import { ERROR_BYTES, packedBytes, unpackGeometry, type PackedGlyph } from './packed'
 
-export const AHEAD_LIMITS = {
-  /** Polygon points the worker keeps for the window; the least recently used glyphs go first past it. */
-  maxPoints: 400_000,
-} as const
-
-/** A glyph of the window: its geometry, or why it failed. */
-export type AheadEntry = { geometry: WorkerGeometry } | { error: string }
+/** A glyph of the window: packed (packed.ts), or why it failed. */
+export type AheadEntry = { packed: PackedGlyph } | { error: string }
 
 interface Stored {
   entry: AheadEntry
-  points: number
+  bytes: number
   /** The newest commit that uses it: release drops it once that commit is behind. */
   seq: number
+  /** The media time of that newest use: past the budget, the glyph used farthest ahead goes first. */
+  mediaMs: number
 }
 
 /** One lineage's glide as of its latest step. */
 interface ChainState {
   seq: number
-  /** The glyph glided into at `seq` (the stored polygon for its key); null when it has none (it failed), undefined when it was not stored. */
-  target: PolygonGlyph | null | undefined
+  /** The glyph glided into at `seq` as stored for its key; undefined when it was not stored. */
+  entry: AheadEntry | undefined
+  /** Its polygon once unpacked (null: it failed); undefined until a glide from it is planned. */
+  polygon?: PolygonGlyph | null
   key: string
+  index: number
   /** Null: not gliding (arrived, unchanged, or changed at once). */
   plan: MorphPlan | null
   /** Media ms the plan started. */
@@ -51,49 +55,78 @@ export interface StepRecord {
   unchanged?: true
 }
 
+/**
+ * The worker's store of window glyphs, kept only with Glide on: a chain step needs its glyph where the lineage is
+ * stepped. Without Glide the page's store is the window, and the worker keeps nothing.
+ */
 export class AheadCore {
   private glyphs = new Map<string, Stored>()
-  private points = 0
+  private storedBytes = 0
   private chains = new Map<number, ChainState>()
   private fontId: string | null = null
   private generation: number | null = null
+  private keeping = true
+  private playheadMs = 0
 
-  /** A request for this font and generation: another font starts afresh; another generation drops the chains only. */
-  begin(fontId: string, generation: number) {
+  constructor(private readonly budgetBytes: number = PRECOMPUTE_LIMITS.workerStoreBytes) {}
+
+  /**
+   * A request for this font and generation: another font starts afresh; another generation drops the chains only.
+   * `glideMs` 0: nothing is kept (and what was kept goes).
+   */
+  begin(fontId: string, generation: number, glideMs = 1, playheadMs = this.playheadMs) {
     if (fontId !== this.fontId) {
       this.clear()
       this.fontId = fontId
     }
     if (generation !== this.generation) this.chains.clear()
     this.generation = generation
+    this.keeping = glideMs > 0
+    this.playheadMs = playheadMs
+    if (!this.keeping && this.glyphs.size) {
+      this.glyphs.clear()
+      this.storedBytes = 0
+    }
   }
 
-  /** The glyph kept for this key and index (marked as used by commit `seq`), or undefined. */
-  get(key: string, index: number, seq?: number): AheadEntry | undefined {
-    const id = `${index}|${key}`
-    const stored = this.glyphs.get(id)
+  /** The glyph kept for this key and index (marked as used by commit `seq` at `mediaMs`), or undefined. */
+  get(key: string, index: number, seq?: number, mediaMs?: number): AheadEntry | undefined {
+    const stored = this.glyphs.get(`${index}|${key}`)
     if (!stored) return undefined
-    this.glyphs.delete(id)
-    this.glyphs.set(id, stored)
-    if (seq !== undefined && seq > stored.seq) stored.seq = seq
+    if (seq !== undefined && seq > stored.seq) {
+      stored.seq = seq
+      if (mediaMs !== undefined) stored.mediaMs = mediaMs
+    }
     return stored.entry
   }
 
-  /** Keeps a glyph for commit `seq`, dropping the least recently used past AHEAD_LIMITS.maxPoints. */
-  put(key: string, index: number, entry: AheadEntry, seq: number) {
+  /** Keeps a glyph for commit `seq` (at `mediaMs`); past the budget, the glyphs used farthest ahead go first. */
+  put(key: string, index: number, entry: AheadEntry, seq: number, mediaMs = this.playheadMs) {
+    if (!this.keeping) return
     const id = `${index}|${key}`
     const before = this.glyphs.get(id)
     if (before) {
-      this.points -= before.points
+      this.storedBytes -= before.bytes
       this.glyphs.delete(id)
     }
-    const points = 'geometry' in entry ? entry.geometry.vertexCount : 0
-    this.glyphs.set(id, { entry, points, seq: Math.max(seq, before?.seq ?? seq) })
-    this.points += points
-    while (this.glyphs.size > 1 && this.points > AHEAD_LIMITS.maxPoints) {
-      const [oldest, evicted] = this.glyphs.entries().next().value!
-      this.glyphs.delete(oldest)
-      this.points -= evicted.points
+    const bytes = 'packed' in entry ? packedBytes(entry.packed) : ERROR_BYTES
+    const newer = before && before.seq > seq
+    this.glyphs.set(id, { entry, bytes, seq: newer ? before.seq : seq, mediaMs: newer ? before.mediaMs : mediaMs })
+    this.storedBytes += bytes
+    if (this.storedBytes > this.budgetBytes) this.evict()
+  }
+
+  /** Drops the glyphs used farthest ahead (behind the playhead first) until the store is at 90 % of its budget. */
+  private evict() {
+    const target = 0.9 * this.budgetBytes
+    const ph = this.playheadMs
+    // Behind the playhead counts as farthest: release would drop it soon anyway.
+    const rank = (stored: Stored) => (stored.mediaMs < ph ? Infinity : stored.mediaMs - ph)
+    const order = [...this.glyphs].sort((a, b) => rank(b[1]) - rank(a[1]))
+    for (const [id, stored] of order) {
+      if (this.storedBytes <= target || this.glyphs.size <= 1) break
+      this.glyphs.delete(id)
+      this.storedBytes -= stored.bytes
     }
   }
 
@@ -101,16 +134,19 @@ export class AheadCore {
    * Marks the glyphs a request's commits use (a step's glyph may have been stored for an earlier commit), so a release
    * that arrives before those commits are worked on keeps them.
    */
-  reserve(uses: Iterable<{ seq: number; key: string; index: number }>) {
-    for (const { seq, key, index } of uses) {
+  reserve(uses: Iterable<{ seq: number; key: string; index: number; mediaMs?: number }>) {
+    for (const { seq, key, index, mediaMs } of uses) {
       const stored = this.glyphs.get(`${index}|${key}`)
-      if (stored && seq > stored.seq) stored.seq = seq
+      if (stored && seq > stored.seq) {
+        stored.seq = seq
+        if (mediaMs !== undefined) stored.mediaMs = mediaMs
+      }
     }
   }
 
-  /** Glyphs kept, and their points (tests, stats). */
-  get size(): { glyphs: number; points: number; chains: number } {
-    return { glyphs: this.glyphs.size, points: this.points, chains: this.chains.size }
+  /** Glyphs kept, their bytes, and the chains (tests, stats). */
+  get size(): { glyphs: number; bytes: number; chains: number } {
+    return { glyphs: this.glyphs.size, bytes: this.storedBytes, chains: this.chains.size }
   }
 
   /**
@@ -118,24 +154,32 @@ export class AheadCore {
    * none). The commit's glyphs are stored before its steps run.
    */
   step(seq: number, mediaMs: number, lineage: number, parent: number, index: number, key: string, glideMs: number): StepRecord {
-    const stored = this.get(key, index, seq)
-    const to = stored ? ('geometry' in stored ? stored.geometry.polygon : null) : undefined
+    const stored = this.get(key, index, seq, mediaMs)
+    // Unpacked only when a glide is planned into it: an unchanged step costs no polygon.
+    let polygon: PolygonGlyph | null | undefined
     const settle = (plan: MorphPlan | null, record: StepRecord): StepRecord => {
-      this.chains.set(lineage, { seq, target: to, key, plan, start: mediaMs, parent })
+      this.chains.set(lineage, { seq, entry: stored, polygon, key, index, plan, start: mediaMs, parent })
       return record
     }
     const computed: PlanFrom = { kind: 'computed', key }
     if (parent < 0) return settle(null, { lineage, from: computed, data: null, unchanged: true })
     const prev = this.chains.get(parent)
     // The parent's state or a glyph is gone (a restarted worker, the store's limit): the page pairs this glyph itself.
-    if (!prev || prev.target === undefined || to === undefined) return settle(null, { lineage, from: { kind: 'value' }, data: null })
+    if (!prev || prev.entry === undefined || stored === undefined) return settle(null, { lineage, from: { kind: 'value' }, data: null })
     // What the page shows at `mediaMs`, as SceneGlide.shown works it out.
     const q = prev.plan && glideMs > 0 ? easeOut((mediaMs - prev.start) / glideMs) : 1
     const arrived = !prev.plan || q >= GLIDE_LIMITS.arrived
-    const shown = arrived ? prev.target : morphAt(prev.plan!, q)
     const from: PlanFrom = arrived ? { kind: 'computed', key: prev.key } : { kind: 'between', lineage: parent, seq: prev.seq, q }
-    // Not reshaped (the same stored glyph), or no outline on either side: nothing glides.
-    if (!shown || !to || shown === to || glideMs <= 0) return settle(null, { lineage, from, data: null, unchanged: true })
+    // Not reshaped (arrived at the same stored glyph: one key and glyph id): nothing glides.
+    const same = arrived && prev.key === key && prev.index === index
+    if (same || glideMs <= 0) {
+      if (same && prev.entry === stored) polygon = prev.polygon
+      return settle(null, { lineage, from, data: null, unchanged: true })
+    }
+    const shown = arrived ? targetOf(prev) : morphAt(prev.plan!, q)
+    const to = (polygon = 'packed' in stored ? unpackGeometry(stored.packed).polygon : null)
+    // No outline on either side: nothing glides.
+    if (!shown || !to) return settle(null, { lineage, from, data: null, unchanged: true })
     const settled = settleInBetween(shown, to)
     const plan = planMorph(settled, to)
     if (!plan) return settle(null, { lineage, from, data: null })
@@ -154,14 +198,20 @@ export class AheadCore {
     for (const [id, stored] of this.glyphs) {
       if (stored.seq >= beforeSeq) continue
       this.glyphs.delete(id)
-      this.points -= stored.points
+      this.storedBytes -= stored.bytes
     }
   }
 
   clear() {
     this.glyphs.clear()
-    this.points = 0
+    this.storedBytes = 0
     this.chains.clear()
     this.generation = null
   }
+}
+
+/** The polygon a chain glided into, unpacked once (null: the glyph failed). */
+function targetOf(state: ChainState): PolygonGlyph | null {
+  if (state.polygon === undefined) state.polygon = state.entry && 'packed' in state.entry ? unpackGeometry(state.entry.packed).polygon : null
+  return state.polygon
 }

@@ -1,11 +1,14 @@
 // The playback director (src/sound/director.ts) with a fake playhead, planner, scheduler, commit sink and AheadGeometry
 // (ready by a predicate): it takes over only when the next enterReadyMs are ready, shows the newest ready commit at or
 // before the playhead, adopts before it commits, maps media time to page time for Glide, holds a late commit at most
-// holdMs before handing back to the live path, and plans again after a seek. Without an ahead lane it fetches each
-// commit's glyphs on the canvas lane.
+// holdMs before handing back to the live path, and plans nothing again after a seek (the plan is the whole file,
+// NOCUR-85). Background work waits while an edit settles, stops while the page is hidden, pauses while the director
+// backs off, and goes on while the file is paused (warm). Without an ahead lane it fetches each commit's glyphs on the
+// canvas lane.
 
 import { describe, expect, it } from 'vitest'
 import type { FrameJob } from '../../src/geometry/types'
+import type { BufferSnapshot } from '../../src/sound/bufferStore'
 import { PlaybackDirector, type DirectorPlanner } from '../../src/sound/director'
 import { FLASH_LIMITS } from '../../src/sound/flash'
 import { LiveScheduler, PLANNER_CLOCK_OFFSET, plannedEdges, type LiveCommit, type LiveDeps, type LiveInputs } from '../../src/sound/live'
@@ -37,26 +40,37 @@ function planned(seq: number, mediaMs: number, generation = 1, edges: number[] =
   }
 }
 
-/** A plan of commits every 1/30 s from `from` to `to` media ms; reseed makes a new generation from `at`. */
+/** A whole-file plan of commits every 1/30 s; new inputs make a new generation, planned from 0 again. */
 class FakePlanner implements DirectorPlanner {
   generation = 1
   commits: PlannedCommit[] = []
-  reseeds: number[] = []
+  /** Inputs planned, in order. */
+  planned: LiveInputs[] = []
   until = 0
+  focused = 0
   private seq = 0
+  private memo: { from: number; to: number; commits: PlannedCommit[]; value: PlannedCommit[] } | null = null
   constructor(
     private readonly lengthMs = 20_000,
     private readonly edgesOf: (seq: number, mediaMs: number) => number[] = () => [],
   ) {
-    this.fill(0)
+    this.fill()
   }
-  setInputs(_: LiveInputs, atMs: number) {
-    this.reseed(atMs)
+  setInputs(inputs: LiveInputs) {
+    this.planned.push(inputs)
+    this.newPlan()
   }
-  reseed(atMs: number) {
-    this.reseeds.push(atMs)
+  /** A new generation (as new inputs make). */
+  newPlan() {
     this.generation++
-    this.fill(Math.max(0, atMs - STEP / 2))
+    this.fill()
+  }
+  reset() {
+    this.commits = []
+    this.until = -1
+  }
+  focus(ms: number) {
+    this.focused = ms
   }
   ensure() {
     return true
@@ -67,12 +81,30 @@ class FakePlanner implements DirectorPlanner {
   isDone() {
     return false
   }
-  prune(beforeMs: number) {
-    while (this.commits.length > 1 && this.commits[1].mediaMs <= beforeMs) this.commits.shift()
+  range(from: number, to: number) {
+    const memo = this.memo
+    if (memo && memo.from === from && memo.to === to && memo.commits === this.commits) return memo.value
+    let start = 0
+    while (start + 1 < this.commits.length && this.commits[start + 1].mediaMs <= from) start++
+    const value = this.commits.filter((c, i) => i >= start && c.mediaMs <= to)
+    this.memo = { from, to, commits: this.commits, value }
+    return value
   }
-  private fill(from: number) {
+  edgesIn(after: number, until: number) {
+    return this.commits.filter((c) => c.mediaMs > after && c.mediaMs <= until).flatMap((c) => [...plannedEdges(c.adopted)])
+  }
+  glyphRate() {
+    return 60
+  }
+  bytes() {
+    return 0
+  }
+  cpuMs() {
+    return 0
+  }
+  private fill() {
     this.commits = []
-    for (let t = from; t < this.lengthMs; t += STEP) {
+    for (let t = 0; t < this.lengthMs; t += STEP) {
       const seq = ++this.seq
       this.commits.push(planned(seq, t, this.generation, this.edgesOf(seq, t)))
     }
@@ -91,11 +123,16 @@ function rig(
     /** Each planned commit's flash edges (planner frame times). */
     edgesOf?: (seq: number, mediaMs: number) => number[]
     lengthMs?: number
+    /** The ahead lane has the commit's shapes (default: when it is ready). */
+    shapesReady?: (seq: number) => boolean
   } = {},
 ) {
   let now = 1000
   let ph: Playhead = { mediaMs: 0, wallMs: now, playing: true, generation: 0 }
   let following = false
+  let inputs = INPUTS
+  let hidden = false
+  let pointerDownAt: number | null = null
   const log: string[] = []
   const commits: (LiveCommit | null)[] = []
   const planner = new FakePlanner(options.lengthMs, options.edgesOf)
@@ -103,17 +140,35 @@ function rig(
   let ready = options.ready ?? (() => true)
   const windows: AheadWindow[] = []
   const released: number[] = []
+  const reserved: number[] = []
+  const buffers: { snapshot: Omit<BufferSnapshot, 'version'>; force: boolean }[] = []
+  // Pauses of the ahead lane: a run of pause calls until the next want counts once.
+  let pausedNow = false
+  let pauses = 0
+  let clears = 0
   const ahead: AheadGeometry = {
-    want: (w) => windows.push(w),
+    want: (w) => {
+      pausedNow = false
+      windows.push(w)
+    },
+    setPlayhead: (playheadMs, dueSeq) => {
+      const last = windows.at(-1)
+      if (last) windows.push({ ...last, playheadMs, dueSeq })
+    },
     ready: (seq) => ready(seq),
+    shapesReady: (seq) => (options.shapesReady ?? ready)(seq),
     stats: () => ({ glyphsPerSecond: 0, backlogMs: 0 }),
     release: (seq) => released.push(seq),
+    pause: () => {
+      if (!pausedNow) pauses++
+      pausedNow = true
+    },
+    readyRanges: () => ({ generation: planner.generation, ranges: Float64Array.of(0, ph.mediaMs + 1000) }),
     subscribeReady: () => () => {},
     clear: () => {
       clears++
     },
   }
-  let clears = 0
   const prefetched: string[] = []
   // The canvas lane: one request at a time, each taking `fetchMs` (0: there at once, unless it misses).
   const fetched = new Set<string>()
@@ -129,7 +184,7 @@ function rig(
   const director = new PlaybackDirector({
     now: () => now,
     playhead: () => ph,
-    timeline: { isLoaded: () => true, seek: () => {}, setSettings: () => {} },
+    timeline: { isLoaded: () => true, setSettings: () => {}, measuredUntil: () => planner.until },
     planner,
     scheduler: {
       follow: (on) => {
@@ -142,8 +197,11 @@ function rig(
         adoptedEdges.push(edges)
         return ++adoptSeq
       },
-      inputs: () => INPUTS,
+      inputs: () => inputs,
       recentEdges: (since: number) => options.recentEdges?.(since) ?? [],
+      reserveFlashes: (until: number) => {
+        reserved.push(until)
+      },
     },
     commit: (commit) => {
       commits.push(commit)
@@ -164,9 +222,13 @@ function rig(
       settle()
       return inFlight !== null
     },
-    resolve: (jobs) => ({ fontId: 'font', jobs: jobs.map((j) => ({ params: j.params, key: j.key, indices: [3, 4] })) }),
+    shown: () => ({ fontId: 'font', indices: [3, 4] }),
     glideMs: () => 150,
     settings: () => DEFAULT_FEATURE_SETTINGS,
+    pointerDownAt: () => pointerDownAt,
+    hidden: () => hidden,
+    durationMs: () => options.lengthMs ?? 20_000,
+    buffer: (snapshot, _, force) => buffers.push({ snapshot, force }),
   })
   /** Plays to media ms `to`, one tick per 1/60 s. */
   const play = (to: number) => {
@@ -175,6 +237,16 @@ function rig(
       ph = { ...ph, mediaMs: Math.min(to, ph.mediaMs + 1000 / 60), wallMs: now }
       director.tick()
     }
+  }
+  /** Waits `ms` of page time while paused, warming every 1/60 s. */
+  const idle = (ms: number) => {
+    const until = now + ms
+    let more = false
+    while (now < until - 1e-9) {
+      now += 1000 / 60
+      more = director.warm()
+    }
+    return more
   }
   return {
     director,
@@ -185,20 +257,33 @@ function rig(
     released,
     prefetched,
     adoptedEdges,
+    buffers,
     play,
+    idle,
     get following() {
       return following
     },
+    reserved,
     get clears() {
       return clears
     },
+    get pauses() {
+      return pauses
+    },
     setReady: (fn: (seq: number) => boolean) => (ready = fn),
+    setInputs: (next: LiveInputs) => (inputs = next),
+    setHidden: (on: boolean) => (hidden = on),
+    pointer: (down: boolean) => (pointerDownAt = down ? now : null),
     seek: (mediaMs: number) => {
       ph = { ...ph, mediaMs, generation: ph.generation + 1 }
     },
     pause: () => {
       ph = { ...ph, playing: false }
       director.tick()
+      director.stop()
+    },
+    resume: () => {
+      ph = { ...ph, playing: true }
     },
     get now() {
       return now
@@ -210,6 +295,21 @@ function rig(
 }
 
 describe('playback director', () => {
+  it('takes over with the commit due when only its shapes are ready (it glides in from the screen, not its chain)', () => {
+    // Every commit is fully ready except the first ones' Glide steps; their shapes are there.
+    const r = rig({ shapesReady: () => true })
+    // The commit due at the playhead (looked up each time: the first tick plans afresh, with new seqs) lacks its steps.
+    r.setReady((seq) => seq !== lastAt(r.planner.commits, r.ph.mediaMs).seq)
+    r.play(1000 / 60)
+    expect(r.following).toBe(true)
+  })
+
+  it('still waits for the commits after the one due to be fully ready', () => {
+    const r = rig({ ready: () => false, shapesReady: () => true })
+    r.play(200)
+    expect(r.following).toBe(false)
+  })
+
   it('takes over only when the commits of the next enterReadyMs are ready', () => {
     let readyUpTo = 0
     const r = rig({ ready: (seq) => seq <= readyUpTo })
@@ -287,26 +387,37 @@ describe('playback director', () => {
     expect(r.commits.at(-1)!.timing!.seq).toBe(due.seq)
   })
 
-  it('plans again after a seek beyond the plan, and hands back until ready', () => {
+  it('plans nothing again after a seek: picks the plan up there, checking the flash limit first', () => {
     const r = rig()
     r.play(300)
     expect(r.following).toBe(true)
     const generation = r.planner.generation
-    // Pruned behind the playhead, so a seek back is not covered.
-    r.planner.prune(250)
     r.seek(100)
     r.play(120)
-    // The first tick after the seek is a frame later.
-    expect(r.planner.reseeds.at(-1)).toBeCloseTo(100 + 1000 / 60, 9)
-    expect(r.planner.generation).toBe(generation + 1)
-    expect(r.log).toContain('back')
+    expect(r.planner.generation).toBe(generation)
+    expect(r.planner.planned).toHaveLength(1)
     expect(r.following).toBe(true)
-    expect(r.commits.at(-1)!.timing!.generation).toBe(generation + 1)
-    // A seek within the plan keeps it.
-    const reseeds = r.planner.reseeds.length
-    r.seek(2000)
-    r.play(2020)
-    expect(r.planner.reseeds.length).toBe(reseeds)
+    expect(r.commits.at(-1)!.timing!.seq).toBe(lastAt(r.planner.commits, 120).seq)
+    // The window moved with the playhead.
+    expect(r.windows.at(-1)!.playheadMs).toBeGreaterThan(100)
+    r.seek(15_000)
+    r.play(15_020)
+    expect(r.planner.generation).toBe(generation)
+    expect(r.commits.at(-1)!.timing!.mediaMs).toBeGreaterThan(14_900)
+  })
+
+  it('after a seek shows only the commit due, never a ready one from before the jump', () => {
+    const r = rig({ lengthMs: 60_000 })
+    r.play(300)
+    expect(r.following).toBe(true)
+    // Ready up to 10 s; the playhead jumps to 12 s, where nothing is ready.
+    r.setReady((seq) => r.planner.commits.find((c) => c.seq === seq)!.mediaMs <= 10_000)
+    const shown = r.commits.length
+    r.seek(12_000)
+    r.play(12_000 + PRECOMPUTE_LIMITS.holdMs / 2)
+    expect(r.commits.slice(shown).every((c) => c!.timing!.mediaMs > 11_000)).toBe(true)
+    r.play(12_000 + 2 * PRECOMPUTE_LIMITS.holdMs)
+    expect(r.following).toBe(false)
   })
 
   it('hands back when playback stops', () => {
@@ -322,7 +433,7 @@ describe('playback director', () => {
     const r = rig({ ahead: false, prefetchMisses: misses })
     r.play(50)
     expect(r.following).toBe(true)
-    const next = r.planner.commits.find((c) => c.mediaMs > 50 + STEP)!
+    const next = r.planner.range(-Infinity, Infinity).find((c) => c.mediaMs > 50 + STEP)!
     misses.add(`k${next.seq}`)
     r.play(next.mediaMs + 10)
     expect(r.prefetched).toContain(`k${next.seq}`)
@@ -354,6 +465,31 @@ describe('the director and the flash limit', () => {
   const lately = (count: number) => (since: number) =>
     Array.from({ length: count }, (_, k) => since + FLASH_LIMITS.windowMs - 1 - (count - k))
 
+  it('keeps the live path from new flash edges for a window when only the flash limit stands in the way, then takes over', () => {
+    // The live path keeps the budget spent (an edge every 100 ms, the six newest kept) until the director reserves it.
+    const reservations: number[] = []
+    const r = rig({
+      edgesOf,
+      recentEdges: (since) => {
+        const now = since + FLASH_LIMITS.windowMs
+        const stop = reservations.length ? reservations[0] - FLASH_LIMITS.windowMs : Infinity
+        const edges: number[] = []
+        for (let t = Math.floor(Math.min(now, stop - 1) / 100) * 100; t >= since && edges.length < 6; t -= 100) edges.unshift(t)
+        return edges
+      },
+    })
+    const reservedBy = () => reservations.splice(0, reservations.length, ...r.reserved)
+    r.play(200)
+    reservedBy()
+    expect(r.following).toBe(false)
+    expect(r.reserved).toHaveLength(1)
+    // As soon as the live path's last edges are old enough for the plan's to fit (within a window), it takes over;
+    // the reservation was asked for once.
+    r.play(200 + FLASH_LIMITS.windowMs + 200)
+    expect(r.following).toBe(true)
+    expect(r.reserved).toHaveLength(1)
+  })
+
   it('takes over only when the edges the screen showed lately and the planned ones fit every window', () => {
     let recent = lately(3)
     const r = rig({ recentEdges: (since) => recent(since), edgesOf })
@@ -373,7 +509,7 @@ describe('the director and the flash limit', () => {
     expect(r.following).toBe(true)
     const shown = r.commits.length
     recent = lately(6)
-    r.planner.reseed(r.ph.mediaMs)
+    r.planner.newPlan()
     r.play(300 + PRECOMPUTE_LIMITS.holdMs / 2)
     // Nothing of the new generation shows while the budget is full.
     expect(r.commits.length).toBe(shown)
@@ -386,7 +522,7 @@ describe('the director and the flash limit', () => {
     r.play(300)
     expect(r.following).toBe(true)
     // The next commit with an edge is not ready; the one after it is.
-    const edged = r.planner.commits.find((c) => c.mediaMs > 300 && plannedEdges(c.adopted).length > 0)!
+    const edged = r.planner.range(-Infinity, Infinity).find((c) => c.mediaMs > 300 && plannedEdges(c.adopted).length > 0)!
     r.setReady((seq) => seq !== edged.seq)
     r.play(edged.mediaMs + STEP + 1)
     expect(r.commits.some((c) => c!.timing!.seq === edged.seq)).toBe(false)
@@ -426,9 +562,9 @@ describe('the page scheduler following planned commits', () => {
   it('is off by default, and adopts markers, status and Freeze from a planned commit without committing', () => {
     const frames = Array.from({ length: 180 }, (_, k) => frameAt(k))
     const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
-    planner.setInputs(inputs, 0)
+    planner.setInputs(inputs)
     planner.ensure(Infinity, Infinity)
-    const withEdges = planner.commits.find((c) => c.commit && plannedEdges(c.adopted).length > 0)!
+    const withEdges = planner.range(-Infinity, Infinity).find((c) => c.commit && plannedEdges(c.adopted).length > 0)!
     expect(withEdges).toBeDefined()
 
     const p = page()
@@ -458,10 +594,10 @@ describe('the page scheduler following planned commits', () => {
   it('hands back with the flash state on screen: a move back from the planned sliders is a turn, and the seeds stay', () => {
     const frames = Array.from({ length: 180 }, (_, k) => frameAt(k))
     const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
-    planner.setInputs(inputs, 0)
+    planner.setInputs(inputs)
     planner.ensure(Infinity, Infinity)
     // A commit in a loud stretch after the sliders turned, with the seed moved on by its jumps.
-    const high = planner.commits.find(
+    const high = planner.range(-Infinity, Infinity).find(
       (c) => c.mediaMs > 1000 && c.commit?.params && frames[Math.round((c.mediaMs * 60) / 1000)].level > 0.5 && c.commit.params.distortion.seed !== inputs.base!.distortion.seed,
     )!
     expect(high).toBeDefined()
@@ -480,9 +616,9 @@ describe('the page scheduler following planned commits', () => {
   it('stops with the sliders’ own when the sound stops after handing back', () => {
     const frames = Array.from({ length: 60 }, (_, k) => frameAt(k))
     const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length + 600, isCovered: (i) => i < frames.length, frameAt: (i) => frames[i] ?? null })
-    planner.setInputs(inputs, 0)
+    planner.setInputs(inputs)
     planner.ensure(Infinity, Infinity)
-    const driving = planner.commits.find((c) => c.commit)!
+    const driving = planner.range(-Infinity, Infinity).find((c) => c.commit)!
     const p = page()
     p.live.follow(true)
     p.live.adopt(driving.adopted, (t) => t)
@@ -500,26 +636,25 @@ describe('the director backing off', () => {
   const { tryMs } = PRECOMPUTE_LIMITS
   const [firstPause] = PRECOMPUTE_LIMITS.backoffMs
 
-  it('stops preparing geometry when it cannot take over for tryMs, and tries again after a pause twice as long each time', () => {
+  it('pauses preparing geometry when it cannot take over for tryMs, and tries again after a pause twice as long each time', () => {
     const r = rig({ ready: () => false, lengthMs: 60_000 })
     r.play(tryMs - 100)
-    expect(r.clears).toBe(0)
+    expect(r.pauses).toBe(0)
     r.play(tryMs + 100)
-    // The geometry ahead is handed back and nothing more is asked for during the pause.
-    expect(r.clears).toBe(1)
+    // The workers stop on the window; what was prepared stays, and nothing more is asked for during the pause.
+    expect(r.pauses).toBe(1)
+    expect(r.clears).toBe(0)
     const asked = r.windows.length
-    const reseeds = r.planner.reseeds.length
     r.play(tryMs + firstPause - 100)
     expect(r.windows.length).toBe(asked)
-    expect(r.planner.reseeds.length).toBe(reseeds)
-    // After the pause it plans again from the playhead and asks for geometry.
+    // After the pause it asks for geometry again; nothing is planned again.
     r.play(tryMs + firstPause + 200)
-    expect(r.planner.reseeds.at(-1)).toBeGreaterThan(tryMs + firstPause - 100)
     expect(r.windows.length).toBeGreaterThan(asked)
+    expect(r.planner.planned).toHaveLength(1)
     // A second failed try: the pause doubles.
     const second = 2 * tryMs + firstPause + 200
     r.play(second)
-    expect(r.clears).toBe(2)
+    expect(r.pauses).toBe(2)
     const asked2 = r.windows.length
     r.play(second + 2 * firstPause - 200)
     expect(r.windows.length).toBe(asked2)
@@ -531,7 +666,7 @@ describe('the director backing off', () => {
   it('takes over after a pause when the geometry keeps up again, and starts the pauses over', () => {
     const r = rig({ ready: () => false, lengthMs: 60_000 })
     r.play(tryMs + 100)
-    expect(r.clears).toBe(1)
+    expect(r.pauses).toBe(1)
     r.setReady(() => true)
     r.play(tryMs + firstPause + 500)
     expect(r.following).toBe(true)
@@ -539,7 +674,7 @@ describe('the director backing off', () => {
     r.setReady(() => false)
     const from = r.ph.mediaMs
     r.play(from + PRECOMPUTE_LIMITS.holdMs + tryMs + 200)
-    expect(r.clears).toBe(2)
+    expect(r.pauses).toBe(2)
     const asked = r.windows.length
     r.play(from + PRECOMPUTE_LIMITS.holdMs + tryMs + firstPause + 300)
     expect(r.windows.length).toBeGreaterThan(asked)
@@ -549,6 +684,87 @@ describe('the director backing off', () => {
     const r = rig({ lengthMs: 60_000 })
     r.play(tryMs * 2)
     expect(r.following).toBe(true)
-    expect(r.clears).toBe(0)
+    expect(r.pauses).toBe(0)
+  })
+})
+
+describe('the director in the background', () => {
+  it('prepares the window around the playhead while the file is paused, so Play starts on planned commits', () => {
+    const r = rig({ lengthMs: 60_000 })
+    r.seek(15_000)
+    r.pause()
+    expect(r.idle(100)).toBe(true)
+    expect(r.following).toBe(false)
+    const w = r.windows.at(-1)!
+    expect(w.playheadMs).toBe(15_000)
+    expect(w.commits[0].mediaMs).toBeLessThanOrEqual(15_000 - PRECOMPUTE_LIMITS.windowBehindMs + STEP)
+    expect(w.commits.at(-1)!.mediaMs).toBeGreaterThan(15_000 + PRECOMPUTE_LIMITS.windowAheadMs - 2 * STEP)
+    expect(r.planner.focused).toBe(15_000)
+    r.resume()
+    r.play(15_000 + 1000 / 60)
+    expect(r.following).toBe(true)
+  })
+
+  it('waits while an edit settles: hands back at once, plans after settleMs, or once the pointer is up', () => {
+    const r = rig()
+    r.play(300)
+    expect(r.following).toBe(true)
+    expect(r.planner.planned).toHaveLength(1)
+    r.setInputs({ ...INPUTS, mappings: [] })
+    r.play(320)
+    expect(r.following).toBe(false)
+    expect(r.pauses).toBe(1)
+    expect(r.planner.planned).toHaveLength(1)
+    r.play(300 + PRECOMPUTE_LIMITS.settleMs + 50)
+    expect(r.planner.planned).toHaveLength(2)
+    expect(r.following).toBe(true)
+    // A drag: the pointer went down before the edit; it settles only after the pointer is up.
+    r.pointer(true)
+    r.setInputs({ ...INPUTS, mappings: [] })
+    const from = r.ph.mediaMs
+    r.play(from + 2 * PRECOMPUTE_LIMITS.settleMs)
+    expect(r.planner.planned).toHaveLength(2)
+    r.pointer(false)
+    r.play(from + 2 * PRECOMPUTE_LIMITS.settleMs + 50)
+    expect(r.planner.planned).toHaveLength(3)
+  })
+
+  it('stops the workers while the page is hidden', () => {
+    const r = rig()
+    r.play(200)
+    r.setHidden(true)
+    const asked = r.windows.length
+    r.play(400)
+    expect(r.pauses).toBe(1)
+    expect(r.windows.length).toBe(asked)
+    r.setHidden(false)
+    r.play(420)
+    expect(r.windows.length).toBeGreaterThan(asked)
+  })
+
+  it('publishes what is prepared for the buffered bar: at once for a new plan or file', () => {
+    const r = rig()
+    r.play(100)
+    // Offered at once, then at most every bufferEveryMs.
+    expect(r.buffers).toHaveLength(1)
+    expect(r.buffers[0].force).toBe(true)
+    r.play(100 + PRECOMPUTE_LIMITS.bufferEveryMs)
+    expect(r.buffers).toHaveLength(2)
+    expect(r.buffers.at(-1)!.snapshot.durationMs).toBe(20_000)
+    expect(r.buffers.at(-1)!.snapshot.plannedMs).toBe(20_000)
+    expect(r.buffers.at(-1)!.snapshot.ready[0]).toBe(0)
+    expect(r.buffers.at(-1)!.snapshot.ready[1]).toBeGreaterThan(r.buffers[0].snapshot.ready[1] + 200)
+    expect(r.buffers.slice(1).every((b) => !b.force)).toBe(true)
+    // An edit: the bar drops back at once while it settles (the old plan's ranges no longer hold), and once.
+    const offered = r.buffers.length
+    r.setInputs({ ...INPUTS, mappings: [] })
+    r.play(r.ph.mediaMs + PRECOMPUTE_LIMITS.settleMs / 2)
+    expect(r.buffers.slice(offered)).toEqual([{ snapshot: { durationMs: 20_000, plannedMs: 0, ready: new Float32Array(0) }, force: true }])
+    r.play(r.ph.mediaMs + PRECOMPUTE_LIMITS.settleMs)
+    expect(r.buffers.filter((b) => b.force)).toHaveLength(3)
+    expect(r.buffers.at(-1)!.snapshot.plannedMs).toBe(20_000)
+    r.director.reset()
+    expect(r.buffers.at(-1)).toEqual({ snapshot: { durationMs: 0, plannedMs: 0, ready: new Float32Array(0) }, force: true })
+    expect(r.clears).toBe(1)
   })
 })

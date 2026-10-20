@@ -1,0 +1,67 @@
+// Packed glyphs (src/geometry/packed.ts, NOCUR-85): a glyph packed into typed arrays unpacks to the same geometry, with
+// its click outline (Thorn), layout hull and motion, and its byte estimate grows with its points.
+
+import { describe, expect, it } from 'vitest'
+import { packedBytes, packedPoints, packGeometry, unpackGeometry } from '../../src/geometry/packed'
+import { deriveGeometry } from '../../src/geometry/pipeline'
+import type { WorkerGeometry } from '../../src/geometry/protocol'
+import { loadFixture, sampleGlyphs } from '../helpers/fonts'
+import { burst } from '../helpers/planCases'
+import { BASE } from '../helpers/params'
+
+describe('packed glyphs', async () => {
+  const font = await loadFixture('Roboto')
+  const glyphs = sampleGlyphs(font, 'Ag&o').map((g) => g.index)
+  const geometryOf = (index: number, params = BASE): WorkerGeometry => {
+    const { source: _source, ...geometry } = deriveGeometry(font.getGlyph(index), params)
+    return geometry
+  }
+
+  it('unpack gives the glyph as it was packed', () => {
+    for (const params of [BASE, burst(3)]) {
+      for (const index of glyphs) {
+        const geometry = geometryOf(index, params)
+        const { packed, transfer } = packGeometry(geometry)
+        expect(unpackGeometry(packed)).toEqual(geometry)
+        // Every typed array goes in the transfer list.
+        expect(transfer).toContain(packed.contours.xy.buffer)
+        expect(packedPoints(packed)).toBe(
+          geometry.polygon.contours.reduce((n, c) => n + c.points.length, 0) +
+            (geometry.polygon.clickOutline && geometry.polygon.clickOutline !== geometry.polygon.contours
+              ? geometry.polygon.clickOutline.reduce((n, c) => n + c.points.length, 0)
+              : 0),
+        )
+      }
+    }
+  })
+
+  it('keeps Thorn’s click outline apart, or as the outline itself, and its layout hull', () => {
+    const geometry = geometryOf(glyphs[0], burst(3))
+    expect(geometry.polygon.clickOutline).toBeDefined()
+    expect(geometry.polygon.layoutHull).toBeDefined()
+    const { packed } = packGeometry(geometry)
+    expect(packed.click).not.toBe('same')
+    expect(packed.hull).not.toBeNull()
+    const same: WorkerGeometry = { ...geometry, polygon: { ...geometry.polygon, clickOutline: geometry.polygon.contours } }
+    const packedSame = packGeometry(same).packed
+    expect(packedSame.click).toBe('same')
+    const back = unpackGeometry(packedSame)
+    expect(back.polygon.clickOutline).toBe(back.polygon.contours)
+  })
+
+  it('keeps exact numbers, -0 included', () => {
+    const geometry = geometryOf(glyphs[1])
+    geometry.polygon.contours[0].points[0] = { x: -0, y: 1e-300 }
+    const back = unpackGeometry(packGeometry(geometry).packed)
+    expect(Object.is(back.polygon.contours[0].points[0].x, -0)).toBe(true)
+    expect(back.polygon.contours[0].points[0].y).toBe(1e-300)
+  })
+
+  it('counts its bytes: 16 a point, plus its statistics', () => {
+    const small = packGeometry(geometryOf(glyphs[3])).packed
+    const large = packGeometry(geometryOf(glyphs[2])).packed
+    for (const packed of [small, large]) expect(packedBytes(packed)).toBeGreaterThanOrEqual(16 * packedPoints(packed) + 2000)
+    expect(packedPoints(large)).toBeGreaterThan(packedPoints(small))
+    expect(packedBytes(large)).toBeGreaterThan(packedBytes(small))
+  })
+})
