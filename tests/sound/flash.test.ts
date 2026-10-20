@@ -631,3 +631,18 @@ describe('edgesFit (the handover check across a switch)', () => {
     expect(budget.since(5000 - w).length).toBeLessThanOrEqual(most)
   })
 })
+
+describe('FlashBudget.reserve (the precompute handover)', () => {
+  it('allows no new edge before the time given, while spend still counts', () => {
+    const budget = new FlashBudget()
+    budget.reserve(1000)
+    expect(budget.take(500)).toBe(false)
+    budget.spend(600)
+    expect(budget.since(0)).toEqual([600])
+    expect(budget.take(1000)).toBe(true)
+    // A shorter reservation never shortens a longer one.
+    budget.reserve(3000)
+    budget.reserve(2000)
+    expect(budget.take(2500)).toBe(false)
+  })
+})

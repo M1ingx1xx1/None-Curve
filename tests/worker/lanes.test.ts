@@ -5,6 +5,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AheadItem, WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
 import { paramsKey } from '../../src/geometry/cache'
+import { unpackGeometry } from '../../src/geometry/packed'
+import { deriveGeometry } from '../../src/geometry/pipeline'
 import { createGeometryWorker } from '../../src/geometry/workerCore'
 import { morphAt, planMorph } from '../../src/specimen/morph'
 import { decodePlan, encodeGlyph } from '../../src/specimen/planCodec'
@@ -14,20 +16,22 @@ import { burst, glyphOf } from '../helpers/planCases'
 
 function worker(reply: (message: WorkerResponse, send: (m: WorkerRequest) => void) => void = () => {}) {
   const sent: WorkerResponse[] = []
-  const send = createGeometryWorker((message) => {
+  const transfers = new Map<WorkerResponse, readonly Transferable[]>()
+  const send = createGeometryWorker((message, transfer) => {
     sent.push(message)
+    if (transfer) transfers.set(message, transfer)
     reply(message, send)
   })
   const index = (match: (m: WorkerResponse) => boolean) => sent.findIndex(match)
   const until = (match: (m: WorkerResponse) => boolean) => vi.waitFor(() => expect(index(match)).toBeGreaterThanOrEqual(0), { timeout: 30_000, interval: 5 })
-  return { sent, send, index, until }
+  return { sent, send, index, until, transfers }
 }
 
 const roboto = fixtureBytes('Roboto')
 const font = { type: 'font', fontId: 'roboto', bytes: roboto, source: localSource('Roboto.ttf', roboto) } as const
 const heavy = paramsWith(GEOMETRY.plain, ALL_DEFAULT)
 const glyphItem = (seq: number, indices: number[], params = heavy): AheadItem => ({ kind: 'glyphs', seq, key: paramsKey(params), params, indices })
-const ahead = (requestId: number, items: AheadItem[], generation = 1): WorkerRequest => ({ type: 'ahead', requestId, fontId: 'roboto', generation, glideMs: 150, items })
+const ahead = (requestId: number, items: AheadItem[], generation = 1): Extract<WorkerRequest, { type: 'ahead' }> => ({ type: 'ahead', requestId, fontId: 'roboto', generation, glideMs: 150, playheadMs: 0, items })
 const doneOf = (id: number) => (m: WorkerResponse) => (m.type === 'done' || m.type === 'ahead-done') && m.requestId === id
 
 describe('worker lanes', async () => {
@@ -47,9 +51,34 @@ describe('worker lanes', async () => {
     await w.until(doneOf(1))
     await w.until(doneOf(2))
     expect(w.index(doneOf(2))).toBeLessThan(w.index(doneOf(1)))
-    expect(w.sent[w.index(doneOf(1))]).toEqual({ type: 'ahead-done', requestId: 1 })
+    expect(w.sent[w.index(doneOf(1))]).toMatchObject({ type: 'ahead-done', requestId: 1 })
+    expect(w.sent[w.index(doneOf(1))]).not.toHaveProperty('stopped')
     const results = w.sent.flatMap((m) => (m.type === 'ahead-results' ? m.results.map((r) => r.index) : []))
     expect(results).toEqual(glyphs.slice(0, 30))
+  })
+
+  it('posts the window’s glyphs packed, their arrays transferred, and keeps a copy only with Glide (NOCUR-85)', async () => {
+    for (const glideMs of [150, 0]) {
+      const w = worker()
+      w.send(font)
+      w.send({ ...ahead(1, [glyphItem(1, glyphs.slice(0, 3), BASE)]), glideMs })
+      await w.until(doneOf(1))
+      const results = w.sent.filter((m): m is Extract<WorkerResponse, { type: 'ahead-results' }> => m.type === 'ahead-results')
+      const packed = results.flatMap((m) => m.results)
+      expect(packed.map((r) => r.index)).toEqual(glyphs.slice(0, 3))
+      for (const message of results) {
+        const transfer = w.transfers.get(message)!
+        for (const result of message.results) {
+          if (!('packed' in result)) throw new Error('expected a glyph')
+          expect(transfer).toContain(result.packed.contours.xy.buffer)
+          const { source: _source, ...want } = deriveGeometry(loaded.getGlyph(result.index), BASE)
+          expect(unpackGeometry(result.packed)).toEqual(want)
+        }
+      }
+      const done = w.sent[w.index(doneOf(1))] as Extract<WorkerResponse, { type: 'ahead-done' }>
+      if (glideMs > 0) expect(done.stored!.bytes).toBeGreaterThan(0)
+      else expect(done.stored?.bytes ?? 0).toBe(0)
+    }
   })
 
   it('a newer ahead request replaces the older one between items', async () => {
@@ -64,8 +93,9 @@ describe('worker lanes', async () => {
     w.send(ahead(1, [glyphItem(1, glyphs.slice(0, 40))]))
     await w.until(doneOf(1))
     await w.until(doneOf(3))
-    expect(w.sent[w.index(doneOf(1))]).toEqual({ type: 'ahead-done', requestId: 1, stopped: true })
-    expect(w.sent[w.index(doneOf(3))]).toEqual({ type: 'ahead-done', requestId: 3 })
+    expect(w.sent[w.index(doneOf(1))]).toMatchObject({ type: 'ahead-done', requestId: 1, stopped: true })
+    expect(w.sent[w.index(doneOf(3))]).toMatchObject({ type: 'ahead-done', requestId: 3 })
+    expect(w.sent[w.index(doneOf(3))]).not.toHaveProperty('stopped')
   })
 
   it('steps chains after their glyphs and answers plans on demand after the canvas lane', async () => {

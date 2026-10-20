@@ -192,6 +192,30 @@ export function plannedEdges(adopted: AdoptedState): readonly number[] {
   return (adopted as PlannedState).edges
 }
 
+const NO_EDGES: readonly number[] = []
+
+/**
+ * A planned state for keeping in the whole-file plan (sound/planStore.ts): the same values, with its long strings
+ * (the shown frame's key) interned through `intern`, no edges as one shared empty list, and each shown frame copied
+ * once (`shownCopies` remembers the copy, so consecutive commits that show one frame keep sharing it).
+ */
+export function compactPlanned(adopted: AdoptedState, intern: (text: string) => string, shownCopies: WeakMap<object, object>): AdoptedState {
+  const state = adopted as PlannedState
+  let shown = state.shown
+  if (shown) {
+    const known = shownCopies.get(shown) as Shown | undefined
+    if (known) shown = known
+    else {
+      const copy = { ...shown, key: intern(shown.key) }
+      shownCopies.set(shown, copy)
+      shownCopies.set(copy, copy)
+      shown = copy
+    }
+  }
+  const compact: PlannedState = { ...state, shown, edges: state.edges.length ? state.edges : NO_EDGES }
+  return compact
+}
+
 /** Planner frame times are media ms plus this (JumpTracker ignores frames at time 0). */
 export const PLANNER_CLOCK_OFFSET = 1
 
@@ -768,6 +792,11 @@ export class LiveScheduler {
   /** The flash edges the budget holds at page time `time` or later, oldest first (the director's handover check). */
   recentEdges(time: number): readonly number[] {
     return this.budget.since(time)
+  }
+
+  /** No new flash edge on the live path before page time `until` (the director's handover, see FlashBudget.reserve). */
+  reserveFlashes(until: number): void {
+    this.budget.reserve(until)
   }
 
   /**

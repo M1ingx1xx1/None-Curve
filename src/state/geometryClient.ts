@@ -15,8 +15,8 @@
 // (counted for the whole pool), the glyphs fail and the canvas says why (getProblem).
 //
 // Besides the canvas's requests, two more lanes run in the same workers (protocol.ts Lane), each apart from the others:
-// the precompute window ('ahead', driven by aheadGeometry.ts), whose glyphs are kept in a store of their own and stand
-// in for the canvas's like any result, and Glide plans on demand ('plan'). Ahead work is pinned to one worker per glyph
+// the precompute window ('ahead', driven by aheadGeometry.ts), whose glyphs are kept packed in a store of their own
+// (aheadStore.ts, within a byte budget) and stand in for the canvas's like any result, and Glide plans on demand ('plan'). Ahead work is pinned to one worker per glyph
 // (homeAhead), so a glyph's Glide chain stays in the worker that holds its states. Only the canvas lane counts as
 // computing (isComputing), so the live scheduler never waits on the others.
 
@@ -26,6 +26,8 @@ import type { AheadItem, EncodedGlyph, Lane, WorkerGeometry, WorkerRequest, Work
 import type { FrameJob, GeometryJob, GeometryParams, PolygonGlyph } from '../geometry/types'
 import type { PlanData } from '../specimen/planData'
 import type { PolygonLookup } from '../specimen/scene'
+import { PRECOMPUTE_LIMITS } from '../sound/timelineTypes'
+import { AheadStore } from './aheadStore'
 // Registers the ahead lane's page side and the worker plans (aheadTypes.ts) wherever the client is used.
 import './aheadGeometry'
 
@@ -161,6 +163,8 @@ export interface GeometryClientOptions {
   workers?: number
   /** Silence after which a busy worker counts as stuck (ms). */
   watchdogMs?: number
+  /** The ahead store's budget (bytes). */
+  aheadBytes?: number
 }
 
 const startGeometryWorker = () => new Worker(new URL('../geometry/geometry.worker.ts', import.meta.url), { type: 'module' })
@@ -213,8 +217,10 @@ export class GeometryClient {
   private stopped: string | null = null
   /** Why the worker cannot open a font. */
   private fontProblem: { fontId: string; message: string } | null = null
-  /** The precompute window's results, by parameter set (aheadGeometry.ts decides what stays). */
-  private aheadByKey = new Map<string, Map<number, GeometryEntry>>()
+  /** The precompute window's results, packed (aheadGeometry.ts tells it which commits use them). */
+  readonly aheadStore: AheadStore
+  /** Bytes each worker's ahead store held at its last answer (the probe). */
+  private workerBytes = new Map<Slot, number>()
   private aheadListener: AheadListener | null = null
   /** Plan requests on their way, by id. */
   private planRequests = new Map<number, { slot: Slot; sentAt: number; done: (data: PlanData | null) => void }>()
@@ -229,6 +235,9 @@ export class GeometryClient {
     this.createWorker = options.createWorker ?? startGeometryWorker
     this.watchdogMs = options.watchdogMs ?? WATCHDOG_MS
     const size = Math.max(1, Math.floor(options.workers ?? poolSize()))
+    this.aheadStore = new AheadStore(options.aheadBytes ?? PRECOMPUTE_LIMITS.pageStoreBytes, {
+      onMaterialize: (geometry, key) => this.keys.set(geometry.polygon, key),
+    })
     this.slots = Array.from({ length: size }, () => ({
       worker: null,
       lastHeard: 0,
@@ -376,12 +385,12 @@ export class GeometryClient {
   }
 
   private entry(key: string, index: number): GeometryEntry | undefined {
-    return this.byKey.get(key)?.get(index) ?? this.liveByKey.get(key)?.get(index) ?? this.aheadByKey.get(key)?.get(index)
+    return this.byKey.get(key)?.get(index) ?? this.liveByKey.get(key)?.get(index) ?? this.aheadStore.get(key, index)
   }
 
   /** True when a result for this glyph under these settings is held (in any of the three stores). */
   has(key: string, index: number): boolean {
-    return this.entry(key, index) !== undefined
+    return this.byKey.get(key)?.has(index) === true || this.liveByKey.get(key)?.has(index) === true || this.aheadStore.has(key, index)
   }
 
   /** The key a polygon held here was computed under, or null (an in-between shape, or not from here). */
@@ -399,12 +408,23 @@ export class GeometryClient {
     return slots[index % slots.length]
   }
 
+  /** Some worker is still working on its part of the last lease (its ahead-done has not come). */
+  aheadInFlight(): boolean {
+    return this.slots.some((slot) => slot.ahead !== null)
+  }
+
+  /** Workers in the pool (the ahead lane's leases are shared among them). */
+  workerCount(): number {
+    return Math.max(1, this.slots.filter((slot) => !slot.retired).length)
+  }
+
   /**
    * Sends the precompute window's work (aheadGeometry.ts) for the font the canvas shows (`fontId`): each worker gets its
    * glyphs and chain steps, in order, replacing what it was sent before; a worker with nothing to do is told to stop.
-   * False when that is not the font held here, or no worker runs.
+   * `playheadMs`: where playback is (the workers' stores keep what is used soonest). False when that is not the font
+   * held here, or no worker runs.
    */
-  sendAhead(fontId: string, generation: number, glideMs: number, items: readonly AheadItem[]): boolean {
+  sendAhead(fontId: string, generation: number, glideMs: number, playheadMs: number, items: readonly AheadItem[]): boolean {
     const font = this.font
     if (!font || font.id !== fontId) return false
     this.startWorkers()
@@ -441,7 +461,7 @@ export class GeometryClient {
       const id = this.nextId++
       this.aheadSent = true
       slot.ahead = { id, sentAt: now }
-      this.send(slot, { type: 'ahead', requestId: id, fontId: font.id, generation, glideMs, items: part })
+      this.send(slot, { type: 'ahead', requestId: id, fontId: font.id, generation, glideMs, playheadMs, items: part })
     }
     this.armWatchdog(this.watchdogMs)
     return true
@@ -452,19 +472,14 @@ export class GeometryClient {
     for (const slot of this.slots) this.send(slot, { type: 'ahead-release', beforeSeq })
   }
 
-  /** Drops the ahead store's results the keep test refuses (aheadGeometry.ts's window moved on). */
-  retainAhead(keep: (key: string, index: number) => boolean) {
-    for (const [key, results] of this.aheadByKey) {
-      for (const index of results.keys()) if (!keep(key, index)) results.delete(index)
-      if (!results.size) this.aheadByKey.delete(key)
-    }
+  /** Points held in the ahead store. */
+  aheadPoints(): number {
+    return this.aheadStore.points()
   }
 
-  /** Points held in the ahead store (aheadGeometry.ts keeps it within its budget). */
-  aheadPoints(): number {
-    let points = 0
-    for (const results of this.aheadByKey.values()) for (const entry of results.values()) if ('geometry' in entry) points += entry.geometry.vertexCount
-    return points
+  /** Bytes each worker's ahead store held at its last answer (the probe). */
+  aheadWorkerBytes(): number[] {
+    return this.slots.map((slot) => this.workerBytes.get(slot) ?? 0)
   }
 
   /**
@@ -691,7 +706,8 @@ export class GeometryClient {
     this.homes.clear()
     this.costs.clear()
     // The window and its chains were the old font's: every worker forgets them, and answers still on their way are dropped.
-    this.aheadByKey.clear()
+    this.aheadStore.clear()
+    this.workerBytes.clear()
     this.aheadSince = this.nextId
     for (const slot of this.slots) {
       this.dropLanes(slot)
@@ -863,11 +879,7 @@ export class GeometryClient {
         const current = slot.current
         const error = `Took longer than ${Math.round(this.watchdogMs / 1000)} s; try lighter settings`
         if (current?.lane === 'ahead') {
-          if (current.fontId === this.fontId) {
-            let results = this.aheadByKey.get(current.key)
-            if (!results) this.aheadByKey.set(current.key, (results = new Map()))
-            results.set(current.index, { error })
-          }
+          if (current.fontId === this.fontId) this.aheadStore.put(current.key, current.index, { error })
         } else {
           const blamed = current && this.requests.get(current.requestId)
           if (current && blamed) this.store(current.key, current.index, { error }, blamed.live)
@@ -924,17 +936,14 @@ export class GeometryClient {
       if (message.requestId < this.aheadSince) return
       const indices: number[] = []
       for (const result of message.results) {
-        const entry: GeometryEntry = 'error' in result ? { error: result.error } : { geometry: result.geometry }
-        let results = this.aheadByKey.get(message.key)
-        if (!results) this.aheadByKey.set(message.key, (results = new Map()))
-        results.set(result.index, entry)
-        if ('geometry' in entry) this.keys.set(entry.geometry.polygon, message.key)
+        this.aheadStore.put(message.key, result.index, result)
         indices.push(result.index)
       }
       this.aheadListener?.results(message.seq, message.key, indices, message.times)
     } else if (message.type === 'ahead-plans') {
       if (message.requestId >= this.aheadSince) this.aheadListener?.plans(message)
     } else if (message.type === 'ahead-done') {
+      if (message.stored) this.workerBytes.set(slot, message.stored.bytes)
       if (slot.ahead?.id !== message.requestId) return
       slot.ahead = null
       this.aheadListener?.ended(message.stopped === true)

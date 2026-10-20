@@ -20,8 +20,37 @@ export interface ProbeState {
   /** Ring of the last DRAW_MS_KEEP draw times. */
   drawMs: number[]
   last: ProbeFrame | null
-  precompute: { covered: boolean; shown: number; live: number; misses: number; held: number; backoffs: number; generation: number }
+  precompute: PrecomputeProbe
   preview: { frames: number; drawMs: number[] }
+}
+
+/** Precomputed playback (sound/director.ts, state/aheadGeometry.ts): what the director did, and what is prepared. */
+export interface PrecomputeProbe {
+  covered: boolean
+  shown: number
+  live: number
+  misses: number
+  held: number
+  backoffs: number
+  generation: number
+  /** The whole-file plan: planned and measured from 0 up to (media ms), its bytes (estimate) and CPU so far (ms). */
+  plannedMs: number
+  measuredMs: number
+  planBytes: number
+  planCpuMs: number
+  /** The page's ahead store (aheadStore.ts). */
+  store: { entries: number; points: number; bytes: number; evictions: number; orphans: number }
+  /** Each worker's ahead store (bytes, at its last answer). */
+  workers: { bytes: number[] }
+  /** Ready geometry from the playhead on, contiguous, each way (media ms). */
+  readyAheadMs: number
+  readyBehindMs: number
+  /** Live frames between the last Play and the first planned commit shown. */
+  firstPlayLiveFrames: number
+  /** Glyphs of the window found held or computed since the plan last changed. */
+  reuse: { hits: number; misses: number }
+  /** Why background work is paused now, or null. */
+  paused: 'settling' | 'hidden' | 'backoff' | null
 }
 
 const DRAW_MS_KEEP = 600
@@ -39,7 +68,26 @@ function probeState(): ProbeState {
     effective: '',
     drawMs: [],
     last: null,
-    precompute: { covered: false, shown: 0, live: 0, misses: 0, held: 0, backoffs: 0, generation: 0 },
+    precompute: {
+      covered: false,
+      shown: 0,
+      live: 0,
+      misses: 0,
+      held: 0,
+      backoffs: 0,
+      generation: 0,
+      plannedMs: 0,
+      measuredMs: 0,
+      planBytes: 0,
+      planCpuMs: 0,
+      store: { entries: 0, points: 0, bytes: 0, evictions: 0, orphans: 0 },
+      workers: { bytes: [] },
+      readyAheadMs: 0,
+      readyBehindMs: 0,
+      firstPlayLiveFrames: 0,
+      reuse: { hits: 0, misses: 0 },
+      paused: null,
+    },
     preview: { frames: 0, drawMs: [] },
   }
   if (typeof window !== 'undefined') (window as unknown as { __noneCurveFrames?: ProbeState }).__noneCurveFrames = state
@@ -134,7 +182,7 @@ export function measureDraw(which: 'canvas' | 'preview', start: number, end: num
   }
 }
 
-export function reportPrecompute(patch: Partial<ProbeState['precompute']>): void {
+export function reportPrecompute(patch: Partial<PrecomputeProbe>): void {
   if (!probeOn) return
   Object.assign(probeState().precompute, patch)
 }

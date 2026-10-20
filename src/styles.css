@@ -2390,6 +2390,45 @@ input.number-field {
   width: 100%;
 }
 
+/* The Position slider and its buffered bar (BufferedBar.tsx). Like .live-slider: the native thumb's width and the
+   browser's margin around a range input, so the bar's ends line up with the thumb's centre at the start and end. */
+.sound-position-slider {
+  --thumb: 16px;
+  --range-inset: 2px;
+  position: relative;
+  display: block;
+  min-width: 0;
+  /* Room for the strip below the input's own margin, clear of the thumb. */
+  padding-bottom: 1px;
+}
+
+.sound-position-slider > input[type='range'] {
+  display: block;
+}
+
+/* A flat strip right under the slider: the lighter layer is the plan (the moves worked out), the stronger one the
+   ready shapes. Straight rectangles only; it never takes the pointer. */
+.sound-buffer {
+  position: absolute;
+  left: calc(var(--range-inset) + var(--thumb) / 2);
+  bottom: 0;
+  /* An explicit width: an svg's auto width follows its viewBox (1000:1), not left and right. */
+  width: calc(100% - 2 * (var(--range-inset) + var(--thumb) / 2));
+  height: 3px;
+  display: block;
+  background: var(--border);
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
+.sound-buffer-planned {
+  fill: color-mix(in srgb, var(--primary-strong) 35%, var(--surface));
+}
+
+.sound-buffer-ready {
+  fill: var(--primary-strong);
+}
+
 /* ---- Knobs (Knob.tsx): straight lines and a 12-sided body only, nothing rounded ---- */
 
 .knob {

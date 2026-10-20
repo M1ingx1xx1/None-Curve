@@ -3,23 +3,35 @@
 
 import type { GeometryJob, PolygonGlyph } from '../geometry/types'
 import type { MorphPlan } from '../specimen/morph'
+import { PRECOMPUTE_LIMITS } from '../sound/timelineTypes'
 
 /** One selected commit's work: its glyphs, then each lineage's glide step. */
 export interface AheadCommit {
   seq: number
   prevSeq: number
   mediaMs: number
+  /** Until when it is on screen: the next selected commit's media time (for the buffered ranges). */
+  endMs: number
   /** Resolved jobs (indices filled; `within` already applied). */
   jobs: readonly GeometryJob[]
   /** Distinct lineage steps of this commit (occurrences with the same history share one); parent -1 = none. */
   steps: readonly { lineage: number; parent: number; index: number; key: string }[]
 }
 
+/**
+ * The geometry window around the playhead: the selected commits of [playhead − windowBehindMs, playhead +
+ * windowAheadMs] in media order. Those before `dueSeq` (the commit due) are the part behind: their glyphs are kept
+ * for a rewind, but no glide steps are worked out for them.
+ */
 export interface AheadWindow {
   generation: number
+  /** The decimation level the commits were selected at (lineages change with it). */
+  level: number
   fontId: string
   /** Glide's time (ms); 0 = no plans. */
   glideMs: number
+  playheadMs: number
+  dueSeq: number
   commits: readonly AheadCommit[]
 }
 
@@ -30,17 +42,40 @@ export interface AheadStats {
   backlogMs: number
 }
 
+/** Media time ranges whose geometry is ready, for one plan generation: [startMs, endMs, …], merged, in order. */
+export interface ReadyRanges {
+  generation: number
+  ranges: Float64Array
+}
+
 export interface AheadGeometry {
   /** Replaces the wanted window (same generation: diffed; new generation: older work dropped). */
   want(window: AheadWindow): void
+  /** The same window's commits, with the playhead (and the commit due) moved on: nothing is diffed again. */
+  setPlayhead(playheadMs: number, dueSeq: number): void
   /** Every glyph of the commit is in the store, and (glideMs > 0) every step's plan. */
   ready(seq: number): boolean
+  /** Every glyph of the commit is in the store (its steps' plans aside). */
+  shapesReady(seq: number): boolean
   stats(): AheadStats
-  /** Commits before `seq` will not be shown: their glyphs and plans may go. */
+  /** Commits before `seq` (the window's first) will not be shown: their plans may go. */
   release(beforeSeq: number): void
+  /** Stops the work in the workers (settling, hidden, backing off); what is held stays. The next `want` resumes. */
+  pause(): void
+  /** Where the current plan's geometry is ready (the buffered bar). */
+  readyRanges(): ReadyRanges
   /** Called when readiness changes (batched, at most once per animation frame). */
   subscribeReady(listener: () => void): () => void
   clear(): void
+}
+
+/**
+ * How far a glyph used from media ms `first` to `last` is from the playhead `ph`, weighted: 0 when the playhead is
+ * within, the distance ahead, or behindWeight times the distance behind (a rewind is less likely than playing on).
+ */
+export function weightedDistance(first: number, last: number, ph: number): number {
+  if (first <= ph && ph <= last) return 0
+  return first > ph ? first - ph : PRECOMPUTE_LIMITS.behindWeight * (ph - last)
 }
 
 /** An on-demand plan (live path): from is sent by value with its side tables. */
