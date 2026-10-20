@@ -12,8 +12,8 @@
 // could produce, and without Thorn one frame asks for at most three parameter sets.
 //
 // Thorn turns (THORN_TURNS): while Thorn is on, the settings that decide where the thorns sit and which way they point
-// (isTurnTarget: Thorn's own, the Experimental seed, and the shapes Thorn picks its anchors on or follows them through)
-// reach the letters a few at a time. The drawn letters are split into turn groups of whole glyph ids (turnGroups), each
+// (isTurnTarget: Thorn's own but Reach, the Experimental seed, and the shapes Thorn picks its anchors on or follows them
+// through) reach the letters a few at a time. The drawn letters are split into turn groups of whole glyph ids (turnGroups), each
 // showing the turn state it took at its last turn (live.ts hands the live state to one group per turn); levels never
 // scale them. A letter shows its level's values with its group's turn state (turnSets), so a frame asks for at most a
 // parameter set per level and group, each for the glyph ids that show it.
@@ -21,7 +21,7 @@
 import type { GeometryJob, GeometryParams } from '../geometry/types'
 import type { ShapedSpecimen } from '../specimen/scene'
 import { FLASH_LIMITS } from './flash'
-import { TARGETS, targetById, withinBounds, type Modulated, type TargetSpec } from './mapping'
+import { TARGETS, targetById, withinBounds, type Mapping, type Modulated, type TargetSpec } from './mapping'
 import { THORN_TURNS, type FeatureFrame, type ResponseSettings } from './types'
 
 /** The letters of the shaped text, one slot per occurrence in placePolygons' order (lines, then glyphs; spaces and missing glyphs counted). */
@@ -211,8 +211,12 @@ export function assignLevels(
 /** Thorn's sliders: never scaled by a level, with Thorn on (they come from the letters' turn groups) or off. */
 export const isThornTarget = (id: string): boolean => id.startsWith('experimental.thorn.')
 
-/** The Amounts the thorns keep through (thorn.ts), as they keep through Distortion: they stay with the shared values. */
-const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount'])
+/**
+ * What the thorns keep through (thorn.ts), as they keep through Distortion: Crumple's and Ripple's Amount, and Thorn's
+ * Reach, which sets how long the thorns are, not where they sit or which way they point. They stay with the shared
+ * values, so a beat on Reach grows and sinks every letter's thorns together.
+ */
+const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount', 'experimental.thorn.canvasReach'])
 
 /** Dissolve runs after Thorn (experimental.ts), so its sliders never move a thorn. */
 const AFTER_THORN = 'experimental.dissolve.'
@@ -228,11 +232,12 @@ const isAxisTarget = (id: string): boolean => id.startsWith('axis.')
 
 /**
  * Whether a target reaches the letters by Thorn turns while Thorn is on (THORN_TURNS): it decides where the thorns sit
- * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders and switches and the Experimental
- * seed; every Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every slider and
- * switch of Crumple, Ripple, Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor those two
- * Amounts: the thorns keep their anchors and directions through their moves (thorn.ts), so they stay with the shared
- * values and levels. Nor Dissolve's: it runs after Thorn. Nor the canvas targets (isCanvasTarget) or the font's axes.
+ * or which way they point, so a change of it moves a letter's thorns. Thorn's sliders but Reach, its switches and the
+ * Experimental seed; every Geometry step before Distortion (Thorn picks its anchors on the letter they make); and every
+ * slider and switch of Crumple, Ripple, Whorl and Slipstream but Crumple's and Ripple's Amount. Not Distortion, nor
+ * those two Amounts, nor Thorn's Reach: the thorns keep their anchors and directions through their moves (thorn.ts), so
+ * they stay with the shared values (and the two Amounts with the levels). Nor Dissolve's: it runs after Thorn. Nor the
+ * canvas targets (isCanvasTarget) or the font's axes.
  */
 export const isTurnTarget = (id: string): boolean =>
   !id.startsWith('distortion.') && !KEPT_THROUGH.has(id) && !id.startsWith(AFTER_THORN) && !isCanvasTarget(id) && !isAxisTarget(id)
@@ -479,18 +484,45 @@ export function withThornState(params: GeometryParams, state: ThornState): Geome
 }
 
 /**
+ * The turn state's sliders and switches (their places in ThornState.values) that an enabled Trigger or Toggle mapping
+ * drives: hits on the beat, which every letter takes at once (ThornTurns.setPulsed), so each one shows on every letter
+ * together and the letters return to the sliders' own values between hits. Seeds keep their turns.
+ */
+export function pulsedTargets(mappings: readonly Mapping[]): readonly number[] {
+  const ids = new Set(mappings.filter((m) => m.enabled && (m.mode === 'trigger' || m.mode === 'toggle')).map((m) => m.target))
+  const out: number[] = []
+  STATE_TARGETS.forEach((spec, i) => {
+    if (ids.has(spec.id) && spec.kind !== 'jump') out.push(i)
+  })
+  return out
+}
+
+/** `state` with the values at `pulsed` taken from `live` (the same object when they are there already). */
+export function withPulsed(state: ThornState, live: ThornState, pulsed: readonly number[]): ThornState {
+  if (pulsed.every((i) => state.values[i] === live.values[i])) return state
+  const values = state.values.slice()
+  for (const i of pulsed) values[i] = live.values[i]
+  return { enabled: state.enabled, values }
+}
+
+/** How long a turn group keeps its state before a small difference reaches it too: two rounds of turns. */
+export const THORN_SETTLE_MS = 2 * THORN_TURNS.groups * THORN_TURNS.gapMs
+
+/**
  * Whether a turn group showing `shown` takes the live state at its turn: Thorn switched, another seed or number of
  * thorns, a slider at least half a flash swing (FLASH_LIMITS.swing / 2 of its travel) away, or one the sound has put
  * back on its own value (in `own`, the sliders' turn state) where the group's is not, so quiet ends exactly there.
+ * `settled`: the group has kept its state THORN_SETTLE_MS, and any slider away counts, so a sound that keeps a slider
+ * moving by less than that still reaches the letters.
  */
-export function thornDiffers(shown: ThornState, live: ThornState, own: ThornState): boolean {
+export function thornDiffers(shown: ThornState, live: ThornState, own: ThornState, settled = false): boolean {
   if (shown.enabled !== live.enabled) return true
   for (let i = 0; i < STATE_TARGETS.length; i++) {
     const was = shown.values[i]
     const is = live.values[i]
     if (was === is) continue
     const spec = STATE_TARGETS[i]
-    if (spec === THORN_COUNT || spec.kind === 'jump' || is === own.values[i]) return true
+    if (settled || spec === THORN_COUNT || spec.kind === 'jump' || is === own.values[i]) return true
     if (Math.abs(spec.toSlider(is) - spec.toSlider(was)) >= FLASH_LIMITS.swing / 2 - 1e-9) return true
   }
   return false
@@ -523,21 +555,33 @@ export function turnSwing(share: number, from: ThornState, to: ThornState): numb
  * group turns at most once in `groups` turns. A large change (turnSwing at least FLASH_LIMITS.swing) asks the flash
  * budget first; refused, the turn waits and is asked again on the next update. A group whose state does not differ,
  * or that holds no letter, gives its turn up (the turn passes gapMs on with nothing changed), so the groups after it
- * do not wait on it, and a letter of a short text still turns at most once every groups × gapMs. A mapping added or
+ * do not wait on it, and a letter of a short text still turns at most once every groups × gapMs. A group that has kept
+ * its state THORN_SETTLE_MS takes even a small difference (thornDiffers, `settled`). A mapping added or
  * removed starts nothing afresh: its changes reach the groups by turns.
+ *
+ * Except the sliders and switches a Trigger or Toggle mapping drives (setPulsed, pulsedTargets): every group takes
+ * their live values on every update, outside the turns, so a hit on the beat shows on every letter together, and the
+ * letters return to their own values together after it (the flash limit still counts them, as any driven slider).
  */
 export class ThornTurns {
   /**
    * The letters the groups are for, the groups, the state each shows, and the sliders' own state at the last update;
    * null after a clear.
    */
-  private current: { slots: LetterSlots; groups: TurnGroups; states: ThornState[]; own: ThornState } | null = null
+  private current: { slots: LetterSlots; groups: TurnGroups; states: ThornState[]; takenAt: number[]; own: ThornState } | null = null
   private next = 0
   /** Turns made, and the newest on screen: the next turn waits for the last to reach the screen. */
   private made = 0
   private shown = 0
   /** When the last turn reached the screen, or the last group gave its turn up (or the turns started). */
   private slotAt = -Infinity
+  /** The turn state's places every group takes at once (pulsedTargets). */
+  private pulsed: readonly number[] = []
+
+  /** The turn state's places that skip the turns (pulsedTargets): every group takes them on each update. */
+  setPulsed(pulsed: readonly number[]): void {
+    this.pulsed = pulsed
+  }
 
   /** The groups, null until the first update after a clear. */
   get groups(): TurnGroups | null {
@@ -565,7 +609,8 @@ export class ThornTurns {
     const current = this.current
     if (!current || !sameLetters(current.slots, slots)) {
       const groups = turnGroups(slots)
-      this.current = { slots, groups, states: new Array<ThornState>(groups.count).fill(live), own }
+      const takenAt = new Array<number>(groups.count).fill(now)
+      this.current = { slots, groups, states: new Array<ThornState>(groups.count).fill(live), takenAt, own }
       this.next = 0
       this.shown = this.made
       this.slotAt = now
@@ -578,10 +623,12 @@ export class ThornTurns {
     }
     if (!sameThornState(current.own, own)) moveByHand(current.states, current.own, own, live)
     current.own = own
-    const { groups, states } = current
+    const { groups, states, takenAt } = current
+    if (this.pulsed.length) for (let h = 0; h < states.length; h++) states[h] = withPulsed(states[h], live, this.pulsed)
     if (this.shown < this.made || now - this.slotAt < THORN_TURNS.gapMs || groups.count === 0) return
     const g = this.next
-    const differs = (h: number) => groups.letters[h] > 0 && thornDiffers(states[h], live, own)
+    const differs = (h: number) =>
+      groups.letters[h] > 0 && thornDiffers(states[h], live, own, now - takenAt[h] >= THORN_SETTLE_MS)
     if (!differs(g)) {
       if (states.some((_, h) => differs(h))) {
         // A group without letters keeps up with the live state, unseen.
@@ -593,6 +640,7 @@ export class ThornTurns {
     }
     if (turnSwing(groups.share[g], states[g], live) >= FLASH_LIMITS.swing - 1e-9 && !take()) return
     states[g] = live
+    takenAt[g] = now
     this.next = (g + 1) % groups.count
     this.made++
   }

@@ -317,11 +317,11 @@ export const DEFAULT_RESPONSE: ResponseSettings = { ...NEUTRAL_RESPONSE, glideMs
 /**
  * Thorn turns (letters.ts, live.ts): while Sound drives the letters with Thorn on, their thorns change a few letters
  * at a time. The drawn letters are split into `groups` turn groups of whole glyph ids (with fewer letters, some groups
- * hold none and their turns only pass the time). Each letter shows the settings that move its thorns (Thorn's, the
- * Experimental seed, and the shapes Thorn picks its anchors on: isTurnTarget) as its group took them at its last
- * turn; a turn hands the live ones to the next group, round robin, at most every `gapMs` on screen. So a letter's
- * thorns change at most once every groups × gapMs (1.25 s), whatever the text's length, and at most about a fifth of
- * the letters every gapMs.
+ * hold none and their turns only pass the time). Each letter shows the settings that move its thorns (Thorn's but
+ * Reach, the Experimental seed, and the shapes Thorn picks its anchors on: isTurnTarget) as its group took them at its
+ * last turn; a turn hands the live ones to the next group, round robin, at most every `gapMs` on screen. So a letter's
+ * thorns move at most once every groups × gapMs (1.25 s), whatever the text's length, and at most about a fifth of
+ * the letters every gapMs. Reach, how long the thorns are, every letter shares: a beat on it grows them all together.
  */
 export const THORN_TURNS = { groups: 5, gapMs: 250 } as const
 
