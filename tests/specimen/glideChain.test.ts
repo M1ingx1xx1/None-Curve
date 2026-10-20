@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { AheadCore, type StepRecord } from '../../src/geometry/aheadCore'
 import { paramsKey } from '../../src/geometry/cache'
+import { packGeometry } from '../../src/geometry/packed'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { AheadItem } from '../../src/geometry/protocol'
 import type { GeometryParams, PolygonGlyph } from '../../src/geometry/types'
@@ -16,6 +17,7 @@ import { placePolygons, shapeSpecimen, type SpecimenScene } from '../../src/spec
 import type { AheadListener, GeometryClient } from '../../src/state/geometryClient'
 import type { PlanSource } from '../../src/state/aheadTypes'
 import { PageAhead } from '../../src/state/aheadGeometry'
+import { AheadStore } from '../../src/state/aheadStore'
 import { loadFixture } from '../helpers/fonts'
 import { burst, thorny, whorl } from '../helpers/planCases'
 
@@ -59,7 +61,7 @@ describe('Glide chains', async () => {
       const key = paramsKey(run.params[seq])
       for (const index of shaped.indices) {
         const { source: _source, ...geometry } = deriveGeometry(font.getGlyph(index), run.params[seq])
-        core.put(key, index, { geometry: { ...geometry, polygon: polygon(run.params[seq], index) } }, seq)
+        core.put(key, index, { packed: packGeometry({ ...geometry, polygon: polygon(run.params[seq], index) }).packed }, seq)
       }
       return occurrences().map(({ index }, k) => core.step(seq, mediaMs, lineageOf(seq, k), seq > 0 ? lineageOf(seq - 1, k) : -1, index, key, GLIDE))
     })
@@ -126,7 +128,7 @@ describe('Glide chains', async () => {
       const client = {
         setAheadListener: (l: AheadListener) => (listener = l),
         has: () => true,
-        sendAhead: (_font: string, generation: number, _glide: number, items: readonly AheadItem[]) => {
+        sendAhead: (_font: string, generation: number, _glide: number, _playhead: number, items: readonly AheadItem[]) => {
           const seqs = [...new Set(items.filter((i) => i.kind === 'step').map((i) => i.seq))]
           queueMicrotask(() => {
             for (const seq of seqs) listener!.plans({ type: 'ahead-plans', requestId: 1, generation, seq, plans: records[seq] })
@@ -134,8 +136,8 @@ describe('Glide chains', async () => {
           return true
         },
         releaseAhead: () => {},
-        retainAhead: () => {},
-        aheadPoints: () => 0,
+        aheadStore: new AheadStore(),
+        workerCount: () => 1,
         requestPlan: () => null,
       } as unknown as GeometryClient
       const ahead = new PageAhead(() => client)
@@ -143,10 +145,11 @@ describe('Glide chains', async () => {
         seq,
         prevSeq: seq - 1,
         mediaMs,
+        endMs: mediaMs + 33,
         jobs: [],
         steps: occurrences().map(({ index }, k) => ({ lineage: lineageOf(seq, k), parent: seq > 0 ? lineageOf(seq - 1, k) : -1, index, key: paramsKey(run.params[seq]) })),
       }))
-      ahead.want({ generation: 1, fontId: 'roboto', glideMs: GLIDE, commits })
+      ahead.want({ generation: 1, level: 1, fontId: 'roboto', glideMs: GLIDE, playheadMs: 0, dueSeq: 0, commits })
       await Promise.resolve()
       for (const commit of commits) expect(ahead.ready(commit.seq)).toBe(true)
       let hits = 0
@@ -186,11 +189,11 @@ describe('Glide chains', async () => {
       has: () => true,
       sendAhead: () => true,
       releaseAhead: () => {},
-      retainAhead: () => {},
-      aheadPoints: () => 0,
+      aheadStore: new AheadStore(),
+      workerCount: () => 1,
     } as unknown as GeometryClient
     const ahead = new PageAhead(() => client)
-    ahead.want({ generation: 1, fontId: 'roboto', glideMs: GLIDE, commits: [] })
+    ahead.want({ generation: 1, level: 1, fontId: 'roboto', glideMs: GLIDE, playheadMs: 0, dueSeq: 0, commits: [] })
     listener!.plans({ type: 'ahead-plans', requestId: 1, generation: 1, seq: 2, plans: records[2] })
     const polygon = side()
     const from = polygon(burst(3), shaped.indices[0])

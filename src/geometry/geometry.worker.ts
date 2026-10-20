@@ -5,6 +5,6 @@
 import type { WorkerRequest, WorkerResponse } from './protocol'
 import { createGeometryWorker } from './workerCore'
 
-const handle = createGeometryWorker((message: WorkerResponse) => (self as unknown as Worker).postMessage(message))
+const handle = createGeometryWorker((message: WorkerResponse, transfer?: Transferable[]) => (self as unknown as Worker).postMessage(message, transfer ?? []))
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => handle(event.data)

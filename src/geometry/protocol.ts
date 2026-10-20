@@ -2,6 +2,7 @@
 
 import type { FontSource } from '../font/model'
 import type { PlanData, PlanFrom } from '../specimen/planData'
+import type { PackedGlyph } from './packed'
 import type { DerivedGeometry, GeometryJob, GeometryParams, PolygonGlyph } from './types'
 
 export type { GeometryJob } from './types'
@@ -29,16 +30,20 @@ export type WorkerRequest =
   | { type: 'compute'; requestId: number; fontId: string; jobs: GeometryJob[]; live?: boolean }
   /** Stops this request between glyphs: the page has everything it needs. */
   | { type: 'cancel'; requestId: number }
-  /** Computes the ahead window's glyphs for this worker (pinned indices) and steps its glide chains (aheadCore.ts). A newer 'ahead' request replaces this one between items. */
-  | { type: 'ahead'; requestId: number; fontId: string; generation: number; glideMs: number; items: AheadItem[] }
+  /**
+   * Computes the ahead window's glyphs for this worker (pinned indices) and steps its glide chains (aheadCore.ts). A
+   * newer 'ahead' request replaces this one between items. `playheadMs`: where playback is (media ms), for what the
+   * worker's store keeps.
+   */
+  | { type: 'ahead'; requestId: number; fontId: string; generation: number; glideMs: number; playheadMs: number; items: AheadItem[] }
   /** Plans one glide on demand (live path). */
   | { type: 'plan'; requestId: number; fontId: string; from: EncodedGlyph; to: EncodedGlyph | { key: string; index: number } }
   /** Forget ahead glyphs and chain states before this commit. */
   | { type: 'ahead-release'; beforeSeq: number }
 
-/** One unit of an ahead request: a commit's glyphs under one parameter set, or one lineage's glide step. */
+/** One unit of an ahead request: a commit's glyphs under one parameter set (at its media time), or one lineage's glide step. */
 export type AheadItem =
-  | { kind: 'glyphs'; seq: number; key: string; params: GeometryParams; indices: number[] }
+  | { kind: 'glyphs'; seq: number; key: string; params: GeometryParams; indices: number[]; mediaMs?: number }
   | { kind: 'step'; seq: number; mediaMs: number; lineage: number; parent: number; index: number; key: string }
 
 /** An in-between glyph by value: the glyph, plus its kept flags and mesh pose (morph.ts side tables). */
@@ -46,6 +51,9 @@ export interface EncodedGlyph { glyph: PolygonGlyph; kept: Uint8Array[] | null; 
 export interface EncodedPose { meshKey: string; turns: Float64Array; cornerX: Float64Array; cornerY: Float64Array; outerX: Float64Array; outerY: Float64Array }
 
 export type GlyphResult = { index: number; geometry: WorkerGeometry } | { index: number; error: string }
+
+/** A glyph of the ahead window: packed (packed.ts; its arrays are transferred), or why it failed. */
+export type AheadResult = { index: number; packed: PackedGlyph } | { index: number; error: string }
 
 /** Why a request failed: the worker does not have the font, could not open it, or anything else went wrong. */
 export type FailureReason = 'no-font' | 'font' | 'internal'
@@ -66,11 +74,14 @@ export type WorkerResponse =
   | { type: 'done'; requestId: number; stopped?: boolean }
   | { type: 'failed'; requestId: number; reason: FailureReason; message: string }
   | { type: 'font-error'; fontId: string; message: string }
-  /** One ahead job's glyphs for commit `seq` (as 'results', into the page's ahead store). */
-  | { type: 'ahead-results'; requestId: number; generation: number; seq: number; key: string; results: GlyphResult[]; times: (number | null)[] }
+  /** One ahead job's glyphs for commit `seq` (as 'results', packed, into the page's ahead store). */
+  | { type: 'ahead-results'; requestId: number; generation: number; seq: number; key: string; results: AheadResult[]; times: (number | null)[] }
   /** Commit `seq`'s glide steps: per lineage the plan's `from`, its data (null: change at once), and `unchanged` when not reshaped. */
   | { type: 'ahead-plans'; requestId: number; generation: number; seq: number; plans: { lineage: number; from: PlanFrom; data: PlanData | null; unchanged?: true }[] }
-  /** Every ahead request ends with one 'ahead-done' (all items done, or `stopped` by a newer one). */
-  | { type: 'ahead-done'; requestId: number; stopped?: boolean }
+  /**
+   * Every ahead request ends with one 'ahead-done' (all items done, or `stopped` by a newer one). `stored`: what the
+   * worker's ahead store holds now (the probe).
+   */
+  | { type: 'ahead-done'; requestId: number; stopped?: boolean; stored?: { bytes: number } }
   /** The answer to a 'plan' request (null: change at once). */
   | { type: 'plan-result'; requestId: number; data: PlanData | null }

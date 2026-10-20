@@ -29,6 +29,8 @@ const SAME_FRAME_MS = 1
 export class FlashBudget {
   /** Times (ms) of the edges within the window, oldest first. */
   private edges: number[] = []
+  /** Before this time no new edge is allowed (reserve). */
+  private reservedUntil = -Infinity
 
   /**
    * Asks to show an edge at `time` (a measured frame's time): true when the budget allows it (it is counted, unless
@@ -37,9 +39,17 @@ export class FlashBudget {
   take(time: number): boolean {
     if (this.sameFrame(time)) return true
     this.forget(time)
-    if (this.edges.length >= 2 * FLASH_LIMITS.maxFlashes) return false
+    if (time < this.reservedUntil || this.edges.length >= 2 * FLASH_LIMITS.maxFlashes) return false
     this.edges.push(time)
     return true
+  }
+
+  /**
+   * Allows no new edge before `until` (spend still counts): the precompute director keeps the window free for the
+   * planned edges it is about to show (director.ts).
+   */
+  reserve(until: number): void {
+    this.reservedUntil = Math.max(this.reservedUntil, until)
   }
 
   /** Counts an edge that shows whatever the budget says: Sound stopping puts the sliders and seeds back (exact restore). */

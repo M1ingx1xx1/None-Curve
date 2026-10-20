@@ -15,7 +15,8 @@ import { planMorph, settleInBetween } from '../specimen/morph'
 import { decodeGlyph, encodePlan, encodeSettled } from '../specimen/planCodec'
 import { AheadCore, type StepRecord } from './aheadCore'
 import { cachedGeometry, glyphGeometry, isCached, shareCacheLimits } from './cache'
-import type { GlyphResult, Lane, WorkerRequest, WorkerResponse } from './protocol'
+import { clonePacked, packGeometry, unpackGeometry } from './packed'
+import type { AheadResult, GlyphResult, Lane, WorkerRequest, WorkerResponse } from './protocol'
 import type { PolygonGlyph } from './types'
 
 /** How long the worker computes before sending what it has and checking for newer requests (ms). */
@@ -28,8 +29,8 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 /** Lets newer messages in before going on (a lower lane resumes once the higher one has posted its answer). */
 const idle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-/** The worker's message handler; `post` sends a message to the page. */
-export function createGeometryWorker(post: (message: WorkerResponse) => void): (message: WorkerRequest) => void {
+/** The worker's message handler; `post` sends a message to the page (with the buffers to transfer, if any). */
+export function createGeometryWorker(post: (message: WorkerResponse, transfer?: Transferable[]) => void): (message: WorkerRequest) => void {
   const fonts = new Map<string, Promise<LoadedFont>>()
   /** Each lane's latest request (0: none, or cancelled). Plans run each to its end unless cancelled. */
   const latest: Record<Exclude<Lane, 'plan'>, number> = { canvas: 0, ahead: 0 }
@@ -93,8 +94,10 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
 
   /** The window's glyphs (into the ahead store) and chain steps, item after item, below the other lanes. */
   async function ahead(request: Extract<WorkerRequest, { type: 'ahead' }>) {
-    const { requestId, fontId, generation, glideMs, items } = request
+    const { requestId, fontId, generation, glideMs, playheadMs, items } = request
     const stopped = () => latest.ahead !== requestId
+    const done = (stoppedEarly: boolean) =>
+      post({ type: 'ahead-done', requestId, ...(stoppedEarly ? { stopped: true } : {}), stored: { bytes: core.size.bytes } })
     let font: LoadedFont
     try {
       const loading = fonts.get(fontId)
@@ -104,8 +107,8 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
       // Without the font nothing of the window can be done; the page sends the font again (or gives up on it).
       return post({ type: 'ahead-done', requestId, stopped: true })
     }
-    core.begin(fontId, generation)
-    core.reserve(items.flatMap((item) => (item.kind === 'step' ? [item] : item.indices.map((index) => ({ seq: item.seq, key: item.key, index })))))
+    core.begin(fontId, generation, glideMs, playheadMs)
+    core.reserve(items.flatMap((item) => (item.kind === 'step' ? [item] : item.indices.map((index) => ({ seq: item.seq, key: item.key, index, mediaMs: item.mediaMs })))))
     let started = performance.now()
     let plansOf: { seq: number; plans: StepRecord[] } | null = null
     const flushPlans = () => {
@@ -127,7 +130,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
     for (const item of items) {
       if (!(await turn())) {
         flushPlans()
-        return post({ type: 'ahead-done', requestId, stopped: true })
+        return done(true)
       }
       if (item.kind === 'step') {
         if (plansOf && plansOf.seq !== item.seq) flushPlans()
@@ -137,40 +140,53 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
       }
       flushPlans()
       const { seq, key, params, indices } = item
-      let results: GlyphResult[] = []
+      let results: AheadResult[] = []
       let times: (number | null)[] = []
+      let transfer: ArrayBuffer[] = []
       const flush = () => {
-        if (results.length) post({ type: 'ahead-results', requestId, generation, seq, key, results, times })
+        if (results.length) post({ type: 'ahead-results', requestId, generation, seq, key, results, times }, transfer)
         results = []
         times = []
+        transfer = []
       }
       for (const index of indices) {
         if (results.length && performance.now() - started > BATCH_MS) flush()
         if (!(await turn())) {
           flush()
-          return post({ type: 'ahead-done', requestId, stopped: true })
+          return done(true)
         }
-        let entry = core.get(key, index, seq)
+        const kept = core.get(key, index, seq, item.mediaMs)
         let ms: number | null = null
-        if (!entry) {
+        if (kept && 'packed' in kept) {
+          // Kept here already: posted again from a copy (posting transfers the buffers, and the store keeps its own).
+          const copy = clonePacked(kept.packed)
+          results.push({ index, packed: copy.packed })
+          transfer.push(...copy.transfer)
+        } else if (kept) {
+          results.push({ index, error: kept.error })
+        } else {
           post({ type: 'glyph', requestId, key, index })
           const begun = performance.now()
           try {
             const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, true, 'ahead')
-            entry = { geometry }
+            const { packed, transfer: buffers } = packGeometry(geometry)
+            ms = performance.now() - begun
+            // With Glide, the store keeps a copy of its own: the posted buffers move to the page.
+            if (glideMs > 0) core.put(key, index, { packed: clonePacked(packed).packed }, seq, item.mediaMs)
+            results.push({ index, packed })
+            transfer.push(...buffers)
           } catch (error) {
-            entry = { error: errorText(error) }
+            ms = performance.now() - begun
+            core.put(key, index, { error: errorText(error) }, seq, item.mediaMs)
+            results.push({ index, error: errorText(error) })
           }
-          ms = performance.now() - begun
-          core.put(key, index, entry, seq)
         }
-        results.push({ index, ...entry } as GlyphResult)
         times.push(ms)
       }
       flush()
     }
     flushPlans()
-    post({ type: 'ahead-done', requestId })
+    done(false)
   }
 
   /** One glide planned on demand, after whatever the canvas lane is computing. */
@@ -185,7 +201,7 @@ export function createGeometryWorker(post: (message: WorkerResponse) => void): (
       else {
         const { key, index } = request.to
         const stored = core.get(key, index)
-        if (stored && 'geometry' in stored) to = stored.geometry.polygon
+        if (stored && 'packed' in stored) to = unpackGeometry(stored.packed).polygon
         else {
           const font = await fonts.get(request.fontId)?.catch(() => undefined)
           to = (font && cachedGeometry(font, index, key)?.polygon) ?? null

@@ -9,12 +9,9 @@ export const PRECOMPUTE_LIMITS = {
   gridHz: 60,
   /** Longer files stay on the live path (PCM memory). */
   maxSeconds: 360,
-  /** The parameter timeline's horizon. */
+  /** The parameter plan is made first this far past the playhead (each frame); the rest of the file in the background. */
   planAheadMs: 3000,
-  /** The adaptive geometry horizon. */
-  geometryAheadMs: [1000, 3000] as const,
-  keepBehindMs: 1000,
-  /** Priority segments and re-plans start this far before the playhead. */
+  /** The feature worker's priority segments (featureWorkerCore.ts seek) start this far before the point asked for. */
   warmupMs: 4000,
   /** Planned commits ready ahead before the director takes over. */
   enterReadyMs: 500,
@@ -23,12 +20,41 @@ export const PRECOMPUTE_LIMITS = {
   planSliceMs: 4,
   /**
    * The director tries to take over for this long (ms of playback off the plan); when it cannot (the geometry ahead
-   * does not keep up), it stops planning and preparing geometry for a while, so precompute costs nothing it does not
-   * give back.
+   * does not keep up), it pauses the background work for a while, so precompute costs nothing it does not give back.
    */
   tryMs: 5000,
   /** The first pause after a failed try (ms); each failed try in a row doubles it, up to the second value. */
   backoffMs: [5000, 40000] as const,
+  /** The geometry window around the playhead (media ms): this much behind and this much ahead, within the budgets. */
+  windowBehindMs: 10_000,
+  windowAheadMs: 30_000,
+  /** The window's bounds move in steps this long (media ms), so the window is not worked out again every frame. */
+  windowStepMs: 500,
+  /** A moment behind the playhead counts this many times its distance (filled after, evicted before the ahead part). */
+  behindWeight: 3,
+  /** The ring just ahead of the playhead, filled strictly in media order, with Glide's chain steps. */
+  nearMs: 3000,
+  /** Bytes of packed glyphs the page keeps for the window (state/aheadStore.ts), and each worker for its chains. */
+  pageStoreBytes: 96 * 2 ** 20,
+  workerStoreBytes: 24 * 2 ** 20,
+  /** Work in flight per worker (ms at the measured rate), and at least this many glyphs a lease. */
+  leaseMs: 250,
+  leaseMinGlyphs: 8,
+  /** Bytes the whole-file plan may hold (estimate); past it, commits far from the playhead keep only a thin record. */
+  planMaxBytes: 48 * 2 ** 20,
+  /** Thin records are made only this far from the playhead and beyond. */
+  planThinMs: 60_000,
+  /** After an edit (input change), background work waits this long, and while the pointer is down. */
+  settleMs: 300,
+  /** Background planning a frame while following with fast frames, and while the plan is behind the playhead (ms). */
+  bgSliceMs: 2,
+  boostSliceMs: 6,
+  /** Planning a frame while playing, all slices together (ms). */
+  planTickMs: 6,
+  /** Planning slice while paused (idle time). */
+  idleSliceMs: 8,
+  /** The buffered snapshot (bufferStore.ts) is published at most this often (ms). */
+  bufferEveryMs: 250,
 } as const
 
 /** FeatureFrame's numeric fields in pack order (time is the grid's; onset and silent as 0/1). */
