@@ -18,10 +18,11 @@
 
 import type { Point, PolygonGlyph, WhorlMotion } from '../geometry/types'
 import { whorlMesh, type WhorlMesh } from '../geometry/whorl'
+import type { MeshData } from './planData'
 import { along, ringPolygon, type RingPolygon } from './trajectory'
 
 /** The letter before Whorl cut along Whorl's mesh, ready to move with it. */
-interface Prepared {
+export interface Prepared {
   mesh: WhorlMesh
   ring: RingPolygon
   outline: Point[][]
@@ -49,10 +50,11 @@ export interface MeshPose {
 }
 
 export interface MeshGlide {
-  prepared: Prepared
+  /** The glide as data (planData.ts); `at` and `pose` run on it. */
+  data: MeshData
   /** Anchors in all. */
   points: number
-  contours: Prepared['contours']
+  contours: MeshData['contours']
   /** Writes every point at progress `p` (eased, 0–1), contour after contour. */
   at(p: number, xs: Float64Array, ys: Float64Array): void
   /** Where the corners are at `p`, for a glide that goes on from there. */
@@ -191,11 +193,14 @@ export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPo
     start = poseOf(prepare(on.outline, mesh), turnsOf(a, mesh.rings))
   }
   const p = start.prepared
-  const end = poseOf(p, turnsOf(b, mesh.rings))
+  return meshGlideFrom(meshData(p, start, poseOf(p, turnsOf(b, mesh.rings))), () => p)
+}
+
+/** The mesh glide from pose `start` to pose `end` of the letter `p`, as data (planData.ts MeshData). */
+function meshData(p: Prepared, start: MeshPose, end: MeshPose): MeshData {
   const { centre, spacing } = p.mesh
   const corners = p.mesh.cornerX.length
   const outers = p.outer.length
-  const n = p.preX.length
   // Each path: angles from and to, the ends (from the centre), the ring size; corners first, then the outer points.
   const paths = corners + outers
   const a0 = new Float64Array(paths)
@@ -230,6 +235,38 @@ export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPo
     x1[q] = end.outerX[o] - centre.x
     y1[q] = end.outerY[o] - centre.y
   }
+  return {
+    meshKey: p.mesh.key,
+    sides: p.mesh.sides,
+    centreX: centre.x,
+    centreY: centre.y,
+    corners,
+    a0,
+    a1,
+    size,
+    x0,
+    y0,
+    x1,
+    y1,
+    ids: p.ids,
+    weights: p.weights,
+    outerOf: p.outerOf,
+    contours: p.contours,
+    startTurns: start.turns,
+    endTurns: end.turns,
+  }
+}
+
+/**
+ * The mesh glide a plan's data describes. `prepared` gives the letter cut along the mesh, asked for only when a glide
+ * goes on from an in-between shape (pose).
+ */
+export function meshGlideFrom(data: MeshData, prepared: () => Prepared): MeshGlide {
+  const { a0, a1, size, x0, y0, x1, y1, ids, weights, outerOf, corners, startTurns, endTurns } = data
+  const ring = ringPolygon(data.sides)
+  const centre = { x: data.centreX, y: data.centreY }
+  const paths = a0.length
+  const n = outerOf.length
   const px = new Float64Array(paths)
   const py = new Float64Array(paths)
   const out = { x: 0, y: 0 }
@@ -238,19 +275,19 @@ export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPo
     if (t === atP) return
     atP = t
     for (let q = 0; q < paths; q++) {
-      along(p.ring, size[q], a0[q], x0[q], y0[q], a1[q], x1[q], y1[q], a0[q] + (a1[q] - a0[q]) * t, out)
+      along(ring, size[q], a0[q], x0[q], y0[q], a1[q], x1[q], y1[q], a0[q] + (a1[q] - a0[q]) * t, out)
       px[q] = centre.x + out.x
       py[q] = centre.y + out.y
     }
   }
   return {
-    prepared: p,
+    data,
     points: n,
-    contours: p.contours,
+    contours: data.contours,
     at(t, xs, ys) {
       move(t)
       for (let i = 0; i < n; i++) {
-        const o = p.outerOf[i]
+        const o = outerOf[i]
         if (o >= 0) {
           xs[i] = px[corners + o]
           ys[i] = py[corners + o]
@@ -259,8 +296,8 @@ export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPo
         let x = 0
         let y = 0
         for (let k = 0; k < 3; k++) {
-          const c = p.ids[3 * i + k]
-          const w = p.weights[3 * i + k]
+          const c = ids[3 * i + k]
+          const w = weights[3 * i + k]
           x += w * px[c]
           y += w * py[c]
         }
@@ -270,9 +307,9 @@ export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPo
     },
     pose(t) {
       move(t)
-      const turns = start.turns.map((v, k) => v + (end.turns[k] - v) * t)
+      const turns = startTurns.map((v, k) => v + (endTurns[k] - v) * t)
       return {
-        prepared: p,
+        prepared: prepared(),
         turns,
         cornerX: px.slice(0, corners),
         cornerY: py.slice(0, corners),
@@ -281,4 +318,31 @@ export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPo
       }
     },
   }
+}
+
+/** The Whorl a mesh glide between these outlines turns by: the new outline's, or the old one's when it has none. */
+function meshWhorl(from: PolygonGlyph | null, to: PolygonGlyph): WhorlMotion | undefined {
+  return to.motion?.whorl ?? from?.motion?.whorl
+}
+
+/**
+ * The letter cut along the mesh of a plan's data, rebuilt from the outlines it runs between (the page and the workers
+ * each prepare their own); null when they do not carry that mesh.
+ */
+export function preparedFor(meshKey: string, from: PolygonGlyph | null, to: PolygonGlyph): Prepared | null {
+  const on = meshWhorl(from, to)
+  if (!on?.outline) return null
+  const mesh = whorlMesh(on)
+  return mesh.key === meshKey ? prepare(on.outline, mesh) : null
+}
+
+/** A mesh pose sent by value (planCodec.ts), back onto this side's prepared letter; null when the mesh differs. */
+export function poseFrom(
+  encoded: { meshKey: string; turns: Float64Array; cornerX: Float64Array; cornerY: Float64Array; outerX: Float64Array; outerY: Float64Array },
+  glyph: PolygonGlyph,
+): MeshPose | null {
+  const p = preparedFor(encoded.meshKey, null, glyph)
+  if (!p) return null
+  const { turns, cornerX, cornerY, outerX, outerY } = encoded
+  return { prepared: p, turns, cornerX, cornerY, outerX, outerY }
 }

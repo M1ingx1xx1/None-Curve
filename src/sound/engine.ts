@@ -25,8 +25,13 @@
 // After a short idle spell (nothing playing or listening) it is suspended again, to save CPU and battery.
 // Every public method catches its own failures and reports them in `state.error`; none throws or
 // rejects, so the UI can call them from event handlers without awaiting.
+//
+// For the precomputed file timeline (featureTimeline.ts, director.ts) the engine also keeps the loaded file, tells
+// when a file is loaded or let go (subscribeTimelineEvents), and reports the playhead: the element's position,
+// smoothed between its coarse updates, minus the output latency, so a frame is shown when it is heard.
 
 import { FeatureExtractor } from './features'
+import type { Playhead } from './timelineTypes'
 import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundSource, SoundState, StereoSamples } from './types'
 import { INITIAL_SOUND_STATE, SILENT_FRAME, SOUND_LIMITS } from './types'
 
@@ -56,6 +61,66 @@ export function analyserFftSize(sampleRate: number): number {
   return Math.min(32768, Math.max(512, SOUND_LIMITS.fftSize * 2 ** (Number.isFinite(scale) ? scale : 0)))
 }
 
+/** The smoothed position re-anchors on the element's when they drift further apart than this (ms): a stall or a jump. */
+const CLOCK_SNAP_MS = 80
+/** Share of each new drift the smoothed position takes up. */
+const CLOCK_PULL = 0.1
+
+/**
+ * The element's position (currentTime, which some browsers update only every few tens of ms) as a smooth clock: it
+ * runs on page time from an anchor, pulled a little towards each new reading, and never goes back while playing.
+ */
+export class MediaClock {
+  private anchorMedia = 0
+  private anchorWall = 0
+  private lastRaw = Number.NaN
+  private lastOut = 0
+  private running = false
+
+  /** Media ms at page time `wallMs`, from the element's reading `rawMs`. */
+  read(rawMs: number, wallMs: number, playing: boolean, rate = 1): number {
+    if (!playing || !this.running) {
+      this.anchor(rawMs, wallMs)
+      this.running = playing
+      this.lastOut = rawMs
+      return rawMs
+    }
+    const predicted = this.anchorMedia + (wallMs - this.anchorWall) * rate
+    if (rawMs !== this.lastRaw) {
+      this.lastRaw = rawMs
+      const drift = rawMs - predicted
+      if (Math.abs(drift) > CLOCK_SNAP_MS) {
+        this.anchor(rawMs, wallMs)
+        this.lastOut = rawMs
+        return rawMs
+      }
+      this.anchorMedia += drift * CLOCK_PULL
+    }
+    const out = Math.max(this.lastOut, this.anchorMedia + (wallMs - this.anchorWall) * rate)
+    this.lastOut = out
+    return out
+  }
+
+  /** Starts afresh from the next reading (a seek, a new file). */
+  reset() {
+    this.running = false
+    this.lastRaw = Number.NaN
+  }
+
+  private anchor(rawMs: number, wallMs: number) {
+    this.anchorMedia = rawMs
+    this.anchorWall = wallMs
+    this.lastRaw = rawMs
+  }
+}
+
+/** What the precomputed file timeline hears from the engine. */
+export type TimelineEvent =
+  /** A file is loaded and File is the source: `decode` decodes bytes at the context's rate. */
+  | { type: 'load'; file: File; decode: (bytes: ArrayBuffer) => Promise<AudioBuffer> }
+  /** The file was let go (a new one is loading, it failed, the microphone took over, or the engine was disposed). */
+  | { type: 'unload' }
+
 /** A failure with the kind shown in the Sound tab; thrown inside the engine, caught before leaving it. */
 class SoundFailure extends Error {
   constructor(
@@ -71,6 +136,7 @@ export class SoundEngine {
   private readonly stateListeners = new Set<() => void>()
   private readonly frameListeners = new Set<(frame: FeatureFrame) => void>()
   private readonly seekListeners = new Set<() => void>()
+  private readonly timelineListeners = new Set<(event: TimelineEvent) => void>()
   /** Frame listeners that threw already: logged once each, not 60 times a second. */
   private readonly failedListeners = new WeakSet<object>()
 
@@ -106,6 +172,11 @@ export class SoundEngine {
   private loadToken = 0
   private cancelLoad: (() => void) | null = null
   private lastPositionAt = -Infinity
+  /** The loaded file, for the precomputed timeline (null while none is loaded). */
+  private file: File | null = null
+  /** Bumps on every seek, loop and load (Playhead.generation). */
+  private playheadGeneration = 0
+  private readonly clock = new MediaClock()
 
   // Microphone source.
   private stream: MediaStream | null = null
@@ -151,6 +222,32 @@ export class SoundEngine {
     }
   }
   /**
+   * Calls `listener` when a file is loaded with File as the source, and when it is let go (TimelineEvent); a file
+   * already loaded is told at once. Returns the unsubscribe function.
+   */
+  subscribeTimelineEvents(listener: (event: TimelineEvent) => void): () => void {
+    this.timelineListeners.add(listener)
+    const event = this.loadEvent()
+    if (event) listener(event)
+    return () => {
+      this.timelineListeners.delete(listener)
+    }
+  }
+  /**
+   * Where the file's playback is, as heard: the element's position smoothed (MediaClock), minus the context's output
+   * latency. Null without a loaded file or when File is not the source.
+   */
+  playhead(): Playhead | null {
+    const audio = this.audio
+    if (!audio || !this.file || this.state.source !== 'file' || this.state.fileName === null) return null
+    const wallMs = performance.now()
+    const playing = this.state.playing && !audio.paused
+    const media = this.clock.read(audio.currentTime * 1000, wallMs, playing, audio.playbackRate || 1)
+    const ctx = this.ctx
+    const latencyMs = ctx ? ((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000 : 0
+    return { mediaMs: Math.max(0, media - (playing ? latencyMs : 0)), wallMs, playing, generation: this.playheadGeneration }
+  }
+  /**
    * Switches the source: choosing 'microphone' pauses the file, choosing 'file' releases the microphone (the
    * frame loop stops either way, and the listeners get SILENT_FRAME). Never opens the microphone: choosing
    * 'microphone' only shows its controls, and only startMicrophone (Start listening) opens it.
@@ -161,6 +258,7 @@ export class SoundEngine {
       if (!changed) return
       this.pauseFile()
       this.extractor?.reset()
+      this.emitTimeline({ type: 'unload' })
       // Choosing Microphone only shows its controls; the microphone opens only from Start listening (SOUND_PLAN §3, §10).
       this.setState({ source, playing: false, listening: false, busy: this.loading, error: null })
       return
@@ -175,7 +273,11 @@ export class SoundEngine {
       error = toSoundError(failure)
     }
     this.setState({ source, listening: false, busy: this.loading, error })
-    if (changed) this.extractor?.reset()
+    if (changed) {
+      this.extractor?.reset()
+      const event = this.loadEvent()
+      if (event) this.emitTimeline(event)
+    }
   }
   /** Opens a local file (never uploaded) and makes 'file' the source; does not start playback. */
   async loadFile(file: File): Promise<void> {
@@ -202,6 +304,10 @@ export class SoundEngine {
     this.stopRecordingAudio()
     const token = ++this.loadToken
     this.loading = true
+    if (this.file) this.emitTimeline({ type: 'unload' })
+    this.file = null
+    this.playheadGeneration++
+    this.clock.reset()
     const url = URL.createObjectURL(file)
     const previousUrl = this.objectUrl
     this.objectUrl = url
@@ -240,18 +346,26 @@ export class SoundEngine {
     }
     if (this.state.source === 'file') this.extractor?.reset()
     this.lastPositionAt = -Infinity
+    this.file = file
     this.setState({ fileName: file.name, duration, position: 0, playing: false, busy: this.micPending })
+    const event = this.loadEvent()
+    if (event) this.emitTimeline(event)
   }
   async play(): Promise<void> {
     const audio = this.audio
     if (!audio || !this.objectUrl || this.loading || this.state.fileName === null) return
     // Both inside the gesture, before anything is awaited.
     this.resumeContext()
-    if (this.state.source !== 'file') {
+    const switched = this.state.source !== 'file'
+    if (switched) {
       this.cancelMicrophone()
       this.extractor?.reset()
     }
     this.setState({ source: 'file', listening: false, busy: this.loading, error: null })
+    if (switched) {
+      const event = this.loadEvent()
+      if (event) this.emitTimeline(event)
+    }
     try {
       await audio.play()
     } catch (error) {
@@ -306,6 +420,7 @@ export class SoundEngine {
       return
     }
     this.resumeContext()
+    if (this.state.source === 'file' && this.file) this.emitTimeline({ type: 'unload' })
     const token = ++this.micToken
     this.micPending = true
     this.setState({ source: 'microphone', playing: false, busy: true, error: null })
@@ -599,6 +714,8 @@ export class SoundEngine {
     on('pause', () => this.setState({ playing: false, position: audio.currentTime }))
     on('ended', () => this.setState({ playing: false, position: this.state.duration }))
     on('seeked', () => {
+      this.playheadGeneration++
+      this.clock.reset()
       this.updatePosition(true)
       for (const listener of this.seekListeners) listener()
     })
@@ -688,6 +805,8 @@ export class SoundEngine {
     }
     if (this.objectUrl) URL.revokeObjectURL(this.objectUrl)
     this.objectUrl = null
+    if (this.file) this.emitTimeline({ type: 'unload' })
+    this.file = null
   }
 
   // --- Microphone ------------------------------------------------------------------------------
@@ -791,6 +910,23 @@ export class SoundEngine {
     }
     this.silentSince ??= now
     if (!this.state.noSound && now - this.silentSince >= SOUND_LIMITS.silentNoticeMs) this.setState({ noSound: true })
+  }
+
+  /** The load event for the file loaded now, when File is the source and the graph exists. */
+  private loadEvent(): TimelineEvent | null {
+    const ctx = this.ctx
+    if (!this.file || this.loading || this.state.source !== 'file' || !ctx || ctx.state === 'closed') return null
+    return { type: 'load', file: this.file, decode: (bytes) => ctx.decodeAudioData(bytes) }
+  }
+
+  private emitTimeline(event: TimelineEvent): void {
+    for (const listener of this.timelineListeners) {
+      try {
+        listener(event)
+      } catch (error) {
+        console.error('Sound: a timeline listener failed', error)
+      }
+    }
   }
 
   /** Sends a frame to every listener; SILENT_FRAME only once in a row. One failing listener does not stop the others. */

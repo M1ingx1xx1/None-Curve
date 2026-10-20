@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { paramsKey } from '../../src/geometry/cache'
 import type { GeometryParams } from '../../src/geometry/types'
-import { FLASH_LIMITS, FlashBudget } from '../../src/sound/flash'
+import { edgesFit, FLASH_LIMITS, FlashBudget } from '../../src/sound/flash'
 import { JumpTracker } from '../../src/sound/jumps'
 import { assignLevels, letterLevels, letterSlots, levelPosition, levelSets, STRONG, switchSwing, type LetterSlots } from '../../src/sound/letters'
 import { FlashLimiter, LiveScheduler, type LevelSpread, type LiveDeps } from '../../src/sound/live'
@@ -607,3 +607,27 @@ function lettersOnScreen(
     shown: shownLevels,
   }
 }
+
+describe('edgesFit (the handover check across a switch)', () => {
+  const most = 2 * FLASH_LIMITS.maxFlashes
+  const w = FLASH_LIMITS.windowMs
+
+  it('allows a full budget in each window when the windows do not overlap', () => {
+    const before = Array.from({ length: most }, (_, k) => k)
+    const after = Array.from({ length: most }, (_, k) => w + k)
+    expect(edgesFit([...before, ...after])).toBe(true)
+  })
+
+  it('refuses one edge too many in any window, wherever it starts', () => {
+    const before = Array.from({ length: most }, (_, k) => 500 + k)
+    expect(edgesFit([...before, 500 + w - 1])).toBe(false)
+    expect(edgesFit([...before, 500 + w])).toBe(true)
+  })
+
+  it('keeps what FlashBudget remembers', () => {
+    const budget = new FlashBudget()
+    for (let t = 0; t < 5000; t += 50) budget.take(t)
+    expect(edgesFit(budget.since(0))).toBe(true)
+    expect(budget.since(5000 - w).length).toBeLessThanOrEqual(most)
+  })
+})

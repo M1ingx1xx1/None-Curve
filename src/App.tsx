@@ -16,6 +16,7 @@ import TextTools from './components/TextTools'
 import ToolHead, { type ConfigNotice } from './components/ToolHead'
 import Workspace from './components/Workspace'
 import { useRecordingContext } from './export/recorder'
+import { RENDERER_CHOICE } from './render/createRenderer'
 import type { LoadedFont } from './font/model'
 import type { GeometryParams, GlyphRef } from './geometry/types'
 import { getSoundEngine } from './sound/engine'
@@ -83,6 +84,13 @@ function isSavedFont(font: LoadedFont, saved: SavedFont): boolean {
   return loaded.family === saved.family && loaded.weight === saved.weight && loaded.italic === saved.italic && loaded.subset === saved.subset
 }
 
+/**
+ * The canvas and the preview draw their glyphs with a canvas renderer (?render=canvas or webgl, render/createRenderer.ts),
+ * which follows Glide's store itself; with ?render=svg they re-render with each of Glide's frames (<Glided>), as the
+ * recording canvas always does.
+ */
+const CANVAS_GLYPHS = RENDERER_CHOICE !== 'svg'
+
 interface AppProps {
   /** The last visit's session, read once before the first render (main.tsx). */
   restored: RestoredSession
@@ -133,7 +141,7 @@ export default function App({ restored }: AppProps) {
   useLiveLetters(letterSlots)
   // Glide: while Sound moves the letters, the canvas, the preview and the video glide into each new shape (useGlide.ts).
   const driving = useLiveDriving()
-  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`)
+  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.
@@ -504,6 +512,40 @@ export default function App({ restored }: AppProps) {
   const shownGrid = live.params.grid
   const gridSize = shownGrid.snap && shownGrid.size > 0 ? shownGrid.size : null
 
+  // The canvas and the preview, but for the scene they draw (as shown, or the target with Glide's store).
+  const canvasProps = {
+    document: canvasDocument,
+    view: state.params.view,
+    layout,
+    placement,
+    palette: shownPalette,
+    ownPalette: palette,
+    artboard,
+    onArtboardChange: setArtboard,
+    gridSize,
+    highlightSelection: highlight,
+    onSelectGlyph: selectGlyph,
+    onClearHighlight: clearHighlight,
+    onMoveText: typography.position === 'free' ? moveText : undefined,
+    onViewChange,
+    onResetView: () => dispatch({ type: 'resetView' }),
+    onLocalFile: importLocalFont,
+    onOpenGoogleFonts: openGoogleFonts,
+    note: sessionNote,
+  }
+  const previewProps = {
+    font: state.document.font,
+    layout,
+    palette: shownPalette,
+    artboard,
+    precision,
+    look: previewLook,
+    fill: state.params.view.showFill,
+    live: driving,
+    onLookChange: setPreviewLook,
+    onScaleChange: setPreviewScale,
+  }
+
   return (
     <div className="app">
       <Header document={state.document} onOpenExport={openExport} />
@@ -529,31 +571,14 @@ export default function App({ restored }: AppProps) {
             />
           }
           canvas={
-            <Glided store={glide} scene={scene}>
-              {(shown) => (
-                <CanvasViewport
-                  document={canvasDocument}
-                  view={state.params.view}
-                  scene={shown}
-                  layout={layout}
-                  placement={placement}
-                  palette={shownPalette}
-                  ownPalette={palette}
-                  artboard={artboard}
-                  onArtboardChange={setArtboard}
-                  gridSize={gridSize}
-                  highlightSelection={highlight}
-                  onSelectGlyph={selectGlyph}
-                  onClearHighlight={clearHighlight}
-                  onMoveText={typography.position === 'free' ? moveText : undefined}
-                  onViewChange={onViewChange}
-                  onResetView={() => dispatch({ type: 'resetView' })}
-                  onLocalFile={importLocalFont}
-                  onOpenGoogleFonts={openGoogleFonts}
-                  note={sessionNote}
-                />
-              )}
-            </Glided>
+            // A canvas renderer takes Glide's frames from the store; the SVG renderer re-renders with each one.
+            CANVAS_GLYPHS ? (
+              <CanvasViewport {...canvasProps} scene={scene} glide={glide} />
+            ) : (
+              <Glided store={glide} scene={scene}>
+                {(shown) => <CanvasViewport {...canvasProps} scene={shown} />}
+              </Glided>
+            )
           }
           textTools={
             <TextTools
@@ -585,23 +610,13 @@ export default function App({ restored }: AppProps) {
                 />
               }
               preview={
-                <Glided store={glide} scene={scene}>
-                  {(shown) => (
-                    <TextPreview
-                      font={state.document.font}
-                      scene={shown}
-                      layout={layout}
-                      palette={shownPalette}
-                      artboard={artboard}
-                      precision={precision}
-                      look={previewLook}
-                      fill={state.params.view.showFill}
-                      live={driving}
-                      onLookChange={setPreviewLook}
-                      onScaleChange={setPreviewScale}
-                    />
-                  )}
-                </Glided>
+                CANVAS_GLYPHS ? (
+                  <TextPreview {...previewProps} scene={scene} glide={glide} />
+                ) : (
+                  <Glided store={glide} scene={scene}>
+                    {(shown) => <TextPreview {...previewProps} scene={shown} />}
+                  </Glided>
+                )
               }
             />
           }
