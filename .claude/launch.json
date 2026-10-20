@@ -4,8 +4,64 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
+    },
+    {
+      "name": "wt-glide",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "/private/tmp/claude-501/-Users-yunhanhuang-Documents-Github-None-Curve/b4e6feda-31c1-423f-80b2-f0e5c064ebd1/scratchpad/wt-glide",
+        "--port",
+        "5195",
+        "--strictPort"
+      ],
+      "port": 5195
+    },
+    {
+      "name": "wt-drag",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "/private/tmp/claude-501/-Users-yunhanhuang-Documents-Github-None-Curve/b4e6feda-31c1-423f-80b2-f0e5c064ebd1/scratchpad/wt-drag",
+        "--port",
+        "5196",
+        "--strictPort"
+      ],
+      "port": 5196
+    },
+    {
+      "name": "wt-pool",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "/private/tmp/claude-501/-Users-yunhanhuang-Documents-Github-None-Curve/b4e6feda-31c1-423f-80b2-f0e5c064ebd1/scratchpad/wt-pool",
+        "--port",
+        "5197",
+        "--strictPort"
+      ],
+      "port": 5197
+    },
+    {
+      "name": "prof",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "/private/tmp/claude-501/-Users-yunhanhuang-Documents-Github-None-Curve/b4e6feda-31c1-423f-80b2-f0e5c064ebd1/scratchpad/wt-smooth",
+        "--port",
+        "5198",
+        "--strictPort"
+      ],
+      "port": 5198
     }
   ]
 }
