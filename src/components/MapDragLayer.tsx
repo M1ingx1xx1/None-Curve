@@ -1,7 +1,7 @@
 // What drag to map draws over the page (mapDrag.ts): the chip that follows the pointer, the drop palette beside the
 // panel while dragging, the confirmation beside the control after a drop, and what screen readers hear at each step.
 
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { featureById, targetById } from '../sound/mapping'
 import { useMappingState } from '../sound/mappingStore'
 import { intoColumns, PALETTE_CLASS, PALETTE_COLUMN, paletteBlocks, targetName, useMapDrag } from './mapDrag'
@@ -30,12 +30,13 @@ function paletteBox(): { left: number; top: number; maxHeight: number; width: nu
  * Every target as a drop zone, grouped as the target select groups them, over the canvas while a feature is dragged:
  * a drop here maps as a drop on the control does, without opening its tab. Targets the dragged feature already
  * drives are marked. Pointer only (the keyboard's pick walks the controls themselves), so hidden from screen readers.
+ * Memoised: the layer renders at every pointer move (the chip follows it), and every target is an entry here.
  */
-function DropPalette({ feature }: { feature: string }) {
+const DropPalette = memo(function DropPalette({ feature }: { feature: string }) {
   const { mappings } = useMappingState()
   const box = useMemo(paletteBox, [])
   const columns = useMemo(() => intoColumns(paletteBlocks(), Math.max(1, Math.floor(box.width / PALETTE_COLUMN))), [box])
-  const mapped = new Set(mappings.filter((m) => m.feature === feature).map((m) => m.target))
+  const mapped = useMemo(() => new Set(mappings.filter((m) => m.feature === feature).map((m) => m.target)), [mappings, feature])
   return (
     <div className={PALETTE_CLASS} aria-hidden="true" style={{ left: box.left, top: box.top, maxHeight: box.maxHeight }}>
       {columns.map((column, k) => (
@@ -55,7 +56,7 @@ function DropPalette({ feature }: { feature: string }) {
       ))}
     </div>
   )
-}
+})
 
 export default function MapDragLayer() {
   const { feature, mode, x, y, over, status, announcement } = useMapDrag()

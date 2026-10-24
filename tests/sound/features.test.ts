@@ -3,8 +3,7 @@
 // melodies, glides and vibrato for Melody, the pitch confidence and the melody range.
 
 import { describe, expect, it } from 'vitest'
-import { analyserFftSize } from '../../src/sound/engine'
-import { FeatureExtractor } from '../../src/sound/features'
+import { analyserFftSize, FeatureExtractor } from '../../src/sound/features'
 import { DEFAULT_FEATURE_SETTINGS, SILENT_FRAME, SOUND_LIMITS } from '../../src/sound/types'
 import {
   analyse,

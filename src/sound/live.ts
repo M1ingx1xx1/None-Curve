@@ -40,7 +40,7 @@ import { withThornCanvasEm, type Action } from '../state/editorState'
 import { RUNTIME_FLAGS } from '../state/flags'
 import { geometryClient } from '../state/geometryClient'
 import { connectDirector } from './director'
-import { getSoundEngine } from './engine'
+import { getSoundEngine, subscribeStateKeys } from './engine'
 import { FLASH_LIMITS, FlashBudget } from './flash'
 import { JumpTracker } from './jumps'
 import {
@@ -708,7 +708,7 @@ export class LiveScheduler {
     this.update()
   }
 
-  /** Smoothed milliseconds from a measured frame to React getting it; null before the first live commit. */
+  /** Smoothed milliseconds from a frame (for a playing file, as heard) to React getting it; null before the first live commit. */
   latencyMs(): number | null {
     return this.latency
   }
@@ -1261,7 +1261,8 @@ function attach(setCommit: (commit: LiveCommit | null) => void): () => void {
   syncMappings()
   const unsubscribe = [
     mappingStore.subscribe(syncMappings),
-    engine.subscribeState(() => live.sourceChanged()),
+    // Only whether a source runs: not the position, which changes about 4 times a second while a file plays.
+    subscribeStateKeys(engine, ['playing', 'listening'], () => live.sourceChanged()),
     engine.subscribeFrames((frame) => live.setFrame(frame)),
     engine.subscribeSeeks(() => live.seeked()),
     geometryClient.subscribeIdle(() => live.idle()),
@@ -1371,15 +1372,28 @@ export function freezeLive(dispatch: Dispatch<Action>): void {
   live.pauseSound()
 }
 
-/** The delay a recording's audio is given while planned commits show: they are timed to the sound as heard. */
+/** The least delay from a planned commit's sound to its letters on screen (ms): about one frame, at least the tap's 40. */
 const FOLLOWING_LATENCY_MS = Math.max(40, 1000 / 60)
 
 /**
- * The smoothed delay (ms) from a measured sound frame to its letters reaching React; null before the first
- * live frame. The last value is kept while Sound is not driving. While planned commits show (the director), the
- * letters already line up with the sound as heard: about one frame.
+ * The delay (ms) from the sound leaving the audio graph (where the recording takes it) to its letters reaching React;
+ * null before the first live frame. `outputMs` is how much later the sound is heard (engine.outputLatencyMs; 0 for the
+ * microphone, which is never played): the letters show what is heard, so that much later too. While planned commits
+ * show (`following`), they are timed to the sound as heard, about a frame ahead of the screen; on the live path, the
+ * scheduler's smoothed delay from a frame as heard to React (`liveMs`).
+ */
+export function soundToLettersMs(following: boolean, liveMs: number | null, outputMs: number): number | null {
+  const heard = Number.isFinite(outputMs) && outputMs > 0 ? outputMs : 0
+  if (following) return Math.max(FOLLOWING_LATENCY_MS, heard + 1000 / 60)
+  return liveMs === null ? null : liveMs + heard
+}
+
+/**
+ * The page's delay from the sound to its letters (soundToLettersMs), for a recording's audio. The last live value is
+ * kept while Sound is not driving.
  */
 export function liveLatencyMs(): number | null {
-  if (scheduler?.isFollowing()) return FOLLOWING_LATENCY_MS
-  return scheduler?.latencyMs() ?? null
+  const engine = getSoundEngine()
+  const outputMs = engine.getState().playing ? engine.outputLatencyMs() : 0
+  return soundToLettersMs(scheduler?.isFollowing() ?? false, scheduler?.latencyMs() ?? null, outputMs)
 }

@@ -28,12 +28,17 @@
 //
 // For the precomputed file timeline (featureTimeline.ts, director.ts) the engine also keeps the loaded file, tells
 // when a file is loaded or let go (subscribeTimelineEvents), and reports the playhead: the element's position,
-// smoothed between its coarse updates, minus the output latency, so a frame is shown when it is heard.
+// smoothed between its coarse updates, minus the output latency, so a frame is shown when it is heard. The live path
+// gets the file's measured frames held back by the same latency (FrameDelay), so it too shows them when heard.
 
-import { FeatureExtractor } from './features'
+import { analyserFftSize, FeatureExtractor } from './features'
+import { HIGHPASS_Q_DB } from './offline'
 import type { Playhead } from './timelineTypes'
 import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundSource, SoundState, StereoSamples } from './types'
 import { INITIAL_SOUND_STATE, SILENT_FRAME, SOUND_LIMITS } from './types'
+
+// For tests/helpers/audio.ts; the worker imports it from features.ts, which keeps this engine out of its bundle.
+export { analyserFftSize } from './features'
 
 /** Position updates while playing are at least this far apart (ms): about 4 per second. */
 const POSITION_INTERVAL_MS = 200
@@ -50,16 +55,6 @@ const STEREO_MATCH = 1e-6
 /** The recording tap's delay range (s): from the live latency, set once per take. */
 const RECORD_DELAY_MIN_S = 0.04
 const RECORD_DELAY_MAX_S = 0.4
-
-/**
- * The analyser's FFT size for a sample rate: SOUND_LIMITS.fftSize at 44.1/48 kHz, scaled by powers of two so the
- * window stays about 43 ms and the bins about 23 Hz wide (4096 at 88.2/96 kHz, 8192 at 176.4/192 kHz). The
- * features' thresholds were tuned at 48 kHz and hold at other rates only so.
- */
-export function analyserFftSize(sampleRate: number): number {
-  const scale = Math.round(Math.log2(sampleRate / 48000))
-  return Math.min(32768, Math.max(512, SOUND_LIMITS.fftSize * 2 ** (Number.isFinite(scale) ? scale : 0)))
-}
 
 /** The smoothed position re-anchors on the element's when they drift further apart than this (ms): a stall or a jump. */
 const CLOCK_SNAP_MS = 80
@@ -111,6 +106,68 @@ export class MediaClock {
     this.anchorMedia = rawMs
     this.anchorWall = wallMs
     this.lastRaw = rawMs
+  }
+}
+
+/** The engine's state and its changes (SoundEngine, or a test's fake). */
+export interface SoundStateSource {
+  getState(): SoundState
+  subscribeState(listener: () => void): () => void
+}
+
+/**
+ * Calls `listener` when one of `keys` of the state changes, not on every change: while a file plays its position alone
+ * changes about 4 times a second. Returns the unsubscribe function.
+ */
+export function subscribeStateKeys(source: SoundStateSource, keys: readonly (keyof SoundState)[], listener: () => void): () => void {
+  let last = source.getState()
+  return source.subscribeState(() => {
+    const next = source.getState()
+    if (keys.every((key) => next[key] === last[key])) return
+    last = next
+    listener()
+  })
+}
+
+/** The parts of an AudioContext that say how late its sound is heard (some browsers have neither). */
+export interface LatencySource {
+  readonly baseLatency?: number
+  readonly outputLatency?: number
+}
+
+/** How long (ms) after leaving the graph a context's sound is heard: its base plus output latency; 0 without one. */
+export function contextLatencyMs(ctx: LatencySource | null): number {
+  if (!ctx) return 0
+  const seconds = (ctx.baseLatency || 0) + (ctx.outputLatency || 0)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0
+}
+
+/** A held frame leaves on the animation frame nearest its time: up to half a 60 Hz frame early (ms). */
+const HELD_FRAME_ROUND_MS = 1000 / 120
+
+/**
+ * The file's measured frames, held back until they are heard. The analyser reads the sound the output latency before
+ * the speakers play it (Bluetooth: 150–250 ms), so the live path would show the letters early; the planned commits are
+ * timed the same way (playhead). Frames leave in order, on the animation frame nearest their time, which is set to when
+ * they are heard. The microphone is never played, so its frames are pushed with no delay and leave at once.
+ */
+export class FrameDelay {
+  private readonly frames: FeatureFrame[] = []
+
+  /** Holds a frame measured at frame.time until `delayMs` later; the frame leaves with that time. */
+  push(frame: FeatureFrame, delayMs: number): void {
+    this.frames.push(delayMs > 0 ? { ...frame, time: frame.time + delayMs } : frame)
+  }
+  /** The oldest frame due by page time `nowMs`, or null: call until null. */
+  next(nowMs: number): FeatureFrame | null {
+    const first = this.frames[0]
+    if (!first || first.time > nowMs + HELD_FRAME_ROUND_MS) return null
+    this.frames.shift()
+    return first
+  }
+  /** Drops the held frames (the sound stopped, or the file was sought). */
+  clear(): void {
+    this.frames.length = 0
   }
 }
 
@@ -195,6 +252,8 @@ export class SoundEngine {
   private lastFrame: FeatureFrame = SILENT_FRAME
   private silentSince: number | null = null
   private processFailed = false
+  /** The file's frames until they are heard. */
+  private readonly heldFrames = new FrameDelay()
 
   /** The current state (a new object whenever anything changes, so it works with useSyncExternalStore). */
   getState(): SoundState {
@@ -233,6 +292,10 @@ export class SoundEngine {
       this.timelineListeners.delete(listener)
     }
   }
+  /** How long (ms) after the analyser reads the sound it is heard: the context's base plus output latency; 0 without one. */
+  outputLatencyMs(): number {
+    return contextLatencyMs(this.ctx)
+  }
   /**
    * Where the file's playback is, as heard: the element's position smoothed (MediaClock), minus the context's output
    * latency. Null without a loaded file or when File is not the source.
@@ -243,9 +306,8 @@ export class SoundEngine {
     const wallMs = performance.now()
     const playing = this.state.playing && !audio.paused
     const media = this.clock.read(audio.currentTime * 1000, wallMs, playing, audio.playbackRate || 1)
-    const ctx = this.ctx
-    const latencyMs = ctx ? ((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000 : 0
-    return { mediaMs: Math.max(0, media - (playing ? latencyMs : 0)), wallMs, playing, generation: this.playheadGeneration }
+    const latencyMs = playing ? this.outputLatencyMs() : 0
+    return { mediaMs: Math.max(0, media - latencyMs), wallMs, playing, generation: this.playheadGeneration }
   }
   /**
    * Switches the source: choosing 'microphone' pauses the file, choosing 'file' releases the microphone (the
@@ -612,7 +674,7 @@ export class SoundEngine {
       // 20 Hz; the filter's zero at DC removes any offset completely.
       highpass.frequency.value = SOUND_LIMITS.minFeatureHz
       // Web Audio reads a high-pass Q in dB: −3 dB is a Butterworth response (Q 0.707), with no peak.
-      highpass.Q.value = 20 * Math.log10(Math.SQRT1_2)
+      highpass.Q.value = HIGHPASS_Q_DB
       highpass.connect(analyser)
       // Exactly two channels by the speaker rules: mono becomes identical left and right, more than two mix down.
       upmix = ctx.createGain()
@@ -716,6 +778,8 @@ export class SoundEngine {
     on('seeked', () => {
       this.playheadGeneration++
       this.clock.reset()
+      // Their sound was from before the seek.
+      this.heldFrames.clear()
       this.updatePosition(true)
       for (const listener of this.seekListeners) listener()
     })
@@ -726,7 +790,7 @@ export class SoundEngine {
       if (this.state.fileName !== null && Number.isFinite(duration) && duration > 0) this.setState({ duration })
     })
     on('error', () => {
-      if (this.objectUrl) this.setState({ playing: false, error: mediaFailure(audio.error) })
+      if (this.objectUrl) this.setState({ playing: false, error: toSoundError(mediaFailure(audio.error)) })
     })
 
     this.audio = audio
@@ -849,6 +913,7 @@ export class SoundEngine {
     if (this.rafId !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.rafId)
     this.rafId = null
     this.silentSince = null
+    this.heldFrames.clear()
     this.emit(SILENT_FRAME)
   }
 
@@ -870,7 +935,9 @@ export class SoundEngine {
       return
     }
     this.trackSilence(frame.silent, now)
-    this.emit(frame)
+    // The file's frames are sent when they are heard; the microphone's at once (it is never played).
+    this.heldFrames.push(frame, this.state.playing ? this.outputLatencyMs() : 0)
+    for (let due = this.heldFrames.next(now); due; due = this.heldFrames.next(now)) this.emit(due)
   }
 
   /**

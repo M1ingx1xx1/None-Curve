@@ -17,6 +17,16 @@
 
 import { type FeatureFrame, type FeatureSettings, type StereoSamples, SOUND_LIMITS } from './types'
 
+/**
+ * The analyser's FFT size for a sample rate: SOUND_LIMITS.fftSize at 44.1/48 kHz, scaled by powers of two so the
+ * window stays about 43 ms and the bins about 23 Hz wide (4096 at 88.2/96 kHz, 8192 at 176.4/192 kHz). The
+ * features' thresholds were tuned at 48 kHz and hold at other rates only so.
+ */
+export function analyserFftSize(sampleRate: number): number {
+  const scale = Math.round(Math.log2(sampleRate / 48000))
+  return Math.min(32768, Math.max(512, SOUND_LIMITS.fftSize * 2 ** (Number.isFinite(scale) ? scale : 0)))
+}
+
 /** dB per second by which a band's running maximum falls: its energy halves every bandMemorySeconds. */
 const BAND_DECAY_DB_PER_S = (10 * Math.log10(2)) / SOUND_LIMITS.bandMemorySeconds
 /**

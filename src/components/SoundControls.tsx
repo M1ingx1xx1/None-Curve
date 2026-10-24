@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { getRecorder } from '../export/recorder'
 import type { VariationAxis } from '../font/model'
 import type { SoundEngine } from '../sound/engine'
@@ -45,10 +45,10 @@ import {
   type SoundSource,
   type SoundState,
 } from '../sound/types'
-import { useSoundEngine, useSoundFrames, useSoundState } from '../sound/useSound'
+import { useSoundEngine, useSoundFrames, useSoundValue, useSteadySoundState } from '../sound/useSound'
 import type { Action } from '../state/editorState'
 import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
-import type { EditorParams } from '../state/types'
+import type { SettingsParams } from '../state/types'
 import BufferedBar from './BufferedBar'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
@@ -140,8 +140,12 @@ function applyActivation({ patches }: Pick<Activation, 'patches'>, dispatch: Dis
 }
 
 interface SoundControlsProps {
-  /** The slider values: they decide which mapping targets currently act (their step or effect is on). The artboard and palette set a video's size and background. */
-  params: EditorParams
+  /**
+   * The slider values: they decide which mapping targets currently act (their step or effect is on). The artboard and
+   * palette set a video's size and background. The canvas view is not read: the editor's whole params may be passed,
+   * and a change of only their view (zoom, pan, the layer buttons) does not re-render the tab (sameProps).
+   */
+  params: SettingsParams
   /** For Freeze, which copies the live values into the sliders. */
   dispatch: Dispatch<Action>
   /** The loaded font's variable axes, which are targets too (axisTargets); a new font re-renders the target lists. */
@@ -157,8 +161,14 @@ interface SoundControlsProps {
  */
 function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
   const engine = useSoundEngine()
-  const state = useSoundState()
+  // Only the analysis settings: the transport subscribes to the rest itself, and its time to the position.
+  const settings = useSoundValue(selectSettings)
   const introHint = useHint()
+  // The callbacks below read the settings at call time, so they stay the same and the groups they go to skip renders.
+  const latest = useRef({ params, dispatch })
+  useLayoutEffect(() => {
+    latest.current = { params, dispatch }
+  })
   // What the last preset Load did, under the Preset row until the next Load or until another preset is chosen.
   const [presetNotice, setPresetNotice] = useState<string | null>(null)
   // What picking a target switched on, by mapping id, shown under its row until the row's target changes again.
@@ -172,25 +182,33 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
     setNotices(new Map())
   }
 
-  const setNotice = (id: string, notice: string | null) =>
-    setNotices((current) => {
-      if ((current.get(id) ?? null) === notice) return current
-      const next = new Map(current)
-      if (notice === null) next.delete(id)
-      else next.set(id, notice)
-      return next
-    })
+  const setNotice = useCallback(
+    (id: string, notice: string | null) =>
+      setNotices((current) => {
+        if ((current.get(id) ?? null) === notice) return current
+        const next = new Map(current)
+        if (notice === null) next.delete(id)
+        else next.set(id, notice)
+        return next
+      }),
+    [],
+  )
+  const clearNotice = useCallback((id: string) => setNotice(id, null), [setNotice])
 
   /**
    * Switches on what `target` needs to act (its step, effect or mode) and says so under the row; with
    * nothing to switch, clears the row's notice. Leaving a target never switches anything off again.
    */
-  const activate = (id: string, target: TargetSpec | undefined): Activation | null => {
-    const activation = target?.activate(params) ?? null
-    if (activation) applyActivation(activation, dispatch)
-    setNotice(id, activation?.notice ?? null)
-    return activation
-  }
+  const activate = useCallback(
+    (id: string, target: TargetSpec | undefined): Activation | null => {
+      const { params, dispatch } = latest.current
+      const activation = target?.activate(params) ?? null
+      if (activation) applyActivation(activation, dispatch)
+      setNotice(id, activation?.notice ?? null)
+      return activation
+    },
+    [setNotice],
+  )
 
   /**
    * Drag to map (mapDrag.ts): a feature dropped on a control becomes a row at +50% (in Toggle on a switch), and what
@@ -246,23 +264,32 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
    * settings the rows before it left (so a switch is turned on, and named, once). One undo step puts back
    * the settings and the mappings from before.
    */
-  const loadPreset = (preset: Preset) =>
-    undoHistory.transaction(() => {
-      const loaded = presetSettings(params, preset)
-      applyActivation(loaded, dispatch)
-      setPresetNotice(loaded.notice)
-      mappingStore.replace(preset.mappings)
-      let current = loaded.params
-      const next = new Map<string, string>()
-      for (const mapping of mappingStore.getState().mappings) {
-        const activation = targetById(mapping.target)?.activate(current) ?? null
-        if (!activation) continue
-        applyActivation(activation, dispatch)
-        current = applyPatches(current, activation.patches)
-        next.set(mapping.id, activation.notice)
-      }
-      setNotices(next)
-    })
+  const loadPreset = useCallback(
+    (preset: Preset) =>
+      undoHistory.transaction(() => {
+        const { params, dispatch } = latest.current
+        const loaded = presetSettings(params, preset)
+        applyActivation(loaded, dispatch)
+        setPresetNotice(loaded.notice)
+        mappingStore.replace(preset.mappings)
+        let current = loaded.params
+        const next = new Map<string, string>()
+        for (const mapping of mappingStore.getState().mappings) {
+          const activation = targetById(mapping.target)?.activate(current) ?? null
+          if (!activation) continue
+          applyActivation(activation, dispatch)
+          current = applyPatches(current, activation.patches)
+          next.set(mapping.id, activation.notice)
+        }
+        setNotices(next)
+      }),
+    [],
+  )
+  const clearPresetNotice = useCallback(() => setPresetNotice(null), [])
+  // An element kept while its props hold, so the Record group (not memoised itself) skips this tab's other renders.
+  const { artboard } = params
+  const { transparent } = params.palette
+  const record = useMemo(() => <RecordGroup artboard={artboard} transparent={transparent} collapsible />, [artboard, transparent])
 
   return (
     <>
@@ -279,22 +306,30 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
 
       <TransportGroup
         engine={engine}
-        state={state}
         dispatch={dispatch}
         presetNotice={presetNotice}
-        onPresetChosen={() => setPresetNotice(null)}
+        onPresetChosen={clearPresetNotice}
         onLoadPreset={loadPreset}
       />
-      <InputGroup engine={engine} settings={state.settings} />
-      <ResponseGroup engine={engine} settings={state.settings} />
-      <ModulationGroup params={params} axes={axes} notices={notices} onActivate={activate} onRemove={(id) => setNotice(id, null)} />
-      <RecordGroup artboard={params.artboard} transparent={params.palette.transparent} collapsible />
+      <InputGroup engine={engine} settings={settings} />
+      <ResponseGroup engine={engine} settings={settings} />
+      <ModulationGroup params={params} axes={axes} notices={notices} onActivate={activate} onRemove={clearNotice} />
+      {record}
     </>
   )
 }
 
+const selectSettings = (state: SoundState) => state.settings
+
+/** The same props but for the canvas view, which the tab does not read: zooming or panning re-renders nothing here. */
+function sameProps(a: SoundControlsProps, b: SoundControlsProps): boolean {
+  if (a.dispatch !== b.dispatch || a.axes !== b.axes) return false
+  const keys = Object.keys(b.params) as (keyof SettingsParams)[]
+  return keys.length === Object.keys(a.params).length && keys.every((key) => (key as string) === 'view' || a.params[key] === b.params[key])
+}
+
 // Its props (all the parameters and dispatch) stay the same while Sound drives the letters.
-export default memo(SoundControls)
+export default memo(SoundControls, sameProps)
 
 /** A boxed section of the tab, as on a synth plugin's panel. */
 function SoundBox({ legend, className, children }: { legend: string; className?: string; children: ReactNode }) {
@@ -361,7 +396,6 @@ function PlainField({ response, hint }: { response: ResponseSettings; hint: Hint
 
 interface TransportGroupProps {
   engine: SoundEngine
-  state: SoundState
   dispatch: Dispatch<Action>
   presetNotice: string | null
   /** Another preset was chosen in the list (it is not loaded yet). */
@@ -373,7 +407,9 @@ interface TransportGroupProps {
  * The transport: the source and its controls (play, the file and its time, or the microphone), Drive letters,
  * the presets, Freeze and the live frame rate.
  */
-function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen, onLoadPreset }: TransportGroupProps) {
+const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNotice, onPresetChosen, onLoadPreset }: TransportGroupProps) {
+  // Not the position: FileTime and FilePosition follow it, so the rest is not rendered again 4 times a second.
+  const state = useSteadySoundState()
   const { response, drive, reducedMotion } = useMappingState()
   const status = useLiveStatus()
   const micHint = useHint()
@@ -385,18 +421,12 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
   const stillId = useId()
   const recordingId = useId()
   const presetSelectId = useId()
-  const bufferId = useId()
   const fileInput = useRef<HTMLInputElement>(null)
   const [presetId, setPresetId] = useState(PRESETS[0]?.id ?? '')
   // What the user last asked for, to word an "unsupported" error.
   const [askedMicrophone, setAskedMicrophone] = useState(false)
   const loaded = state.fileName !== null && state.duration > 0
-  const position = Math.min(state.position, state.duration)
   const running = state.playing || state.listening
-  // What the Position slider says to screen readers. Held while playing, so a focused slider is not read
-  // out every second; it follows the user's own seeks and catches up on pause or end.
-  const [spokenPosition, setSpokenPosition] = useState(position)
-  if (!state.playing && !Object.is(spokenPosition, position)) setSpokenPosition(position)
   // Start listening waits while a permission request is pending; Stop listening always works.
   const micBlocked = state.busy && !state.listening
   const noSound = state.noSound && running
@@ -503,12 +533,7 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
                 <span className="sound-file-name">{state.fileName}</span>
               </span>
             )}
-            {loaded && (
-              // Not a live region: it changes every second while playing. The Position slider gives the same time (held while playing).
-              <output className="sound-time" htmlFor="sound-position" aria-live="off">
-                {formatTime(position)} / {formatTime(state.duration)}
-              </output>
-            )}
+            {loaded && <FileTime duration={state.duration} />}
             <div className="field-toggle sound-loop">
               <input id="sound-loop" type="checkbox" checked={state.loop} onChange={(e) => engine.setLoop(e.target.checked)} />
               <label htmlFor="sound-loop">Loop</label>
@@ -527,28 +552,7 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
               }}
             />
           </div>
-          {/* The buffered bar under the track: what precomputed playback has prepared (BufferedBar.tsx). */}
-          <span className="sound-position-slider">
-            <input
-              id="sound-position"
-              className="sound-position"
-              type="range"
-              aria-label="Position"
-              aria-describedby={loaded ? bufferId : undefined}
-              min={0}
-              max={loaded ? state.duration : 0}
-              step={1}
-              value={loaded ? position : 0}
-              disabled={!loaded}
-              aria-valuetext={`${formatTime(spokenPosition)} of ${formatTime(state.duration)}`}
-              onChange={(e) => {
-                const time = Number(e.target.value)
-                setSpokenPosition(time)
-                engine.seek(time)
-              }}
-            />
-            {loaded && <BufferedBar id={bufferId} position={spokenPosition} format={formatTime} />}
-          </span>
+          <FilePosition engine={engine} loaded={loaded} playing={state.playing} duration={state.duration} />
         </div>
       )}
 
@@ -692,6 +696,59 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
           : null}
       </p>
     </SoundBox>
+  )
+})
+
+const selectPosition = (state: SoundState) => state.position
+
+/** The file's time beside its name; the only part of the row that follows the position. */
+function FileTime({ duration }: { duration: number }) {
+  const position = Math.min(useSoundValue(selectPosition), duration)
+  return (
+    // Not a live region: it changes every second while playing. The Position slider gives the same time (held while playing).
+    <output className="sound-time" htmlFor="sound-position" aria-live="off">
+      {formatTime(position)} / {formatTime(duration)}
+    </output>
+  )
+}
+
+interface FilePositionProps {
+  engine: SoundEngine
+  loaded: boolean
+  playing: boolean
+  duration: number
+}
+
+/** The Position slider, with the buffered bar under its track: what precomputed playback has prepared (BufferedBar.tsx). */
+function FilePosition({ engine, loaded, playing, duration }: FilePositionProps) {
+  const bufferId = useId()
+  const position = Math.min(useSoundValue(selectPosition), duration)
+  // What the Position slider says to screen readers. Held while playing, so a focused slider is not read
+  // out every second; it follows the user's own seeks and catches up on pause or end.
+  const [spokenPosition, setSpokenPosition] = useState(position)
+  if (!playing && !Object.is(spokenPosition, position)) setSpokenPosition(position)
+  return (
+    <span className="sound-position-slider">
+      <input
+        id="sound-position"
+        className="sound-position"
+        type="range"
+        aria-label="Position"
+        aria-describedby={loaded ? bufferId : undefined}
+        min={0}
+        max={loaded ? duration : 0}
+        step={1}
+        value={loaded ? position : 0}
+        disabled={!loaded}
+        aria-valuetext={`${formatTime(spokenPosition)} of ${formatTime(duration)}`}
+        onChange={(e) => {
+          const time = Number(e.target.value)
+          setSpokenPosition(time)
+          engine.seek(time)
+        }}
+      />
+      {loaded && <BufferedBar id={bufferId} position={spokenPosition} format={formatTime} />}
+    </span>
   )
 }
 
@@ -1075,7 +1132,7 @@ const RESPONSE_KEYS = Object.keys(RESPONSE_FIELDS) as (keyof typeof RESPONSE_FIE
  * row (fewer on a narrow panel), and Reset sound, which also resets Input's Sensitivity and Release. All
  * seven are saved and undone; presets leave them alone.
  */
-function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: FeatureSettings }) {
+const ResponseGroup = memo(function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: FeatureSettings }) {
   const { response } = useMappingState()
   const hints = {
     strength: useHint(),
@@ -1137,7 +1194,7 @@ function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
       </button>
     </SoundBox>
   )
-}
+})
 
 /**
  * What Add mapping adds: Level → Distortion's amount (Noise amplitude) at +50%, or the first target no
@@ -1196,7 +1253,7 @@ interface ModulationGroupProps {
  * behind its expand button (one row open at a time), and Add mapping. The mappings live in their own store
  * (mappingStore), so the sliders keep their values; the live values reach the canvas through useLiveFrame in App.
  */
-function ModulationGroup({ params, axes, notices, onActivate, onRemove }: ModulationGroupProps) {
+const ModulationGroup = memo(function ModulationGroup({ params, axes, notices, onActivate, onRemove }: ModulationGroupProps) {
   const { mappings } = useMappingState()
   const limitId = useId()
   // The row whose details are open; null with none.
@@ -1205,6 +1262,8 @@ function ModulationGroup({ params, axes, notices, onActivate, onRemove }: Modula
   // The settings while the switch rows fire: a row they make act says so.
   const switched = useMemo(() => whileSwitchesFire(params, mappings), [params, mappings])
   const addBlocked = full || TARGETS.length === 0
+  // The same for every row and render, so a row whose own props hold skips the others' changes.
+  const toggleRow = useCallback((id: string) => setExpanded((current) => (current === id ? null : id)), [])
 
   const addMapping = () => {
     if (addBlocked) return
@@ -1232,9 +1291,9 @@ function ModulationGroup({ params, axes, notices, onActivate, onRemove }: Modula
               open={expanded === mapping.id}
               notice={notices.get(mapping.id) ?? null}
               span={sharedRange(mappings, mapping.target)}
-              onToggle={() => setExpanded((current) => (current === mapping.id ? null : mapping.id))}
-              onActivate={(target) => onActivate(mapping.id, target)}
-              onRemove={() => onRemove(mapping.id)}
+              onToggle={toggleRow}
+              onActivate={onActivate}
+              onRemove={onRemove}
             />
           ))}
         </ul>
@@ -1260,7 +1319,7 @@ function ModulationGroup({ params, axes, notices, onActivate, onRemove }: Modula
       </div>
     </SoundBox>
   )
-}
+})
 
 /** What Rate means on a seed, from the jump and flash limits (jumps.ts, flash.ts). */
 const rateHelp =
@@ -1306,12 +1365,21 @@ interface MappingRowProps {
   notice: string | null
   /** The Range shared by every mapping on this row's target (sharedRange), if any drives it. */
   span: readonly [number, number] | undefined
-  /** Opens or closes the row's details. */
-  onToggle: () => void
-  /** Switches on what `target` needs to act and sets the row's notice. */
-  onActivate: (target: TargetSpec | undefined) => void
-  /** The row is being removed. */
-  onRemove: () => void
+  /** Opens or closes the details of the row with this mapping id. */
+  onToggle: (id: string) => void
+  /** Switches on what `target` needs to act and sets the row's notice, by mapping id. */
+  onActivate: (id: string, target: TargetSpec | undefined) => void
+  /** The row with this mapping id is being removed. */
+  onRemove: (id: string) => void
+}
+
+/** The same row props: the shared Range by its values (sharedRange makes a new pair every time), the rest as they are. */
+function sameRowProps(a: MappingRowProps, b: MappingRowProps): boolean {
+  const keys = Object.keys(b) as (keyof MappingRowProps)[]
+  if (keys.length !== Object.keys(a).length) return false
+  return keys.every((key) =>
+    key === 'span' ? a.span === b.span || (a.span?.[0] === b.span?.[0] && a.span?.[1] === b.span?.[1]) : Object.is(a[key], b[key]),
+  )
 }
 
 /**
@@ -1319,7 +1387,11 @@ interface MappingRowProps {
  * The details below it hold the rest (what Rate means, Remove) and are where more of a mapping's settings go.
  * Under the row, what picking the target switched on; or, while the target does nothing now, why, with Enable.
  */
-function MappingRow({ mapping, index, params, switched, axes, open, notice, span, onToggle, onActivate, onRemove }: MappingRowProps) {
+const MappingRow = memo(function MappingRow(props: MappingRowProps) {
+  const { mapping, index, params, switched, axes, open, notice, span } = props
+  const onToggle = () => props.onToggle(mapping.id)
+  const onActivate = (target: TargetSpec | undefined) => props.onActivate(mapping.id, target)
+  const onRemove = () => props.onRemove(mapping.id)
   const id = useId()
   const rateHint = useHint()
   const shapingHint = useHint()
@@ -1657,4 +1729,4 @@ function MappingRow({ mapping, index, params, switched, axes, open, notice, span
       </p>
     </li>
   )
-}
+}, sameRowProps)
