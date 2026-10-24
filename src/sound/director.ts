@@ -121,13 +121,16 @@ const AHEAD_SHARE = 0.8
 /** Frames slower than this get no background planning while following (ms). */
 const FAST_FRAME_MS = 20
 
-/** The same inputs for planning: Glide's time only changes how frames are shown, so it does not count. */
+/**
+ * The same inputs for planning: Glide's time only changes how frames are shown, so it does not count; whether Glide is
+ * on does, since then large changes carry keyframes (keyframes.ts).
+ */
 function sameInputs(a: LiveInputs | null, b: LiveInputs): boolean {
   if (!a) return false
   const r = a.response
   const s = b.response
-  const sameResponse = (Object.keys(r) as (keyof ResponseSettings)[]).every(
-    (key) => key === 'glideMs' || r[key] === s[key],
+  const sameResponse = (Object.keys(r) as (keyof ResponseSettings)[]).every((key) =>
+    key === 'glideMs' ? r.glideMs > 0 === s.glideMs > 0 : r[key] === s[key],
   )
   return (
     a.base === b.base &&

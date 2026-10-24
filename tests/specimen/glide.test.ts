@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, Point, PolygonContour, PolygonGlyph, WhorlMotion } from '../../src/geometry/types'
 import { easeOut, GLIDE_LIMITS, SceneGlide } from '../../src/specimen/glide'
+import { keyframeParams } from '../../src/sound/keyframes'
 import { MORPH_LIMITS, morphAt, planMorph, settleInBetween, type MorphPlan } from '../../src/specimen/morph'
 import { placePolygons, shapeSpecimen, type SpecimenScene } from '../../src/specimen/scene'
 import { chooseTrajectory, ringPolygon, STRAIGHT, whorlTrajectory, whorlUnturn } from '../../src/specimen/trajectory'
@@ -489,6 +490,39 @@ describe('Glide on Roboto', async () => {
       expect(glide.moving(1000)).toBe(false)
     })
   }
+
+  it('passes through each keyframe leg by leg: Return to plain on Whorl, every leg in straight pieces', () => {
+    // Whorl switching off, as Return to plain does between beats: its amount fades out through 2/3 and 1/3.
+    const from = whorl(1.2)
+    const to = BASE
+    const k1 = keyframeParams(from, to, 1 / 3)
+    const k2 = keyframeParams(from, to, 2 / 3)
+    expect([k1.experimental.whorl.enabled, k1.experimental.whorl.amount]).toEqual([true, 0.8])
+    expect(k2.experimental.whorl.amount).toBeCloseTo(0.4, 12)
+    const [sa, s1, s2, sb] = [from, k1, k2, to].map(sceneFor)
+    const glide = new SceneGlide(() => 0)
+    glide.retarget(sa, 0, { durationMs: 1000, glide: false, key: 'k' })
+    glide.retarget(sb, 0, { durationMs: 1000, glide: true, key: 'k', keyframes: [s1, s2] })
+    // Paired in the first frame, which starts the glide.
+    expect(glyphsOf(glide.frame(0)!)[0].polygon).toBe(glyphsOf(sa)[0].polygon)
+    // The eased progress runs over the three legs evenly: a sixth in, the first leg (to the first keyframe); a half in,
+    // the second; five sixths in, the third (to the new outline).
+    const at = (q: number) => 1000 * (1 - Math.cbrt(1 - q))
+    const h = 0 // "H"
+    const legTo = [s1, s2, sb].map((scene) => glyphsOf(scene)[h].polygon)
+    for (const [leg, q] of [0.5 / 3, 1.5 / 3, 2.5 / 3].entries()) {
+      const morph = glide.frameInfo(at(q)).morphs![h]!
+      expect(morph.plan.to).toBe(legTo[leg])
+      expect(morph.p).toBeCloseTo(0.5, 6)
+      // Each leg a morph of its own between faceted outlines, along straight pieces.
+      expect(bends(morph.plan).bent).toBeLessThan(0.02)
+    }
+    expect(glide.frame(1000)).toBe(sb)
+    // Without keyframes the same change is one morph.
+    const direct = glideBetween(sa, sb)
+    direct.frame(0)
+    expect(direct.frameInfo(at(0.5)).morphs![h]!.plan.to).toBe(glyphsOf(sb)[h].polygon)
+  })
 
   it('glides Whorl on its own by its mesh: in straight pieces, from the shape shown to the shape computed, folds and all', () => {
     for (const [from, to] of [

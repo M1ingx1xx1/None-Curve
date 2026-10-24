@@ -72,6 +72,8 @@ export interface GeometryState {
   derived: DerivedGeometryState
   /** The text set with the current polygons (earlier ones for glyphs still being computed). */
   scene: SpecimenScene | null
+  /** The scenes Glide passes through on the way to `scene` (its keyframes, oldest first), or null for none. */
+  keyframes: readonly SpecimenScene[] | null
   /**
    * Where `scene` sits on the artboard. While Sound drives the letters, the block is placed by the sliders'
    * own letters (placementScene), so the live frames never move it.
@@ -223,6 +225,24 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
         : null,
     [shaped, geometry, isLive, letters, shownKey],
   )
+  // The keyframes Glide passes through on the way to `scene` (sound/keyframes.ts): the same text with the shared set's
+  // glyphs at each keyframe (letters on other levels as in `scene`). Their glyphs are computed before the frame is
+  // committed (live.ts), so they are read once per frame; one whose glyphs are not all here is left out.
+  const liveKeyframes = live?.keyframes
+  const keyframes = useMemo(() => {
+    if (!shaped || !liveKeyframes) return null
+    const scenes: SpecimenScene[] = []
+    for (const keyframe of liveKeyframes) {
+      const at = placePolygons(shaped, (index, occurrence) => {
+        const levelKey = levelKeyAt(letters, occurrence, shownKey)
+        const found = geometryClient.lookup(levelKey === shownKey ? keyframe.key : levelKey, index)
+        if (!found) return null
+        return 'error' in found.entry ? { error: found.entry.error } : { polygon: found.entry.geometry.polygon }
+      })
+      if (at.pendingGlyphs === 0) scenes.push(at)
+    }
+    return scenes.length > 0 ? scenes : null
+  }, [shaped, liveKeyframes, letters, shownKey])
 
   // The sliders' own letters while Sound drives the letters, which place the text block (placementScene).
   // Usually kept from normal editing; when the sliders, text, font or typography change while live, the
@@ -300,6 +320,7 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
       live: isLive,
     },
     scene,
+    keyframes,
     layout,
     placement,
     scenePending: deferredText !== text || deferredTypography !== typography || (scene?.pendingGlyphs ?? 0) > 0,

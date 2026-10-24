@@ -156,12 +156,8 @@ export default function App({ restored }: AppProps) {
   )
   // Without a font there are no letters to move: Sound does not drive.
   const live = useLiveFrame(drivenBase, font !== null)
-  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } = useGeometry(
-    state,
-    displayText,
-    baseParams,
-    live,
-  )
+  const { derived, scene, keyframes, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } =
+    useGeometry(state, displayText, baseParams, live)
   // The colours as shown and recorded: Sound's over the sliders'. Exports keep the sliders' own.
   const livePalette = live.look?.palette
   const shownPalette = useMemo(() => (livePalette ? { ...palette, ...livePalette } : palette), [palette, livePalette])
@@ -174,7 +170,7 @@ export default function App({ restored }: AppProps) {
   useLiveLetters(letterSlots)
   // Glide: while Sound moves the letters, the canvas, the preview and the video glide into each new shape (useGlide.ts).
   const driving = useLiveDriving()
-  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing)
+  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing, keyframes)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.
