@@ -12,11 +12,9 @@ import {
 } from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
-import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
 import { hitBlock } from '../render/hitTest'
-import { measureDraw, probeOn, reportFrame } from '../render/probe'
 import { probeReader, ThemeColors } from '../render/theme'
-import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, SourceLookup } from '../render/types'
+import type { RenderHit, RenderStyle, SourceLookup } from '../render/types'
 import { artboardEdgeColor, highlightColor, isDarkColor } from '../specimen/color'
 import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
@@ -26,7 +24,8 @@ import { gridLines } from './canvasGuides'
 import SpecimenUnderlay from './SpecimenUnderlay'
 import { useDevicePixelRatio } from './useDevicePixelRatio'
 import { usePanZoom } from './usePanZoom'
-import { glyphRefOf, useTextDrag, type MoveText } from './useTextDrag'
+import { useGlyphRenderer } from './useGlyphRenderer'
+import { CANVAS_KEYS, glyphRefOf, useTextDrag, type MoveText } from './useTextDrag'
 
 interface GlyphSurfaceProps {
   font: LoadedFont
@@ -56,11 +55,6 @@ interface GlyphSurfaceProps {
 const GRID_INSIDE_ZOOM = 2
 /** Point markers are drawn only when an em is at least this many pixels (SpecimenView's MARKER_MIN_PX_PER_EM). */
 const MARKER_MIN_PX_PER_EM = 48
-
-/** A frame with nothing gliding: the scene as it is. */
-function stillFrame(scene: SpecimenScene): GlideFrame {
-  return { target: scene, layout: scene, morphs: null, scene: () => scene }
-}
 
 /** Same metric guides and text block: the underlay need not render again. */
 function sameGuides(a: SpecimenScene, b: SpecimenScene): boolean {
@@ -123,7 +117,7 @@ export default function GlyphSurface({
   const darkPaper = isDarkColor(paper)
 
   const panZoom = usePanZoom(frame, view, onViewChange)
-  const { containerRef, ready, u, visW, visH, box, handlers } = panZoom
+  const { containerRef, ready, u, visW, visH, size, box, handlers } = panZoom
   const { left, top } = box
   const pxPerEm = unitsPerEm / u
   const showMarkers = pxPerEm >= MARKER_MIN_PX_PER_EM
@@ -148,76 +142,23 @@ export default function GlyphSurface({
 
   // ---- The renderer ----
 
-  // The renderer kind drawing now; a new kind gets fresh canvases (one that gave a WebGL context gives no 2D one).
-  const [kind, setKind] = useState<'canvas' | 'webgl'>(choice)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const detailRef = useRef<HTMLCanvasElement>(null)
-  const rendererRef = useRef<GlyphRenderer | null>(null)
-  const latest = useRef({ scene, still: stillFrame(scene), u, dpr: 1 })
-  const still = useMemo(() => stillFrame(scene), [scene])
-  latest.current.scene = scene
-  latest.current.still = still
-  latest.current.u = u
-  const frameNow = useCallback((): GlideFrame => {
-    const snapshot = glide.getSnapshot()
-    return snapshot.target === latest.current.scene ? snapshot.frame : latest.current.still
-  }, [glide])
-
-  /** Draws now if anything changed, and reports the frame to the probe. */
-  /** Gives the renderer up (fallBack, below): set once fallBack is made. */
-  const broke = useRef<() => void>(() => {})
-  const paint = useCallback(() => {
-    const renderer = rendererRef.current
-    if (!renderer || renderer.broken) return
-    const start = performance.now()
-    let drew: boolean
-    try {
-      drew = renderer.draw()
-    } catch (error) {
-      // A renderer that throws is given up like a lost one: the next renderer draws from here on.
-      console.error('The glyph renderer failed; falling back', error)
-      broke.current()
-      return
-    }
-    if (!drew) return
-    const end = performance.now()
-    const ms = end - start
-    measureDraw('canvas', start, end)
-    if (probeOn) {
-      const shown = frameNow()
-      reportFrame('canvas', effectiveOf(renderer), ms, () => shown.scene(), latest.current.dpr / latest.current.u)
-    }
-  }, [frameNow])
-
-  const fallBack = useCallback(() => {
-    rendererRef.current?.dispose()
-    rendererRef.current = null
-    const next = fallbackOf(kind)
-    if (next === 'svg') onFallback()
-    else setKind(next)
-  }, [kind, onFallback])
-  broke.current = fallBack
-
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const renderer = createRenderer(kind, canvas, {
-      mode: 'full',
-      detailCanvas: detailRef.current,
-      onLost: () => fallBack(),
-    })
-    if (!renderer) {
-      fallBack()
-      return
-    }
-    rendererRef.current = renderer
-    return () => {
-      renderer.dispose()
-      if (rendererRef.current === renderer) rendererRef.current = null
-    }
-    // fallBack changes with kind only, which already re-runs this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind])
+  // Device pixels per font unit, for the probe.
+  const scale = useRef(1)
+  // After a view or frame change the pointer may rest on another glyph: its hit test runs again (hoverAgain, below).
+  const hoverAgain = useRef<() => void>(() => {})
+  const { kind, generation, rendererRef, frameNow, paint } = useGlyphRenderer(choice, canvasRef, {
+    mode: 'full',
+    scene,
+    glide,
+    source,
+    detailRef,
+    onFallback,
+    probe: 'canvas',
+    probeScale: () => scale.current,
+    onFrame: () => hoverAgain.current(),
+  })
 
   // The interface colours, resolved from the stylesheet and again when the theme changes.
   const [theme, setTheme] = useState<ThemeColors | null>(null)
@@ -272,34 +213,31 @@ export default function GlyphSurface({
   useLayoutEffect(() => {
     const renderer = rendererRef.current
     if (!renderer || !ready || !style) return
-    latest.current.dpr = dpr
-    const el = containerRef.current
-    renderer.setView({
-      kind: 'canvas',
-      left,
-      top,
-      u,
-      cssWidth: el?.clientWidth ?? visW / u,
-      cssHeight: el?.clientHeight ?? visH / u,
-      dpr,
-    })
+    scale.current = dpr / u
+    // The element's own (fractional) size, as `u` is, so the backing store matches the outlines' pixels.
+    renderer.setView({ kind: 'canvas', left, top, u, cssWidth: size.width, cssHeight: size.height, dpr })
     renderer.setStyle(style)
     renderer.setSelected(selectedGlyph?.index ?? null)
     renderer.setFrame(frameNow(), source)
     paint()
-  }, [kind, ready, style, left, top, u, visW, visH, dpr, selectedGlyph, source, scene, frameNow, paint, containerRef])
-
-  // Every frame of Glide, straight to the renderer.
-  useEffect(
-    () =>
-      glide.subscribe(() => {
-        const renderer = rendererRef.current
-        if (!renderer) return
-        renderer.setFrame(frameNow(), source)
-        paint()
-      }),
-    [glide, frameNow, source, paint, kind],
-  )
+    hoverAgain.current()
+  }, [
+    kind,
+    generation,
+    ready,
+    style,
+    left,
+    top,
+    u,
+    size,
+    dpr,
+    selectedGlyph,
+    source,
+    scene,
+    frameNow,
+    paint,
+    rendererRef,
+  ])
 
   // ---- Pointer ----
 
@@ -321,6 +259,9 @@ export default function GlyphSurface({
   }
 
   const hovered = useRef<number | null>(null)
+  // Where the pointer rests over the canvas with no button down (client px), or null.
+  const resting = useRef<{ x: number; y: number } | null>(null)
+  const hoverFrame = useRef<number | null>(null)
   const showHover = (hit: RenderHit | null) => {
     const el = containerRef.current
     const occurrence = hit?.kind === 'glyph' ? hit.occurrence : null
@@ -335,7 +276,7 @@ export default function GlyphSurface({
   }
 
   // Pan and zoom, Escape, and Free drag, as SpecimenView; the underlay's moving group and the renderer move together.
-  const { draggingText, movingRef, offset, dragged, pointer, onKeyDown } = useTextDrag({
+  const { draggingText, movingRef, offset, dragged, pointer, onKeyDown, announcement } = useTextDrag({
     scene,
     layout,
     u,
@@ -351,10 +292,30 @@ export default function GlyphSurface({
       paint()
     },
     onHover: (e) => {
+      resting.current = e.buttons === 0 ? { x: e.clientX, y: e.clientY } : null
       if (e.buttons === 0) showHover(hitAt(e.clientX, e.clientY))
     },
-    onLeave: () => showHover(null),
+    onLeave: () => {
+      resting.current = null
+      showHover(null)
+    },
+    selection: { font, selected: selectedGlyph, onSelect: onSelectGlyph },
   })
+  // The hit test again where the pointer rests, once per animation frame at most (a wheel zoom, a pan, a glide).
+  hoverAgain.current = () => {
+    if (hoverFrame.current !== null || !resting.current) return
+    hoverFrame.current = requestAnimationFrame(() => {
+      hoverFrame.current = null
+      const at = resting.current
+      if (at) showHover(hitAt(at.x, at.y))
+    })
+  }
+  useEffect(
+    () => () => {
+      if (hoverFrame.current !== null) cancelAnimationFrame(hoverFrame.current)
+    },
+    [],
+  )
   const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
 
   // A click on a glyph selects it; one on empty space (or a missing box, or the block) clears the highlight; neither
@@ -371,8 +332,9 @@ export default function GlyphSurface({
       ref={containerRef}
       className="glyph-view specimen-view"
       tabIndex={0}
-      role="img"
-      aria-label={`${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.${freeMove ? ' Drag the text to move it.' : ''}`}
+      role="application"
+      aria-roledescription="canvas"
+      aria-label={`${label}. ${CANVAS_KEYS}${freeMove ? ' Drag the text to move it.' : ''}`}
       data-free-move={freeMove || undefined}
       {...handlers}
       {...pointer}
@@ -424,6 +386,9 @@ export default function GlyphSurface({
           Snap grid {gridSize} u{grid ? '' : ' · too dense to draw at this zoom'}
         </p>
       )}
+      <p className="visually-hidden" aria-live="polite">
+        {announcement}
+      </p>
       {markersHidden && (
         <p className="canvas-note" aria-live="polite">
           Zoom in to see skeleton points and vertices (shown from {MARKER_MIN_PX_PER_EM} px per em).

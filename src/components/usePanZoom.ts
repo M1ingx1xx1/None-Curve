@@ -143,5 +143,5 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
   /** True when the last pointer gesture was a drag, so a click on a glyph should not select it. */
   const wasDrag = () => lastGestureMoved.current
 
-  return { containerRef, ready, u, visW, visH, box, handlers, wasDrag }
+  return { containerRef, ready, u, visW, visH, size, box, handlers, wasDrag }
 }

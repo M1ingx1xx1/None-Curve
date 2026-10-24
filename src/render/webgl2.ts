@@ -219,7 +219,7 @@ class Batch {
 export interface WebGLOptions {
   /** The canvas stacked above for the detail layer (Canvas2D), or null to draw none. */
   detailCanvas: HTMLCanvasElement | null
-  /** Called once when the context is lost: the surface should make another renderer. */
+  /** Called once when the context is lost: the surface makes another renderer once it is restored (or another kind). */
   onLost?: () => void
 }
 
@@ -248,7 +248,7 @@ export class WebGL2Renderer implements GlyphRenderer {
   private readonly coverProgram: Program
   private readonly strokeProgram: Program
   private readonly emptyArray: WebGLVertexArrayObject
-  private readonly onLost: () => void
+  private readonly onLost: (e: Event) => void
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -278,7 +278,9 @@ export class WebGL2Renderer implements GlyphRenderer {
     this.feedback = gl.createTransformFeedback()!
     this.blank = positionsTexture(gl, 1)
     this.emptyArray = gl.createVertexArray()!
-    this.onLost = () => {
+    this.onLost = (e: Event) => {
+      // Prevented, so the browser may restore the context (webglcontextrestored): the surface then makes a new renderer.
+      e.preventDefault()
       if (this.broken) return
       this.broken = true
       options.onLost?.()
