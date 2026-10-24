@@ -28,7 +28,7 @@
 ## 2. 你需要准备什么
 
 - 一台装有新版浏览器（Chrome、Edge、Firefox 或 Safari）的电脑。不支持手机和平板：这个工具是为大屏幕设计的。
-- 电脑里的字体文件（`.ttf`、`.otf`、`.woff`、`.woff2`，或 `.ttc` / `.otc` 字体集合），**或者**能上网，以便从 Google Fonts 载入字体。
+- 电脑里的字体文件（`.ttf`、`.otf`、`.woff`、`.woff2`，或 `.ttc` / `.otc` 字体集合），**或者**能上网，以便从 Google Fonts 载入字体。除了字体，也可以用一张存成 `.svg` 的图，比如图标或标志（见[用 SVG 图代替字体](#用-svg-图代替字体)）。
 - 可选，供 **Sound** 标签页使用：一个音频文件（比如 MP3）或一个麦克风。
 - 网页地址，例如 `https://m1ingx1xx1.github.io/None-Curve/`，也可以向搭建项目的人索取。
 
@@ -131,6 +131,18 @@
 - 载入其他任何字体时，画布视图会重新开始：缩放到适合大小，并选中一个默认字母。
 - 文件始终留在你的电脑上，只由浏览器读取。下次打开程序时，它会写出文件名并请你重新导入（见[下次打开时](#下次打开时)）。
 
+### 用 SVG 图代替字体
+
+图和字母一样由轮廓和锚点组成，所以 None-Curve 能用同样的方式重建它。
+
+- 选择 **Local file** 并挑一个 `.svg` 文件，**或者**把它拖到画布上。图标和标志效果最好。
+- 图会单独显示在画布上，就像一个字母。所有控制项都对它起作用：曲线展平、方形化、锚点、网格、扭曲、**Experimental** 效果和 **Sound**。
+- 打开图时文本框会变灰，因为没有可以用来打字的字母。你的文字会保留：一载入字体就回来。
+- 文件里的颜色不起作用：每个填充的图形都成为图的一部分，使用 **Color** 标签页里的文字颜色。洞（像 “O” 中间那样的部分）仍然是洞。
+- **Export** 提供 SVG、PNG、视频和配置文件。图不能做成字体文件，所以这个选项会隐藏。
+- **没有填充的线条不算。** 很多线性图标（Feather、Lucide 等）只用描边画成。请先在设计软件里把描边转成图形——Illustrator：*Object → Path → Outline Stroke*；Inkscape：*Path → Stroke to Path*；Figma：*Outline stroke*——然后重新导入。SVG 里的文字也要用同样的方式转成轮廓。
+- 太大的文件（超过 10 MB，或者细节极多的图）会被拒绝并给出说明：请先简化这张图。
+
 ### 从 Google Fonts 载入
 
 选择 **Google Fonts**。在 **Family**（字体名称）框里，你可以：
@@ -155,6 +167,7 @@
 |---|---|---|
 | Empty file / Unsupported format | 文件不是字体，或者是空的。 | 换成 `.ttf`、`.otf`、`.woff`、`.woff2`、`.ttc` 或 `.otc` 文件。 |
 | Font parsing failed | 文件已损坏。 | 换一份这款字体的文件。 |
+| SVG could not be used | SVG 图已损坏、太大，或者只有线条或文字、没有填充图形。提示会写明是哪一种。 | 按提示操作：把描边或文字转成轮廓，或者简化这张图。 |
 | Google Fonts API error | Google 不认识这个名字。 | 检查拼写和大小写。 |
 | Network / CORS error | 没有网络，或浏览器插件拦截了请求。 | 检查网络或广告拦截插件，然后点 **Retry**。 |
 | Only fonts.google.com … URLs are accepted | 粘贴的不是 Google Fonts 链接。 | 粘贴来自 fonts.google.com 的链接。 |

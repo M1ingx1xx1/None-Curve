@@ -17,7 +17,7 @@ import ToolHead, { type ConfigNotice } from './components/ToolHead'
 import Workspace from './components/Workspace'
 import { useRecordingContext } from './export/recorder'
 import { RENDERER_CHOICE } from './render/createRenderer'
-import type { LoadedFont } from './font/model'
+import { ARTWORK_CODE_POINT, isArtwork, type LoadedFont } from './font/model'
 import type { GeometryParams, GlyphRef } from './geometry/types'
 import { getSoundEngine } from './sound/engine'
 import { useLiveDriving, useLiveFrame, useLiveLetters } from './sound/live'
@@ -126,8 +126,13 @@ export default function App({ restored }: AppProps) {
   const [previewScale, setPreviewScale] = useState(0)
   const { font, selectedGlyph } = state.document
   const { typography, palette, artboard } = state.params
-  // The text as shown and exported: the typed text with the letter case applied.
-  const displayText = useMemo(() => applyTextCase(text, typography.textCase), [text, typography.textCase])
+  // The text as shown and exported: the typed text with the letter case applied. An SVG artwork shows on its own,
+  // as its one character; the typed text is kept for the next font.
+  const artwork = isArtwork(font)
+  const displayText = useMemo(
+    () => (artwork ? String.fromCodePoint(ARTWORK_CODE_POINT) : applyTextCase(text, typography.textCase)),
+    [artwork, text, typography.textCase],
+  )
   // While Sound drives the letters, the canvas shows live parameters; the sliders (and exports) keep their own.
   const { flatten, random, squaring, anchors, grid, distortion, experimental } = state.params
   // Thorn's Reach is a share of the canvas diagonal: the diagonal in em rides on the geometry parameters, a
@@ -311,6 +316,11 @@ export default function App({ restored }: AppProps) {
   }, [])
   const insertGlyph = useCallback(
     (glyph: GlyphRef, insert: string) => {
+      // An SVG artwork's one glyph is shown on its own; it is only selected, and the typed text stays as it is.
+      if (isArtwork(current.current.state.document.font)) {
+        dispatch({ type: 'selectGlyph', glyph })
+        return
+      }
       const el = cursorPlaced.current ? textRef.current : null
       const typed = current.current.text
       const start = el ? Math.min(el.selectionStart, typed.length) : typed.length
