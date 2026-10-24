@@ -80,7 +80,8 @@ export default function ImportMenu({ busy, onLocalFile, onOpenGoogleFonts, onCon
             type="button"
             className="import-option"
             onClick={() => {
-              close(false)
+              // The option unmounts with the menu; the dialog gives focus back to the element focused when it opened.
+              close(true)
               onOpenGoogleFonts()
             }}
           >
