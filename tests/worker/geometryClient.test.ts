@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
+import { packGeometry } from '../../src/geometry/packed'
 import type { WorkerGeometry, WorkerResponse } from '../../src/geometry/protocol'
 import { GeometryClient, LIVE_KEPT_KEYS } from '../../src/state/geometryClient'
 import { FakeWorker } from '../helpers/fakeWorker'
@@ -13,6 +14,7 @@ import { BASE } from '../helpers/params'
 
 const font = (id: string) => ({ id, bytes: new Uint8Array(4), source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 } }) as unknown as LoadedFont
 const geometry = (index: number) => ({ polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] }, vertexCount: index }) as unknown as WorkerGeometry
+const packed = (index: number) => packGeometry(geometry(index)).packed
 
 const STUCK = 'Took longer than 60 s; try lighter settings'
 
@@ -45,7 +47,7 @@ describe('geometry client', () => {
     const { requestId } = worker().lastCompute
     expect(client.isComputing()).toBe(true)
     worker().reply({ type: 'glyph', requestId, key: 'k1', index: 1 })
-    worker().reply({ type: 'results', requestId, fontId: 'f', key: 'k1', results: [{ index: 1, geometry: geometry(1) }, { index: 2, error: 'bad glyph' }] })
+    worker().reply({ type: 'results', requestId, fontId: 'f', key: 'k1', results: [{ index: 1, packed: packed(1) }, { index: 2, error: 'bad glyph' }] })
     worker().reply({ type: 'done', requestId })
     expect(client.isComputing()).toBe(false)
     await vi.advanceTimersByTimeAsync(60)
@@ -75,7 +77,7 @@ describe('geometry client', () => {
     expect(client.isComputing()).toBe(false)
     expect(idle).toHaveBeenCalled()
     // Messages from the stopped worker are ignored.
-    first.reply({ type: 'results', requestId, fontId: 'f', key: 'k1', results: [{ index: 6, geometry: geometry(6) }] })
+    first.reply({ type: 'results', requestId, fontId: 'f', key: 'k1', results: [{ index: 6, packed: packed(6) }] })
     expect(client.lookup('k1', 6)).toBeNull()
   })
 
@@ -196,7 +198,7 @@ describe('geometry client', () => {
     const w = worker()
     const { requestId, indices } = w.lastCompute
     expect(indices).toEqual([1, 2])
-    w.reply({ type: 'results', requestId, fontId: 'f', key: 'k', results: [{ index: 1, geometry: geometry(1) }, { index: 2, error: 'bad' }] })
+    w.reply({ type: 'results', requestId, fontId: 'f', key: 'k', results: [{ index: 1, packed: packed(1) }, { index: 2, error: 'bad' }] })
     w.reply({ type: 'done', requestId })
     const lookup = await done
     expect(lookup(1, 0)).toEqual({ polygon: geometry(1).polygon })
@@ -206,7 +208,7 @@ describe('geometry client', () => {
   describe('jobs: several parameter sets in one request', () => {
     const job = (key: string, indices: number[], params = BASE) => ({ params, key, indices })
     const results = (key: string, indices: readonly number[], live = false) =>
-      ({ type: 'results', requestId: worker().lastCompute.requestId, fontId: 'f', key, results: indices.map((index) => ({ index, geometry: geometry(index) })), ...(live ? { live } : {}) }) as WorkerResponse
+      ({ type: 'results', requestId: worker().lastCompute.requestId, fontId: 'f', key, results: indices.map((index) => ({ index, packed: packed(index) })), ...(live ? { live } : {}) }) as WorkerResponse
     const done = () => worker().reply({ type: 'done', requestId: worker().lastCompute.requestId })
 
     it('sends only the missing glyphs of each set, in the order asked', () => {
@@ -222,6 +224,8 @@ describe('geometry client', () => {
         fontId: 'f',
         jobs: [job('a', [3]), job('b', [2, 1], other)],
         live: true,
+        // The first glyph asked for carries the pipeline's statistics (the selected glyph's, for the panels).
+        stats: { key: 'a', index: 1 },
       })
       // A set named twice is asked for once.
       done()
@@ -260,7 +264,7 @@ describe('geometry client', () => {
       const answer = () => {
         const { requestId, jobs } = worker().lastRequest
         for (const { key, indices } of jobs) {
-          worker().reply({ type: 'results', requestId, fontId: 'f', key, live: true, results: indices.map((index) => ({ index, geometry: geometry(counts[key]) })) })
+          worker().reply({ type: 'results', requestId, fontId: 'f', key, live: true, results: indices.map((index) => ({ index, packed: packed(counts[key]) })) })
         }
         done()
       }
@@ -348,12 +352,42 @@ describe('geometry client', () => {
       w.reply({ type: 'failed', requestId: w.lastCompute.requestId, reason: 'no-font', message: 'no font' })
       expect(w.received.map((m) => m.type)).toEqual(['font', 'compute', 'font', 'compute'])
       expect(w.lastRequest.jobs).toEqual(sent)
-      w.reply({ type: 'results', requestId: w.lastCompute.requestId, fontId: 'f', key: 'b', results: [{ index: 2, geometry: geometry(2) }] })
+      w.reply({ type: 'results', requestId: w.lastCompute.requestId, fontId: 'f', key: 'b', results: [{ index: 2, packed: packed(2) }] })
       w.reply({ type: 'failed', requestId: w.lastCompute.requestId, reason: 'font', message: 'bad tables' })
       const problem = { error: 'The geometry worker could not open this font (bad tables).', transient: true }
       expect(client.lookup('a', 1)?.entry).toEqual(problem)
       expect(client.lookup('b', 3)?.entry).toEqual(problem)
       expect(client.lookup('b', 2)?.entry).toEqual({ geometry: geometry(2) })
     })
+  })
+
+  it('asks for the statistics of the first glyph only, and asks again for one kept without them', () => {
+    const f = font('f')
+    client.compute(f, BASE, 'a', [1, 2])
+    const first = worker().lastRequest
+    expect(first.stats).toEqual({ key: 'a', index: 1 })
+    // Glyph 2 comes back lean (without statistics), as the worker sends every glyph but the one named.
+    worker().reply({ type: 'results', requestId: first.requestId, fontId: 'f', key: 'a', results: [{ index: 1, packed: packed(1) }, { index: 2, packed: packGeometry(geometry(2), false).packed }] })
+    worker().reply({ type: 'done', requestId: first.requestId })
+    expect(client.lookup('a', 2)?.entry).toEqual({ geometry: geometry(2), lean: true })
+    // Asked again in the same order: nothing is missing.
+    client.compute(f, BASE, 'a', [1, 2])
+    expect(worker().computes).toBe(1)
+    // Glyph 2 selected (first): only it is asked for again, with its statistics.
+    client.compute(f, BASE, 'a', [2, 1])
+    expect(worker().computes).toBe(2)
+    expect(worker().lastRequest.jobs.map((j) => j.indices)).toEqual([[2]])
+    expect(worker().lastRequest.stats).toEqual({ key: 'a', index: 2 })
+    // An export needs no statistics: a lean glyph is enough for it.
+    worker().reply({ type: 'done', requestId: worker().lastRequest.requestId })
+    void client.ensure(f, BASE, 'a', [2])
+    expect(worker().computes).toBe(2)
+  })
+
+  it('a result of a request it does not remember does not stand in for the glyph', () => {
+    client.compute(font('f'), BASE, 'a', [5])
+    worker().reply({ type: 'results', requestId: 999, fontId: 'f', key: 'x', results: [{ index: 5, packed: packed(5) }] })
+    expect(client.lookup('x', 5)?.entry).toEqual({ geometry: geometry(5) })
+    expect(client.lookup('b', 5)).toBeNull()
   })
 })

@@ -314,7 +314,7 @@ export class SceneGlide {
         const made: PlanAsk = { cancel: () => {} }
         byTarget.set(to, (ask = made))
         let answered = false
-        made.cancel = source.request({ from, to, toRef: null }, (plan) => {
+        made.cancel = source.request({ from, to }, (plan) => {
           answered = true
           made.plan = plan
           let cached = this.plans.get(from)

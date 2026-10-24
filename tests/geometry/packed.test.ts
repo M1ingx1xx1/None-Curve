@@ -1,12 +1,13 @@
 // Packed glyphs (src/geometry/packed.ts, NOCUR-85): a glyph packed into typed arrays unpacks to the same geometry, with
-// its click outline (Thorn), layout hull and motion, and its byte estimate grows with its points.
+// its click outline (Thorn), layout hull and motion (Whorl's outline packed apart), and its byte estimate grows with its
+// points.
 
 import { describe, expect, it } from 'vitest'
-import { packedBytes, packedPoints, packGeometry, unpackGeometry } from '../../src/geometry/packed'
+import { packedBytes, packedPoints, packGeometry, unpackEntry, unpackGeometry } from '../../src/geometry/packed'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { WorkerGeometry } from '../../src/geometry/protocol'
 import { loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { burst } from '../helpers/planCases'
+import { burst, whorl } from '../helpers/planCases'
 import { BASE } from '../helpers/params'
 
 describe('packed glyphs', async () => {
@@ -63,5 +64,34 @@ describe('packed glyphs', async () => {
     for (const packed of [small, large]) expect(packedBytes(packed)).toBeGreaterThanOrEqual(16 * packedPoints(packed) + 2000)
     expect(packedPoints(large)).toBeGreaterThan(packedPoints(small))
     expect(packedBytes(large)).toBeGreaterThan(packedBytes(small))
+  })
+
+  it('packs Whorl’s outline apart (transferred and counted), the motion kept without it', () => {
+    const geometry = geometryOf(glyphs[0], whorl(0.6))
+    const outline = geometry.polygon.motion?.whorl?.outline
+    expect(outline?.length).toBeGreaterThan(0)
+    const { packed, transfer } = packGeometry(geometry)
+    expect(packed.outline).not.toBeNull()
+    expect('outline' in packed.rest.motion!.whorl!).toBe(false)
+    expect(transfer).toContain(packed.outline!.xy.buffer)
+    const { outline: _outline, ...kept } = geometry.polygon.motion!.whorl!
+    const without = packGeometry({ ...geometry, polygon: { ...geometry.polygon, motion: { whorl: kept } } }).packed
+    const points = outline!.reduce((n, ring) => n + ring.length, 0)
+    expect(packedPoints(packed)).toBe(packedPoints(without) + points)
+    expect(packedBytes(packed)).toBe(packedBytes(without) + 16 * points + 4 * (outline!.length + 1) + outline!.length)
+    expect(unpackGeometry(packed)).toEqual(geometry)
+    // The glyph packed keeps its outline (the cache's own objects are not changed).
+    expect(geometry.polygon.motion?.whorl?.outline).toBe(outline)
+  })
+
+  it('leaves the statistics out when asked, counting fewer bytes', () => {
+    const geometry = geometryOf(glyphs[1])
+    const lean = packGeometry(geometry, false).packed
+    expect(lean.stats).toBeNull()
+    expect(packedBytes(lean)).toBeLessThan(packedBytes(packGeometry(geometry).packed))
+    const { polygon, vertexCount } = geometry
+    expect(unpackGeometry(lean)).toEqual({ polygon, vertexCount })
+    expect(unpackEntry(lean)).toEqual({ geometry: { polygon, vertexCount }, lean: true })
+    expect(unpackEntry(packGeometry(geometry).packed)).toEqual({ geometry })
   })
 })

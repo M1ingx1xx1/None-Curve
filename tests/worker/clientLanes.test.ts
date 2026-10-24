@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
 import type { AheadItem, EncodedGlyph, WorkerGeometry, WorkerRequest } from '../../src/geometry/protocol'
 import type { PlanData } from '../../src/specimen/planData'
-import { packGeometry } from '../../src/geometry/packed'
+import { packGeometry, unpackedBytes } from '../../src/geometry/packed'
 import { GeometryClient } from '../../src/state/geometryClient'
 import { FakeWorker } from '../helpers/fakeWorker'
 import { BASE } from '../helpers/params'
@@ -78,7 +78,7 @@ describe('geometry client lanes', () => {
     pool(1)
     const w = workers[0]
     client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [1, 2])])
-    expect(client.requestPlan(shape(1), { key: 'k', index: 1 }, () => {})).not.toBeNull()
+    expect(client.requestPlan(shape(1), shape(2), () => {})).not.toBeNull()
     expect(client.isComputing()).toBe(false)
     const { requestId } = aheadOf(w)!
     w.reply({ type: 'ahead-results', requestId, generation: 1, seq: 1, key: 'k', results: [{ index: 1, packed: packed(1) }, { index: 2, packed: packed(2) }], times: [3, 4] })
@@ -97,7 +97,7 @@ describe('geometry client lanes', () => {
     pool(1)
     const w = workers[0]
     const answers: (PlanData | null)[] = []
-    client.requestPlan(shape(1), { key: 'k', index: 1 }, (data) => answers.push(data))
+    client.requestPlan(shape(1), shape(2), (data) => answers.push(data))
     const data = { version: 1 } as unknown as PlanData
     w.reply({ type: 'plan-result', requestId: planOf(w).requestId, data })
     expect(answers).toEqual([data])
@@ -115,7 +115,7 @@ describe('geometry client lanes', () => {
     const answers: (PlanData | null)[] = []
     const ended: boolean[] = []
     client.setAheadListener({ results: () => {}, plans: () => {}, ended: (stopped) => ended.push(stopped) })
-    client.requestPlan(shape(1), { key: 'k', index: 1 }, (d) => answers.push(d))
+    client.requestPlan(shape(1), shape(2), (d) => answers.push(d))
     client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7, 8])])
     first.reply({ type: 'glyph', requestId: aheadOf(first)!.requestId, key: 'k', index: 7 })
     await vi.advanceTimersByTimeAsync(4_000)
@@ -130,5 +130,40 @@ describe('geometry client lanes', () => {
     expect(answers).toEqual([null])
     expect(ended).toEqual([true])
     expect(client.isComputing()).toBe(false)
+  })
+
+  it('never replaces a worker busy on an ahead glyph for new settings, and sends the canvas that glyph elsewhere', async () => {
+    pool(2)
+    // Glyph 7 is pinned to workers[1] (7 % 2), which says it started it.
+    client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7])])
+    const busy = workers[1]
+    busy.reply({ type: 'glyph', requestId: aheadOf(busy)!.requestId, key: 'k', index: 7 })
+    await vi.advanceTimersByTimeAsync(1_000)
+    // Static settings that do not ask for it: the worker stays (its caches, ahead store and chains with it).
+    client.compute(font('f'), BASE, 'other', [3])
+    expect(busy.terminated).toBe(false)
+    expect(workers).toHaveLength(2)
+    // The canvas asking for that very glyph: it goes to the other worker (the ahead result fills no cache of its own).
+    client.compute(font('f'), BASE, 'k', [7])
+    expect(workers[0].lastRequest.jobs).toEqual([{ params: BASE, key: 'k', indices: [7] }])
+    expect(busy.received.some((m) => m.type === 'compute' && m.jobs.some((j) => j.key === 'k'))).toBe(false)
+  })
+
+  it('checks whether ahead glyphs are held without turning them into objects', () => {
+    pool(1)
+    const w = workers[0]
+    client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [1, 2, 3])])
+    const results = [1, 2, 3].map((index) => ({ index, packed: packed(index) }))
+    w.reply({ type: 'ahead-results', requestId: aheadOf(w)!.requestId, generation: 1, seq: 1, key: 'k', results, times: [1, 1, 1] })
+    const stored = client.aheadStore.bytes()
+    // A later set's glyphs are only known to be held (the first set's stand in on the canvas, so they are looked up).
+    const computes = w.computes
+    client.computeJobs(font('f'), [{ params: BASE, key: 'base', indices: [1] }, { params: BASE, key: 'k', indices: [1, 2, 3] }])
+    expect(w.computes).toBe(computes + 1)
+    expect(w.lastRequest.jobs.map((j) => j.key)).toEqual(['base'])
+    expect(client.aheadStore.bytes()).toBe(stored)
+    // The first set's glyphs are: they are on screen.
+    client.compute(font('f'), BASE, 'k', [2])
+    expect(client.aheadStore.bytes()).toBe(stored + unpackedBytes(packed(2)))
   })
 })

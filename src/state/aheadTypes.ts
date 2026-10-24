@@ -78,8 +78,8 @@ export function weightedDistance(first: number, last: number, ph: number): numbe
   return first > ph ? first - ph : PRECOMPUTE_LIMITS.behindWeight * (ph - last)
 }
 
-/** An on-demand plan (live path): from is sent by value with its side tables. */
-export interface PlanRequest { from: PolygonGlyph; to: PolygonGlyph; toRef: { key: string; index: number } | null }
+/** An on-demand plan (live path): both glyphs are sent by value with their side tables. */
+export interface PlanRequest { from: PolygonGlyph; to: PolygonGlyph }
 
 export interface PlanSource {
   /** The worker's chained plan for this lineage at commit `seq`, decoded onto `from`/`to`, or undefined (not ready / not matching). */
