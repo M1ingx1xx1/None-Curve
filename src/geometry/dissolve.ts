@@ -25,7 +25,7 @@
 // Everything follows from the seed, the parameters and the letter's own coordinates, so every copy of a letter
 // dissolves alike.
 
-import { insideRing } from './crossings'
+import { insideRing, rayCrosses } from './crossings'
 import { hashInts } from './distortion'
 import { DISSOLVE_LIMITS, dissolveIsOn } from './limits'
 import { clamp, finite, signedArea } from './primitives'
@@ -637,7 +637,8 @@ function withoutInside(loops: Point[][], drop: boolean[]): Point[][] {
   if (!drop.includes(true)) return loops
   const parent = parents(loops)
   // A loop goes when it or any loop around it is flagged; parents are larger, so they are decided first.
-  const order = loops.map((_, k) => k).sort((a, b) => depth(parent, a) - depth(parent, b))
+  const depths = parent.map((_, k) => depth(parent, k))
+  const order = loops.map((_, k) => k).sort((a, b) => depths[a] - depths[b])
   const out = drop.slice()
   for (const k of order) if (parent[k] >= 0 && out[parent[k]]) out[k] = true
   return loops.filter((_, k) => !out[k])
@@ -668,24 +669,121 @@ function leaveOutSmallest(loops: Point[][], limit: number): Point[][] {
   return loops.filter((_, k) => !out[k])
 }
 
-/** For each loop, the smallest loop around it, or -1. Loops never cross, so one vertex tells. */
-function parents(loops: Point[][]): number[] {
+/**
+ * For each loop, the smallest loop around it, or -1. Loops never cross, so one vertex tells: a ray from the loop's
+ * first vertex to the right crosses each loop around it an odd number of times (see LoopStrips). Ties in area go to
+ * the loop further left, then the earlier one. Exported for tests/geometry.
+ */
+export function parents(loops: Point[][]): number[] {
   const boxes = loops.map((loop) => bounds([loop])!)
   const areas = loops.map((loop) => Math.abs(signedArea(loop)))
-  // By the left side of their boxes, so only loops starting further left can hold one.
-  const byLeft = loops.map((_, k) => k).sort((a, b) => boxes[a].minX - boxes[b].minX || a - b)
+  const strips = new LoopStrips(loops)
   return loops.map((loop, k) => {
     const box = boxes[k]
     let best = -1
-    for (const d of byLeft) {
+    for (const d of strips.around(loop[0])) {
       const outer = boxes[d]
-      if (outer.minX > box.minX) break
-      if (d === k || areas[d] <= areas[k] || outer.maxX < box.maxX || outer.minY > box.minY || outer.maxY < box.maxY)
+      if (
+        d === k ||
+        areas[d] <= areas[k] ||
+        outer.minX > box.minX ||
+        outer.maxX < box.maxX ||
+        outer.minY > box.minY ||
+        outer.maxY < box.maxY
+      )
         continue
-      if ((best < 0 || areas[d] < areas[best]) && insideRing(loop[0], loops[d])) best = d
+      const held = best >= 0 ? boxes[best] : null
+      if (
+        !held ||
+        areas[d] < areas[best] ||
+        (areas[d] === areas[best] && (outer.minX < held.minX || (outer.minX === held.minX && d < best)))
+      )
+        best = d
     }
     return best
   })
+}
+
+/**
+ * The edges of all the loops by horizontal strips, so a ray from a point meets only the edges in its strip. With
+ * thousands of loops (a large letter dissolved finely), testing every loop against every other took most of the time.
+ */
+class LoopStrips {
+  private readonly low: number
+  private readonly step: number
+  private readonly strips: number
+  /** The edges in strip k: loop[edges[e]] and vertex[edges[e]] for start[k] <= e < start[k + 1]. */
+  private readonly start: Int32Array
+  private readonly loop: Int32Array
+  private readonly vertex: Int32Array
+  /** Crossings per loop for the ray being cast; zero between rays. */
+  private readonly crossings: Int32Array
+
+  constructor(private readonly loops: readonly (readonly Point[])[]) {
+    // Every edge but the level ones (no ray crosses those), as insideRing pairs them: vertex i and the one before it.
+    let low = Infinity
+    let high = -Infinity
+    let edges = 0
+    let rise = 0
+    this.forEachEdge((a, b) => {
+      low = Math.min(low, a.y, b.y)
+      high = Math.max(high, a.y, b.y)
+      edges++
+      rise += Math.abs(a.y - b.y)
+    })
+    this.low = Number.isFinite(low) ? low : 0
+    const span = high - low
+    // Rays cost the edges per strip and edges cost the strips they span: about the square root of both balances them.
+    this.strips =
+      edges > 0 && span > 0 ? clamp(Math.round(Math.sqrt((loops.length * edges * span) / rise)), 1, 4 * edges) : 1
+    this.step = span > 0 ? span / this.strips : 1
+    this.start = new Int32Array(this.strips + 1)
+    this.forEachEdge((a, b) => {
+      for (let k = this.strip(Math.min(a.y, b.y)); k <= this.strip(Math.max(a.y, b.y)); k++) this.start[k + 1]++
+    })
+    for (let k = 0; k < this.strips; k++) this.start[k + 1] += this.start[k]
+    this.loop = new Int32Array(this.start[this.strips])
+    this.vertex = new Int32Array(this.start[this.strips])
+    const filled = this.start.slice(0, this.strips)
+    this.forEachEdge((a, b, d, i) => {
+      for (let k = this.strip(Math.min(a.y, b.y)); k <= this.strip(Math.max(a.y, b.y)); k++) {
+        this.loop[filled[k]] = d
+        this.vertex[filled[k]++] = i
+      }
+    })
+    this.crossings = new Int32Array(loops.length)
+  }
+
+  /** The loops a ray from p to the right crosses an odd number of times: insideRing(p, loop), for all at once. */
+  around(p: Point): number[] {
+    const touched: number[] = []
+    if (!Number.isFinite(p.y)) return touched
+    const k = this.strip(p.y)
+    for (let e = this.start[k]; e < this.start[k + 1]; e++) {
+      const d = this.loop[e]
+      const ring = this.loops[d]
+      const i = this.vertex[e]
+      if (!rayCrosses(p, ring[i], ring[(i || ring.length) - 1])) continue
+      if (this.crossings[d]++ === 0) touched.push(d)
+    }
+    const odd = touched.filter((d) => this.crossings[d] % 2 === 1)
+    for (const d of touched) this.crossings[d] = 0
+    return odd
+  }
+
+  private strip(y: number): number {
+    return clamp(Math.floor((y - this.low) / this.step), 0, this.strips - 1)
+  }
+
+  private forEachEdge(visit: (a: Point, b: Point, loop: number, vertex: number) => void) {
+    this.loops.forEach((ring, d) => {
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i]
+        const b = ring[(i || ring.length) - 1]
+        if (Number.isFinite(a.y) && Number.isFinite(b.y) && a.y !== b.y) visit(a, b, d, i)
+      }
+    })
+  }
 }
 
 function depth(parent: number[], k: number): number {
