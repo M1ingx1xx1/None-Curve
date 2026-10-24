@@ -288,23 +288,16 @@ input[type='range']:disabled {
 }
 
 .workspace {
-  /* Two rows that always fill the space between the header and the status bar. The split is set
-     inline by Workspace; the rows always add up to the same height. */
+  /* Two columns that always fill the space between the header and the status bar. The split is set
+     inline by Workspace; the columns always add up to the same width. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 1px minmax(0, var(--rows-bottom, 38fr));
+  grid-template-columns: minmax(0, var(--side-width, 30fr)) 1px minmax(0, var(--canvas-width, 70fr));
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
 
-/* Top row: tools + parameters | handle | canvas. */
-.workspace-top {
-  display: grid;
-  grid-template-columns: minmax(0, var(--side-width, 30fr)) 1px minmax(0, var(--canvas-width, 70fr));
-  min-width: 0;
-  min-height: 0;
-}
-
+/* Left column: tools, then the parameters and the text tools (with their own handle). */
 .workspace-side {
   display: flex;
   flex-direction: column;
@@ -312,10 +305,28 @@ input[type='range']:disabled {
   min-height: 0;
 }
 
-/* Bottom row: glyphs | handle | text input and preview (with their own handle). */
-.workspace-bottom {
+.workspace-panels {
+  flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, var(--glyphs-width, 30fr)) 1px minmax(0, var(--input-width, 70fr));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--side-top, 62fr)) 1px minmax(0, var(--side-bottom, 38fr));
+  min-height: 0;
+}
+
+/* Text tools folded down to their tabs: the parameters take the rest of the column. */
+.workspace-panels[data-collapsed] {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.workspace-panels[data-collapsed] > .workspace-glyphs {
+  border-top: 1px solid var(--border);
+}
+
+/* Right column: canvas | handle | text input and preview (with their own handle). */
+.workspace-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 1px minmax(0, var(--rows-bottom, 38fr));
   min-width: 0;
   min-height: 0;
 }
@@ -339,7 +350,6 @@ input[type='range']:disabled {
 }
 
 .workspace-geometry {
-  flex: 1;
   overflow-y: auto;
 }
 
@@ -458,9 +468,36 @@ input[type='range']:disabled {
   height: 100%;
 }
 
-.text-tools .tool-tabs {
+/* The tabs, then the button that folds the text tools down to them. */
+.text-tools-head {
   flex: none;
-  padding: 4px 14px 0;
+  display: flex;
+  align-items: stretch;
+  padding: 4px 6px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.text-tools .tool-tabs {
+  flex: 1;
+  border-bottom: 0;
+}
+
+.text-tools-fold {
+  flex: none;
+  align-self: center;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.text-tools-fold:hover {
+  color: var(--text);
+}
+
+/* Down: folds the panel down. Up while folded: opens it again. */
+.text-tools-fold[aria-expanded='false'] .icon {
+  transform: rotate(180deg);
 }
 
 .text-tools-panel {
@@ -1346,6 +1383,11 @@ input[type='range']:disabled {
 .geometry-tabs {
   margin: -8px -16px 0;
   padding: 0 16px;
+  /* The tabs stay in view while a long tab (Experimental, Sound) scrolls below them. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
 }
 
 .geometry-tab-panel {

@@ -695,8 +695,9 @@ export default function App({ restored }: AppProps) {
               </Glided>
             )
           }
-          textTools={
+          textTools={(fold) => (
             <TextTools
+              {...fold}
               typography={typography}
               palette={palette}
               livePalette={livePalette}
@@ -707,7 +708,7 @@ export default function App({ restored }: AppProps) {
               dispatch={edit}
               onInsertGlyph={insertGlyph}
             />
-          }
+          )}
           input={
             <InputPanel
               text={

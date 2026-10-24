@@ -6,9 +6,11 @@ import type { SpecimenScene } from '../specimen/scene'
 import type { Action } from '../state/editorState'
 import ColorControls from './ColorControls'
 import GlyphPanel from './GlyphPanel'
+import Icon from './Icon'
 import TypographyControls from './TypographyControls'
+import type { TextToolsFold } from './Workspace'
 
-interface TextToolsProps {
+interface TextToolsProps extends TextToolsFold {
   typography: TypographyParams
   palette: PaletteParams
   /** The colours Sound shows over `palette` (the live look), for the Color tab's live swatches. */
@@ -47,6 +49,8 @@ function readTab(): Tab {
  * Bottom left: everything about the text other than its shape, in three tabs — how it is set on the
  * canvas (Typography), characters to insert (Glyphs), and its colours (Color). Every tab stays
  * mounted, so switching keeps local state such as the glyph search or a hex value being typed.
+ * The button after the tabs folds the panel down to the tabs (Workspace gives the parameters above
+ * the room); choosing a tab opens it again.
  */
 export default function TextTools({
   typography,
@@ -58,10 +62,16 @@ export default function TextTools({
   loadSliderScene,
   dispatch,
   onInsertGlyph,
+  collapsed,
+  onCollapsedChange,
 }: TextToolsProps) {
   const [tab, setTab] = useState<Tab>(readTab)
   const ids = useId()
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ typography: null, glyphs: null, color: null })
+  const select = (target: Tab) => {
+    setTab(target)
+    onCollapsedChange(false)
+  }
 
   useEffect(() => {
     try {
@@ -78,7 +88,7 @@ export default function TextTools({
     if (next === undefined) return
     e.preventDefault()
     const target = tabs[(next + tabs.length) % tabs.length].id
-    setTab(target)
+    select(target)
     tabRefs.current[target]?.focus()
   }
 
@@ -86,30 +96,43 @@ export default function TextTools({
     role: 'tabpanel',
     id: `${ids}-${id}-panel`,
     'aria-labelledby': `${ids}-${id}-tab`,
-    hidden: tab !== id,
+    hidden: collapsed || tab !== id,
   })
 
   return (
     <section className="text-tools" aria-label="Typography, glyphs, and color">
-      <div className="tool-tabs" role="tablist" aria-label="Text tools" onKeyDown={onTabKeyDown}>
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            ref={(el) => {
-              tabRefs.current[t.id] = el
-            }}
-            type="button"
-            role="tab"
-            data-map-tab={t.id}
-            id={`${ids}-${t.id}-tab`}
-            aria-selected={tab === t.id}
-            aria-controls={`${ids}-${t.id}-panel`}
-            tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="text-tools-head">
+        <div className="tool-tabs" role="tablist" aria-label="Text tools" onKeyDown={onTabKeyDown}>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              ref={(el) => {
+                tabRefs.current[t.id] = el
+              }}
+              type="button"
+              role="tab"
+              data-map-tab={t.id}
+              id={`${ids}-${t.id}-tab`}
+              aria-selected={tab === t.id}
+              aria-controls={`${ids}-${t.id}-panel`}
+              tabIndex={tab === t.id ? 0 : -1}
+              onClick={() => select(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="text-tools-fold"
+          aria-label="Show the text tools"
+          aria-expanded={!collapsed}
+          aria-controls={`${ids}-${tab}-panel`}
+          title={collapsed ? 'Show the text tools' : 'Fold the text tools down to their tabs'}
+          onClick={() => onCollapsedChange(!collapsed)}
+        >
+          <Icon name="chevron" />
+        </button>
       </div>
 
       <div className="text-tools-panel text-tools-scroll" {...panel('typography')}>
