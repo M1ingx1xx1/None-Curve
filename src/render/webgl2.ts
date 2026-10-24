@@ -90,8 +90,11 @@ function compile(
   return { program, uniforms: locations }
 }
 
+/** Colours kept parsed; Sound rewrites the ink every frame, so the cache starts over past this many. */
+const COLOR_CACHE_MAX = 256
+
 /** A colour the theme or palette gave, as numbers; anything parseColor cannot read goes through a 2D canvas. */
-function rgbaOf(color: string, cache: Map<string, Rgba>): Rgba {
+export function rgbaOf(color: string, cache: Map<string, Rgba>): Rgba {
   let rgba = cache.get(color)
   if (rgba) return rgba
   rgba = parseColor(color) ?? undefined
@@ -104,6 +107,7 @@ function rgbaOf(color: string, cache: Map<string, Rgba>): Rgba {
     }
   }
   rgba ??= [0, 0, 0, 1]
+  if (cache.size >= COLOR_CACHE_MAX) cache.clear()
   cache.set(color, rgba)
   return rgba
 }
