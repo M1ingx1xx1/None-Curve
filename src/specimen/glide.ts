@@ -33,7 +33,7 @@ import type { GlideFrame, GlyphMorph } from '../render/types'
 import type { CommitTiming } from '../sound/timelineTypes'
 import type { ChainTag, PlanSource } from '../state/aheadTypes'
 import { morphAt, planMorph, settleInBetween, type MorphPlan } from './morph'
-import type { PlacedGlyph, SpecimenScene } from './scene'
+import type { Extent, PlacedGlyph, SpecimenScene } from './scene'
 
 export const GLIDE_LIMITS = {
   /**
@@ -100,6 +100,8 @@ interface Tween {
   start: number
   duration: number
   fromSlant: number
+  /** One per line of the target: where its baseline glides from (with its glyphs, as line height changes). */
+  fromBaselines: number[]
   /** One per glyph of the target, in reading order; null: shown as it is. */
   glyphs: (GlyphGlide | null)[]
   /** Glyphs not paired yet. */
@@ -196,12 +198,13 @@ export class SceneGlide {
       return polygon
     }
     let k = 0
-    const lines = target.lines.map((line) => ({
+    const p = easeOut((now - tween.start) / tween.duration)
+    const lines = target.lines.map((line, l) => ({
       ...line,
+      baseline: tween.fromBaselines[l] + (line.baseline - tween.fromBaselines[l]) * p,
       glyphs: line.glyphs.map((g): PlacedGlyph => {
         const glide = tween.glyphs[k++]
         if (!glide) return g
-        const p = easeOut((now - tween.start) / tween.duration)
         const x = glide.fromX + (g.x - glide.fromX) * p
         const y = glide.fromY + (g.y - glide.fromY) * p
         if (glide.plan === undefined) return { ...g, x, y, polygon: glide.from }
@@ -209,7 +212,6 @@ export class SceneGlide {
         return { ...g, x, y, polygon: outline(glide, glide.plan, glide.start) }
       }),
     }))
-    const p = easeOut((now - tween.start) / tween.duration)
     return { ...target, lines, slant: tween.fromSlant + (target.slant - tween.fromSlant) * p }
   }
 
@@ -278,7 +280,8 @@ export class SceneGlide {
         glyphs.push(glide)
       }
     }
-    return moves ? { start: now, duration, fromSlant: shown.slant, glyphs, pending, asks } : null
+    const fromBaselines = shown.lines.map((line) => line.baseline)
+    return moves ? { start: now, duration, fromSlant: shown.slant, fromBaselines, glyphs, pending, asks } : null
   }
 
   /** Cancels the plans asked of the workers that the new tween does not wait on. */
@@ -391,8 +394,10 @@ export class SceneGlide {
     const morphs: (GlyphMorph | null)[] = []
     let morphing = false
     let k = 0
-    const lines = target.lines.map((line) => {
-      let changed = false
+    const lines = target.lines.map((line, l) => {
+      // The line's baseline and ink travel with its glyphs, so culling sees the line where it is drawn.
+      const baseline = lerp(tween.fromBaselines[l], line.baseline)
+      let changed = baseline !== line.baseline
       const glyphs = line.glyphs.map((g): PlacedGlyph => {
         const glide = tween.glyphs[k++]
         let morph: GlyphMorph | null = null
@@ -416,9 +421,9 @@ export class SceneGlide {
         const y = lerp(glide.fromY, g.y)
         if (polygon === g.polygon && x === g.x && y === g.y) return g
         changed = true
-        return { ...g, x, y, polygon }
+        return { ...g, x, y, polygon, ink: shifted(g.ink, x - g.x, y - g.y) }
       })
-      return changed ? { ...line, glyphs } : line
+      return changed ? { ...line, glyphs, baseline, ink: inkOf(glyphs) } : line
     })
     const layout: SpecimenScene = { ...target, lines, slant: lerp(tween.fromSlant, target.slant) }
     let scene: SpecimenScene | undefined
@@ -431,6 +436,28 @@ export class SceneGlide {
     this.last = { now, frame }
     return frame
   }
+}
+
+/** The box moved by (dx, dy). */
+function shifted(box: Extent | null, dx: number, dy: number): Extent | null {
+  if (!box || (dx === 0 && dy === 0)) return box
+  return { minX: box.minX + dx, minY: box.minY + dy, maxX: box.maxX + dx, maxY: box.maxY + dy }
+}
+
+/** The glyphs' ink together (a line's), or null when none has any. */
+function inkOf(glyphs: readonly PlacedGlyph[]): Extent | null {
+  let ink: Extent | null = null
+  for (const { ink: b } of glyphs) {
+    if (!b) continue
+    if (!ink) ink = { ...b }
+    else {
+      ink.minX = Math.min(ink.minX, b.minX)
+      ink.minY = Math.min(ink.minY, b.minY)
+      ink.maxX = Math.max(ink.maxX, b.maxX)
+      ink.maxY = Math.max(ink.maxY, b.maxY)
+    }
+  }
+  return ink
 }
 
 /** A frame with nothing on its way: the scene as it is. */
