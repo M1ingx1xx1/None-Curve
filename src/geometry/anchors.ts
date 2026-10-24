@@ -3,15 +3,9 @@
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings } from './crossings'
+import { ANCHOR_LIMITS } from './limits'
 import { distanceToSegment, signedArea } from './primitives'
 import type { AnchorParams, Point, PolygonContour, PolygonGlyph } from './types'
-
-export const ANCHOR_LIMITS = {
-  /** Spacing below this (font units) is raised to it. */
-  minSpacing: 1,
-  /** Spacing is skipped for a glyph if it would produce more vertices than this. */
-  maxVertices: 50_000,
-} as const
 
 export interface AnchorStats {
   /** Vertices coming out of flattening. */
