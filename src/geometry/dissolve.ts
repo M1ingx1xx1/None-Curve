@@ -1150,14 +1150,6 @@ function cross(ax: number, ay: number, bx: number, by: number, cx: number, cy: n
   return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
 }
 
-/** True when (px, py) lies strictly inside the triangle a, b, c (either way round). */
-function insideTriangle(px: number, py: number, ax: number, ay: number, bx: number, by: number, cx: number, cy: number): boolean {
-  const d1 = cross(ax, ay, bx, by, px, py)
-  const d2 = cross(bx, by, cx, cy, px, py)
-  const d3 = cross(cx, cy, ax, ay, px, py)
-  return (d1 > 0 && d2 > 0 && d3 > 0) || (d1 < 0 && d2 < 0 && d3 < 0)
-}
-
 /** The distance between the segments a–b and c–d (0 when they cross). */
 function segmentDistance(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): number {
   const d1 = cross(ax, ay, bx, by, cx, cy)

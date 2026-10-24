@@ -110,7 +110,12 @@ export function winding(contours: Contours, p: Point): number {
 export function inkArea(contours: Contours, lines = 1500): number {
   let y0 = Infinity
   let y1 = -Infinity
-  for (const ring of contours) for (const p of ring) (y0 = Math.min(y0, p.y)), (y1 = Math.max(y1, p.y))
+  for (const ring of contours) {
+    for (const p of ring) {
+      y0 = Math.min(y0, p.y)
+      y1 = Math.max(y1, p.y)
+    }
+  }
   if (!(y1 > y0)) return 0
   const h = (y1 - y0) / lines
   let area = 0

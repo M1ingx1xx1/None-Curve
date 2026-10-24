@@ -409,12 +409,11 @@ function searchStep(rings: number, half: number, rising: boolean, relative: numb
   let limit = Math.PI
   for (let k = 1; k < rings; k++) {
     // Walk out in small steps to the first flip, then narrow it down.
-    let lo = 0
     let hi = 0
     const stride = Math.PI / 720
     while (hi < limit && keeps(k, relative * (hi + stride))) hi += stride
     if (hi >= limit) continue
-    lo = hi
+    let lo = hi
     hi = Math.min(limit, hi + stride)
     for (let n = 0; n < 40; n++) {
       const mid = (lo + hi) / 2

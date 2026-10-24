@@ -1078,9 +1078,6 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
   )
 })
 
-/** A response value as a whole percentage: "100%". */
-const percent = (value: number) => Math.round(value * 100)
-
 /**
  * Each response value's knob: its label under the knob, its full name (when longer) and ⓘ explanation, and its unit:
  * percent on the knob for a fraction in the store (scale 100), or milliseconds as they are (Glide).

@@ -170,6 +170,8 @@ export default function SpecimenView({
   const markersHidden = (view.showSkeleton || view.showVertices) && !showMarkers
   const grid = ready ? gridLines(box, gridSize, u) : null
 
+  // A new font starts an empty cache: `font` is read by sourceFor, not by the factory.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const sources = useMemo(() => new Map<number, SourceGlyph | null>(), [font])
   const sourceFor = (index: number) => {
     if (!sources.has(index)) {
@@ -265,6 +267,8 @@ export default function SpecimenView({
   const sharedPaths = shared.defs.map(({ id, d }) => <SharedPath key={id} id={id} d={d} />)
 
   // The measurement probe (?probe=1) and the nc-draw measure: every committed render of the glyphs is a frame drawn.
+  // When this render started is what the probe measures.
+  // eslint-disable-next-line react-hooks/purity
   const renderStart = performance.now()
   useLayoutEffect(() => {
     if (!ready) return

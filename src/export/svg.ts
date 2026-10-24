@@ -61,6 +61,8 @@ export function outlineStrokeWidth(unitsPerPx: number): number {
 /** Removes characters that are not allowed in XML 1.0, then escapes markup characters. */
 export function escapeXml(text: string): string {
   return text
+    // The control characters XML 1.0 does not allow.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
     .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
     .replace(/&/g, '&amp;')

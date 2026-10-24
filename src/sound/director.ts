@@ -891,7 +891,7 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
   }
   const idle = (budgetMs: number) => {
     cancelIdle = null
-    let more = false
+    let more: boolean
     try {
       more = director.warm(budgetMs)
     } catch (error) {

@@ -268,7 +268,7 @@ export class WebGL2Renderer implements GlyphRenderer {
 
   /** A renderer on `canvas`, or null when WebGL2 (with a stencil) is not available or a shader does not compile. */
   static create(canvas: HTMLCanvasElement, options: WebGLOptions): WebGL2Renderer | null {
-    let gl: WebGL2RenderingContext | null = null
+    let gl: WebGL2RenderingContext | null
     try {
       gl = canvas.getContext('webgl2', { antialias: true, stencil: true, alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: false })
     } catch {

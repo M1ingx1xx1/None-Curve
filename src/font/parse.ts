@@ -165,7 +165,7 @@ function buildLoadedFont(
   instance: Record<string, number> | null,
   collection: Collection | null,
 ): LoadedFont {
-  const font = useOutlineGlyphs(colourFont)
+  const font = withOutlineGlyphs(colourFont)
   const metrics: FontMetrics = {
     unitsPerEm: font.unitsPerEm,
     ascender: font.ascent,
@@ -294,7 +294,7 @@ function instances(
     } else {
       if (base === undefined) base = variableBase(fontkit, font, bytes)
       const varied = instanceAt(fontkit, font, bytes, settings, base)
-      instance = varied ? { ...loaded, instance: settings, ...glyphAccess(useOutlineGlyphs(varied), metrics, refFor) } : loaded
+      instance = varied ? { ...loaded, instance: settings, ...glyphAccess(withOutlineGlyphs(varied), metrics, refFor) } : loaded
     }
     made.set(key, instance)
     while (made.size > MAX_INSTANCES) made.delete(made.keys().next().value!)
@@ -369,7 +369,7 @@ function isControlCharacter(cp: number): boolean {
  * glyphs built from layers or bitmaps, which it cannot read for COLR version 1 (Nabla, Honk, the
  * "Ink" families) and which have no outline to edit; the outline glyph underneath is what this app uses.
  */
-function useOutlineGlyphs(font: Font): Font {
+function withOutlineGlyphs(font: Font): Font {
   const internals = font as unknown as {
     directory: { tables: Record<string, unknown> }
     _glyphs: Record<number, Glyph | undefined>

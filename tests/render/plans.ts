@@ -175,8 +175,8 @@ export function whorlFixture(two: boolean): PlanFixture {
   ]
   const sx = Float64Array.from(pts.map(([x]) => x + 10))
   const sy = Float64Array.from(pts.map(([, y]) => y + 20))
-  const tx = Float64Array.from(pts.map(([x, y]) => -y * 0.8 + 40))
-  const ty = Float64Array.from(pts.map(([x, y]) => x * 0.9 - 10))
+  const tx = Float64Array.from(pts.map(([, y]) => -y * 0.8 + 40))
+  const ty = Float64Array.from(pts.map(([x]) => x * 0.9 - 10))
   const base = Uint8Array.from([0, 0, 1, 0, 1, 0])
   const built = whorlTrackData(from, to, sx, sy, tx, ty, base)
   const data: PlanData = {

@@ -440,8 +440,8 @@ export function parseConfig(text: string): ParsedConfig {
  */
 export function loadSession(storage: Storage | null = browserStorage()): RestoredSession {
   if (!storage) return { session: null, crashed: false }
-  let session: Session | null = null
-  let crashed = false
+  let session: Session | null
+  let crashed: boolean
   try {
     const text = storage.getItem(SESSION_KEY)
     session = text ? parseSession(text) : null

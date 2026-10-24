@@ -11,7 +11,6 @@ import { sameControlProps } from './sameControlProps'
 interface GridControlsProps {
   params: GridParams
   stats: ConstraintStats | null
-  unitsPerEm: number | null
   pending: boolean
   disabled: boolean
   dispatch: Dispatch<Action>
@@ -49,7 +48,7 @@ function describeFallbacks(stats: ConstraintStats, step: 'snap' | 'angle'): stri
   return parts.join('; ')
 }
 
-function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }: GridControlsProps) {
+function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) {
   const update = (patch: Partial<GridParams>) => dispatch({ type: 'updateParams', group: 'grid', patch })
   const snapOn = params.snap && params.size > 0
   const snapFallback = stats ? describeFallbacks(stats, 'snap') : null

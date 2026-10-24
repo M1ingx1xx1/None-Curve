@@ -146,7 +146,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
         />
         <SquaringControls params={state.params.squaring} stats={geometry?.squaring ?? null} {...common} />
         <AnchorControls params={state.params.anchors} stats={geometry?.anchors ?? null} unitsPerEm={unitsPerEm} {...common} />
-        <GridControls params={state.params.grid} stats={geometry?.constraints ?? null} unitsPerEm={unitsPerEm} {...common} />
+        <GridControls params={state.params.grid} stats={geometry?.constraints ?? null} {...common} />
         <DistortionControls
           params={state.params.distortion}
           stats={geometry?.distortion ?? null}

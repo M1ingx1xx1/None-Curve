@@ -87,7 +87,7 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
 
   /** A renderer on a real canvas, or null when it gives no 2D context. */
   static create(canvas: HTMLCanvasElement, mode: Canvas2DMode): Canvas2DRenderer<Path2D> | null {
-    let ctx: CanvasRenderingContext2D | null = null
+    let ctx: CanvasRenderingContext2D | null
     try {
       ctx = canvas.getContext('2d', { alpha: true, desynchronized: false })
     } catch {

@@ -34,7 +34,7 @@ function paletteBox(): { left: number; top: number; maxHeight: number; width: nu
  */
 const DropPalette = memo(function DropPalette({ feature }: { feature: string }) {
   const { mappings } = useMappingState()
-  const box = useMemo(paletteBox, [])
+  const box = useMemo(() => paletteBox(), [])
   const columns = useMemo(() => intoColumns(paletteBlocks(), Math.max(1, Math.floor(box.width / PALETTE_COLUMN))), [box])
   const mapped = useMemo(() => new Set(mappings.filter((m) => m.feature === feature).map((m) => m.target)), [mappings, feature])
   return (

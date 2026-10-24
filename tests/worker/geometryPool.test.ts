@@ -213,7 +213,7 @@ describe('geometry worker pool', () => {
     const listener = vi.fn()
     client.subscribe(listener)
     client.compute(font('f'), BASE, 'a', range(1, 6))
-    const [failing, fine] = workers
+    const [failing] = workers
     const lost = failing.lastRequest.jobs[0].indices
     failing.onerror?.({ preventDefault: () => {} } as ErrorEvent)
     expect(failing.terminated).toBe(true)

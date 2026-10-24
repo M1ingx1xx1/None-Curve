@@ -735,7 +735,7 @@ describe('ThornTurns', () => {
     }
     // The same letters set differently keep their groups and states.
     now += 1000
-    turns.update(letters, seedState(++seed), own, now, take)
+    turns.update(letters, seedState(seed + 1), own, now, take)
     turns.shownUpTo(turns.turns, now)
     const states = turns.states.slice()
     const restyled: LetterSlots = { ...letters, t: letters.t.map((t) => t / 2) }

@@ -32,7 +32,7 @@ export type ColorReader = (expression: string) => string
 export function resolveTokens(read: ColorReader): ThemeTokens {
   const colors = { ...FALLBACK }
   for (const key of Object.keys(THEME_TOKENS) as (keyof ThemeTokens)[]) {
-    let value = ''
+    let value: string
     try {
       value = read(`var(${THEME_TOKENS[key]})`).trim()
     } catch {

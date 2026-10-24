@@ -139,7 +139,7 @@ export function applyWarp(
   // Then each contour, in turn, checked against the others as they are at that moment: its exact image
   // (or a weaker one, if rounding ever breaks it), then, in its place, the tidied image if that is valid
   // too. The last contour of any pair to change is checked against the other's final points.
-  for (const [index, contour] of polygon.contours.entries()) {
+  for (const index of polygon.contours.keys()) {
     const image = images[index]
     if (!image) continue
     if (folds) {
