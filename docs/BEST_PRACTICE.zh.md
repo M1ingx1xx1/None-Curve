@@ -30,7 +30,8 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 - 测试放在 `tests/` 下，按领域分目录（`tests/geometry`、`tests/export`、`tests/font`、`tests/sound`、`tests/specimen`、`tests/state`、`tests/worker`，以及测试 `scripts/` 中 Jira 同步的 `tests/scripts`）；慢的测试放在 `tests/slow`。
 - `npm test` 运行快速测试（约 15 秒）。`npm run test:slow` 运行慢速测试（完整的 42 秒 Sound 测试音轨，以及两种测试字体的全部字形；约 5 分钟），只有点名要求时才运行。
 - `npm run build` 也会对测试和脚本做类型检查（`tsconfig.test.json`）。
-- 向 `develop` 提交 pull request 之前先运行 `npm test`。CI 在每个提交到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm test` 和 `npm run build`；Pages 部署也会先运行 `npm test` 再构建。
+- `npm run lint` 运行 ESLint（`eslint.config.js`）：推荐的 JavaScript、TypeScript 和 React hooks 规则，但关闭了三项会误报本项目既有写法的 React Compiler 检查（配置文件里写明是哪几项及原因）。名字以下划线开头表示有意不使用。有意省略的 hook 依赖写 `// eslint-disable-next-line react-hooks/exhaustive-deps`，并在上一行用注释说明原因；其他规则也不要在没有这样的原因时逐行关闭。
+- 向 `develop` 提交 pull request 之前先运行 `npm run lint` 和 `npm test`。CI 在每个提交到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm run lint`、`npm test` 和 `npm run build`；Pages 部署也会先运行 `npm test` 再构建。
 - 测试字体只用开源授权的字体（OFL：STIX Two Text 和 Roboto），每个字体旁边都放着它的 `OFL-*.txt`，位于 `tests/fixtures/fonts`。不要加入不允许再分发的字体。
 - 发现 `src/` 里 bug 的测试要保留下来，写成 `it.skip`，并加一条 `BUG:` 注释说明问题，直到 bug 修好为止。
 - 生成的文件不提交。Sound 测试音轨由 `npm run test-track`（来自 `scripts/test-track.ts`）渲染为 `test-audio/sound-test.wav`，git 会忽略它；有一个测试检查它每次渲染出的采样都相同。
