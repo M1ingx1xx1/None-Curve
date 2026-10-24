@@ -492,14 +492,11 @@ export class WebGL2Renderer implements GlyphRenderer {
             touched.add(plan)
             plan.used = 0
           }
-          let slot: GpuSlot | null = null
-          for (let i = 0; i < plan.used; i++) if (plan.slots[i].p === morph.p) slot = plan.slots[i]
-          if (!slot) {
-            const before = grew.bytes
-            slot = planSlot(gl, plan, grew)
-            this.plans.grow(morph.plan, grew.bytes - before)
-            this.evaluate(plan, slot, morph.p)
-          }
+          // A slot already at this progress (this frame's, or one a frame drawn again left) is not evaluated again.
+          const before = grew.bytes
+          const { slot, fresh } = planSlot(gl, plan, morph.p, grew)
+          this.plans.grow(morph.plan, grew.bytes - before)
+          if (fresh) this.evaluate(plan, slot, morph.p)
           item.plan = plan
           item.slot = slot
           item.bounds = plan.bounds
