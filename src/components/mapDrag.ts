@@ -464,7 +464,8 @@ export function startPick(feature: FeatureId, origin: HTMLElement) {
     if (picking === cancel) picking = null
     clearTimeout(timer)
     const id = list[index]
-    const rect = rectOf(zoneOf(id))
+    // A hidden control has no rect: the confirmation then goes under the meter that started the pick.
+    const rect = rectOf(zoneOf(id)) ?? rectOf(origin)
     end()
     if (mapped) drop(feature, id, rect)
     else set({ announcement: 'Mapping cancelled.' })
