@@ -8,7 +8,7 @@ import {
   type GoogleFamilyInfo,
   type GoogleFontRequest,
 } from '../font/google'
-import { looksLikeUrl, parseFontInput, type ParsedFontRequest } from '../font/googleUrl'
+import { enterChoice, looksLikeUrl, parseFontInput, type ParsedFontRequest } from '../font/googleUrl'
 import Icon from './Icon'
 
 interface GoogleFontsDialogProps {
@@ -123,6 +123,29 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
   const styleWeights = info ? (italic ? info.weights.italic : info.weights.normal) : []
   const canLoad = info !== null && styleWeights.includes(weight)
 
+  const load = () => {
+    if (!canLoad || !family) return
+    onLoad({ family, weight, italic, subset })
+    onClose()
+  }
+
+  /** Enter in the search field: select what was typed (or its best match), and load it once it is the selection. */
+  const submitSearch = () => {
+    const choice = enterChoice(
+      typed,
+      parsed,
+      curatedFamilies.map((f) => f.family),
+    )
+    if (!choice) return
+    const { request } = choice
+    const selected = request
+      ? requested !== null && requested.weight === request.weight && requested.italic === request.italic
+      : requested === null
+    if (family === choice.family && selected) load()
+    else if (request) chooseParsed(request)
+    else chooseCurated(choice.family)
+  }
+
   const changeItalic = (next: boolean) => {
     setItalic(next)
     if (info) {
@@ -147,9 +170,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
         className="gf-body"
         onSubmit={(e) => {
           e.preventDefault()
-          if (!canLoad || !family) return
-          onLoad({ family, weight, italic, subset })
-          onClose()
+          load()
         }}
       >
         <header className="gf-head">
@@ -178,10 +199,10 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
               aria-describedby="gf-intro"
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                // Enter on a pasted URL or typed name selects it instead of submitting the form.
-                if (e.key === 'Enter' && typed && !typedIsCurated && parsed?.ok) {
+                // Enter on typed text selects what it names instead of submitting the earlier selection.
+                if (e.key === 'Enter' && typed) {
                   e.preventDefault()
-                  chooseParsed(parsed.request)
+                  submitSearch()
                 }
               }}
             />
