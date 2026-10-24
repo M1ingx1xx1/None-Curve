@@ -13,6 +13,7 @@
 | 功能 | 状态 |
 |---|---|
 | 导入本地字体（.ttf / .otf / .woff / .woff2，以及带字面菜单的 .ttc / .otc 字体集合）和 Google Fonts，支持粘贴 Google Fonts 链接 | ✅ 已实现 |
+| 导入 SVG 作品（图标、标志），作为一个图形走同样的流水线、实验效果和声音 | ✅ 已实现 |
 | 字形列表、原始曲线骨架、Original / Flattened / Compare 视图 | ✅ 已实现 |
 | 曲线展平（自适应或固定线段数，可选合并相连曲线） | ✅ 已实现 |
 | 方形化（圆形 O → 方形 O）、锚点间距与简化、网格吸附、角度锁定、确定性扰动 | ✅ 已实现 |
@@ -151,6 +152,17 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 - **字体集合：** 字体信息里的样式名会变成一个字面菜单（“Face”）。打开集合时显示最接近 Regular 的正体字面（字重 400、正常宽度；相同时取靠前的字面）。macOS 隐藏的系统字面（PostScript 名以点开头）不列出。选中的字面记在字体来源里，所以几何 Worker 打开的是同一个字面。换到同一文件的另一个字面时，画布的缩放和平移保持不变，新字面有当前选中的字符时也保持选中；其他导入会重置缩放和平移，并选一个默认字母。不支持用 WOFF 或 WOFF2 包装的字体集合。
 - 通过 **Import** 选择文件，或直接拖到画布上（拖进来的 `.json` 文件按[配置文件](#配置文件)读取）。文件只在浏览器内读取，不会上传。上限 50 MB，字体集合也一样（Apple Color Emoji 的 `.ttc` 超过这个大小）。
 - 空文件、无法识别的文件和损坏的文件会给出不同的错误提示和 **Retry**；之前载入的字体保持显示。
+
+### SVG 作品
+
+通过 **Import → Local file** 选择或拖到画布上的 `.svg` 文件，会被读成只有一个字形（作品）的字体（`src/font/svgFont.ts`），所以它的轮廓和字母一样经过几何流水线、实验效果、声音、Glide 和各种导出。页面和几何 Worker 用同样的方式读取：`parseFont` 把首个字符（跳过字节顺序标记和空白后）是 `<` 的文件交给 SVG 读取器。
+
+- **能读取的内容**（`src/font/svgDocument.ts`、`src/font/svgPath.ts`；因为 Worker 里没有 `DOMParser`，用的是自写的小型 XML 读取器）：`<path>` 的全部命令（`M L H V C S Q T A Z`，绝对和相对；弧线转成每段最多四分之一圈的三次曲线）、`<rect>`（含圆角）、`<circle>`、`<ellipse>`、`<polygon>`、`<polyline>`、嵌套的 `<g>` 和 `<svg>`、`<use>`（引用元素或 `<symbol>`），以及 `transform` 列表（`matrix`、`translate`、`scale`、`rotate`、`skewX`、`skewY`）。路径数据中途出错时，和浏览器一样保留出错之前的部分。
+- **哪些会填充：** 先看表现属性，再看 `<style>` 中简单选择器（`tag`、`.class`、`#id`、组合、`*`）的规则，最后看 `style` 属性；`fill`、`fill-rule`、`fill-opacity` 和 `visibility` 会继承；`display: none`、`opacity: 0`、`fill="none"` 和 `fill-opacity="0"` 的图形不算。颜色不起作用：每个填充图形都是墨色，所以画在黑色图形上的白色图形也会填充。描边、文字、图片、渐变的外观、剪切路径、蒙版、`<defs>` 和编辑器数据（带前缀的元素，如 `sodipodi:namedview`）都不是轮廓。
+- **填充规则：** 程序按 nonzero 规则填充，所以每个图形的轮廓会被转向，使它在这条规则下填充得一样：`evenodd` 图形按每个轮廓嵌套的深度（外轮廓逆时针、洞顺时针，依此类推；轮廓互不相交时完全准确），`nonzero` 图形在墨色绕向为负时整体反转，这样重叠的图形会相加而不是相互抵消。
+- **摆放：** 画框（根元素的 `viewBox`，没有时用 `width` 和 `height`，再没有时用图形自身的范围）缩放到 1000 单位高（每 em 1000 单位，上伸 1000，下伸 0），底边落在基线上，y 轴朝上；字宽是画框在这个比例下的宽度。
+- **在画布上**作品单独显示，是映射到 U+E000 的一个字形：文本框变灰，并为下一个字体保留已输入的文字；字形列表里的这一项只用于选中作品。导出：SVG、PNG、视频和配置文件；不提供字体文件导出。会话和配置文件像记录本地字体一样记下文件名（“Import it again”）。
+- **限制和错误**（显示为 “SVG could not be used” 并提供 **Retry**）：超过 10 MB、超过 100 000 个元素或 30 000 段的文件会因过大被拒绝；不是格式良好的 XML、根元素不是 `<svg>`、只有描边（并说明如何在 Illustrator、Inkscape 和 Figma 中把描边转为轮廓）、只有文字或没有填充图形，各有各的提示。
 
 ### Google Fonts
 
@@ -316,6 +328,8 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - 导出对话框会说明当前是哪种：“Fill is on: the letters are filled.”，或者一条提示 “Fill is off on the canvas: outlines only, 2 px strokes in the text colour with no fill.”；完成消息会加上 “, outlines only”，SVG 的摘要写 “stroked with no fill”。字体文件则写明 “Always filled”。
 
 ### 字体文件
+
+打开 [SVG 作品](#svg-作品) 时不提供。
 
 - 格式：**OpenType CFF 轮廓（`.otf`）**，用 opentype.js 写入（fontkit 只能读取字体）。只在生成字体时加载。
 - 字形范围：当前字形、输入文字中的字符，或字体中所有已映射字符（最多 5000 个字形、1 000 000 个轮廓点——Anchor spacing 1 这类很密的设置、或所有实验效果都开到最大时，导出整套字体会达到点数上限，生成会停止并给出提示），另加一个 `.notdef` 方框。**字形大小：** CFF 中每个坐标都在 ±32 767 以内，相邻两点之间在每个方向上最多相差 32 767 单位，所以每个字形都必须放进一个边长 32 766 字体单位的正方形（每 em 2048 单位时为 16 em，1000 单位时为 32.8 em；`src/export/fitGlyph.ts` 中的 `FONT_BOX_LIMITS`）。在每个方向上，跨度不超过 32 766 单位（且在 ±32 767 以内）的字形保持完整；更宽的字形，正方形在这个方向上取以 em 框为中心的 32 766 单位（横向以字宽的一半为中心，纵向以上伸和下伸的中点为中心），必要时移进字形的范围内，边缘取整数单位。超出正方形的轮廓部分（比如很长的 Thorn 刺尖）会在它的边缘被直线切掉，而不是整个字形被略去（每个轮廓沿正方形的各边裁剪；裁完没有面积的轮廓去掉），对话框会列出这些字形：“Trimmed to fit: a font stores each glyph within a square 32,766 font units across (N em for this font). Outline parts reaching further, such as long Thorn tips, were cut off at its edge in …. Only the font file is trimmed: the canvas, SVG and PNG are not.”。字宽超过 32 767 单位的字形会被略去并写明原因；裁切之后还会再检查一遍坐标限制。对话框会事先估计大小（“About N outline points.”，根据已经算好的字形，其余字形按它们的平均值估算），超过 1 000 000 个点的上限时给出警告，还有很多字形需要计算时提醒生成可能要几分钟。

@@ -26,7 +26,7 @@ Everything happens inside your web browser. Your font and audio files are never 
 ## 2. What you need
 
 - A computer with a recent web browser (Chrome, Edge, Firefox, or Safari). Phones and tablets are not supported: the tool is built for a large screen.
-- Either a font file on your computer (`.ttf`, `.otf`, `.woff`, `.woff2`, or a `.ttc` / `.otc` font collection) **or** an internet connection to load a font from Google Fonts.
+- Either a font file on your computer (`.ttf`, `.otf`, `.woff`, `.woff2`, or a `.ttc` / `.otc` font collection) **or** an internet connection to load a font from Google Fonts. Instead of a font you can also bring a drawing saved as `.svg`, such as an icon or a logo (see [An SVG drawing instead of a font](#an-svg-drawing-instead-of-a-font)).
 - Optional, for the **Sound** tab: an audio file (such as an MP3) or a microphone.
 - The app's web address — for example `https://m1ingx1xx1.github.io/None-Curve/` — or ask whoever set up the project for it.
 
@@ -129,6 +129,18 @@ Click **Import** at the top of the tools area. You get three choices: a font fro
 - Loading any other font starts the canvas view afresh: it zooms to fit and selects a default letter.
 - The file stays on your computer; it is only read by your browser. The next time you open the app, it names the file and asks you to import it again (see [Coming back later](#coming-back-later)).
 
+### An SVG drawing instead of a font
+
+A drawing is made of outlines and anchor points just like a letter, so None-Curve can rebuild it the same way.
+
+- Choose **Local file** and pick an `.svg` file, **or** drag it onto the canvas. Icons and logos work best.
+- The drawing appears on its own on the canvas, as if it were a single letter. Every control works on it: curve flattening, squaring, anchors, grid, distortion, the **Experimental** effects, and **Sound**.
+- The text box turns grey while a drawing is open, because there is nothing to type with. Your text is kept: it comes back as soon as you load a font again.
+- Colours in the file are ignored: every filled shape becomes part of the drawing, in the text colour from the **Color** tab. Holes (the middle of an "O"-like shape) stay holes.
+- **Export** offers SVG, PNG, video, and the config file. A font file cannot be made from a drawing, so that choice is hidden.
+- **Lines with no fill do not count.** Many line icons (Feather, Lucide, and similar) are drawn only with strokes. Turn the strokes into shapes first in your design app — Illustrator: *Object → Path → Outline Stroke*; Inkscape: *Path → Stroke to Path*; Figma: *Outline stroke* — then import the file again. Text inside an SVG must be converted to outlines the same way.
+- Very large files (over 10 MB, or extremely detailed drawings) are refused with a message saying so: simplify the drawing first.
+
 ### From Google Fonts
 
 Choose **Google Fonts**. In the **Family** box you can:
@@ -153,6 +165,7 @@ The tools area shows what happened and offers **Retry**:
 |---|---|---|
 | Empty file / Unsupported format | The file is not a font, or is empty. | Use a `.ttf`, `.otf`, `.woff`, `.woff2`, `.ttc`, or `.otc` file. |
 | Font parsing failed | The file is damaged. | Try another copy of the font. |
+| SVG could not be used | The SVG drawing is damaged, too large, or has only lines or text and no filled shapes. The message says which. | Follow the message: convert strokes or text to outlines, or simplify the drawing. |
 | Google Fonts API error | Google does not know that name. | Check the spelling and capital letters. |
 | Network / CORS error | No internet, or a browser extension blocked the request. | Check your connection or ad blocker, then **Retry**. |
 | Only fonts.google.com … URLs are accepted | The pasted link is not a Google Fonts link. | Paste a link from fonts.google.com. |
