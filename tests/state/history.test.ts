@@ -430,8 +430,8 @@ describe('Reset all', () => {
     const font = { familyName: 'Test', styleName: 'Regular' } as LoadedFont
     let state: AppState = { ...initialState, document: { ...initialState.document, status: { kind: 'ready' }, font } }
     state = editorReducer(state, { type: 'selectGlyph', glyph: { index: 5, name: 'b', unicode: 98 } })
-    state = editorReducer(state, { type: 'updateParams', group: 'view', patch: { outline: 'compare', showFill: false, zoom: 3, panX: 40 } })
-    state = editorReducer(state, { type: 'updateExport', patch: { precision: 4, lastExport: { fileName: 'a.svg', at: '' } } })
+    state = editorReducer(state, { type: 'updateParams', group: 'view', patch: { outline: 'compare', showFill: false } })
+    state = editorReducer(state, { type: 'updateExport', patch: { precision: 4 } })
     expect(editorReducer(state, { type: 'resetAll' })).toBe(initialState)
   })
 
@@ -443,14 +443,14 @@ describe('Reset all', () => {
   })
 
   it('knows when there is nothing to reset: no font, the sample text, and every default', () => {
-    const start: StartCheck = { document: initialState.document, view: initialState.params.view, extras: DEFAULT_RESET_EXTRAS, drive: true, defaultDrive: true }
+    const start: StartCheck = { document: initialState.document, view: initialState.params.view, viewMoved: false, extras: DEFAULT_RESET_EXTRAS, drive: true, defaultDrive: true }
     const font = { familyName: 'Test', styleName: 'Regular' } as LoadedFont
     expect(isAtStart(START_SNAPSHOT, start)).toBe(true)
     expect(isAtStart(START_SNAPSHOT, { ...start, drive: false, defaultDrive: false })).toBe(true)
     expect(isAtStart(START_SNAPSHOT, { ...start, document: { ...start.document, status: { kind: 'ready' }, font } })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, document: { ...start.document, status: { kind: 'error', origin: 'google', errorKind: 'network', message: '' } } })).toBe(false)
     expect(isAtStart({ ...START_SNAPSHOT, text: 'Other' }, start)).toBe(false)
-    expect(isAtStart(START_SNAPSHOT, { ...start, view: { ...start.view, zoom: 2 } })).toBe(false)
+    expect(isAtStart(START_SNAPSHOT, { ...start, viewMoved: true })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, view: { ...start.view, showVertices: true } })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, drive: false })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, extras: { ...start.extras, precision: 3 } })).toBe(false)

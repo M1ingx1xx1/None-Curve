@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent } from 'react'
 import { formatCodePoint } from '../font/model'
 import { canvasDiagonalEm, THORN_LIMITS } from '../geometry/thorn'
 import type { GlyphRef } from '../geometry/types'
@@ -8,6 +8,7 @@ import type { DerivedGeometryState } from '../state/useDerivedGeometry'
 import type { AppState } from '../state/types'
 import AnchorControls from './AnchorControls'
 import DistortionControls from './DistortionControls'
+import ErrorBoundary from './ErrorBoundary'
 import FlattenControls from './FlattenControls'
 import GridControls from './GridControls'
 import { HintButton, HintText, useHint } from './Hint'
@@ -134,7 +135,7 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
         <label htmlFor="show-explanations">Show all explanations</label>
       </div>
 
-      <div {...panel('geometry')}>
+      <TabPanel {...panel('geometry')} label="The Geometry tab">
         <PipelineIntro glyph={font ? selectedGlyph : undefined} />
         <FlattenControls
           params={state.params.flatten}
@@ -153,9 +154,9 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
           {...common}
         />
         <RandomAnchorControls params={state.params.random} stats={geometry?.random ?? null} {...common} />
-      </div>
+      </TabPanel>
 
-      <div {...panel('experimental')}>
+      <TabPanel {...panel('experimental')} label="The Experimental tab">
         {opened.has('experimental') && (
           <Suspense fallback={null}>
             <ExperimentalControls
@@ -167,16 +168,25 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
             />
           </Suspense>
         )}
-      </div>
+      </TabPanel>
 
-      <div {...panel('sound')}>
+      <TabPanel {...panel('sound')} label="The Sound tab">
         {opened.has('sound') && (
           <Suspense fallback={null}>
             <SoundControls params={state.params} dispatch={dispatch} axes={font?.axes} />
           </Suspense>
         )}
-      </div>
+      </TabPanel>
     </aside>
+  )
+}
+
+/** A tab's panel, behind its own error boundary: a throw in one tab leaves the others and the rest of the page working. */
+function TabPanel({ label, children, ...props }: ComponentProps<'div'> & { label: string }) {
+  return (
+    <div {...props}>
+      <ErrorBoundary label={label}>{children}</ErrorBoundary>
+    </div>
   )
 }
 

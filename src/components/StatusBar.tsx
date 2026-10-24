@@ -6,6 +6,7 @@ import { getSoundEngine } from '../sound/engine'
 import { useLiveStatus } from '../sound/live'
 import { useMappingState } from '../sound/mappingStore'
 import type { SpecimenScene } from '../specimen/scene'
+import { usePanZoomMoved } from '../state/canvasView'
 import { isAtStart, type ResetExtras } from '../state/reset'
 import type { AppState } from '../state/types'
 import type { GlyphGeometry } from '../state/useDerivedGeometry'
@@ -23,6 +24,8 @@ interface StatusBarProps {
   extras: ResetExtras
   /** Reset all (App's resetAll): back to how the editor first opens. */
   onReset: () => void
+  /** The browser refused to save the session (storage full or blocked): settings will not be kept for the next visit. */
+  saveFailed?: boolean
 }
 
 const statusText: Record<AppState['document']['status']['kind'], string> = {
@@ -45,17 +48,18 @@ const micStatus = (): MicStatus => {
 // Sensitivity and Release, for whether Reset has anything to do: the same object until they change.
 const soundSettings = () => getSoundEngine().getState().settings
 
-export default function StatusBar({ state, glyphGeometry, shownParams, scene, text, extras, onReset }: StatusBarProps) {
+export default function StatusBar({ state, glyphGeometry, shownParams, scene, text, extras, onReset, saveFailed = false }: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
   const mic = useSyncExternalStore(subscribeSound, micStatus)
   const live = useLiveStatus()
   const { mappings, response, drive, reducedMotion } = useMappingState()
   const sound = useSyncExternalStore(subscribeSound, soundSettings)
+  const viewMoved = usePanZoomMoved()
   const { view: _view, ...settings } = state.params
   const atStart = isAtStart(
     { params: settings, text, mappings, sound: { ...sound, ...response } },
-    { document: state.document, view, extras, drive, defaultDrive: !reducedMotion },
+    { document: state.document, view, viewMoved, extras, drive, defaultDrive: !reducedMotion },
   )
   let glyphInfo = '—'
   let advance: number | null = null
@@ -100,6 +104,10 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene, te
           Always in the document and polite, so it is also announced from every tab when the microphone stops. */}
       <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}
+      </span>
+      {/* Shown from the first save the browser refuses, and announced once. */}
+      <span role="status" className={saveFailed ? undefined : 'visually-hidden'} title={saveFailed ? 'The browser’s storage is full or blocked, so the settings will not be kept for the next visit.' : undefined}>
+        {saveFailed ? 'Settings not saved' : ''}
       </span>
       {/* Back to how the editor first opens: the font closes, the text and every setting return to the start,
           and the undo history is cleared (state/reset.ts).

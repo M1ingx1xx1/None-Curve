@@ -465,6 +465,21 @@ describe('saved session', () => {
     vi.advanceTimersByTime(1000)
     expect(read).toHaveBeenCalledTimes(2)
   })
+
+  it('tells of the first save the browser refuses, once', () => {
+    const storage = new MemoryStorage()
+    const onFailure = vi.fn()
+    const saver = createSessionSaver(changedSession, storage as unknown as Storage, 500, onFailure)
+    saver.schedule()
+    saver.flush()
+    expect(onFailure).not.toHaveBeenCalled()
+    storage.full = true
+    for (let k = 0; k < 3; k++) {
+      saver.schedule()
+      saver.flush()
+    }
+    expect(onFailure).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('config file', () => {

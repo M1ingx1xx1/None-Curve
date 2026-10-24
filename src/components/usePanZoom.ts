@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import type { ViewParams } from '../state/types'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import type { PanZoom, ViewParams } from '../state/types'
 
 export const MIN_ZOOM = 0.25
 export const MAX_ZOOM = 40
@@ -35,7 +35,8 @@ function useElementSize<T extends HTMLElement>() {
 /**
  * Shared pan / zoom for the result canvas. Coordinates are font units with y up; the returned
  * view box is for an SVG whose content is drawn at (x, −y). Wheel zooms around the cursor, drag and
- * arrow keys pan, + / − zoom, 0 fits.
+ * arrow keys pan, + / − zoom, 0 fits. Every change builds on the last one made here, not on the last render, so
+ * several pointer moves or wheel turns between two renders all count.
  */
 export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch: Partial<ViewParams>) => void) {
   const [containerRef, size] = useElementSize<HTMLDivElement>()
@@ -48,14 +49,36 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
   const cy = frame.cy + view.panY
   const box = { left: cx - visW / 2, right: cx + visW / 2, top: cy + visH / 2, bottom: cy - visH / 2 }
 
-  const latest = useRef({ view, frame, visW, visH, size })
-  latest.current = { view, frame, visW, visH, size }
+  // The zoom and pan as last set here, ahead of the render that shows them. A view from outside (Fit, a new font)
+  // replaces it as soon as a render brings it.
+  const seen = useRef<PanZoom>(view)
+  const current = useRef<PanZoom>(view)
+  if (seen.current.zoom !== view.zoom || seen.current.panX !== view.panX || seen.current.panY !== view.panY) {
+    seen.current = view
+    current.current = { zoom: view.zoom, panX: view.panX, panY: view.panY }
+  }
+  const latest = useRef({ frame, size, onViewChange })
+  latest.current = { frame, size, onViewChange }
+  // Font units per screen pixel at `zoom`, for the latest size and frame (1 until the container is measured, as `u`).
+  const unitsAt = useCallback((zoom: number) => {
+    const { frame, size } = latest.current
+    const fit = Math.min(size.width / frame.width, size.height / frame.height)
+    return fit > 0 ? 1 / (fit * zoom) : 1
+  }, [])
+  const apply = useCallback((patch: Partial<PanZoom>) => {
+    current.current = { ...current.current, ...patch }
+    latest.current.onViewChange(patch)
+  }, [])
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const { view, frame, visW, visH, size } = latest.current
+      const { frame, size } = latest.current
+      const view = current.current
+      const visW = size.width * unitsAt(view.zoom)
+      const visH = size.height * unitsAt(view.zoom)
       const rect = el.getBoundingClientRect()
       const fx = (e.clientX - rect.left) / size.width - 0.5
       const fy = (e.clientY - rect.top) / size.height - 0.5
@@ -63,11 +86,11 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
       const ratio = view.zoom / zoom
       const px = frame.cx + view.panX + fx * visW
       const py = frame.cy + view.panY - fy * visH
-      onViewChange({ zoom, panX: px - fx * visW * ratio - frame.cx, panY: py + fy * visH * ratio - frame.cy })
+      apply({ zoom, panX: px - fx * visW * ratio - frame.cx, panY: py + fy * visH * ratio - frame.cy })
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [containerRef, onViewChange])
+  }, [containerRef, unitsAt, apply])
 
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
   const lastGestureMoved = useRef(false)
@@ -83,9 +106,10 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
       const dy = e.clientY - d.y
       if (!d.moved && Math.hypot(dx, dy) < 3) return
       if (!d.moved) e.currentTarget.setPointerCapture(e.pointerId)
-      d.moved = true
       drag.current = { x: e.clientX, y: e.clientY, moved: true }
-      onViewChange({ panX: view.panX - dx * u, panY: view.panY + dy * u })
+      const { zoom, panX, panY } = current.current
+      const units = unitsAt(zoom)
+      apply({ panX: panX - dx * units, panY: panY + dy * units })
     },
     onPointerUp() {
       lastGestureMoved.current = drag.current?.moved ?? false
@@ -97,7 +121,8 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
     },
     onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
       if (e.target !== e.currentTarget) return
-      const step = 40 * u
+      const { zoom, panX, panY } = current.current
+      const step = 40 * unitsAt(zoom)
       const pans: Record<string, [number, number]> = {
         ArrowLeft: [step, 0],
         ArrowRight: [-step, 0],
@@ -106,10 +131,10 @@ export function usePanZoom(frame: Frame, view: ViewParams, onViewChange: (patch:
       }
       if (pans[e.key]) {
         const [x, y] = pans[e.key]
-        onViewChange({ panX: view.panX + x, panY: view.panY + y })
-      } else if (e.key === '+' || e.key === '=') onViewChange({ zoom: clampZoom(view.zoom * 1.25) })
-      else if (e.key === '-') onViewChange({ zoom: clampZoom(view.zoom / 1.25) })
-      else if (e.key === '0') onViewChange({ zoom: 1, panX: 0, panY: 0 })
+        apply({ panX: panX + x, panY: panY + y })
+      } else if (e.key === '+' || e.key === '=') apply({ zoom: clampZoom(zoom * 1.25) })
+      else if (e.key === '-') apply({ zoom: clampZoom(zoom / 1.25) })
+      else if (e.key === '0') apply({ zoom: 1, panX: 0, panY: 0 })
       else return
       e.preventDefault()
     },

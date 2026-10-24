@@ -3,17 +3,14 @@ import { pickDefaultGlyph, type LoadedFont } from '../font/model'
 import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../specimen/artboard'
 import { canvasDiagonalEm } from '../geometry/thorn'
 import type { ExperimentalParams, GlyphRef } from '../geometry/types'
-import type { AppState, EditorParams, ExportMeta, ImportOrigin, SettingsParams, ViewParams } from './types'
+import type { AppState, EditorParams, ExportMeta, ImportOrigin, SettingsParams, ViewToggles } from './types'
 
-const initialView: ViewParams = {
+const initialView: ViewToggles = {
   outline: 'flattened',
   showFill: true,
   showSkeleton: false,
   showVertices: false,
   showMetrics: false,
-  zoom: 1,
-  panX: 0,
-  panY: 0,
 }
 
 export const initialState: AppState = {
@@ -21,7 +18,7 @@ export const initialState: AppState = {
     status: { kind: 'empty' },
     font: null,
     selectedGlyph: null,
-    export: { format: 'svg', precision: 2, lastExport: null },
+    export: { precision: 2 },
   },
   params: {
     flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4, mergeCurves: false, breakAt: 'extrema', cornerAngle: 15, mergeLines: false },
@@ -72,16 +69,22 @@ export type Action =
   | { [G in ParamGroup]: { type: 'updateParams'; group: G; patch: Partial<EditorParams[G]> } }[ParamGroup]
   /** Undo and redo: every settings group at once; the canvas view is kept. */
   | { type: 'restoreParams'; params: SettingsParams }
-  | { type: 'resetView' }
   /** Reset all: the state the editor first opens with, the font closed (an import in flight is dropped). */
   | { type: 'resetAll' }
   | { type: 'updateExport'; patch: Partial<ExportMeta> }
-  /** keepView leaves zoom and pan alone (selecting inside the text specimen). */
-  | { type: 'selectGlyph'; glyph: GlyphRef | null; keepView?: boolean }
+  | { type: 'selectGlyph'; glyph: GlyphRef | null }
   | { type: 'importStarted'; requestId: number; origin: ImportOrigin; label: string }
   | { type: 'importSucceeded'; requestId: number; font: LoadedFont }
   | { type: 'importFailed'; requestId: number; origin: ImportOrigin; errorKind: FontErrorKind; message: string }
   | { type: 'importCancelled'; requestId: number }
+
+/**
+ * Whether `next` is another face of the collection `previous` is a face of (the same file in memory, see selectFace):
+ * the canvas view stays, and so does the selected character when this face has it.
+ */
+export function isOtherFace(previous: LoadedFont | null, next: LoadedFont): boolean {
+  return next.faces !== null && previous?.bytes === next.bytes
+}
 
 function isActiveRequest(state: AppState, requestId: number): boolean {
   return state.document.status.kind === 'loading' && state.document.status.requestId === requestId
@@ -101,8 +104,6 @@ export function editorReducer(state: AppState, action: Action): AppState {
       return { ...state, params: { ...action.params, view: state.params.view } }
     case 'resetAll':
       return initialState
-    case 'resetView':
-      return { ...state, params: { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } } }
     case 'updateExport':
       return {
         ...state,
@@ -112,9 +113,6 @@ export function editorReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         document: { ...state.document, selectedGlyph: action.glyph },
-        params: action.keepView
-          ? state.params
-          : { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
       }
     case 'importStarted':
       return {
@@ -128,9 +126,7 @@ export function editorReducer(state: AppState, action: Action): AppState {
       // A newer import has started since this one; drop the stale result.
       if (!isActiveRequest(state, action.requestId)) return state
       const { font } = action
-      // Another face of the open collection (the same file in memory, see selectFace): the view stays, and so
-      // does the selected character when this face has it.
-      const otherFace = font.faces !== null && state.document.font?.bytes === font.bytes
+      const otherFace = isOtherFace(state.document.font, font)
       const unicode = otherFace ? (state.document.selectedGlyph?.unicode ?? null) : null
       const kept = unicode === null ? undefined : font.characters.find((c) => c.unicode === unicode)
       return {
@@ -141,7 +137,6 @@ export function editorReducer(state: AppState, action: Action): AppState {
           font,
           selectedGlyph: kept ?? pickDefaultGlyph(font),
         },
-        params: otherFace ? state.params : { ...state.params, view: { ...state.params.view, zoom: 1, panX: 0, panY: 0 } },
       }
     }
     case 'importFailed':

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type DragEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, type DragEvent } from 'react'
 import type { GlyphRef } from '../geometry/types'
 import { textOverflows, type ArtboardLayout, type ArtboardParams, type PaletteParams } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import CanvasSizeControls from './CanvasSizeControls'
 import { useGeometryProblem } from '../state/geometryClient'
-import type { DocumentState, OutlineView, ViewParams } from '../state/types'
+import { panZoomStore, usePanZoomState } from '../state/canvasView'
+import type { DocumentState, OutlineView, PanZoom, ViewParams, ViewToggles } from '../state/types'
 import type { GlideStore } from '../state/useGlide'
 import { RENDERER_CHOICE } from '../render/createRenderer'
 import ErrorBoundary from './ErrorBoundary'
@@ -17,7 +18,8 @@ import Icon from './Icon'
 
 interface CanvasViewportProps {
   document: DocumentState
-  view: ViewParams
+  /** The outline and layer buttons; zoom and pan live in the canvas's own store (state/canvasView.ts). */
+  view: ViewToggles
   scene: SpecimenScene | null
   /** The artboard the text is set on, its colours, and its size settings. */
   layout: ArtboardLayout | null
@@ -40,8 +42,7 @@ interface CanvasViewportProps {
   onClearHighlight: () => void
   /** Set while the text has a Free position: dragging the text on the canvas moves it. */
   onMoveText?: (dx: number, dy: number) => void
-  onViewChange: (patch: Partial<ViewParams>) => void
-  onResetView: () => void
+  onViewChange: (patch: Partial<ViewToggles>) => void
   onLocalFile: (file: File) => void
   onOpenGoogleFonts: () => void
   /** About the session restored from the last visit (a font to import again), or null. */
@@ -68,7 +69,7 @@ const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetric
   { key: 'showMetrics', label: 'Metrics' },
 ]
 
-export function Legend({ view }: { view: ViewParams }) {
+export function Legend({ view }: { view: ViewToggles }) {
   if (!(view.showSkeleton || view.showVertices || view.outline === 'compare')) return null
   return (
     <ul className="skeleton-legend" aria-label="Legend">
@@ -109,7 +110,7 @@ export function Legend({ view }: { view: ViewParams }) {
  * and every geometry parameter. The outline and layer controls are for this canvas only, except Fill:
  * off, the preview and the SVG, PNG and video exports draw outlines only too. The preview shows the export.
  */
-export default function CanvasViewport(props: CanvasViewportProps) {
+function CanvasViewport(props: CanvasViewportProps) {
   const {
     document,
     view,
@@ -126,13 +127,28 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     onClearHighlight,
     onMoveText,
     onViewChange,
-    onResetView,
     onLocalFile,
     onOpenGoogleFonts,
     note,
     glide,
   } = props
   const { font, selectedGlyph } = document
+  // Zoom and pan re-render this canvas only, not the app around it.
+  const panZoom = usePanZoomState()
+  const canvasView = useMemo<ViewParams>(() => ({ ...view, ...panZoom }), [view, panZoom])
+  // The renderers change the whole view: zoom and pan go to the canvas's store, the buttons to App.
+  const onCanvasViewChange = useCallback(
+    (patch: Partial<ViewParams>) => {
+      const { zoom, panX, panY, ...toggles } = patch
+      const move: Partial<PanZoom> = {}
+      if (zoom !== undefined) move.zoom = zoom
+      if (panX !== undefined) move.panX = panX
+      if (panY !== undefined) move.panY = panY
+      panZoomStore.update(move)
+      if (Object.keys(toggles).length > 0) onViewChange(toggles)
+    },
+    [onViewChange],
+  )
   // The geometry worker cannot compute glyphs (it could not start, or keeps failing): the glyphs show as failed.
   const problem = useGeometryProblem()
   const [dragging, setDragging] = useState(false)
@@ -162,7 +178,7 @@ export default function CanvasViewport(props: CanvasViewportProps) {
   // are intended and do not count. While Sound drives the letters, measured on the sliders' own letters, which
   // place the block and are what the exports show.
   const overflows = interactive && textOverflows(placement ?? scene, layout)
-  const zoomBy = (factor: number) => onViewChange({ zoom: clampZoom(view.zoom * factor) })
+  const zoomBy = (factor: number) => panZoomStore.update({ zoom: clampZoom(panZoomStore.getState().zoom * factor) })
   const outlineDescription = outlineViews.find((o) => o.value === view.outline)?.description ?? ''
 
   const onDragOver = useCallback((e: DragEvent) => {
@@ -189,11 +205,11 @@ export default function CanvasViewport(props: CanvasViewportProps) {
         paper={palette.paper}
         highlightFrom={ownPalette}
         transparent={palette.transparent}
-        view={view}
+        view={canvasView}
         gridSize={gridSize}
         selectedGlyph={highlightSelection ? selectedGlyph : null}
         label={`Text, ${outlineDescription}`}
-        onViewChange={onViewChange}
+        onViewChange={onCanvasViewChange}
         onSelectGlyph={onSelectGlyph}
         onClearSelection={onClearHighlight}
         onMoveText={onMoveText}
@@ -244,12 +260,12 @@ export default function CanvasViewport(props: CanvasViewportProps) {
             −
           </button>
           <output className="zoom-value" aria-label="Zoom level">
-            {Math.round(view.zoom * 100)}%
+            {Math.round(panZoom.zoom * 100)}%
           </output>
           <button type="button" disabled={!interactive} aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
             +
           </button>
-          <button type="button" disabled={!interactive} onClick={onResetView}>
+          <button type="button" disabled={!interactive} onClick={panZoomStore.reset}>
             <Icon name="fitView" />
             Fit
           </button>
@@ -277,13 +293,13 @@ export default function CanvasViewport(props: CanvasViewportProps) {
                 paper={palette.paper}
                 highlightFrom={ownPalette}
                 transparent={palette.transparent}
-                view={view}
+                view={canvasView}
                 gridSize={gridSize}
                 selectedGlyph={highlightSelection ? selectedGlyph : null}
                 label={`Text, ${outlineDescription}`}
                 choice={RENDERER_CHOICE === 'canvas' ? 'canvas' : 'webgl'}
                 onFallback={onRendererFallback}
-                onViewChange={onViewChange}
+                onViewChange={onCanvasViewChange}
                 onSelectGlyph={onSelectGlyph}
                 onClearSelection={onClearHighlight}
                 onMoveText={onMoveText}
@@ -352,3 +368,5 @@ export default function CanvasViewport(props: CanvasViewportProps) {
     </section>
   )
 }
+
+export default memo(CanvasViewport)

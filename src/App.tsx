@@ -27,7 +27,8 @@ import type { SoundSettings } from './sound/types'
 import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from './specimen/artboard'
 import { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './specimen/previewLook'
 import { DEFAULT_TEXT } from './specimen/samples'
-import { editorReducer, initialState, thornCanvasEm, withThornCanvasEm, type Action } from './state/editorState'
+import { panZoomStore } from './state/canvasView'
+import { editorReducer, initialState, isOtherFace, thornCanvasEm, withThornCanvasEm, type Action } from './state/editorState'
 import { changedSettings, listenForUndo, undoHistory, useHistoryState, type Snapshot } from './state/history'
 import {
   clearRestoring,
@@ -42,7 +43,7 @@ import {
   type Session,
 } from './state/persist'
 import { DEFAULT_RESET_EXTRAS, resetHistory } from './state/reset'
-import type { AppState, EditorParams, SettingsParams, ViewParams } from './state/types'
+import type { AppState, EditorParams, SettingsParams, ViewToggles } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
 import { useSceneGlide } from './state/useGlide'
@@ -90,6 +91,9 @@ function isSavedFont(font: LoadedFont, saved: SavedFont): boolean {
  * recording canvas always does.
  */
 const CANVAS_GLYPHS = RENDERER_CHOICE !== 'svg'
+
+// A take's saved file name (the recording context asks for it); nothing in the app keeps it.
+const ignoreSavedTake = () => {}
 
 interface AppProps {
   /** The last visit's session, read once before the first render (main.tsx). */
@@ -229,16 +233,23 @@ export default function App({ restored }: AppProps) {
   const [showAllHints, setShowAllHints] = useShowAllHints()
 
   const onViewChange = useCallback(
-    (patch: Partial<ViewParams>) => dispatch({ type: 'updateParams', group: 'view', patch }),
+    (patch: Partial<ViewToggles>) => dispatch({ type: 'updateParams', group: 'view', patch }),
     [],
   )
+  // A new font opens fitted; another face of the open collection keeps the zoom and pan, as it keeps the character.
+  const lastFont = useRef(font)
+  useLayoutEffect(() => {
+    if (font === lastFont.current) return
+    if (font && !isOtherFace(lastFont.current, font)) panZoomStore.reset()
+    lastFont.current = font
+  }, [font])
   // Clicking a glyph in the canvas selects it (the statistics follow it) and highlights every copy of
   // it; the canvas view is kept. Clicking empty canvas only hides the highlight: the statistics keep
   // showing the last selected glyph.
   const [highlight, setHighlight] = useState(true)
   const selectGlyph = useCallback((glyph: GlyphRef) => {
     setHighlight(true)
-    dispatch({ type: 'selectGlyph', glyph, keepView: true })
+    dispatch({ type: 'selectGlyph', glyph })
   }, [])
   const clearHighlight = useCallback(() => setHighlight(false), [])
 
@@ -261,7 +272,7 @@ export default function App({ restored }: AppProps) {
       if (next !== typed) caretRef.current = start + insert.length
       replaceText(next)
       setHighlight(true)
-      dispatch({ type: 'selectGlyph', glyph, keepView: true })
+      dispatch({ type: 'selectGlyph', glyph })
     },
     [replaceText],
   )
@@ -306,7 +317,9 @@ export default function App({ restored }: AppProps) {
     (): Session => ({ ...session.current, mappings: mappingStore.getState().mappings, sound: soundSettings() }),
     [],
   )
-  const [saver] = useState(() => createSessionSaver(readSessionNow))
+  // Storage full or blocked: the status bar says once that the settings will not be kept.
+  const [saveFailed, setSaveFailed] = useState(false)
+  const [saver] = useState(() => createSessionSaver(readSessionNow, undefined, undefined, () => setSaveFailed(true)))
   useEffect(
     () => saver.schedule(),
     [saver, flatten, random, squaring, anchors, grid, distortion, experimental, typography, palette, artboard,
@@ -380,7 +393,7 @@ export default function App({ restored }: AppProps) {
     if (!font || !glyph) return
     glyphToRestore.current = null
     const ref = findSavedGlyph(font, glyph)
-    if (ref) dispatch({ type: 'selectGlyph', glyph: ref, keepView: true })
+    if (ref) dispatch({ type: 'selectGlyph', glyph: ref })
   }, [font])
 
   // ---- Config files (Export → Config, Import → Config file) ----
@@ -429,7 +442,7 @@ export default function App({ restored }: AppProps) {
       if (!wanted || (open && isSavedFont(open, wanted))) {
         // The font stays: the config's glyph is selected in it when it is the same family and style.
         const ref = open && config.glyph ? findSavedGlyph(open, config.glyph) : null
-        if (ref) dispatch({ type: 'selectGlyph', glyph: ref, keepView: true })
+        if (ref) dispatch({ type: 'selectGlyph', glyph: ref })
       } else {
         glyphToRestore.current = config.glyph
         if (wanted.kind === 'google') {
@@ -482,6 +495,7 @@ export default function App({ restored }: AppProps) {
     cancelImport()
     current.current.state = initialState
     dispatch({ type: 'resetAll' })
+    panZoomStore.reset()
     setPreviewLook(DEFAULT_RESET_EXTRAS.previewLook)
     // The last visit's font is neither reopened nor saved again.
     setLastVisit(null)
@@ -500,51 +514,59 @@ export default function App({ restored }: AppProps) {
   }, [cancelImport])
 
   // A video records the canvas as shown (recorder.ts): the font names the file, the artboard sets its size.
-  const onExported = useCallback(
-    (fileName: string) => dispatch({ type: 'updateExport', patch: { lastExport: { fileName, at: new Date().toISOString() } } }),
-    [],
-  )
   useRecordingContext(
-    font ? { family: font.familyName, style: font.styleName, artboard, transparent: palette.transparent, onSaved: onExported } : null,
+    font ? { family: font.familyName, style: font.styleName, artboard, transparent: palette.transparent, onSaved: ignoreSavedTake } : null,
   )
 
   // The snap grid (lines and label) follows the letters as shown: while Sound drives Grid size, the live size.
   const shownGrid = live.params.grid
   const gridSize = shownGrid.snap && shownGrid.size > 0 ? shownGrid.size : null
 
-  // The canvas and the preview, but for the scene they draw (as shown, or the target with Glide's store).
-  const canvasProps = {
-    document: canvasDocument,
-    view: state.params.view,
-    layout,
-    placement,
-    palette: shownPalette,
-    ownPalette: palette,
-    artboard,
-    onArtboardChange: setArtboard,
-    gridSize,
-    highlightSelection: highlight,
-    onSelectGlyph: selectGlyph,
-    onClearHighlight: clearHighlight,
-    onMoveText: typography.position === 'free' ? moveText : undefined,
-    onViewChange,
-    onResetView: () => dispatch({ type: 'resetView' }),
-    onLocalFile: importLocalFont,
-    onOpenGoogleFonts: openGoogleFonts,
-    note: sessionNote,
-  }
-  const previewProps = {
-    font: state.document.font,
-    layout,
-    palette: shownPalette,
-    artboard,
-    precision,
-    look: previewLook,
-    fill: state.params.view.showFill,
-    live: driving,
-    onLookChange: setPreviewLook,
-    onScaleChange: setPreviewScale,
-  }
+  // The canvas and the preview, but for the scene they draw (as shown, or the target with Glide's store). Memoized,
+  // so a render of App that changes neither leaves them alone.
+  const { view } = state.params
+  const freeMove = typography.position === 'free' ? moveText : undefined
+  const canvasProps = useMemo(
+    () => ({
+      document: canvasDocument,
+      view,
+      layout,
+      placement,
+      palette: shownPalette,
+      ownPalette: palette,
+      artboard,
+      onArtboardChange: setArtboard,
+      gridSize,
+      highlightSelection: highlight,
+      onSelectGlyph: selectGlyph,
+      onClearHighlight: clearHighlight,
+      onMoveText: freeMove,
+      onViewChange,
+      onLocalFile: importLocalFont,
+      onOpenGoogleFonts: openGoogleFonts,
+      note: sessionNote,
+    }),
+    [canvasDocument, view, layout, placement, shownPalette, palette, artboard, setArtboard, gridSize, highlight, selectGlyph,
+      clearHighlight, freeMove, onViewChange, importLocalFont, openGoogleFonts, sessionNote],
+  )
+  const previewProps = useMemo(
+    () => ({
+      font: state.document.font,
+      layout,
+      palette: shownPalette,
+      artboard,
+      precision,
+      look: previewLook,
+      fill: view.showFill,
+      live: driving,
+      onLookChange: setPreviewLook,
+      onScaleChange: setPreviewScale,
+    }),
+    [state.document.font, layout, shownPalette, artboard, precision, previewLook, view.showFill, driving],
+  )
+  const closeGoogleFonts = useCallback(() => setGoogleOpen(false), [])
+  const closeExport = useCallback(() => setExportOpen(false), [])
+  const setPrecision = useCallback((precision: number) => dispatch({ type: 'updateExport', patch: { precision } }), [])
 
   return (
     <div className="app">
@@ -630,13 +652,14 @@ export default function App({ restored }: AppProps) {
         text={text}
         extras={{ previewLook, precision }}
         onReset={resetAll}
+        saveFailed={saveFailed}
       />
       {/* Drag to map: the dragged feature's chip and what a drop did. */}
       <MapDragLayer />
-      <GoogleFontsDialog open={googleOpen} onClose={() => setGoogleOpen(false)} onLoad={importGoogleFont} />
+      <GoogleFontsDialog open={googleOpen} onClose={closeGoogleFonts} onLoad={importGoogleFont} />
       <ExportDialog
         open={exportOpen}
-        onClose={() => setExportOpen(false)}
+        onClose={closeExport}
         font={state.document.font}
         selectedGlyph={state.document.selectedGlyph}
         specimenText={displayText}
@@ -645,15 +668,14 @@ export default function App({ restored }: AppProps) {
         artboard={artboard}
         previewLook={previewLook}
         previewScale={previewScale}
-        fill={state.params.view.showFill}
+        fill={view.showFill}
         params={derived.params}
         paramsKey={derived.paramsKey}
         // Live shapes keep changing; exports use the sliders and compute whatever they still need.
         pending={derived.pending && !derived.live}
         precision={precision}
-        onPrecisionChange={(precision) => dispatch({ type: 'updateExport', patch: { precision } })}
+        onPrecisionChange={setPrecision}
         readConfig={readSessionNow}
-        onExported={onExported}
       />
       {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
       <Glided store={glide} scene={scene}>
@@ -665,7 +687,7 @@ export default function App({ restored }: AppProps) {
             palette={shownPalette}
             previewLook={previewLook}
             previewScale={previewScale}
-            fill={state.params.view.showFill}
+            fill={view.showFill}
           />
         )}
       </Glided>
