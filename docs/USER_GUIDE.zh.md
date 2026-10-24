@@ -67,7 +67,7 @@
 - 文字变回示例文字（Lorem ipsum）；
 - 每项设置恢复为初始值：Geometry、Experimental、Typography 和 Color 标签页，以及画布尺寸；
 - 画布视图从头开始：**Flattened**，图层里只有 **Fill** 打开，整个画布都在视野内；
-- Sound 标签页里的映射全部移除，七个声音旋钮（**Sensitivity**、**Release** 和 **Response** 的四个旋钮）恢复初始值，**Drive letters** 重新打开（如果你的电脑设置了“减少动态效果”，则是关闭）；正在播放的声音文件暂停，麦克风停止收音，但已载入的声音文件仍然保留；
+- Sound 标签页里的映射全部移除，七个声音旋钮（**Sensitivity**、**Release** 和 **Response** 的四个旋钮）恢复初始值，**Return to plain** 关闭、**Hold** 回到 200 ms，**Drive letters** 重新打开（如果你的电脑设置了“减少动态效果”，则是关闭）；正在播放的声音文件暂停，麦克风停止收音，但已载入的声音文件仍然保留；
 - 预览的 **Blur** 和 **Invert** 关掉，**Coordinate precision**（坐标精度）恢复为 2，关于载入的配置文件或上次访问的提示也会消失。
 
 保持不变的：亮色或暗色外观、各区域的大小，以及你打开的标签页。**它不能撤销**，也不会先询问你：重置之后没有可以撤销或重做的内容。如果之后可能还想找回现在的作品，请先导出，或者保存一个[配置文件](#保存为配置文件只含设置)。没有可以重置的内容时，这个按钮是灰色的（鼠标指着它会显示 “Everything is as the editor first opens”，即一切都和程序刚打开时一样）。
@@ -95,7 +95,7 @@
 
 程序会自动把你的作品保存在这个浏览器里（每次改动后稍等片刻就保存），下次在同一台电脑、同一个浏览器里打开时会恢复。
 
-- **会保存的：** 文字；Geometry、Experimental、Typography 和 Color 标签页里的每项设置；画布尺寸；画布视图按钮（Original / Flattened / Compare 和各图层，但不包括缩放和移动到的位置）；预览的 Blur 和 Invert；导出的 **Coordinate precision**（坐标精度）；Sound 标签页的映射和七个声音旋钮（Sensitivity、Release、Strength、Motion contrast、Pitch reactive、Melody tracking 和 Glide）；选中的字母（再次打开同一款字体时）；以及字体本身。
+- **会保存的：** 文字；Geometry、Experimental、Typography 和 Color 标签页里的每项设置；画布尺寸；画布视图按钮（Original / Flattened / Compare 和各图层，但不包括缩放和移动到的位置）；预览的 Blur 和 Invert；导出的 **Coordinate precision**（坐标精度）；Sound 标签页的映射和七个声音旋钮（Sensitivity、Release、Strength、Motion contrast、Pitch reactive、Melody tracking 和 Glide）；**Return to plain** 和它的 **Hold**；选中的字母（再次打开同一款字体时）；以及字体本身。
 - **字体：** Google 字体会在页面打开时自动重新下载（需要联网）。来自你电脑的字体程序无法替你重新打开：画布上会显示 “Last font: *文件名*. Import it again to continue.”（上次的字体：……，请重新导入以继续）。导入同一个文件就能接着做——你的设置都还在。
 - **不会保存的：** Sound 标签页的 **Drive letters** 和声音来源（文件或麦克风）；视频选项（**Format**、**Length**、**Frame rate**、**Include audio** 和 **Use the preview look**），它们只保留到关闭页面为止；打开着的对话框；亮色或暗色界面；以及撤销步骤。（和以前一样，程序也会记住各区域的大小、你打开的标签页、**Canvas size** 设置是否展开，以及 **Show all explanations**。）
 - **旧版程序保存的作品：** Thorn 的 **Reach** 以前按 em（字母的设计正方形）的比例计算，现在改为按画布的比例计算（见 Experimental 标签页里的 Thorn）。以前保存的作品会按它保存时的字号和画布尺寸，换算成让刺保持同样长度的比例，所以刺会和原来一样。原来有刺的仍然有刺：刺再短，恢复后也至少是滑块第一档的长度。Sound 里作用在 Reach 上的映射行保留各自的 **Depth**。同一个 **Seed** 下，刺也可能长在和以前不同的点上，因为程序现在用一种更稳定的方式挑选它们（见 Experimental 标签页里的 Thorn）；多按几次 **Next variant**，直到你再次满意为止。Crumple 不再有 **Detail** 滑块：保存的 Detail 数值会被忽略，Sound 里作用在 **Crumple · Detail** 上的映射行会被去掉；Crumple 恢复了它改名前（还叫 Noise 时）的揉皱方式，所以同一个 **Seed** 得到的折痕和带 Detail 的版本不同。
@@ -455,6 +455,13 @@ Sound 标签页让字母动起来时，文字停在你的滑块所决定的位�
 - 拖动一次算一次修改，所以撤销一次就回到拖动之前，和滑块一样。
 
 **Transport**（走带）——声音从哪里来，在标签页最上面。第一行是 **File** / **Microphone** 和 **Drive letters** 开关（见下文的 **Modulation**）；声音下面一行是 **Preset** 和 **Load**（见下文的**预设**），再下面是 **Freeze** 和 **Live · N fps**（见下文的**声音移动字母时**）。
+
+**Return to plain**（回到原字形）——**Transport** 第一行下面单独一个框里的大号开关。点开关或它的名字就能打开或关闭。
+- **关：** 声音按下文所说的方式，从你在其他标签页设好的样子出发移动字母。
+- **开：** 字母平时停在原字形上：也就是 Geometry 标签页的样子，Experimental 标签页的所有效果都关掉。每来一拍，你在 Experimental 标签页里打开的效果一起回来，然后字母再回到原字形。所以原字形是底板，每一拍都把你的设计闪现在上面，跟着音乐的节奏。即使一行映射也没有，它也能工作；设计显示时，你的映射照样叠加上去。
+- **Hold**（旁边的小旋钮，50–1000 ms，初始为 200 ms）：每一拍让效果停留多久，然后字母再回去。**Glide**（在 **Response** 里）让来回的过程变得平滑。
+- 每个字母一起变化，Thorn 的刺也一样。节拍非常密时，有些拍会被合并，让画面每秒闪动不超过三次（见下文的**不会闪烁**）。
+- 打开时，框的边缘会亮起来。**Reset sound** 不会动它；**Start over**（重新开始）会把它关掉。**Freeze** 写入屏幕上显示的内容，所以在两拍之间按下，写入的是效果关闭的状态。
 
 - **File**（文件）——电脑里的音频文件。标签页一开始就是这个选项。
   - **Choose file**（选择文件）——挑选文件。常见格式基本都可以（MP3、WAV、AAC、OGG 或 FLAC，取决于你的浏览器），最大 512 MB。选好文件后，按钮会缩成只有箭头图标（鼠标指着它会显示 “Choose file”），旁边显示文件名；文件名太长时会被截短，鼠标指着它可以看到全名。

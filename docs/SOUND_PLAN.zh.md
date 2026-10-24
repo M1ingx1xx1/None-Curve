@@ -164,6 +164,13 @@ Sound 驱动字母且 Thorn 打开时，会移动刺的设置每次只传到少�
 - **开销：** 配对在主线程上进行，每个动画帧最多 6 ms（`GLIDE_LIMITS.planBudgetMs`），从上一帧停下的地方轮流进行，每帧至少一个字形，所以没有字形会一直等下去；还没配对的字形保持屏幕上的形状，配对后开始完整的滑行。配对结果按新旧轮廓缓存（WeakMap），重复的字母每帧共用一个中间形状。在 54 个字形、每 33 ms 一个新形状的情况下测得：重新定目标 0.1–0.5 ms；含配对的帧平均 6–7 ms，只插值的帧 0.1–1.3 ms；单个很大的 Dissolve 字形偶尔一次可达约 50 ms。每个字形（Roboto，Node）：Whorl 网格滑行配对 0.1–0.3 ms、每帧约 11 µs；Whorl 加 Thorn 3 ms、27 µs；Burst 种子 0.8 ms、7 µs；Dissolve 颗粒 4.9 ms、58 µs。
 - **保存：** `glideMs` 属于 `Session.sound`；没有它的会话读作 150 ms。由 `tests/specimen/glide.test.ts`（两端精确、刺走直线、按最近点保持顺序的对应、错开的起点、相反的绕向、分裂的路径从轮廓长出、逐步去掉多余锚点、Whorl 路径分段为直线、精确撤销转动、网格滑行跟随 Whorl 且接着走时不跳、孔的配对、重新定目标时连续、Glide 为 0 和没有声音时完全相同、时间预算及其公平）和 `tests/state/persist.test.ts` 检查。
 
+### 5.5 Return to plain（NOCUR-87）
+
+- **是什么：** Transport 里的一个开关（`ResponseSettings.plain`，0 或 1）和它的 **Hold** 旋钮（`holdMs`，50–1000 ms，默认 200 ms）。打开时，字母平时停在原字形上（所有 Experimental 效果关闭，Geometry 照常），每一拍让 Experimental 标签页里打开的效果出现 Hold 那么久。它把"节拍触发"的做法（效果停在 0，加一行 Beat 上的 Trigger）变成一个控件，不需要每个效果各配一行。
+- **怎么做：** `plainPulse`（`mapping.ts`）是一行隐藏的、作用在 Beat 上的 Trigger，Smooth 设为 Hold，和映射行一起塑形（`LiveScheduler.shapedMappings`），id 为 `PLAIN_PULSE_ID`。在 `modulate` 里，`PLAIN_SWITCHES` 中在底板上打开的每个 Use 开关都成为被驱动的开关，除非这个脉冲大于 0，否则被关掉。所以原字形只是开关在翻转：闪烁上限能看到两个边沿，planner 通过同一套调度器输入拿到它，Sound 停止时画布显示的底板仍是滑块自己的值。
+- **Thorn 轮换：** 打开时这些 Use 开关算作脉冲目标（`pulsedTargets(mappings, also)`），所以每个字母一起变化；Thorn 本身关闭会清空轮换，下一拍每个组同时从实时状态开始。
+- **保存和撤销**与 Response 的值一起（`Session.sound`）；没有这两个值的会话读作关闭、200 ms。Reset sound 不动它们。在 `tests/sound/turns.test.ts` 里检查（Return to plain：两拍之间开关关闭、脉冲期间打开；每个字母先是原字形，然后是设计，再回到原字形，一拍接一拍）。
+
 ## 6. 目标
 
 **Geometry 标签页**，"锚点跳动"就在这里：

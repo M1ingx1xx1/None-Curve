@@ -205,12 +205,15 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     expect(undoHistory.getState().canUndo).toBe(false)
     // Melody snaps to its 0.01 step (0.05 before NOCUR-63, when 0.52 snapped to 0.5).
     mappingStore.setResponse({ strength: 9, contrast: 0.333, pitchReactive: -1, melody: 0.523 })
-    expect(mappingStore.getState().response).toEqual({ strength: 4, contrast: 0.33, pitchReactive: 0, melody: 0.52, glideMs: 150 })
+    expect(mappingStore.getState().response).toEqual({ strength: 4, contrast: 0.33, pitchReactive: 0, melody: 0.52, glideMs: 150, plain: 0, holdMs: 200 })
     // Glide: 0–1000 ms in steps of 10.
     mappingStore.setResponse({ glideMs: 1234 })
     expect(mappingStore.getState().response.glideMs).toBe(1000)
     mappingStore.setResponse({ glideMs: 47 })
     expect(mappingStore.getState().response.glideMs).toBe(50)
+    // Return to plain: 0 or 1; its Hold 50–1000 ms in steps of 10.
+    mappingStore.setResponse({ plain: 0.7, holdMs: 12 })
+    expect(mappingStore.getState().response).toMatchObject({ plain: 1, holdMs: 50 })
   })
 
   it('undoes Reset sound in one step, and leaves the response alone on a preset Load', () => {

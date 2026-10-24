@@ -1066,3 +1066,55 @@ describe('hits on the beat with Thorn on', () => {
     expect([...shown].some((value) => value > 0)).toBe(true)
   })
 })
+
+// Kept last for the same reason (nextSerial).
+describe('Return to plain', () => {
+  const PLAIN = { ...NEUTRAL_RESPONSE, plain: 1, holdMs: 200 }
+  // Ripple and Thorn (Burst) switched on, Whorl off: the design a beat shows.
+  const thorn = thornWith(THORN_ON, { burst: true, spikes: 40, canvasReach: 0.3 })
+  const design = {
+    ...thorn,
+    experimental: { ...thorn.experimental, ...on('ripple', { amount: 0.4 }), whorl: { ...thorn.experimental.whorl, enabled: false } },
+  }
+  const USE = ['experimental.ripple.enabled', 'experimental.thorn.enabled', 'experimental.whorl.enabled'].map((id) => targetById(id)!)
+
+  it('turns the effects switched on off between beats, and leaves them on while the beat pulse lasts', () => {
+    const rest = modulate(design, SILENT_FRAME, [], new Map(), PLAIN)
+    expect(USE.map((spec) => spec.get(rest.params))).toEqual([0, 0, 0])
+    expect(rest.positions.get('experimental.ripple.enabled')).toBe(0)
+    expect(rest.positions.has('experimental.whorl.enabled')).toBe(false)
+    const hit = modulate(design, SILENT_FRAME, [], new Map(), PLAIN, new Map([['plain', 0.5]]))
+    expect(USE.map((spec) => spec.get(hit.params))).toEqual([1, 1, 0])
+    expect(hit.positions.get('experimental.ripple.enabled')).toBe(1)
+    // Off: nothing changes.
+    expect(modulate(design, SILENT_FRAME, [], new Map(), NEUTRAL_RESPONSE).params).toBe(design)
+  })
+
+  it('rests every letter on its plain shape and brings the design back on each beat, all letters together', () => {
+    const slots = lettersOf(40)
+    const ripple = USE[0]
+    const r = rig(slots)
+    r.live.setBase(design)
+    r.live.setSlots(slots)
+    r.live.setMappings([], true, PLAIN)
+    r.play(6000, beatStream(7))
+    expect(r.commits.length).toBeGreaterThan(10)
+    let mixed = 0
+    let returns = 0
+    let shows = 0
+    let was = 0
+    for (const { commit } of r.commits) {
+      const { byKey, keys } = lettersAt(commit, slots, design)
+      const values = new Set(keys.map((key) => ripple.get(byKey.get(key)!)))
+      if (values.size > 1) mixed++
+      const value = [...values][0]
+      if (value === 1 && was === 0) shows++
+      if (value === 0 && was === 1) returns++
+      was = value
+    }
+    // Every letter shows the same thing on every commit, and the text goes plain → design → plain beat after beat.
+    expect(mixed).toBe(0)
+    expect(shows).toBeGreaterThanOrEqual(8)
+    expect(returns).toBeGreaterThanOrEqual(8)
+  })
+})
