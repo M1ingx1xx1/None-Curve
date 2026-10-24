@@ -35,9 +35,10 @@ import {
 } from './gpuPlans'
 import { planUniforms, type PlanUniforms } from './gpuReference'
 import { hitScene } from './hitTest'
-import { glyphMatrix, multiply, type Matrix } from './strokes'
+import { glyphMatrix, type Matrix } from './strokes'
 import { parseColor, type Rgba } from './theme'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
+import { artboardMatrix, canvasCull, canvasMatrix, hitOptions, NO_CULL, scenePoint, sizeBackingStore } from './view'
 import { COLOR_FS, COVER_VS, DISCARD_FS, EVAL_VS, FILL_VS, PATH_VS, STROKE_VS } from './webglShaders'
 
 const OUTLINE_PX = 1.5
@@ -287,10 +288,7 @@ export class WebGL2Renderer implements GlyphRenderer {
   }
 
   setView(view: RenderView) {
-    const width = Math.max(1, Math.round(view.cssWidth * view.dpr))
-    const height = Math.max(1, Math.round(view.cssHeight * view.dpr))
-    if (this.canvas.width !== width) this.canvas.width = width
-    if (this.canvas.height !== height) this.canvas.height = height
+    sizeBackingStore(this.canvas, view)
     this.view = view
     this.dirty = true
     this.detail?.setView(view)
@@ -337,21 +335,8 @@ export class WebGL2Renderer implements GlyphRenderer {
     if (!view || view.kind !== 'canvas' || !style || !frame) return null
     const scene = frame.scene()
     if (!scene) return null
-    return hitScene(scene, view.left + x * view.u, -view.top + y * view.u, {
-      outline: style.outline,
-      fill: style.fill,
-      showSkeleton: style.showSkeleton,
-      showVertices: style.showVertices,
-      showMarkers: style.showMarkers,
-      markerRadius: style.markerRadius,
-      u: view.u,
-      ascender: style.ascender,
-      descender: style.descender,
-      freeMove: false,
-      offsetX: this.offsetX,
-      offsetY: this.offsetY,
-      source: this.source,
-    })
+    const [sx, sy] = scenePoint(view, x, y)
+    return hitScene(scene, sx, sy, hitOptions(view, style, this.offsetX, this.offsetY, this.source))
   }
 
   draw(): boolean {
@@ -463,38 +448,23 @@ export class WebGL2Renderer implements GlyphRenderer {
       if (!cpu) cpu = (frame.scene()?.lines ?? []).flatMap((line) => line.glyphs)
       return cpu[occurrence] ?? null
     }
-    let base: Matrix
-    let inView: (g: PlacedGlyph, band: boolean) => boolean
-    let bandOf: (baseline: number, ink: PlacedGlyph['ink'] | SpecimenScene['ink']) => boolean
-    if (view.kind === 'canvas') {
-      const k = view.dpr / view.u
-      base = multiply([k, 0, 0, k, -view.left * k, view.top * k], [1, 0, 0, 1, this.offsetX, this.offsetY])
-      const left = view.left
-      const right = left + view.cssWidth * view.u
-      const sceneTop = -view.top
-      const sceneBottom = sceneTop + view.cssHeight * view.u
-      const margin = style.unitsPerEm
-      const box = (b: { minX: number; maxX: number; minY: number; maxY: number } | null) =>
-        b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
-      bandOf = (baseline, ink) =>
-        (baseline - style.ascender - margin <= sceneBottom && baseline - style.descender + margin >= sceneTop) || box(ink)
-      inView = (g, band) => (band && g.x + g.advance + margin >= left && g.x - margin <= right) || box(g.ink)
-    } else {
-      const kx = this.canvas.width / view.artboard.width
-      const ky = this.canvas.height / view.artboard.height
-      const s = 1 / view.layout.unitsPerPx
-      base = [kx * s, 0, 0, ky * s, -view.layout.x * kx * s, -view.layout.y * ky * s]
-      bandOf = () => true
-      inView = () => true
-    }
+    const canvasView = view.kind === 'canvas'
+    const base: Matrix = canvasView
+      ? canvasMatrix(view, this.offsetX, this.offsetY)
+      : artboardMatrix(this.canvas.width, this.canvas.height, view.artboard, view.layout)
+    const cull = canvasView ? canvasCull(view, style) : NO_CULL
     const grew = { bytes: 0 }
     const touched = new Set<GpuPlan>()
     let occurrence = 0
     for (const line of layout.lines) {
-      const band = bandOf(line.baseline, line.ink)
+      const band = cull.band(line.baseline)
+      if (!band && !cull.ink(line.ink)) {
+        occurrence += line.glyphs.length
+        continue
+      }
       for (const g of line.glyphs) {
         const occ = occurrence++
-        if (g.missing || !inView(g, band)) continue
+        if (g.missing || !cull.glyph(g, band)) continue
         if (view.kind === 'canvas' && this.source) {
           const source = this.source(g.index)
           if (!source || source.contours.length === 0) continue
