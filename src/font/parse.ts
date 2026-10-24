@@ -175,17 +175,14 @@ function buildLoadedFont(
     lineGap: font.lineGap || 0,
   }
 
+  // One pass over the character map: every mapped code point (controls too) for hasCharacter, the rest as characters.
   const characters: GlyphRef[] = []
-  for (const unicode of [...font.characterSet].sort((a, b) => a - b)) {
-    if (isControlCharacter(unicode)) continue
-    const glyph = safeGlyph(() => font.glyphForCodePoint(unicode))
-    if (glyph && glyph.id !== 0) characters.push({ index: glyph.id, name: glyphName(glyph), unicode })
-  }
-
   const mappedCodePoints = new Set<number>()
-  for (const cp of font.characterSet) {
-    const glyph = safeGlyph(() => font.glyphForCodePoint(cp))
-    if (glyph && glyph.id !== 0) mappedCodePoints.add(cp)
+  for (const unicode of [...font.characterSet].sort((a, b) => a - b)) {
+    const glyph = safeGlyph(() => font.glyphForCodePoint(unicode))
+    if (!glyph || glyph.id === 0) continue
+    mappedCodePoints.add(unicode)
+    if (!isControlCharacter(unicode)) characters.push({ index: glyph.id, name: glyphName(glyph), unicode })
   }
 
   const firstCodePoint = new Map<number, number>()

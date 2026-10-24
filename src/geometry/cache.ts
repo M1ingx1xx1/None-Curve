@@ -157,10 +157,12 @@ function derive(font: LoadedFont, index: number, params: GeometryParams): Entry 
     // With axis values, the outline of the font's instance at them (the key holds them too).
     const source = params.variation && font.at ? font.at(params.variation) : font
     const geometry = deriveGeometry(source.getGlyph(index), params)
-    // With Thorn, the result also keeps the letter's click outline.
+    // With Thorn, the result also keeps the letter's click outline; with Whorl, the letter as Whorl received it.
     const click = geometry.polygon.clickOutline
     const clickPoints = click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
-    return { geometry, points: geometry.vertexCount + clickPoints }
+    const outline = geometry.polygon.motion?.whorl?.outline
+    const outlinePoints = outline ? outline.reduce((n, points) => n + points.length, 0) : 0
+    return { geometry, points: geometry.vertexCount + clickPoints + outlinePoints }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error), points: 0 }
   }

@@ -244,6 +244,8 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     if (!source.source) return { kind: 'source-error', message: source.error ?? 'Unknown error' }
     if (!selectedEntry) return { kind: 'ready', source: source.source, geometry: null, geometryError: null }
     if ('error' in selectedEntry) return { kind: 'ready', source: source.source, geometry: null, geometryError: selectedEntry.error }
+    // Kept without its statistics (computed while another glyph was selected): they are on their way (useGlyphGeometry).
+    if ('lean' in selectedEntry) return { kind: 'ready', source: source.source, geometry: null, geometryError: null }
     return { kind: 'ready', source: source.source, geometry: { ...selectedEntry.geometry, source: source.source }, geometryError: null }
   }, [font, selectedGlyph, source, selectedEntry])
 
@@ -253,7 +255,7 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
       params,
       shownParams,
       paramsKey: key,
-      pending: Boolean(selectedGlyph && font && (isLive || !selected || selected.stale)),
+      pending: Boolean(selectedGlyph && font && (isLive || !selected || selected.stale || 'lean' in selected.entry)),
       live: isLive,
     },
     scene,

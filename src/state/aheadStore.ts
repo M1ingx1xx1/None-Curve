@@ -1,6 +1,6 @@
 // The page's store of the precompute window's glyphs (NOCUR-85): packed (geometry/packed.ts) within a byte budget, and
 // turned back into objects only when looked up (a small LRU of them, so Glide and the canvas see one object per glyph
-// while it is in use). The geometry client (geometryClient.ts) reads it like its other stores; the ahead lane
+// while it is in use; bounded by a glyph count and by bytes, and counted in the budget). The geometry client (geometryClient.ts) reads it like its other stores; the ahead lane
 // (aheadGeometry.ts) tells it when the window's commits use each glyph.
 //
 // Eviction, only when over budget (down to 90 % of it): first the orphans (no commit of the current plan uses them),
@@ -10,13 +10,13 @@
 // allows and stops there. After a seek, glyphs near the old spot keep their use times and go only when room is needed;
 // after a new plan, every glyph is an orphan until the new window uses it again (content-addressed reuse).
 
-import { ERROR_BYTES, packedBytes, packedPoints, unpackGeometry, type PackedGlyph } from '../geometry/packed'
-import type { WorkerGeometry } from '../geometry/protocol'
+import { ERROR_BYTES, packedBytes, packedPoints, unpackedBytes, unpackEntry, type PackedGlyph, type UnpackedEntry } from '../geometry/packed'
+import type { LeanGeometry, WorkerGeometry } from '../geometry/protocol'
 import { PRECOMPUTE_LIMITS } from '../sound/timelineTypes'
 import { weightedDistance } from './aheadTypes'
 
 /** A glyph as the client reads it (geometryClient.ts GeometryEntry). */
-export type StoredGeometry = { geometry: WorkerGeometry } | { error: string }
+export type StoredGeometry = UnpackedEntry | { error: string }
 
 /** The earliest and latest media time a commit of the window uses a glyph. */
 interface Use {
@@ -33,13 +33,17 @@ interface Entry {
   points: number
   use: Use | null
   materialized: StoredGeometry | null
+  /** Bytes it takes as objects while materialized (estimate). */
+  hotBytes: number
 }
 
 export interface AheadStoreOptions {
   /** Glyphs kept as objects (the materialised LRU). */
   materialized?: number
+  /** Bytes the glyphs kept as objects may take (estimate; an eighth of the budget if not given), within the budget. */
+  materializedBytes?: number
   /** Called for each glyph turned into objects (the client remembers its polygon's key). */
-  onMaterialize?: (geometry: WorkerGeometry, key: string) => void
+  onMaterialize?: (geometry: WorkerGeometry | LeanGeometry, key: string) => void
   /** Glyphs used this close to the playhead (weighted ms) are never evicted. */
   protectMs?: number
 }
@@ -57,8 +61,10 @@ export class AheadStore {
   /** Every entry, oldest first (orphans go in this order). */
   private order = new Set<Entry>()
   private uses = new Map<string, Map<number, Use>>()
-  /** Entries turned into objects, least recently looked up first. */
+  /** Entries turned into objects, least recently looked up first, and the bytes they take as objects. */
   private hot = new Set<Entry>()
+  private hotBytes = 0
+  /** Bytes of the packed entries (the objects of the hot ones are counted apart, in hotBytes). */
   private total = 0
   private orphanBytes = 0
   private pointCount = 0
@@ -69,6 +75,7 @@ export class AheadStore {
   /** Entries evicted so far (an epoch for readiness memos). */
   evictions = 0
   private readonly materializedMax: number
+  private readonly materializedBytesMax: number
   private readonly protectMs: number
 
   constructor(
@@ -76,9 +83,11 @@ export class AheadStore {
     private readonly options: AheadStoreOptions = {},
   ) {
     this.materializedMax = options.materialized ?? 4096
+    this.materializedBytesMax = options.materializedBytes ?? budgetBytes / 8
     this.protectMs = options.protectMs ?? PRECOMPUTE_LIMITS.enterReadyMs
   }
 
+  /** True when the glyph is held (without turning it into objects or changing what is recently looked up). */
   has(key: string, index: number): boolean {
     return this.entries.get(key)?.has(index) === true
   }
@@ -94,16 +103,14 @@ export class AheadStore {
     }
     if (entry.error !== null) entry.materialized = { error: entry.error }
     else {
-      const geometry = unpackGeometry(entry.packed!)
-      this.options.onMaterialize?.(geometry, key)
-      entry.materialized = { geometry }
+      const unpacked = unpackEntry(entry.packed!)
+      this.options.onMaterialize?.(unpacked.geometry, key)
+      entry.materialized = unpacked
     }
     this.hot.add(entry)
-    while (this.hot.size > this.materializedMax) {
-      const oldest = this.hot.values().next().value!
-      this.hot.delete(oldest)
-      oldest.materialized = null
-    }
+    this.hotBytes += entry.hotBytes
+    // The newest stays, however large: it is the one being looked up.
+    while (this.hot.size > 1 && (this.hot.size > this.materializedMax || this.hotBytes > this.materializedBytesMax)) this.cool(this.hot.values().next().value!)
     return entry.materialized
   }
 
@@ -120,6 +127,7 @@ export class AheadStore {
       points: packed ? packedPoints(packed) : 0,
       use: this.uses.get(key)?.get(index) ?? null,
       materialized: null,
+      hotBytes: packed ? unpackedBytes(packed) : ERROR_BYTES,
     }
     let byIndex = this.entries.get(key)
     if (!byIndex) this.entries.set(key, (byIndex = new Map()))
@@ -129,7 +137,7 @@ export class AheadStore {
     this.pointCount += entry.points
     if (!entry.use) this.orphanBytes += entry.bytes
     this.version++
-    if (this.total > this.budgetBytes) this.evict()
+    if (this.total + this.hotBytes > this.budgetBytes) this.evict()
     return this.order.has(entry)
   }
 
@@ -179,7 +187,7 @@ export class AheadStore {
 
   /** Whether the glyphs in use fill the budget: then nothing farther than `farthest()` is worth computing. */
   full(): boolean {
-    return this.total - this.orphanBytes >= FULL_SHARE * this.budgetBytes
+    return this.total + this.hotBytes - this.orphanBytes >= FULL_SHARE * this.budgetBytes
   }
 
   /** The largest weighted distance of a glyph in use (0 when none). */
@@ -192,8 +200,9 @@ export class AheadStore {
     return value
   }
 
+  /** Bytes held: the packed glyphs, and the objects of those recently looked up. */
   bytes(): number {
-    return this.total
+    return this.total + this.hotBytes
   }
 
   points(): number {
@@ -224,6 +233,7 @@ export class AheadStore {
     this.order.clear()
     this.uses.clear()
     this.hot.clear()
+    this.hotBytes = 0
     this.total = 0
     this.orphanBytes = 0
     this.pointCount = 0
@@ -238,7 +248,7 @@ export class AheadStore {
     byIndex.delete(index)
     if (!byIndex.size) this.entries.delete(key)
     this.order.delete(entry)
-    this.hot.delete(entry)
+    if (this.hot.has(entry)) this.cool(entry)
     this.total -= entry.bytes
     this.pointCount -= entry.points
     if (!entry.use) this.orphanBytes -= entry.bytes
@@ -246,8 +256,16 @@ export class AheadStore {
     return entry
   }
 
+  /** Drops the glyph's objects (it stays packed). */
+  private cool(entry: Entry) {
+    this.hot.delete(entry)
+    this.hotBytes -= entry.hotBytes
+    entry.materialized = null
+  }
+
   private evict() {
-    const target = 0.9 * this.budgetBytes
+    // The objects of the glyphs looked up count too (the packed ones make room for them).
+    const over = () => this.total + this.hotBytes > 0.9 * this.budgetBytes
     const evicted: { key: string; index: number }[] = []
     const drop = (entry: Entry) => {
       this.remove(entry.key, entry.index)
@@ -256,11 +274,11 @@ export class AheadStore {
     // Orphans first, oldest first.
     if (this.orphanBytes > 0) {
       for (const entry of this.order) {
-        if (this.total <= target) break
+        if (!over()) break
         if (!entry.use) drop(entry)
       }
     }
-    if (this.total > target) {
+    if (over()) {
       // Then the farthest, by second of weighted distance (the newest first within a second).
       const buckets: Entry[][] = Array.from({ length: BUCKETS }, () => [])
       for (const entry of this.order) {
@@ -268,9 +286,9 @@ export class AheadStore {
         if (d < this.protectMs) continue
         buckets[Math.min(BUCKETS - 1, Math.floor(d / 1000))].push(entry)
       }
-      for (let b = BUCKETS - 1; b >= 0 && this.total > target; b--) {
+      for (let b = BUCKETS - 1; b >= 0 && over(); b--) {
         const bucket = buckets[b]
-        for (let i = bucket.length - 1; i >= 0 && this.total > target; i--) drop(bucket[i])
+        for (let i = bucket.length - 1; i >= 0 && over(); i--) drop(bucket[i])
       }
     }
     if (!evicted.length) return

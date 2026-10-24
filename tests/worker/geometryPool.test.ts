@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
+import { packGeometry } from '../../src/geometry/packed'
 import type { WorkerGeometry, WorkerResponse } from '../../src/geometry/protocol'
 import type { GeometryJob } from '../../src/geometry/types'
 import { GeometryClient, poolSize } from '../../src/state/geometryClient'
@@ -15,6 +16,7 @@ import { BASE } from '../helpers/params'
 
 const font = (id: string) => ({ id, bytes: new Uint8Array(4), source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 } }) as unknown as LoadedFont
 const geometry = (index: number) => ({ polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] }, vertexCount: index }) as unknown as WorkerGeometry
+const packed = (index: number) => packGeometry(geometry(index)).packed
 const job = (key: string, indices: number[]): GeometryJob => ({ params: BASE, key, indices })
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => from + k)
 
@@ -30,7 +32,7 @@ function answer(w: FakeWorker, ms: (index: number) => number = () => 1) {
       requestId,
       fontId: w.lastRequest.fontId,
       key,
-      results: indices.map((index) => ({ index, geometry: geometry(index) })),
+      results: indices.map((index) => ({ index, packed: packed(index) })),
       times: indices.map(ms),
       ...(live ? { live } : {}),
     } as WorkerResponse)
@@ -373,7 +375,7 @@ describe('geometry worker pool', () => {
     await Promise.resolve()
     expect(idle).toHaveBeenCalledTimes(1)
     // The old font's results and dones, arriving late, change nothing.
-    workers[0].reply({ type: 'results', requestId: old[0].requestId, fontId: 'f', key: 'a', results: [{ index: 1, geometry: geometry(1) }] })
+    workers[0].reply({ type: 'results', requestId: old[0].requestId, fontId: 'f', key: 'a', results: [{ index: 1, packed: packed(1) }] })
     for (const [n, w] of workers.entries()) w.reply({ type: 'done', requestId: old[n].requestId, stopped: true })
     expect(client.lookup('a', 1)).toBeNull()
     expect(client.isComputing()).toBe(true)
@@ -424,7 +426,7 @@ describe('geometry worker pool', () => {
     const jobs = [job('a', [5, 1, 3]), job('b', [3])]
     client.computeJobs(font('f'), jobs, true)
     expect(workers).toHaveLength(1)
-    expect(workers[0].lastRequest).toEqual({ type: 'compute', requestId: expect.any(Number), fontId: 'f', jobs, live: true })
+    expect(workers[0].lastRequest).toEqual({ type: 'compute', requestId: expect.any(Number), fontId: 'f', jobs, live: true, stats: { key: 'a', index: 5 } })
     expect(workers[0].received.filter((m) => m.type === 'cancel')).toEqual([])
   })
 })

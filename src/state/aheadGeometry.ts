@@ -323,7 +323,7 @@ export class PageAhead implements AheadGeometry, PlanSource {
 
   request(job: PlanRequest, done: (plan: MorphPlan | null) => void): () => void {
     const { from, to } = job
-    const cancel = this.client().requestPlan(encodeGlyph(from), job.toRef ?? encodeGlyph(to), (data) => done(data ? decodePlan(data, from, to) : null))
+    const cancel = this.client().requestPlan(encodeGlyph(from), encodeGlyph(to), (data) => done(data ? decodePlan(data, from, to) : null))
     if (cancel) return cancel
     // No worker can take it: paired here, as without worker plans.
     done(planMorph(settleInBetween(from, to), to))
@@ -435,14 +435,17 @@ export class PageAhead implements AheadGeometry, PlanSource {
       if (changed) this.memoVersion++
     })
     client.setAheadListener({
-      results: (seq, key, indices, times) => {
-        if (this.window && this.window.glideMs > 0) for (const index of indices) this.held.set(key, index, Math.max(seq, this.held.get(key, index) ?? seq))
-        this.backlog = Math.max(0, this.backlog - indices.length)
+      results: (generation, seq, key, indices, times) => {
+        // How fast the workers compute holds whatever plan the glyphs were for.
         const timed = times.filter((t): t is number => t !== null && t > 0)
         if (timed.length) {
           const rate = (1000 * timed.length) / timed.reduce((a, b) => a + b, 0)
           this.rate = this.rate > 0 ? this.rate + AHEAD_PAGE_LIMITS.rateWeight * (rate - this.rate) : rate
         }
+        // A superseded plan's commits are not this one's (its seqs name other commits), as for plans below.
+        if (generation !== this.window?.generation) return
+        if (this.window.glideMs > 0) for (const index of indices) this.held.set(key, index, Math.max(seq, this.held.get(key, index) ?? seq))
+        this.backlog = Math.max(0, this.backlog - indices.length)
         this.notifyReady()
       },
       plans: (message) => {

@@ -22,7 +22,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import type { LoadedFont } from '../font/model'
-import type { AheadItem, EncodedGlyph, Lane, WorkerGeometry, WorkerRequest, WorkerResponse } from '../geometry/protocol'
+import { unpackEntry, type UnpackedEntry } from '../geometry/packed'
+import type { AheadItem, EncodedGlyph, Lane, WorkerRequest, WorkerResponse } from '../geometry/protocol'
 import type { FrameJob, GeometryJob, GeometryParams, PolygonGlyph } from '../geometry/types'
 import type { PlanData } from '../specimen/planData'
 import type { PolygonLookup } from '../specimen/scene'
@@ -31,8 +32,11 @@ import { AheadStore } from './aheadStore'
 // Registers the ahead lane's page side and the worker plans (aheadTypes.ts) wherever the client is used.
 import './aheadGeometry'
 
-/** A result. `transient` marks a glyph that was not computed (the worker stopped): not a fault of the glyph. */
-export type GeometryEntry = { geometry: WorkerGeometry } | { error: string; transient?: boolean }
+/**
+ * A result: `lean` without the pipeline's statistics (only the glyph a request names gets them, the selected one).
+ * `transient` marks a glyph that was not computed (the worker stopped): not a fault of the glyph.
+ */
+export type GeometryEntry = UnpackedEntry | { error: string; transient?: boolean }
 
 /** A result, and whether it is from earlier settings (shown until the current one arrives). */
 export interface GeometryLookup {
@@ -115,8 +119,8 @@ interface Slot {
 
 /** Hears the ahead lane (aheadGeometry.ts). */
 export interface AheadListener {
-  /** These glyphs of commit `seq` are in the ahead store now. */
-  results(seq: number, key: string, indices: number[], times: (number | null)[]): void
+  /** These glyphs of commit `seq` (of plan `generation`) are in the ahead store now. */
+  results(generation: number, seq: number, key: string, indices: number[], times: (number | null)[]): void
   /** Commit `seq`'s chain steps. */
   plans(message: Extract<WorkerResponse, { type: 'ahead-plans' }>): void
   /** An ahead request ended (done, stopped, or its worker restarted or was replaced): what is missing may be sent again. */
@@ -347,7 +351,7 @@ export class GeometryClient {
    */
   ensure(font: LoadedFont, params: GeometryParams, key: string, indices: readonly number[], signal?: AbortSignal): Promise<PolygonLookup> {
     return new Promise((resolve, reject) => {
-      const missing = () => indices.filter((i) => !this.entry(key, i))
+      const missing = () => indices.filter((i) => !this.has(key, i))
       const check = () => {
         if (signal?.aborted) {
           end(() => reject(signal.reason))
@@ -483,11 +487,11 @@ export class GeometryClient {
   }
 
   /**
-   * Asks a worker to plan a glide (the plan lane): `from` by value with its side tables, `to` by value or by the key
-   * and glyph it was computed under. `done` gets the plan's data (null: change at once; also when its worker was
-   * restarted). Returns a cancel, after which `done` is never called; null when no worker can take it (nothing sent).
+   * Asks a worker to plan a glide (the plan lane): `from` and `to` by value with their side tables. `done` gets the
+   * plan's data (null: change at once; also when its worker was restarted). Returns a cancel, after which `done` is
+   * never called; null when no worker can take it (nothing sent).
    */
-  requestPlan(from: EncodedGlyph, to: EncodedGlyph | { key: string; index: number }, done: (data: PlanData | null) => void): (() => void) | null {
+  requestPlan(from: EncodedGlyph, to: EncodedGlyph, done: (data: PlanData | null) => void): (() => void) | null {
     const font = this.font
     if (font) this.startWorkers()
     const slots = this.slots.filter((slot) => slot.worker)
@@ -533,6 +537,9 @@ export class GeometryClient {
     this.useFont(font)
     // The asker's first parameter set, even when its glyphs are all known and it is not sent.
     const primary = jobs[0]?.key
+    // The glyph whose statistics the panels show (the first asked for under the first set; never for an export).
+    const first = jobs[0]?.indices[0]
+    const stats = origin !== 'export' && primary !== undefined && first !== undefined ? { key: primary, index: first } : undefined
     if (live) {
       this.liveSets.push(jobs.length)
       if (this.liveSets.length > LIVE_ASKS) this.liveSets.shift()
@@ -544,12 +551,16 @@ export class GeometryClient {
       if (live) this.touchLive(key)
       else this.promote(key)
       for (const i of indices) {
-        const entry = this.entry(key, i)
-        if (entry) {
+        if (this.has(key, i)) {
+          // Only these are turned into objects here (the ahead store's are packed): a presence check is enough otherwise.
+          const shown = origin === 'canvas' && n === 0
+          const wantsStats = stats?.key === key && stats.index === i
+          const entry = shown || wantsStats ? this.entry(key, i)! : null
           // On the canvas, each glyph's shape under the first settings is what is on screen now: it stands in
           // while later settings are computed (after Sound stops, the sliders' own shapes, not the last live frame).
-          if (origin === 'canvas' && n === 0) this.latest.set(i, entry)
-          continue
+          if (shown) this.latest.set(i, entry!)
+          // The glyph whose statistics are shown, kept without them, is asked for again (the worker's cache knows it).
+          if (!(wantsStats && 'lean' in entry!)) continue
         }
         let job = missing.get(key)
         if (!job) missing.set(key, (job = { params, indices: new Set() }))
@@ -569,7 +580,7 @@ export class GeometryClient {
     }
     const needed: GeometryJob[] = [...missing].map(([key, { params, indices }]) => ({ params, key, indices: [...indices] }))
     this.startWorkers()
-    if (!this.getProblem() && this.request(needed, live, origin, primary)) return true
+    if (!this.getProblem() && this.request(needed, live, origin, primary, stats)) return true
     // No page-side computing: the glyphs fail (canvas, preview and exports alike) and the canvas says why.
     const problem = this.getProblem() ?? CANNOT_START
     for (const { key, indices } of needed) for (const i of indices) this.store(key, i, { error: problem, transient: true }, live)
@@ -583,7 +594,7 @@ export class GeometryClient {
    * Shares the jobs out among the workers and sends each its part; the request in flight before is superseded.
    * False when no worker is left to send it to.
    */
-  private request(jobs: GeometryJob[], live: boolean, origin: Origin, primary: string | undefined): boolean {
+  private request(jobs: GeometryJob[], live: boolean, origin: Origin, primary: string | undefined, stats?: { key: string; index: number }): boolean {
     const font = this.font!
     // A worker busy with a glyph nobody asks for now is replaced (static settings only).
     if (!live) {
@@ -597,7 +608,8 @@ export class GeometryClient {
     const previous = this.inFlight
     const parts = new Map<Slot, Part>()
     for (const [slot, part] of shares) {
-      parts.set(slot, { request: { type: 'compute', requestId: id, fontId: font.id, jobs: part, ...(live ? { live } : {}) }, pending: true })
+      const request: ComputeRequest = { type: 'compute', requestId: id, fontId: font.id, jobs: part, ...(live ? { live } : {}), ...(stats ? { stats } : {}) }
+      parts.set(slot, { request, pending: true })
     }
     const pairs = new Map(jobs.map((job) => [job.key, new Set(job.indices)]))
     this.inFlight = { id, pairs, primary, live, origin, sentAt: performance.now(), parts, broken: false }
@@ -614,9 +626,11 @@ export class GeometryClient {
 
   /**
    * Each worker's part of these jobs: every glyph (under all its parameter sets) to one worker, in the jobs' order.
-   * A glyph a worker is computing now stays with it (asked for again, it finishes there instead of starting over
-   * elsewhere). Then, heaviest first, a glyph goes back to the worker it went to last while that worker stays within an
-   * even share of the request (by each glyph's recent time, SHARE_SLACK over), else to the least loaded worker.
+   * A glyph a worker is computing now for the canvas lane stays with it (asked for again, it finishes there instead of
+   * starting over elsewhere); one a worker is computing for the ahead lane goes elsewhere (that result fills none of the
+   * worker's caches, so it would compute the glyph again after it). Then, heaviest first, a glyph goes back to the
+   * worker it went to last while that worker stays within an even share of the request (by each glyph's recent time,
+   * SHARE_SLACK over), else to the least loaded worker.
    */
   private share(jobs: GeometryJob[], slots: Slot[]): Map<Slot, GeometryJob[]> {
     if (slots.length <= 1) return new Map(slots.map((slot) => [slot, jobs]))
@@ -627,9 +641,15 @@ export class GeometryClient {
     for (const { indices } of jobs) for (const i of indices) weights.set(i, (weights.get(i) ?? 0) + (this.costs.get(i) ?? fallback))
     const load = new Map(slots.map((slot) => [slot, 0]))
     const owner = new Map<number, Slot>()
+    /** The worker computing this glyph for the ahead lane now, if any. */
+    const aheadOn = new Map<number, Slot>()
     for (const slot of slots) {
       const current = slot.current
       if (!current || owner.has(current.index) || !this.asks(jobs, current)) continue
+      if (current.lane !== 'canvas') {
+        aheadOn.set(current.index, slot)
+        continue
+      }
       owner.set(current.index, slot)
       load.set(slot, weights.get(current.index)!)
     }
@@ -637,9 +657,11 @@ export class GeometryClient {
     const total = [...weights.values()].reduce((sum, w) => sum + w, 0)
     const cap = Math.max((total / slots.length) * (1 + SHARE_SLACK), order[0]?.[1] ?? 0)
     for (const [index, weight] of order) {
+      const busy = aheadOn.get(index)
+      const free = busy ? slots.filter((s) => s !== busy) : slots
       const home = this.homes.get(index)
-      let slot = home !== undefined && load.has(home) && load.get(home)! + weight <= cap ? home : undefined
-      if (!slot) slot = slots.reduce((a, b) => (load.get(b)! < load.get(a)! ? b : a))
+      let slot = home !== undefined && home !== busy && load.has(home) && load.get(home)! + weight <= cap ? home : undefined
+      if (!slot) slot = free.reduce((a, b) => (load.get(b)! < load.get(a)! ? b : a))
       load.set(slot, load.get(slot)! + weight)
       owner.set(index, slot)
     }
@@ -674,7 +696,9 @@ export class GeometryClient {
 
   /**
    * The worker in one glyph for longest, at least PREEMPT_MS, that these jobs do not ask for (the glyph of superseded
-   * settings): replacing it is quicker than waiting for it. None within PREEMPT_GAP_MS of the last replacement.
+   * settings): replacing it is quicker than waiting for it. None within PREEMPT_GAP_MS of the last replacement, and
+   * never one on an ahead glyph: the lane waits behind the canvas's between glyphs, and replacing the worker would lose
+   * its caches, its ahead store and its Glide chains.
    */
   private stuckElsewhere(jobs: readonly GeometryJob[]): Slot | undefined {
     const now = performance.now()
@@ -682,7 +706,7 @@ export class GeometryClient {
     let stuck: Slot | undefined
     for (const slot of this.slots) {
       const current = slot.current
-      if (!slot.worker || !current || now - current.at < PREEMPT_MS || this.asks(jobs, current)) continue
+      if (!slot.worker || !current || current.lane !== 'canvas' || now - current.at < PREEMPT_MS || this.asks(jobs, current)) continue
       if (!stuck || current.at < stuck.current!.at) stuck = slot
     }
     return stuck
@@ -906,11 +930,12 @@ export class GeometryClient {
     if (message.type !== 'font-error') slot.current = null
     if (message.type === 'results') {
       if (message.fontId !== this.fontId) return
-      // A live frame's quiet and strong levels are not what a glyph shows everywhere: they never stand in for it.
+      // A live frame's quiet and strong levels are not what a glyph shows everywhere: they never stand in for it; nor
+      // does a result of a request no longer remembered (which settings it was asked for under is not known).
       const asked = this.requests.get(message.requestId)
-      const standsIn = !asked || asked.primary === undefined || message.key === asked.primary
+      const standsIn = asked !== undefined && (asked.primary === undefined || message.key === asked.primary)
       message.results.forEach((result, n) => {
-        const entry: GeometryEntry = 'error' in result ? { error: result.error } : { geometry: result.geometry }
+        const entry: GeometryEntry = 'error' in result ? { error: result.error } : unpackEntry(result.packed)
         this.store(message.key, result.index, entry, message.live === true, standsIn)
         const ms = message.times?.[n]
         if (ms !== undefined && ms !== null) {
@@ -939,7 +964,7 @@ export class GeometryClient {
         this.aheadStore.put(message.key, result.index, result)
         indices.push(result.index)
       }
-      this.aheadListener?.results(message.seq, message.key, indices, message.times)
+      this.aheadListener?.results(message.generation, message.seq, message.key, indices, message.times)
     } else if (message.type === 'ahead-plans') {
       if (message.requestId >= this.aheadSince) this.aheadListener?.plans(message)
     } else if (message.type === 'ahead-done') {
@@ -971,7 +996,7 @@ export class GeometryClient {
       const problem = `The geometry worker could not open this font (${message}).`
       this.fontProblem = { fontId: part.request.fontId, message: problem }
       for (const { key, indices } of part.request.jobs) {
-        for (const i of indices) if (!this.entry(key, i)) this.store(key, i, { error: problem, transient: true }, inFlight.live)
+        for (const i of indices) if (!this.has(key, i)) this.store(key, i, { error: problem, transient: true }, inFlight.live)
       }
       this.endPart(inFlight, part)
       return

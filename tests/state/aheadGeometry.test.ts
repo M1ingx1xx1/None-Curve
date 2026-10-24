@@ -20,13 +20,16 @@ function fakeClient(budget = 1 << 20) {
   const aheadStore = new AheadStore(budget)
   let listener: AheadListener | null = null
   const lease = { inFlight: false }
+  /** The plan generation of the newest lease (results arrive for it unless a test says otherwise). */
+  let generation = -1
   const client = {
     aheadStore,
     setAheadListener: (l: AheadListener | null) => (listener = l),
     has: (key: string, index: number) => aheadStore.has(key, index),
     workerCount: () => 1,
     aheadInFlight: () => lease.inFlight,
-    sendAhead: (_font: string, _generation: number, _glide: number, _playhead: number, items: readonly AheadItem[]) => {
+    sendAhead: (_font: string, sentGeneration: number, _glide: number, _playhead: number, items: readonly AheadItem[]) => {
+      generation = sentGeneration
       sent.push([...items])
       return true
     },
@@ -34,12 +37,12 @@ function fakeClient(budget = 1 << 20) {
     aheadWorkerBytes: () => 0,
     requestPlan: () => null,
   } as unknown as GeometryClient
-  /** The results of these items come (as errors: small, and held like any glyph). */
-  const arrive = (items: readonly AheadItem[]) => {
+  /** The results of these items come (as errors: small, and held like any glyph), for the newest lease's plan or `of`. */
+  const arrive = (items: readonly AheadItem[], of = generation) => {
     for (const item of items) {
       if (item.kind !== 'glyphs') continue
       for (const index of item.indices) aheadStore.put(item.key, index, { error: 'x' })
-      listener!.results(item.seq, item.key, item.indices, item.indices.map(() => 5))
+      listener!.results(of, item.seq, item.key, item.indices, item.indices.map(() => 5))
     }
   }
   return { client, sent, released, aheadStore, arrive, lease, listener: () => listener! }
@@ -109,6 +112,21 @@ describe('the page ahead window', () => {
     expect(ahead.ready(0)).toBe(false)
     arrive(sent[0])
     for (let seq = 0; seq < 10 * keys.length; seq++) expect(ahead.ready(seq)).toBe(true)
+  })
+
+  it('counts only results of the current plan against what is on its way', () => {
+    const { client, sent, arrive } = fakeClient()
+    const ahead = new PageAhead(() => client)
+    ahead.want(windowOf(commitsOf(), 0, { generation: 2 }))
+    /** Glyphs still on their way. */
+    const left = () => (ahead.stats().backlogMs * ahead.stats().glyphsPerSecond) / 1000
+    const backlog = left()
+    expect(backlog).toBeGreaterThan(0)
+    // A superseded plan's answers (its seqs name other commits) leave the backlog as it is; the current plan's take it down.
+    arrive(sent[0], 1)
+    expect(left()).toBeCloseTo(backlog)
+    arrive(sent[0])
+    expect(left()).toBe(0)
   })
 
   it('turns the ready commits into merged media time ranges, and an eviction takes them back', () => {

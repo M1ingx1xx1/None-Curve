@@ -4,6 +4,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { FontSource } from '../../src/font/model'
+import { unpackGeometry } from '../../src/geometry/packed'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
 import { createGeometryWorker } from '../../src/geometry/workerCore'
@@ -30,14 +31,17 @@ vi.mock('../../src/geometry/cache', async (importOriginal) => {
 /** A worker with a fake `post` that records what it sends; `reply` lets a test answer messages as they arrive. */
 function worker(reply: (message: WorkerResponse, send: (m: WorkerRequest) => void) => void = () => {}) {
   const sent: WorkerResponse[] = []
-  const send = createGeometryWorker((message) => {
+  /** The buffers each message transferred, by the message's place in `sent`. */
+  const transfers: Transferable[][] = []
+  const send = createGeometryWorker((message, transfer) => {
     sent.push(message)
+    transfers.push(transfer ?? [])
     reply(message, send)
   })
   const ended = (requestId: number) => sent.find((m) => (m.type === 'done' || m.type === 'failed') && m.requestId === requestId)
   const until = (requestId: number) => vi.waitFor(() => expect(ended(requestId)).toBeDefined(), { timeout: 20_000, interval: 5 })
   const of = (requestId: number) => sent.filter((m) => 'requestId' in m && m.requestId === requestId)
-  return { sent, send, ended, until, of }
+  return { sent, transfers, send, ended, until, of }
 }
 
 const roboto = fixtureBytes('Roboto')
@@ -63,12 +67,12 @@ describe('geometry worker core', async () => {
     expect(messages.filter((m) => m.type === 'glyph').map((m) => (m as { index: number }).index)).toEqual(glyphs.slice(0, 12))
     const results = messages.flatMap((m) => (m.type === 'results' ? m.results : []))
     expect(results.map((r) => r.index)).toEqual(glyphs.slice(0, 12))
-    expect(results.every((r) => 'geometry' in r)).toBe(true)
+    expect(results.every((r) => 'packed' in r)).toBe(true)
     // Each heartbeat comes before its glyph's result, and the request ends with exactly one 'done'.
     expect(messages[messages.length - 1]).toEqual({ type: 'done', requestId: 1 })
     expect(messages.filter((m) => m.type === 'done' || m.type === 'failed')).toHaveLength(1)
     const first = results[0]
-    expect('geometry' in first && first.geometry.polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[0]), BASE).polygon)
+    expect('packed' in first && unpackGeometry(first.packed).polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[0]), BASE).polygon)
   })
 
   it('times each glyph it computes, and gives no time for one its cache already held', async () => {
@@ -170,7 +174,7 @@ describe('geometry worker core', async () => {
     for (const m of messages) if (m.type === 'results') expect(m.live).toBe(true)
     const second = messages.flatMap((m) => (m.type === 'results' && m.key === jobs[1].key ? m.results : []))
     const shape = second[0]
-    expect('geometry' in shape && shape.geometry.polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[1]), seeded).polygon)
+    expect('packed' in shape && unpackGeometry(shape.packed).polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[1]), seeded).polygon)
     expect(messages.filter((m) => m.type === 'done' || m.type === 'failed')).toEqual([{ type: 'done', requestId: 30 }])
     expect(messages.at(-1)).toEqual({ type: 'done', requestId: 30 })
   })
@@ -198,8 +202,27 @@ describe('geometry worker core', async () => {
     w.send(compute(20, glyphs.slice(0, 3), BASE, 'both'))
     await w.until(20)
     const results = w.of(20).flatMap((m) => (m.type === 'results' ? m.results : []))
-    expect(results.map((r) => ('geometry' in r ? r.geometry.polygon.contours : r.error))).toEqual(
+    expect(results.map((r) => ('packed' in r ? unpackGeometry(r.packed).polygon.contours : r.error))).toEqual(
       glyphs.slice(0, 3).map((index) => deriveGeometry(font.getGlyph(index), BASE).polygon.contours),
     )
+  })
+
+  it('posts results packed, their arrays transferred, with statistics only for the glyph the request names', async () => {
+    const w = worker()
+    w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
+    const asked = job(glyphs.slice(0, 3))
+    w.send({ type: 'compute', requestId: 50, fontId: 'roboto', jobs: [asked], stats: { key: asked.key, index: glyphs[1] } })
+    await w.until(50)
+    const posted = w.sent.flatMap((m, n) => (m.type === 'results' && m.requestId === 50 ? [{ results: m.results, transfer: w.transfers[n] }] : []))
+    const results = posted.flatMap((m) => m.results)
+    expect(results.map((r) => 'packed' in r && r.packed.stats !== null)).toEqual([false, true, false])
+    for (const { results, transfer } of posted) for (const r of results) if ('packed' in r) expect(transfer).toContain(r.packed.contours.xy.buffer)
+    // The glyph named comes back whole; the others without statistics, the same polygon.
+    const named = results[1]
+    const { source: _source, ...whole } = deriveGeometry(font.getGlyph(glyphs[1]), BASE)
+    expect('packed' in named && unpackGeometry(named.packed)).toEqual(whole)
+    const other = results[0]
+    const { polygon, vertexCount } = deriveGeometry(font.getGlyph(glyphs[0]), BASE)
+    expect('packed' in other && unpackGeometry(other.packed)).toEqual({ polygon, vertexCount })
   })
 })
