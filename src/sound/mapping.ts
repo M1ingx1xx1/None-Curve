@@ -21,9 +21,9 @@ import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
 import { THORN_FALLBACK } from '../geometry/thorn'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
 import type { LoadedFont, VariationAxis } from '../font/model'
-import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, TYPOGRAPHY_LIMITS, type PaletteParams, type TypographyParams } from '../specimen/artboard'
+import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { hexToLch, isNeutralColor, lchToHex } from '../specimen/color'
-import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
+import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider, TYPOGRAPHY_RANGES, type TypographySliderId } from '../state/sliderScales'
 import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, type FeatureFrame, type ResponseSettings } from './types'
 
 const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
@@ -495,9 +495,9 @@ const seed = (tab: TargetSpec['tab'], section: string, field: Field, max: number
 /** A checkbox of an Experimental effect (labelled as in ExperimentalControls): a switch target. */
 const toggle = <E extends EffectKey>(effect: E, key: 'enabled' | 'reverse' | 'burst', label: string, requires: readonly Requirement[] = []) =>
   target({ field: switchField(effect, key), tab: 'experimental', kind: 'switch', section: EFFECT_NAMES[effect], label, min: 0, max: 1, step: 1, requires })
-/** A Typography slider, with the range and step of TypographyControls. */
-const typography = (key: TypographyKey, label: string, min: number, max: number, step: number) =>
-  target({ field: typographyField(key), tab: 'typography', section: 'Typography', label, min, max, step, fallback: DEFAULT_TYPOGRAPHY[key] })
+/** A Typography slider, with the range and step of TypographyControls (TYPOGRAPHY_RANGES). */
+const typography = (key: TypographySliderId extends `typography.${infer K extends TypographyKey}` ? K : never, label: string) =>
+  target({ field: typographyField(key), tab: 'typography', section: 'Typography', label, ...TYPOGRAPHY_RANGES[`typography.${key}`], fallback: DEFAULT_TYPOGRAPHY[key] })
 
 // With a transparent background there is no background colour to see.
 const backgroundShown: Requirement = {
@@ -628,10 +628,10 @@ export const TARGETS: readonly TargetSpec[] = [
   toggle('dissolve', 'enabled', 'Use dissolve'),
 
   // The Typography tab, as in TypographyControls.
-  typography('size', 'Size', TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize, 1),
-  typography('tracking', 'Tracking', TYPOGRAPHY_LIMITS.minTracking, TYPOGRAPHY_LIMITS.maxTracking, 1),
-  typography('lineHeight', 'Line height', TYPOGRAPHY_LIMITS.minLineHeight, TYPOGRAPHY_LIMITS.maxLineHeight, 0.01),
-  typography('slant', 'Slant', -TYPOGRAPHY_LIMITS.maxSlant, TYPOGRAPHY_LIMITS.maxSlant, 1),
+  typography('size', 'Size'),
+  typography('tracking', 'Tracking'),
+  typography('lineHeight', 'Line height'),
+  typography('slant', 'Slant'),
 
   // The Color tab's text and background colours (ColorControls).
   color('ink', 'h'),

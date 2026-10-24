@@ -37,9 +37,6 @@ import type { Playhead } from './timelineTypes'
 import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundSource, SoundState, StereoSamples } from './types'
 import { INITIAL_SOUND_STATE, SILENT_FRAME, SOUND_LIMITS } from './types'
 
-// For tests/helpers/audio.ts; the worker imports it from features.ts, which keeps this engine out of its bundle.
-export { analyserFftSize } from './features'
-
 /** Position updates while playing are at least this far apart (ms): about 4 per second. */
 const POSITION_INTERVAL_MS = 200
 /** A file whose length is still unknown after this long (ms) counts as unreadable. */

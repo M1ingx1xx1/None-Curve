@@ -79,7 +79,7 @@ grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
 ## 滑块范围
 
 - 每个 Geometry 和 Experimental 滑块的范围和档位只写一次，写在 `src/state/sliderScales.ts` 里：`SLIDER_RANGES`，按滑块的 Sound 目标 id 索引（`"group.key"`、`"experimental.effect.key"`）；对数刻度的 Tolerance 滑块用 `TOLERANCE`。
-- 面板把这一项展开到它的 range 输入上（或在 `RangeField` 上写明目标），Sound（`src/sound/mapping.ts`）和保存会话的检查也读同一项，所以实时值和恢复的值总是滑块自己能给出的值。
+- 面板把这一项展开到它的 range 输入上（或在 `SliderField` 上写明目标），Sound（`src/sound/mapping.ts`）和保存会话的检查也读同一项，所以实时值和恢复的值总是滑块自己能给出的值。
 - 每个滑块都有一个数字框（`SliderNumber`，基于 `NumberField`），读的也是同一项：它按标签的单位显示数值（以百分比显示的比例用 `scale` 100），输入的值先限制在范围内、取整到档位，再提交。Tolerance 和 Reach 的数字框直接输入值本身（Tolerance 精确到 0.01 个单位，再由 `roundTolerance` 取整；Reach 为画布的百分比，精确到 0.01%）。
 - 不要在别处再写滑块的最小值、最大值或档位；要改范围，就改这一项。新滑块先在这里加一项。`sliderRange(id)` 遇到没有的 id 会抛错，所以拼写错误会立刻暴露。
 - Sound 标签页自己的滑块也遵守同样的规则，范围来自 `src/sound/types.ts`：Sensitivity 和 Release 来自 `SOUND_LIMITS`（`minSensitivity`、`maxSensitivity`、`sensitivityStep`；`minReleaseMs`、`maxReleaseMs`、`releaseStepMs`），Strength、Motion contrast、Pitch reactive 和 Melody tracking 来自 `RESPONSE_LIMITS`。存储中这四个值是小数（Strength 1 即 100%），面板按同一项以百分比显示；`clampResponse` 和保存会话的检查（`persist.ts` 中的 `SOUND_RANGES`）也读这些项。

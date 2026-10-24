@@ -4,7 +4,7 @@
 // and jitters its time. Stereo input is mixed down ((L + R) / 2) as an AnalyserNode mixes it, and the channels are
 // passed as `stereo`, as the engine's channel analysers give them.
 
-import { analyserFftSize } from '../../src/sound/engine'
+import { analyserFftSize } from '../../src/sound/features'
 import { FeatureExtractor } from '../../src/sound/features'
 import { blackmanWindow as blackman, fftInPlace } from '../../src/sound/offline'
 import { DEFAULT_FEATURE_SETTINGS, type FeatureFrame, type FeatureSettings } from '../../src/sound/types'
