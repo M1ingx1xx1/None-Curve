@@ -210,14 +210,22 @@ export default function App({ restored }: AppProps) {
   // Free position: the canvas moves the text itself while it is dragged and reports the move (in font
   // units) once, on release; the new position is computed from where the text was, measured on the
   // sliders' own letters (as Fit text and Free are), so a live Sound frame never leaks into it. While
-  // Sound drives the letters, those may first have to be computed in the geometry worker.
+  // Sound drives the letters, those may first have to be computed in the geometry worker. It resolves false when
+  // nothing moved, so the canvas drops its drag offset instead of waiting for a new layout.
   const moveText = useCallback(
-    (dx: number, dy: number) => {
-      void current.current.loadSliderScene().then((base) => {
-        const { layout, state } = current.current
-        if (base && layout) edit({ type: 'updateParams', group: 'typography', patch: moveFreeText(state.params.typography, dx, dy, base, layout) })
-      })
-    },
+    (dx: number, dy: number) =>
+      current.current.loadSliderScene().then(
+        (base) => {
+          const { layout, state } = current.current
+          if (!base || !layout) return false
+          const typography = state.params.typography
+          const patch = moveFreeText(typography, dx, dy, base, layout)
+          if (patch.freeX === typography.freeX && patch.freeY === typography.freeY) return false
+          edit({ type: 'updateParams', group: 'typography', patch })
+          return true
+        },
+        () => false,
+      ),
     [edit],
   )
   const setArtboard = useCallback(

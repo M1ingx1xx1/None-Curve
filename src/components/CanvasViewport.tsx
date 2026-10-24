@@ -14,6 +14,7 @@ import Glided from './Glided'
 import GlyphSurface from './GlyphSurface'
 import SpecimenView from './SpecimenView'
 import { clampZoom } from './usePanZoom'
+import type { MoveText } from './useTextDrag'
 import Icon from './Icon'
 
 interface CanvasViewportProps {
@@ -41,7 +42,7 @@ interface CanvasViewportProps {
   onSelectGlyph: (glyph: GlyphRef) => void
   onClearHighlight: () => void
   /** Set while the text has a Free position: dragging the text on the canvas moves it. */
-  onMoveText?: (dx: number, dy: number) => void
+  onMoveText?: MoveText
   onViewChange: (patch: Partial<ViewToggles>) => void
   onLocalFile: (file: File) => void
   onOpenGoogleFonts: () => void
