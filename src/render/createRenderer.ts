@@ -21,7 +21,7 @@ export interface RendererOptions {
   mode: 'full' | 'artboard'
   /** The stacked canvas for WebGL's detail layer (main canvas only). */
   detailCanvas?: HTMLCanvasElement | null
-  /** Called when the renderer breaks for good (a lost WebGL context). */
+  /** Called when the WebGL context is lost; useGlyphRenderer waits for its restore and falls back only after repeated losses. */
   onLost?: () => void
 }
 
