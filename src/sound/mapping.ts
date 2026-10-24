@@ -367,7 +367,7 @@ function experimentalField(key: NumericKeys<ExperimentalParams>): Field {
 function switchField<E extends EffectKey>(effect: E, key: 'enabled' | 'reverse' | 'burst'): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    read: (p) => ((p.experimental[effect] as unknown as Record<string, unknown> | undefined)?.[key] === true ? 1 : 0),
+    read: (p) => ((p.experimental[effect] as Partial<Record<typeof key, unknown>> | undefined)?.[key] === true ? 1 : 0),
     write: (p, value) => ({
       ...p,
       experimental: { ...p.experimental, [effect]: { ...p.experimental[effect], [key]: value >= 0.5 } },

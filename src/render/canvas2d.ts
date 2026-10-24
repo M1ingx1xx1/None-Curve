@@ -94,7 +94,7 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
       ctx = null
     }
     if (!ctx) return null
-    return new Canvas2DRenderer<Path2D>(canvas, ctx as unknown as Context2D<Path2D>, mode, () => new Path2D())
+    return new Canvas2DRenderer<Path2D>(canvas, ctx, mode, () => new Path2D())
   }
 
   setView(view: RenderView) {

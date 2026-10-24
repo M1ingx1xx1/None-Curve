@@ -218,13 +218,13 @@ function valueReader(font: FontTables): (record: ValueRecord | undefined) => Ker
   const delta = (device: Device | null | undefined) => (variations && store && device ? variations.getDelta(store, device.a, device.b) : 0)
   return (record) => {
     if (!record) return ZERO
-    const value = [
-      (record.xPlacement ?? 0) + delta(record.xPlaDevice),
-      (record.yPlacement ?? 0) + delta(record.yPlaDevice),
-      (record.xAdvance ?? 0) + delta(record.xAdvDevice),
-      (record.yAdvance ?? 0) + delta(record.yAdvDevice),
-    ].map((v) => Math.round(v))
-    return value.every((v) => v === 0) ? ZERO : (value as unknown as KernValue)
+    const value: KernValue = [
+      Math.round((record.xPlacement ?? 0) + delta(record.xPlaDevice)),
+      Math.round((record.yPlacement ?? 0) + delta(record.yPlaDevice)),
+      Math.round((record.xAdvance ?? 0) + delta(record.xAdvDevice)),
+      Math.round((record.yAdvance ?? 0) + delta(record.yAdvDevice)),
+    ]
+    return value.every((v) => v === 0) ? ZERO : value
   }
 }
 

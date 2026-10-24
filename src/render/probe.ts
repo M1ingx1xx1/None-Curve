@@ -57,6 +57,13 @@ const DRAW_MS_KEEP = 600
 
 export const probeOn: boolean = RUNTIME_FLAGS.probe
 
+declare global {
+  interface Window {
+    /** The probe's state, for a measuring script to read (?probe=1). */
+    __noneCurveFrames?: ProbeState
+  }
+}
+
 let state: ProbeState | null = null
 
 /** The probe's state, made (and put on window.__noneCurveFrames) on first use. */
@@ -90,7 +97,7 @@ function probeState(): ProbeState {
     },
     preview: { frames: 0, drawMs: [] },
   }
-  if (typeof window !== 'undefined') (window as unknown as { __noneCurveFrames?: ProbeState }).__noneCurveFrames = state
+  if (typeof window !== 'undefined') window.__noneCurveFrames = state
   return state
 }
 
