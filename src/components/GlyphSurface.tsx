@@ -13,6 +13,7 @@ import type { GlideStore } from '../state/useGlide'
 import type { ViewParams } from '../state/types'
 import { gridLines } from './canvasGuides'
 import SpecimenUnderlay from './SpecimenUnderlay'
+import { useDevicePixelRatio } from './useDevicePixelRatio'
 import { usePanZoom } from './usePanZoom'
 
 interface GlyphSurfaceProps {
@@ -237,10 +238,10 @@ export default function GlyphSurface({
   }, [theme, themeVersion, ink, highlight, view.outline, view.showFill, view.showSkeleton, view.showVertices, showMarkers, u, unitsPerEm, ascender, descender])
 
   // View, style and selection, then a draw: in a layout effect, so the canvas changes with the underlay.
+  const dpr = useDevicePixelRatio()
   useLayoutEffect(() => {
     const renderer = rendererRef.current
     if (!renderer || !ready || !style) return
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
     latest.current.dpr = dpr
     const el = containerRef.current
     renderer.setView({ kind: 'canvas', left, top, u, cssWidth: el?.clientWidth ?? visW / u, cssHeight: el?.clientHeight ?? visH / u, dpr })
@@ -248,7 +249,7 @@ export default function GlyphSurface({
     renderer.setSelected(selectedGlyph?.index ?? null)
     renderer.setFrame(frameNow(), source)
     paint()
-  }, [kind, ready, style, left, top, u, visW, visH, selectedGlyph, source, scene, frameNow, paint, containerRef])
+  }, [kind, ready, style, left, top, u, visW, visH, dpr, selectedGlyph, source, scene, frameNow, paint, containerRef])
 
   // Every frame of Glide, straight to the renderer.
   useEffect(
