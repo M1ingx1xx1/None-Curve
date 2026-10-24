@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import type { LoadedFont } from '../font/model'
 import { paramsKey } from '../geometry/paramsKey'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
-import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
+import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, setsSlots, type LetterSlots } from '../sound/letters'
 import type { LiveView } from '../sound/live'
 import {
   layoutArtboard,
@@ -11,13 +11,7 @@ import {
   type SliderPlacement,
   type TypographyParams,
 } from '../specimen/artboard'
-import {
-  placePolygons,
-  shapeSpecimen,
-  type PolygonLookup,
-  type ShapedSpecimen,
-  type SpecimenScene,
-} from '../specimen/scene'
+import { placePolygons, shapeSpecimen, type PolygonLookup, type SpecimenScene } from '../specimen/scene'
 import { geometryClient, useGlyphGeometry } from './geometryClient'
 import type { AppState } from './types'
 
@@ -107,15 +101,6 @@ export interface GeometryState {
 /** The typography fields shaping uses. */
 const layoutOf = ({ tracking, lineHeight, align, slant }: TypographyParams) => ({ tracking, lineHeight, align, slant })
 
-/** Whether `shaped` sets the glyphs `slots` were made for, in the same order (the same text set otherwise). */
-function sameGlyphs(slots: LetterSlots, shaped: ShapedSpecimen): boolean {
-  let j = 0
-  for (const line of shaped.lines) {
-    for (const glyph of line.glyphs) if (j >= slots.count || slots.index[j++] !== glyph.index) return false
-  }
-  return j === slots.count
-}
-
 /**
  * All derived geometry for the page. Glyphs are computed in the geometry worker, the selected glyph
  * first (for its statistics), then the text's glyphs in reading order; the canvas keeps showing each
@@ -200,7 +185,7 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     () =>
       !shaped
         ? NO_SLOTS
-        : shaped === sliderShaped || sameGlyphs(sliderSlots, shaped)
+        : shaped === sliderShaped || setsSlots(shaped, sliderSlots)
           ? sliderSlots
           : letterSlots(shaped),
     [shaped, sliderShaped, sliderSlots],

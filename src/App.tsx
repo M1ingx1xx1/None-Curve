@@ -53,6 +53,7 @@ import { DEFAULT_RESET_EXTRAS, resetHistory } from './state/reset'
 import type { AppState, EditorParams, SettingsParams, ViewToggles } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
+import { onExportRequest } from './state/exportRequest'
 import { useSceneGlide } from './state/useGlide'
 
 /** Every parameter group but the canvas view: what undo restores and the session saves (never Thorn's derived canvasEm). */
@@ -260,8 +261,21 @@ export default function App({ restored }: AppProps) {
 
   const [googleOpen, setGoogleOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  // The format the dialog opens on when asked from elsewhere (the Sound tab's Export video…); null: the last one.
+  const [exportOn, setExportOn] = useState<'video' | null>(null)
   const openGoogleFonts = useCallback(() => setGoogleOpen(true), [])
-  const openExport = useCallback(() => setExportOpen(true), [])
+  const openExport = useCallback(() => {
+    setExportOn(null)
+    setExportOpen(true)
+  }, [])
+  useEffect(
+    () =>
+      onExportRequest((format) => {
+        setExportOn(format)
+        setExportOpen(true)
+      }),
+    [],
+  )
 
   const [showAllHints, setShowAllHints] = useShowAllHints()
 
@@ -766,6 +780,7 @@ export default function App({ restored }: AppProps) {
         precision={precision}
         onPrecisionChange={setPrecision}
         readConfig={readSessionNow}
+        openOn={exportOn}
       />
       {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
       <Glided store={glide} scene={scene}>

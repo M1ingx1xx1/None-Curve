@@ -15,6 +15,7 @@ import type { SoundState } from '../sound/types'
 import { useSoundState } from '../sound/useSound'
 import type { ArtboardParams } from '../specimen/artboard'
 import { HintButton, HintText, useHint } from './Hint'
+import { requestExport } from '../state/exportRequest'
 import Icon from './Icon'
 
 /** What the Record controls need from the page: the canvas (its size and export scale) and whether it has a background. */
@@ -59,9 +60,16 @@ export function useStillVideo(): boolean {
 /**
  * A take's choices: Format, Length, Frame rate, Include audio and Use the preview look, then the video's size. Shared by
  * the Record group (Sound tab) and the Export dialog's Video format: both set the same options, which last
- * for the visit (not saved, not undone) and are locked during a take.
+ * for the visit (not saved, not undone) and are locked during a take. `offline`: for a video rendered from the audio
+ * file (VideoRender), which has no Length (its time range sets it) and is written by WebCodecs, not the recorder;
+ * `locked` while it renders.
  */
-export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
+export function RecordOptionsFields({
+  artboard,
+  transparent,
+  offline = false,
+  locked: rendering = false,
+}: RecordSetup & { offline?: boolean; locked?: boolean }) {
   const { phase, options, take, support } = useRecording()
   const sound = useSoundState()
   const id = useId()
@@ -71,13 +79,14 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
   const audioHint = useHint()
   const lookHint = useHint()
   const recorder = getRecorder()
-  const locked = phase !== 'idle'
+  const locked = phase !== 'idle' || rendering
   const wholeFile = hasWholeFile(sound)
   // During a take, what it records; otherwise what Record would record now.
   const size = take ?? videoSize(artboard.width, artboard.height, artboard.scale)
   const fps = take?.fps ?? options.fps
-  const format =
-    take?.mimes[0]?.format ?? (options.format === 'mp4' && !support.mp4 && support.webm ? 'webm' : options.format)
+  const format = offline
+    ? options.format
+    : (take?.mimes[0]?.format ?? (options.format === 'mp4' && !support.mp4 && support.webm ? 'webm' : options.format))
 
   return (
     <>
@@ -94,9 +103,9 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           onChange={(e) => recorder.setOptions({ format: e.target.value as VideoFormat })}
         >
           {(['mp4', 'webm'] as const).map((value) => (
-            <option key={value} value={value} disabled={!support[value]}>
+            <option key={value} value={value} disabled={!offline && !support[value]}>
               {FORMAT_LABELS[value]}
-              {support[value] ? '' : ' (not supported in this browser)'}
+              {offline || support[value] ? '' : ' (not supported in this browser)'}
             </option>
           ))}
         </select>
@@ -105,36 +114,38 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
         </HintText>
       </div>
 
-      <div className="field">
-        <span className="field-title">
-          <label htmlFor={`${id}-length`}>Length</label>
-          <HintButton hint={lengthHint} topic="Length" />
-        </span>
-        <select
-          id={`${id}-length`}
-          value={String(options.length)}
-          disabled={locked}
-          aria-describedby={lengthHint.id}
-          onChange={(e) => {
-            const length = RECORD_LENGTHS.find((l) => String(l) === e.target.value)
-            if (length !== undefined) recorder.setOptions({ length })
-          }}
-        >
-          {RECORD_LENGTHS.map((length) => (
-            <option key={length} value={String(length)} disabled={length === 'whole-file' && !wholeFile}>
-              {lengthLabel(length)}
-            </option>
-          ))}
-        </select>
-        {options.length === 'whole-file' && !wholeFile && (
-          <p className="field-hint">Whole file needs an audio file: this take runs until stopped.</p>
-        )}
-        <HintText hint={lengthHint}>
-          How long a take runs, at most {VIDEO_LIMITS.maxMs / 60_000} minutes. With a file it starts at the current
-          Position; Whole file plays the file from its start to its end, with Loop off for the take. A take also ends
-          when the sound stops, the tab is hidden or the canvas size changes.
-        </HintText>
-      </div>
+      {!offline && (
+        <div className="field">
+          <span className="field-title">
+            <label htmlFor={`${id}-length`}>Length</label>
+            <HintButton hint={lengthHint} topic="Length" />
+          </span>
+          <select
+            id={`${id}-length`}
+            value={String(options.length)}
+            disabled={locked}
+            aria-describedby={lengthHint.id}
+            onChange={(e) => {
+              const length = RECORD_LENGTHS.find((l) => String(l) === e.target.value)
+              if (length !== undefined) recorder.setOptions({ length })
+            }}
+          >
+            {RECORD_LENGTHS.map((length) => (
+              <option key={length} value={String(length)} disabled={length === 'whole-file' && !wholeFile}>
+                {lengthLabel(length)}
+              </option>
+            ))}
+          </select>
+          {options.length === 'whole-file' && !wholeFile && (
+            <p className="field-hint">Whole file needs an audio file: this take runs until stopped.</p>
+          )}
+          <HintText hint={lengthHint}>
+            How long a take runs, at most {VIDEO_LIMITS.maxMs / 60_000} minutes. With a file it starts at the current
+            Position; Whole file plays the file from its start to its end, with Loop off for the take. A take also ends
+            when the sound stops, the tab is hidden or the canvas size changes.
+          </HintText>
+        </div>
+      )}
 
       <div className="field">
         <span className="field-title">
@@ -165,10 +176,9 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           ))}
         </div>
         <HintText hint={fpsHint}>
-          About this many frames per second in the video: when the letters have not changed, the last frame repeats. The
-          browser writes a variable-rate file, and a rate as high as the screen refresh (60 on a 60 Hz screen) may drop
-          some frames. The letters move up to {LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit editors that
-          expect those rates; they make larger files.
+          {offline
+            ? 'Frames per second in the video, every one drawn. Higher rates show each glide in more steps and make larger files.'
+            : `About this many frames per second in the video: when the letters have not changed, the last frame repeats. The browser writes a variable-rate file, and a rate as high as the screen refresh (60 on a 60 Hz screen) may drop some frames. The letters move up to ${LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit editors that expect those rates; they make larger files.`}
         </HintText>
       </div>
 
@@ -188,8 +198,9 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           </span>
         </div>
         <HintText hint={audioHint}>
-          Puts the sound into the video, lined up with the letters. With the microphone, its sound goes into the file
-          (it is still never played back).
+          {offline
+            ? 'Puts the file’s sound for the same stretch into the video, lined up with the letters.'
+            : 'Puts the sound into the video, lined up with the letters. The microphone’s sound goes into the file (it is still never played back).'}
         </HintText>
       </div>
 
@@ -223,8 +234,9 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
 }
 
 /**
- * The Sound tab's Record group: Record and Stop with the time recorded, the take's options, the live frame
- * rate, and how the last take went. Start and stop are announced by the header's recording indicator, which
+ * The Sound tab's Record group. With the microphone: Record and Stop with the time recorded, the take's options, the
+ * live frame rate, and how the last take went. With an audio file, videos are rendered from Export → Video instead
+ * (VideoRender, NOCUR-91): the group says so and opens it. Start and stop are announced by the header's recording indicator, which
  * is always on the page (a take can start from the Export dialog with this tab closed). `collapsible` puts its
  * heading on a button that shows or hides the rest.
  */
@@ -266,58 +278,75 @@ export function RecordGroup({ artboard, transparent, collapsible = false }: Reco
       </legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body" id={bodyId} hidden={collapsible && !open}>
-        <div className="field">
-          <div className="sound-row">
-            {/* aria-disabled, not disabled: the button keeps keyboard focus while the sound opens, and turns into Stop. */}
-            <button
-              type="button"
-              className="button-small"
-              aria-disabled={blocked !== null || phase === 'stopping' || undefined}
-              aria-describedby={[blocked !== null && blockerId, recordHint.id].filter(Boolean).join(' ')}
-              title={blocked ?? undefined}
-              onClick={() => {
-                if (idle) {
-                  if (blocked === null) recorder.start()
-                } else recorder.stop('user')
-              }}
-            >
-              <Icon name={idle ? 'record' : 'stop'} />
-              {idle ? 'Record' : 'Stop'}
-            </button>
-            <HintButton hint={recordHint} topic="Record" />
-            {/* Not a live region: it changes every second while recording. The header announces start and stop. */}
-            <output className="record-time" aria-live="off">
-              {formatClock(elapsedMs)}
-              {limitMs !== null && ` / ${formatClock(limitMs)}`}
-            </output>
-            {/* Not a live region either: the status bar announces "Live", and the number changes every second. */}
-            {status.driving && <span className="sound-live">Live · {status.fps} fps</span>}
-          </div>
-          {blocked !== null && (
-            <p id={blockerId} className="field-hint">
-              {blocked}
+        {sound.source === 'file' && idle ? (
+          <div className="field">
+            <p className="field-hint">
+              Save a video of the audio file, any stretch of it, from Export: it is rendered from the plan, faster than
+              real time. Live recording is for the microphone.
             </p>
-          )}
-          <HintText hint={recordHint}>
-            Records the canvas as it moves with the sound, in real time, and saves the video when the take ends. Record
-            starts the file or the microphone if it is not running, and pauses it again at the end. Freeze is off while
-            recording.
-          </HintText>
-        </div>
+            <div className="sound-row">
+              <button type="button" className="button-small" onClick={() => requestExport('video')}>
+                <Icon name="download" />
+                Export video…
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="field">
+              <div className="sound-row">
+                {/* aria-disabled, not disabled: the button keeps keyboard focus while the sound opens, and turns into Stop. */}
+                <button
+                  type="button"
+                  className="button-small"
+                  aria-disabled={blocked !== null || phase === 'stopping' || undefined}
+                  aria-describedby={[blocked !== null && blockerId, recordHint.id].filter(Boolean).join(' ')}
+                  title={blocked ?? undefined}
+                  onClick={() => {
+                    if (idle) {
+                      if (blocked === null) recorder.start()
+                    } else recorder.stop('user')
+                  }}
+                >
+                  <Icon name={idle ? 'record' : 'stop'} />
+                  {idle ? 'Record' : 'Stop'}
+                </button>
+                <HintButton hint={recordHint} topic="Record" />
+                {/* Not a live region: it changes every second while recording. The header announces start and stop. */}
+                <output className="record-time" aria-live="off">
+                  {formatClock(elapsedMs)}
+                  {limitMs !== null && ` / ${formatClock(limitMs)}`}
+                </output>
+                {/* Not a live region either: the status bar announces "Live", and the number changes every second. */}
+                {status.driving && <span className="sound-live">Live · {status.fps} fps</span>}
+              </div>
+              {blocked !== null && (
+                <p id={blockerId} className="field-hint">
+                  {blocked}
+                </p>
+              )}
+              <HintText hint={recordHint}>
+                Records the canvas as it moves with the microphone, in real time, and saves the video when the take
+                ends. Record starts listening if the microphone is off, and stops again at the end. Freeze is off while
+                recording.
+              </HintText>
+            </div>
 
-        <RecordOptionsFields artboard={artboard} transparent={transparent} />
+            <RecordOptionsFields artboard={artboard} transparent={transparent} />
 
-        {status.slow && (
-          <p className="font-warning">Too slow for a smooth video: try fewer effects or a shorter text.</p>
-        )}
-        {still && <p className="field-hint">Sound is not moving the letters: the video will be still.</p>}
-        {message && (
-          <p
-            className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'}
-            data-tone={message.tone}
-          >
-            {message.text}
-          </p>
+            {status.slow && (
+              <p className="font-warning">Too slow for a smooth video: try fewer effects or a shorter text.</p>
+            )}
+            {still && <p className="field-hint">Sound is not moving the letters: the video will be still.</p>}
+            {message && (
+              <p
+                className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'}
+                data-tone={message.tone}
+              >
+                {message.text}
+              </p>
+            )}
+          </>
         )}
       </div>
     </fieldset>

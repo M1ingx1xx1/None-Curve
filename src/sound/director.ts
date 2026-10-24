@@ -891,6 +891,20 @@ function idleLater(run: (budgetMs: number) => void, delayMs: number): () => void
   }
 }
 
+/** What a video render reads (export/videoEncode.ts): the file, its measured features, and the planner's inputs now. */
+export interface RenderSource {
+  file: Blob
+  timeline: FeatureTimeline
+  inputs: LiveInputs
+}
+
+let renderSource: (() => RenderSource | null) | null = null
+
+/** The file a video can be rendered from (precomputed, playing or paused), or null (the microphone, none, too long). */
+export function getRenderSource(): RenderSource | null {
+  return renderSource?.() ?? null
+}
+
 /** While paused with nothing left to do, the idle loop looks again this often (ms). */
 const IDLE_CHECK_MS = 250
 
@@ -1046,7 +1060,12 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
       )
     }),
   ]
+  renderSource = () =>
+    held && timeline.isLoaded() && engine.getState().source === 'file'
+      ? { file: held, timeline, inputs: scheduler.inputs() }
+      : null
   return () => {
+    renderSource = null
     for (const unsubscribe of off) unsubscribe()
     if (hasWindow) {
       for (const type of ['pointerdown', 'pointerup', 'pointercancel'] as const)

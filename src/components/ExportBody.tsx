@@ -35,6 +35,7 @@ import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
 import { useLiveStatus } from '../sound/live'
+import { useSteadySoundState } from '../sound/useSound'
 import { layoutArtboard, type ArtboardParams, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { placePolygons, shapeSpecimen } from '../specimen/scene'
 import { geometryClient } from '../state/geometryClient'
@@ -42,6 +43,7 @@ import { serializeConfig, type SavedFont, type Session } from '../state/persist'
 import { previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
 import Icon from './Icon'
 import { RecordOptionsFields, useStillVideo } from './RecordControls'
+import VideoRender from './VideoRender'
 
 export type Format = 'svg' | 'png' | 'otf' | 'video' | 'config'
 
@@ -70,6 +72,8 @@ export interface ExportDialogProps {
   onPrecisionChange: (precision: number) => void
   /** Everything the config file holds: the session as it would be saved now. */
   readConfig: () => Session
+  /** The format to show as the dialog opens (the Sound tab's Export video…), or null for the last one chosen. */
+  openOn?: Format | null
 }
 
 type Status =
@@ -115,8 +119,8 @@ const formats: { value: Format; label: string; hint: string }[] = [
   },
   {
     value: 'video',
-    label: 'Video — live sound',
-    hint: 'Records the canvas as it moves with the sound, in real time, with its audio.',
+    label: 'Video — sound',
+    hint: 'An audio file: any stretch of it, rendered with its sound. The microphone: the canvas recorded live.',
   },
   {
     value: 'config',
@@ -294,6 +298,8 @@ export default function ExportBody(props: ExportBodyProps) {
   const { driving: soundLive } = useLiveStatus()
   // Without a font only the config can be saved.
   const format: Format = font ? chosen : 'config'
+  // The microphone has no file to render: its video is recorded live (VideoExport); a file's is rendered (VideoRender).
+  const micVideo = useSteadySoundState().source === 'microphone'
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
   // Results that arrive while the dialog is open refine the estimate.
@@ -514,7 +520,7 @@ export default function ExportBody(props: ExportBodyProps) {
     <>
       <p className="gf-intro">
         Exports use the final polygons shown on the canvas: {fontName}, pipeline {pipeline.join(' → ')}.{' '}
-        {format === 'video'
+        {format === 'video' && micVideo
           ? 'The video is saved when the take ends.'
           : 'Nothing is downloaded until you press the download button.'}
       </p>
@@ -790,7 +796,22 @@ export default function ExportBody(props: ExportBodyProps) {
         </div>
       )}
 
-      {format === 'video' && (
+      {format === 'video' && !micVideo && (
+        <VideoRender
+          font={font}
+          text={specimenText}
+          typography={typography}
+          palette={palette}
+          artboard={artboard}
+          previewLook={previewLook}
+          previewScale={previewScale}
+          fill={fill}
+          params={params}
+          paramsKey={paramsKey}
+        />
+      )}
+
+      {format === 'video' && micVideo && (
         <VideoExport
           artboard={artboard}
           transparent={palette.transparent}
