@@ -34,7 +34,7 @@ import {
   type GpuSlot,
 } from './gpuPlans'
 import { planUniforms, type PlanUniforms } from './gpuReference'
-import { hitScene } from './hitTest'
+import { hitFrame } from './hitTest'
 import { glyphMatrix, type Matrix } from './strokes'
 import { parseColor, type Rgba } from './theme'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
@@ -333,10 +333,10 @@ export class WebGL2Renderer implements GlyphRenderer {
   hitTest(x: number, y: number): RenderHit | null {
     const { view, style, frame } = this
     if (!view || view.kind !== 'canvas' || !style || !frame) return null
-    const scene = frame.scene()
-    if (!scene) return null
+    // Gliding glyphs are evaluated on the GPU, so the CPU makes only the outlines near the point (frame.scene() would
+    // make every one).
     const [sx, sy] = scenePoint(view, x, y)
-    return hitScene(scene, sx, sy, hitOptions(view, style, this.offsetX, this.offsetY, this.source))
+    return hitFrame(frame, sx, sy, hitOptions(view, style, this.offsetX, this.offsetY, this.source))
   }
 
   draw(): boolean {

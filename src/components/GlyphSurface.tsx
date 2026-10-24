@@ -306,7 +306,8 @@ export default function GlyphSurface({
     const hit = renderer.hitTest(x, y)
     if (hit) return hit
     if (!freeMove) return null
-    const shown = frameNow().scene() ?? scene
+    // The block is the layout's (a morph changes outlines, not where the text sits), so no morph is made for it.
+    const shown = frameNow().layout ?? scene
     return hitBlock(shown, left + x * u, -top + y * u, offset.current.dx, offset.current.dy) ? { kind: 'block' } : null
   }
 

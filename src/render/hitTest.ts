@@ -5,12 +5,17 @@
 // band too; with markers shown, the skeleton and vertex markers. A glyph with thorns (PolygonGlyph.clickOutline) is hit
 // only by its advance and that click outline, never by the thorns. Missing-character boxes are reported but cannot be
 // selected, and with Free position the text block behind everything is the drag handle. Pure: no DOM.
+//
+// Mid-glide (hitFrame), the in-between outline of a gliding glyph is made on the CPU only when the point comes within
+// reach of the box its anchors keep to for the whole glide (planBounds), not for every glyph at every pointer move.
 
-import type { Point, PolygonContour, SourceGlyph } from '../geometry/types'
+import type { Point, PolygonContour, PolygonGlyph, SourceGlyph } from '../geometry/types'
 import { sourceGlyphSkeleton } from '../geometry/sourcePath'
 import { textBox } from '../specimen/artboard'
+import { morphAt, type MorphPlan } from '../specimen/morph'
 import type { SpecimenScene } from '../specimen/scene'
-import type { RenderHit, SourceLookup } from './types'
+import { planBounds, type Box } from './gpuPlans'
+import type { GlideFrame, GlyphMorph, RenderHit, SourceLookup } from './types'
 
 export interface HitOptions {
   outline: 'source' | 'flattened' | 'compare'
@@ -161,14 +166,49 @@ function hitsLayers(
   return false
 }
 
+const glideBounds = new WeakMap<MorphPlan, Box>()
+const outlineless = new WeakMap<MorphPlan, PolygonGlyph>()
+
+/**
+ * A gliding occurrence's outline as hitting (gx, gy) sees it: the in-between glyph (morphAt), or, when the point is
+ * farther than `reach` from every box its anchors can be in, the glyph without contours (its click outline is the new
+ * glyph's either way, as morphAt's): no fill, band or vertex there could be hit.
+ */
+function morphNear({ plan, p }: GlyphMorph, gx: number, gy: number, reach: number): PolygonGlyph {
+  if (p > 0 && p < 1 && plan.data) {
+    let box = glideBounds.get(plan)
+    if (!box) glideBounds.set(plan, (box = planBounds(plan, plan.data)))
+    if (gx < box[0] - reach || gx > box[2] + reach || gy < box[1] - reach || gy > box[3] + reach) {
+      let none = outlineless.get(plan)
+      if (!none) outlineless.set(plan, (none = { ...plan.to, contours: [] }))
+      return none
+    }
+  }
+  return morphAt(plan, p)
+}
+
+/**
+ * hitScene on a frame of Glide: its layout, each gliding occurrence's outline made only near the point (morphNear),
+ * so the frame's scene() is not evaluated whole; the same targets as hitScene(frame.scene()).
+ */
+export function hitFrame(frame: GlideFrame, sx: number, sy: number, o: HitOptions): RenderHit | null {
+  const { layout, morphs } = frame
+  if (layout && morphs) return hitScene(layout, sx, sy, o, morphs)
+  const scene = frame.scene()
+  return scene ? hitScene(scene, sx, sy, o) : null
+}
+
 /**
  * The target under (sx, sy), in scene units (y down), or null over empty canvas. Occurrences count every glyph of the
- * text in reading order (as PolygonLookup's), spaces and missing glyphs included.
+ * text in reading order (as PolygonLookup's), spaces and missing glyphs included. With `morphs` (one per occurrence,
+ * as GlideFrame's), an occurrence with a morph is hit by its in-between outline instead of the scene's polygon.
  */
-export function hitScene(scene: SpecimenScene, sx: number, sy: number, o: HitOptions): RenderHit | null {
+export function hitScene(scene: SpecimenScene, sx: number, sy: number, o: HitOptions, morphs?: GlideFrame['morphs']): RenderHit | null {
   const x = sx - o.offsetX
   const y = sy - o.offsetY
   const skew = scene.slant ? Math.tan((-scene.slant * Math.PI) / 180) : 0
+  // How far off its anchors' box an outline can still be hit: its stroke band, or a vertex dot.
+  const reach = Math.max(STROKE_HIT_PX * o.u, o.showVertices && o.showMarkers ? o.markerRadius * VERTEX_SCALE : 0)
   let occurrence = 0
   for (const line of scene.lines) occurrence += line.glyphs.length
   for (let l = scene.lines.length - 1; l >= 0; l--) {
@@ -188,14 +228,16 @@ export function hitScene(scene: SpecimenScene, sx: number, sy: number, o: HitOpt
       // Into the glyph's own units: the inverse of translate(x y) skewX(-slant) scale(1 -1).
       const gy = g.y - y
       const gx = x - g.x + skew * gy
-      const thorned = g.polygon?.clickOutline
       const inBox = gx >= 0 && gx <= g.advance && gy >= o.descender && gy <= o.ascender
       if (inBox) return { kind: 'glyph', index: g.index, text: g.text, occurrence }
+      const morph = morphs?.[occurrence]
+      const polygon = morph ? morphNear(morph, gx, gy, reach) : g.polygon
+      const thorned = polygon?.clickOutline
       if (thorned) {
         if (windingAt(pointsOf(thorned), gx, gy) !== 0) return { kind: 'glyph', index: g.index, text: g.text, occurrence }
         continue
       }
-      if (source && hitsLayers(g.polygon?.contours ?? null, source, gx, gy, o)) return { kind: 'glyph', index: g.index, text: g.text, occurrence }
+      if (source && hitsLayers(polygon?.contours ?? null, source, gx, gy, o)) return { kind: 'glyph', index: g.index, text: g.text, occurrence }
     }
   }
   return o.freeMove && hitBlock(scene, sx, sy, o.offsetX, o.offsetY) ? { kind: 'block' } : null
