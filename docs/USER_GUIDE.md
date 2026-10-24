@@ -454,12 +454,12 @@ The tab is laid out like the front panel of a synthesizer, in five boxes from to
 
 **Transport** — where the sound comes from, at the top of the tab. Its first line has **File** / **Microphone** and the **Drive letters** switch (see **Modulation** below); the line under the sound has **Preset** and **Load** (see **Presets** below), then **Freeze** and **Live · N fps** (see **While the sound moves the letters** below).
 
-**Return to plain** — the large switch in its own box under the first line of **Transport**. Click the switch or its name to turn it on or off.
+**Return to plain** — the large switch on its own strip under the first line of **Transport**, with **Hold** at its right end. Click the switch or its name to turn it on or off.
 - **Off:** the sound moves the letters as described below, from the look you set in the other tabs.
 - **On:** the letters rest on their plain shapes: the look of the Geometry tab, with every effect of the Experimental tab off. On each beat, the effects you switched on in the Experimental tab come back all at once, then the letters return to plain. So the plain letters are the ground and every beat flashes your design onto them, in time with the music. It works even with no mapping at all; your mappings still act on top while the design shows.
 - **Hold** (the small knob beside it, 50–1000 ms, 200 ms to start): how long each beat shows the effects before the letters return. **Glide** (under **Response**) smooths the way there and back.
 - Every letter changes together, Thorn's included. Very fast beats can be merged so the screen never flickers more than three times a second (see **No flashing** below).
-- The box's edge lights up while it is on. **Reset sound** leaves it alone; **Start over** turns it off. **Freeze** writes what is on screen, so between beats it writes the effects as off.
+- The strip lights up while it is on. **Reset sound** leaves it alone; **Start over** turns it off. **Freeze** writes what is on screen, so between beats it writes the effects as off.
 
 - **File** — an audio file from your computer. This is where the tab starts.
   - **Choose file** — pick the file. Most common formats work (MP3, WAV, AAC, OGG, or FLAC, depending on your browser), up to 512 MB. Once a file is chosen, the button shrinks to its arrow icon (pointing at it says "Choose file"), and the file's name appears beside it; a long name is cut short, and pointing at it shows it in full.
