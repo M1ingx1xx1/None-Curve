@@ -1,30 +1,56 @@
-// What drag to map draws over the page (mapDrag.ts): the chip that follows the pointer, the drop palette beside the
-// panel while dragging, the confirmation beside the control after a drop, and what screen readers hear at each step.
+// What drag to map draws over the page (mapDrag.ts): the chip that follows the pointer, the drop palette over the
+// canvas while dragging, the confirmation beside the control after a drop, and what screen readers hear at each step.
 
 import { memo, useMemo } from 'react'
 import { featureById, targetById } from '../sound/mapping'
 import { useMappingState } from '../sound/mappingStore'
 import { intoColumns, PALETTE_CLASS, PALETTE_COLUMN, paletteBlocks, targetName, useMapDrag } from './mapDrag'
 
+/** The palette's distance from the canvas's edges and from its toolbar (px). */
+const PALETTE_MARGIN = 12
+/** The palette's padding and border across, both sides (px; .map-palette in styles.css). */
+const PALETTE_FRAME = 2 * 12 + 2
+/** The gap between its columns (px; .map-palette in styles.css), which PALETTE_COLUMN counts once per column. */
+const PALETTE_GAP = 14
+/** The least it is tall (px), on a very short canvas: a few entries, then it scrolls. */
+const PALETTE_MIN_HEIGHT = 160
+
 /**
- * Where the palette opens: in the workspace, right of the panels (the tab panels on view), 12px in from its edges; as
- * tall as its entries, at most down to the workspace's foot.
+ * Where the palette opens: over the canvas itself (between its toolbar and its Canvas size bar), PALETTE_MARGIN in from
+ * every edge, so it covers neither bar nor the panels around it; as tall as its entries, scrolling when the canvas is
+ * shorter. Without the canvas, right of the tab panels on view, down to the workspace's foot.
  */
 function paletteBox(): { left: number; top: number; maxHeight: number; width: number } {
-  let right = 0
-  for (const panel of document.querySelectorAll<HTMLElement>('[role="tabpanel"]')) {
-    if (panel.getClientRects().length > 0) right = Math.max(right, panel.getBoundingClientRect().right)
-  }
   const area = document.querySelector('main')?.getBoundingClientRect()
-  const left = right + 12
-  const top = (area?.top ?? 0) + 12
+  const canvas = document.querySelector('.viewport > .canvas')?.getBoundingClientRect()
+  let left: number
+  let right: number
+  let top = area?.top ?? 0
+  let bottom = area?.bottom ?? window.innerHeight
+  if (canvas && canvas.width > 0) {
+    left = canvas.left + PALETTE_MARGIN
+    right = canvas.right - PALETTE_MARGIN
+    top = canvas.top
+    bottom = canvas.bottom
+  } else {
+    let panels = 0
+    for (const panel of document.querySelectorAll<HTMLElement>('[role="tabpanel"]')) {
+      if (panel.getClientRects().length > 0) panels = Math.max(panels, panel.getBoundingClientRect().right)
+    }
+    left = panels + PALETTE_MARGIN
+    right = window.innerWidth - PALETTE_MARGIN
+  }
+  top += PALETTE_MARGIN
   return {
     left,
     top,
-    maxHeight: (area?.bottom ?? window.innerHeight) - 12 - top,
-    width: Math.max(PALETTE_COLUMN, window.innerWidth - left - 12),
+    maxHeight: Math.max(PALETTE_MIN_HEIGHT, bottom - PALETTE_MARGIN - top),
+    width: Math.max(PALETTE_COLUMN + PALETTE_FRAME, right - left),
   }
 }
+
+/** How many columns fit across a palette this wide. */
+const columnsFor = (width: number) => Math.max(1, Math.floor((width - PALETTE_FRAME + PALETTE_GAP) / PALETTE_COLUMN))
 
 /**
  * Every target as a drop zone, grouped as the target select groups them, over the canvas while a feature is dragged:
@@ -35,10 +61,7 @@ function paletteBox(): { left: number; top: number; maxHeight: number; width: nu
 const DropPalette = memo(function DropPalette({ feature }: { feature: string }) {
   const { mappings } = useMappingState()
   const box = useMemo(() => paletteBox(), [])
-  const columns = useMemo(
-    () => intoColumns(paletteBlocks(), Math.max(1, Math.floor(box.width / PALETTE_COLUMN))),
-    [box],
-  )
+  const columns = useMemo(() => intoColumns(paletteBlocks(), columnsFor(box.width)), [box])
   const mapped = useMemo(
     () => new Set(mappings.filter((m) => m.feature === feature).map((m) => m.target)),
     [mappings, feature],
@@ -47,7 +70,7 @@ const DropPalette = memo(function DropPalette({ feature }: { feature: string }) 
     <div
       className={PALETTE_CLASS}
       aria-hidden="true"
-      style={{ left: box.left, top: box.top, maxHeight: box.maxHeight }}
+      style={{ left: box.left, top: box.top, width: box.width, maxHeight: box.maxHeight }}
     >
       {columns.map((column, k) => (
         <div key={k} className="map-palette-column">
