@@ -34,7 +34,15 @@ export default function Header({ document, onOpenExport }: HeaderProps) {
       </p>
       <div className="header-actions">
         <RecordingIndicator />
-        <button type="button" onClick={onOpenExport} title={document.font ? 'Export SVG, PNG, a font file, a video or the config' : 'Export the config (load a font to export the rest)'}>
+        <button
+          type="button"
+          onClick={onOpenExport}
+          title={
+            document.font
+              ? 'Export SVG, PNG, a font file, a video or the config'
+              : 'Export the config (load a font to export the rest)'
+          }
+        >
           <Icon name="download" />
           Export…
         </button>

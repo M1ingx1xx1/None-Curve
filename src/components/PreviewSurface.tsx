@@ -1,4 +1,14 @@
-import { useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { ExportError } from '../export/quantize'
 import { outlineStrokeWidth, specimenPaths, type SvgPathCache } from '../export/svg'
 import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
@@ -7,6 +17,7 @@ import type { GlideFrame, GlyphRenderer, RenderStyle } from '../render/types'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { GlideStore } from '../state/useGlide'
+import { useDevicePixelRatio } from './useDevicePixelRatio'
 
 /** Checkerboard squares for a transparent background, in screen pixels (as ExportedArtboard's). */
 const CHECKER_PX = 16
@@ -71,7 +82,9 @@ export default function PreviewSurface({
 
   // The export's check, as ExportedArtboard runs it (deferred, so a heavy text never holds up the canvas).
   const [cache] = useState<SvgPathCache>(() => new WeakMap())
-  const shown = useDeferredValue(useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]))
+  const shown = useDeferredValue(
+    useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]),
+  )
   const error = useMemo(() => {
     if (!shown.checked) return null
     try {
@@ -161,15 +174,15 @@ export default function PreviewSurface({
     [ink, paper, outlineOnly, layout.unitsPerPx],
   )
 
+  const dpr = useDevicePixelRatio()
   useLayoutEffect(() => {
     const renderer = rendererRef.current
     if (!renderer || cssWidth <= 0 || cssHeight <= 0) return
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
     renderer.setView({ kind: 'artboard', layout, artboard: { width, height }, cssWidth, cssHeight, dpr })
     renderer.setStyle(style)
     renderer.setFrame(frameNow(), null)
     paint()
-  }, [kind, hasCanvas, layout, width, height, cssWidth, cssHeight, style, scene, frameNow, paint])
+  }, [kind, hasCanvas, layout, width, height, cssWidth, cssHeight, dpr, style, scene, frameNow, paint])
 
   useEffect(
     () =>
@@ -206,7 +219,13 @@ export default function PreviewSurface({
               <pattern id={checkerId} patternUnits="userSpaceOnUse" width={checker} height={checker}>
                 <rect width={checker} height={checker} fill={paper} />
                 <rect className="checker-tint" width={checker / 2} height={checker / 2} />
-                <rect className="checker-tint" x={checker / 2} y={checker / 2} width={checker / 2} height={checker / 2} />
+                <rect
+                  className="checker-tint"
+                  x={checker / 2}
+                  y={checker / 2}
+                  width={checker / 2}
+                  height={checker / 2}
+                />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill={`url(#${checkerId})`} />

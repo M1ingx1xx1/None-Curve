@@ -15,7 +15,7 @@ export interface RingUniform {
   cosHalf: number
 }
 
-export function ringUniform(sides: number): RingUniform {
+function ringUniform(sides: number): RingUniform {
   const ring = ringPolygon(sides)
   return { first: ring.first, step: ring.step, cosHalf: ring.cosHalf }
 }
@@ -50,7 +50,7 @@ export function planUniforms(data: PlanData): PlanUniforms {
 }
 
 /** The shaders' along(): trajectory.ts `along`, with the ring as uniforms. Writes into `out`. */
-export function alongRef(
+function alongRef(
   ring: RingUniform,
   size: number,
   a0: number,
@@ -97,7 +97,18 @@ export function evaluatePaths(paths: Float32Array, count: number, p: number, u: 
     const o = q * PATH_STRIDE
     const a0 = paths[o]
     const a1 = paths[o + 1]
-    alongRef(u.meshRing, paths[o + 2], a0, paths[o + 3], paths[o + 4], a1, paths[o + 5], paths[o + 6], a0 + (a1 - a0) * p, at)
+    alongRef(
+      u.meshRing,
+      paths[o + 2],
+      a0,
+      paths[o + 3],
+      paths[o + 4],
+      a1,
+      paths[o + 5],
+      paths[o + 6],
+      a0 + (a1 - a0) * p,
+      at,
+    )
     out[2 * q] = u.meshX + at.x
     out[2 * q + 1] = u.meshY + at.y
   }
@@ -105,7 +116,13 @@ export function evaluatePaths(paths: Float32Array, count: number, p: number, u: 
 }
 
 /** The anchor pass: every anchor's position at p (x, y pairs), as the evaluation shader writes them. */
-export function evaluateAnchors(rows: Float32Array, count: number, p: number, u: PlanUniforms, pathPos: Float64Array | null): Float64Array {
+export function evaluateAnchors(
+  rows: Float32Array,
+  count: number,
+  p: number,
+  u: PlanUniforms,
+  pathPos: Float64Array | null,
+): Float64Array {
   const out = new Float64Array(2 * count)
   const at = { x: 0, y: 0 }
   const cx = u.startX + (u.endX - u.startX) * p
@@ -126,9 +143,34 @@ export function evaluateAnchors(rows: Float32Array, count: number, p: number, u:
       const turn = rows[o + 2]
       const angle = a0 + turn * p
       const a1 = a0 + turn
-      if (kind === KIND.whorl) alongRef(u.ringA, rows[o + 3], a0, rows[o + 5], rows[o + 6], a1, rows[o + 7], rows[o + 8], angle, at)
-      else if (p < 0.5) alongRef(u.ringA, rows[o + 3], a0, rows[o + 5], rows[o + 6], a0 + turn / 2, rows[o + 11], rows[o + 12], angle, at)
-      else alongRef(u.ringB, rows[o + 4], a0 + turn / 2, rows[o + 11], rows[o + 12], a1, rows[o + 7], rows[o + 8], angle, at)
+      if (kind === KIND.whorl)
+        alongRef(u.ringA, rows[o + 3], a0, rows[o + 5], rows[o + 6], a1, rows[o + 7], rows[o + 8], angle, at)
+      else if (p < 0.5)
+        alongRef(
+          u.ringA,
+          rows[o + 3],
+          a0,
+          rows[o + 5],
+          rows[o + 6],
+          a0 + turn / 2,
+          rows[o + 11],
+          rows[o + 12],
+          angle,
+          at,
+        )
+      else
+        alongRef(
+          u.ringB,
+          rows[o + 4],
+          a0 + turn / 2,
+          rows[o + 11],
+          rows[o + 12],
+          a1,
+          rows[o + 7],
+          rows[o + 8],
+          angle,
+          at,
+        )
       x = cx + at.x + rows[o + 9] * p
       y = cy + at.y + rows[o + 10] * p
     } else if (kind === KIND.mesh && pathPos) {

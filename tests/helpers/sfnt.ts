@@ -26,7 +26,8 @@ export function table(bytes: Uint8Array, tag: string, start = 0): DataView | nul
 }
 
 /** The file's first four bytes as text: 'OTTO' (CFF), '\0\x01\0\0' (TrueType), 'ttcf' (a collection). */
-export const signature = (bytes: Uint8Array | ArrayBuffer) => String.fromCharCode(...(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)).subarray(0, 4))
+export const signature = (bytes: Uint8Array | ArrayBuffer) =>
+  String.fromCharCode(...(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)).subarray(0, 4))
 
 /**
  * A TrueType collection ('ttcf', version 1.0) of whole font files: each face's tables are copied as they are, after
@@ -79,7 +80,10 @@ function readIndex(cff: Uint8Array, offset: number): { items: Uint8Array[]; end:
     offsets.push(value)
   }
   const base = offset + 2 + (count + 1) * offSize
-  return { items: offsets.slice(0, -1).map((start, i) => cff.subarray(base + start, base + offsets[i + 1])), end: base + offsets[count] }
+  return {
+    items: offsets.slice(0, -1).map((start, i) => cff.subarray(base + start, base + offsets[i + 1])),
+    end: base + offsets[count],
+  }
 }
 
 /** The Top DICT's integer operands by operator (12 x as 1200 + x); real operands read as NaN. */
@@ -88,14 +92,14 @@ function topDict(cff: Uint8Array): Map<number, number[]> {
   const dict = readIndex(cff, names.end).items[0]
   const entries = new Map<number, number[]>()
   let operands: number[] = []
-  for (let i = 0; i < dict.length; ) {
+  for (let i = 0; i < dict.length;) {
     const b = dict[i]
     if (b <= 21) {
       entries.set(b === 12 ? 1200 + dict[i + 1] : b, operands)
       operands = []
       i += b === 12 ? 2 : 1
     } else if (b === 28) {
-      operands.push(((dict[i + 1] << 8) | dict[i + 2]) << 16 >> 16)
+      operands.push((((dict[i + 1] << 8) | dict[i + 2]) << 16) >> 16)
       i += 3
     } else if (b === 29) {
       operands.push((dict[i + 1] << 24) | (dict[i + 2] << 16) | (dict[i + 3] << 8) | dict[i + 4])
@@ -154,7 +158,7 @@ export function charStringProblems(bytes: Uint8Array): string[] {
     let operands = 0
     let first = true
     let ended = false
-    for (let i = 0; i < charString.length && problems.length < 20; ) {
+    for (let i = 0; i < charString.length && problems.length < 20;) {
       const b = charString[i]
       if (ended) {
         problems.push(`glyph ${glyph}: bytes after endchar`)
@@ -172,7 +176,9 @@ export function charStringProblems(bytes: Uint8Array): string[] {
       } else {
         const operator = STRAIGHT_OPERATORS[b]
         if (!operator) {
-          problems.push(`glyph ${glyph}: ${b === 255 ? 'a fixed-point number' : `operator ${b === 12 ? `12 ${charString[i + 1]}` : b}`} at byte ${i}`)
+          problems.push(
+            `glyph ${glyph}: ${b === 255 ? 'a fixed-point number' : `operator ${b === 12 ? `12 ${charString[i + 1]}` : b}`} at byte ${i}`,
+          )
           break
         }
         if (first && !operator.opens) problems.push(`glyph ${glyph}: starts with ${operator.name}`)

@@ -35,7 +35,12 @@ const EFFECTS: readonly [EffectKey, string][] = [
 ]
 
 /** A preset's row; `shaping` sets only the fields that differ from DEFAULT_SHAPING (mapping.ts). */
-const map = (feature: Mapping['feature'], target: string, depth: number, shaping: Partial<Shaping> = {}): Omit<Mapping, 'id'> => ({
+const map = (
+  feature: Mapping['feature'],
+  target: string,
+  depth: number,
+  shaping: Partial<Shaping> = {},
+): Omit<Mapping, 'id'> => ({
   enabled: true,
   feature,
   target,
@@ -59,17 +64,27 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'flicker',
     name: 'Flicker',
-    description: 'On every beat a few other anchors jump while the rest hold the letter; louder sound and each beat throw them further.',
+    description:
+      'On every beat a few other anchors jump while the rest hold the letter; louder sound and each beat throw them further.',
     // Only a few seeded anchors move: no control sets this, only this preset. A tiny amplitude, so the Seed row acts while it is quiet.
     start: [set('distortion', { sparse: true, amount: 2, normalBias: 0.9 })],
-    mappings: [map('level', 'distortion.amount', 0.9), map('beat', 'distortion.amount', 0.3), map('beat', 'distortion.seed', 1)],
+    mappings: [
+      map('level', 'distortion.amount', 0.9),
+      map('beat', 'distortion.amount', 0.3),
+      map('beat', 'distortion.seed', 1),
+    ],
   },
   {
     id: 'scatter',
     name: 'Scatter',
-    description: 'Anchors are placed afresh on every other beat: close and even while it is quiet, fewer and further from even as it gets louder.',
+    description:
+      'Anchors are placed afresh on every other beat: close and even while it is quiet, fewer and further from even as it gets louder.',
     start: [set('random', { enabled: true, density: 10, randomness: 0.05 })],
-    mappings: [map('level', 'random.randomness', 0.9), map('level', 'random.density', -0.09), map('beat', 'random.seed', 0.5)],
+    mappings: [
+      map('level', 'random.randomness', 0.9),
+      map('level', 'random.density', -0.09),
+      map('beat', 'random.seed', 0.5),
+    ],
   },
   {
     id: 'pixel',
@@ -104,7 +119,8 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'facet',
     name: 'Facet',
-    description: 'Curves break into a few straight sides as it gets louder and on each beat; higher notes smooth them again.',
+    description:
+      'Curves break into a few straight sides as it gets louder and on each beat; higher notes smooth them again.',
     start: [set('flatten', { mode: 'segments', mergeCurves: true, segmentsPerCurve: 6 })],
     mappings: [
       map('level', 'flatten.segmentsPerCurve', -0.15),
@@ -123,7 +139,8 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'flare',
     name: 'Flare',
-    description: 'Thorns shoot out of a few anchors per letter as it gets louder; on every beat they jump somewhere new and briefly multiply.',
+    description:
+      'Thorns shoot out of a few anchors per letter as it gets louder; on every beat they jump somewhere new and briefly multiply.',
     // Reach 0: no thorns (and no root pull) while it is quiet. A shallower root keeps the strokes readable.
     start: [effect('thorn', { enabled: true, count: 1, canvasReach: 0, root: 0.25 })],
     mappings: [
@@ -137,7 +154,8 @@ export const PRESETS: readonly Preset[] = [
   {
     id: 'gale',
     name: 'Gale',
-    description: 'Loudness slides slices of the letters past each other; beats cut slits along the stream and busy passages draw trails.',
+    description:
+      'Loudness slides slices of the letters past each other; beats cut slits along the stream and busy passages draw trails.',
     // Nothing streams while it is quiet. No stretch: it pushes letters into their neighbours.
     start: [effect('slipstream', { enabled: true, strength: 0, slip: 0, cuts: 0, trails: 0 })],
     mappings: [
@@ -174,7 +192,8 @@ function leaves(value: unknown, path: Path): Path[] {
 
 function read(params: GeometryParams, path: Path): unknown {
   let value: unknown = params
-  for (const key of path) value = typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[key] : undefined
+  for (const key of path)
+    value = typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[key] : undefined
   return value
 }
 
@@ -219,7 +238,9 @@ export function presetSettings(current: GeometryParams, preset: Preset): PresetS
   // everything the preset sets (it differs from the reset).
   const othersReset = SETTINGS.some(
     (path) =>
-      !NAMED_SWITCHES.has(path.join('.')) && same(read(params, path), read(reset, path)) && !same(before(path), read(params, path)),
+      !NAMED_SWITCHES.has(path.join('.')) &&
+      same(read(params, path), read(reset, path)) &&
+      !same(before(path), read(params, path)),
   )
   const notice = [
     `Loaded ${preset.name}.`,

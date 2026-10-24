@@ -6,11 +6,18 @@
 // comes back the same.
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import { FLASH_LIMITS } from '../../src/sound/flash'
 import type { LetterSlots } from '../../src/sound/letters'
-import { LIVE_LIMITS, LiveScheduler, PLANNER_CLOCK_OFFSET, plannedEdges, type LiveCommit, type LiveInputs } from '../../src/sound/live'
+import {
+  LIVE_LIMITS,
+  LiveScheduler,
+  PLANNER_CLOCK_OFFSET,
+  plannedEdges,
+  type LiveCommit,
+  type LiveInputs,
+} from '../../src/sound/live'
 import type { Mapping } from '../../src/sound/mapping'
 import { PlaybackPlanner, SEQ_SPAN, type FeatureSource } from '../../src/sound/planner'
 import { PRECOMPUTE_LIMITS } from '../../src/sound/timelineTypes'
@@ -21,7 +28,13 @@ const BASE: GeometryParams = { ...DEFAULTS, distortion: { ...DEFAULTS.distortion
 const HZ = PRECOMPUTE_LIMITS.gridHz
 const MIN_COMMIT_MS = 1000 / LIVE_LIMITS.maxFps
 
-const row = (target: string, depth = 0.5, feature: Mapping['feature'] = 'level'): Mapping => ({ id: `${target} ${feature} ${depth}`, enabled: true, feature, target, depth })
+const row = (target: string, depth = 0.5, feature: Mapping['feature'] = 'level'): Mapping => ({
+  id: `${target} ${feature} ${depth}`,
+  enabled: true,
+  feature,
+  target,
+  depth,
+})
 const response = (patch: Partial<ResponseSettings> = {}): ResponseSettings => ({ ...NEUTRAL_RESPONSE, ...patch })
 
 function lettersOf(count: number, ids = 3): LetterSlots {
@@ -43,7 +56,20 @@ function stream(seconds: number, level: (t: number) => number, onsetEvery = 0): 
     const time = (k * 1000) / HZ
     const v = Math.min(1, Math.max(0, level(time)))
     const onset = onsetEvery > 0 && k % onsetEvery === 0 && k > 0
-    return { ...SILENT_FRAME, time, level: v, bass: v, mids: 1 - v, treble: v * v, brightness: v, activity: v, beat: onset ? 1 : 0, onset, silent: v === 0, levelDb: v ? -40 + 40 * v : -Infinity }
+    return {
+      ...SILENT_FRAME,
+      time,
+      level: v,
+      bass: v,
+      mids: 1 - v,
+      treble: v * v,
+      brightness: v,
+      activity: v,
+      beat: onset ? 1 : 0,
+      onset,
+      silent: v === 0,
+      levelDb: v ? -40 + 40 * v : -Infinity,
+    }
   })
 }
 
@@ -57,7 +83,15 @@ function source(frames: FeatureFrame[], measured = frames.length): FeatureSource
 }
 
 function inputs(patch: Partial<LiveInputs> = {}): LiveInputs {
-  return { base: BASE, hasFont: true, mappings: [row('distortion.amount')], drive: true, response: response(), slots: lettersOf(12), ...patch }
+  return {
+    base: BASE,
+    hasFont: true,
+    mappings: [row('distortion.amount')],
+    drive: true,
+    response: response(),
+    slots: lettersOf(12),
+    ...patch,
+  }
 }
 
 /** What a commit shows: the shared parameters' key, the letters' key and the look. */
@@ -147,14 +181,30 @@ describe('playback planner', () => {
     const planner = plan(frames, inputs())
     const driving = all(planner).filter((c) => c.commit !== null)
     expect(driving.length).toBeGreaterThan(80)
-    for (let i = 1; i < driving.length; i++) expect(driving[i].mediaMs - driving[i - 1].mediaMs).toBeCloseTo(MIN_COMMIT_MS, 6)
+    for (let i = 1; i < driving.length; i++)
+      expect(driving[i].mediaMs - driving[i - 1].mediaMs).toBeCloseTo(MIN_COMMIT_MS, 6)
   })
 
   it.each([
     ['one slider', inputs()],
-    ['a seed and two sliders', inputs({ mappings: [row('distortion.amount', 1), row('anchors.spacing', 0.7, 'treble'), row('distortion.seed', 1, 'beat')] })],
+    [
+      'a seed and two sliders',
+      inputs({
+        mappings: [
+          row('distortion.amount', 1),
+          row('anchors.spacing', 0.7, 'treble'),
+          row('distortion.seed', 1, 'beat'),
+        ],
+      }),
+    ],
     ['Motion contrast across the letters', inputs({ response: response({ contrast: 1 }) })],
-    ['Pitch reactive and Strength', inputs({ response: response({ pitchReactive: 1, strength: 0.6 }), mappings: [row('distortion.amount', 1, 'bass')] })],
+    [
+      'Pitch reactive and Strength',
+      inputs({
+        response: response({ pitchReactive: 1, strength: 0.6 }),
+        mappings: [row('distortion.amount', 1, 'bass')],
+      }),
+    ],
   ])('shows what the page scheduler would with instant geometry: %s', (_, setup) => {
     const frames = stream(4, (t) => (Math.floor(t / 230) % 2 ? 0.9 : 0.2) + 0.08 * Math.sin(t / 31), 13)
     const page = pageRun(frames, setup).map(shows)
@@ -165,14 +215,19 @@ describe('playback planner', () => {
   })
 
   it('keeps to the flash limit: no window of 1250 ms holds more than 6 planned edges', () => {
-    const setup = inputs({ mappings: [row('distortion.amount', 1), row('squaring.amount', 1, 'bass'), row('distortion.seed', 1, 'level')] })
+    const setup = inputs({
+      mappings: [row('distortion.amount', 1), row('squaring.amount', 1, 'bass'), row('distortion.seed', 1, 'level')],
+    })
     const frames = stream(10, (t) => (Math.floor(t / 125) % 2 ? 1 : 0))
     const commits = all(plan(frames, setup))
     // The file's end puts the sliders back whatever the budget says (exact restore spends an edge, as on the page).
     expect(commits.at(-1)!.commit).toBeNull()
     const edges = commits.slice(0, -1).flatMap((c) => plannedEdges(c.adopted))
     expect(edges.length).toBeGreaterThan(10)
-    for (const a of edges) expect(edges.filter((b) => b >= a && b - a < FLASH_LIMITS.windowMs).length).toBeLessThanOrEqual(2 * FLASH_LIMITS.maxFlashes)
+    for (const a of edges)
+      expect(edges.filter((b) => b >= a && b - a < FLASH_LIMITS.windowMs).length).toBeLessThanOrEqual(
+        2 * FLASH_LIMITS.maxFlashes,
+      )
   })
 
   it('plans the whole file from its start: the same inputs give the same commits, numbered by generation', () => {
@@ -190,7 +245,11 @@ describe('playback planner', () => {
     expect(range.at(-1)!.mediaMs).toBeLessThanOrEqual(2000)
     expect(a.range(1000, 2000)).toBe(range)
     // Flash edges and decimation read the records without the commits.
-    expect(a.edgesIn(1000, 3000)).toEqual(all(a).filter((c) => c.mediaMs > 1000 && c.mediaMs <= 3000).flatMap((c) => plannedEdges(c.adopted)))
+    expect(a.edgesIn(1000, 3000)).toEqual(
+      all(a)
+        .filter((c) => c.mediaMs > 1000 && c.mediaMs <= 3000)
+        .flatMap((c) => plannedEdges(c.adopted)),
+    )
     expect(a.glyphRate(0, 3000)).toBeGreaterThan(20)
   })
 
@@ -252,7 +311,9 @@ describe('playback planner', () => {
       expect(planner.mismatches).toBe(0)
       const again = range()
       expect(again.length).toBeGreaterThan(100)
-      const want = expected.filter(([, mediaMs]) => (mediaMs as number) >= again[0].mediaMs && (mediaMs as number) <= 145_000)
+      const want = expected.filter(
+        ([, mediaMs]) => (mediaMs as number) >= again[0].mediaMs && (mediaMs as number) <= 145_000,
+      )
       expect(again.map((c) => [c.seq, c.mediaMs, c.keys, c.commit?.letters?.key ?? null])).toEqual(want)
     } finally {
       limits.planMaxBytes = max
@@ -318,7 +379,11 @@ describe('playback planner', () => {
   it('stops at frames not measured yet, and goes on when they are', () => {
     const frames = stream(3, (t) => 0.5 + 0.4 * Math.sin(t / 97))
     let measured = 60
-    const planner = new PlaybackPlanner({ ...source(frames), isCovered: (i) => i < measured, frameAt: (i) => (i < measured ? frames[i] : null) })
+    const planner = new PlaybackPlanner({
+      ...source(frames),
+      isCovered: (i) => i < measured,
+      frameAt: (i) => (i < measured ? frames[i] : null),
+    })
     planner.setInputs(inputs())
     expect(planner.ensure(2000, Infinity)).toBe(false)
     expect(planner.plannedUntil()).toBeCloseTo((59 * 1000) / HZ, 6)
@@ -338,9 +403,10 @@ describe('playback planner', () => {
       const shared = paramsKey(c.commit.params)
       expect(c.jobs[0].key).toBe(shared)
       const letters = c.commit.letters
-      c.keys.forEach((key, j) => expect(key).toBe(letters && letters.assign[j] !== 1 ? letters.keys[letters.assign[j]] : shared))
+      c.keys.forEach((key, j) =>
+        expect(key).toBe(letters && letters.assign[j] !== 1 ? letters.keys[letters.assign[j]] : shared),
+      )
       for (const key of new Set(c.keys)) expect(c.jobs.some((job) => job.key === key)).toBe(true)
     }
   })
 })
-

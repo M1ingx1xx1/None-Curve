@@ -1,6 +1,5 @@
 // PNG export's size (src/export/png.ts): the canvas at its export scale, scaled down to what a browser can draw.
 
-
 import { describe, expect, it } from 'vitest'
 import { PNG_LIMITS, pngSize } from '../../src/export/png'
 import { ARTBOARD_LIMITS } from '../../src/specimen/artboard'

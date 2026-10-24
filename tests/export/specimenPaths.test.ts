@@ -22,7 +22,14 @@ const rect = (minX: number, minY: number, maxX: number, maxY: number): PolygonCo
 
 const polygon = (index: number, ...contours: PolygonContour[]): PolygonGlyph => ({
   ref: { index, name: '', unicode: null },
-  metrics: { unitsPerEm: 1000, advanceWidth: 700, leftSideBearing: 50, rightSideBearing: 50, ascender: 800, descender: -200 },
+  metrics: {
+    unitsPerEm: 1000,
+    advanceWidth: 700,
+    leftSideBearing: 50,
+    rightSideBearing: 50,
+    ascender: 800,
+    descender: -200,
+  },
   contours,
 })
 
@@ -75,10 +82,16 @@ describe('specimenPaths', () => {
   })
 
   it('gives an occurrence with a polygon of its own its own path', () => {
-    const scene = placePolygons(shaped, (index, occurrence) => ({ polygon: index === 2 ? I : occurrence === 2 ? WIDE_H : H }))
+    const scene = placePolygons(shaped, (index, occurrence) => ({
+      polygon: index === 2 ? I : occurrence === 2 ? WIDE_H : H,
+    }))
     const cache: SvgPathCache = new WeakMap()
     const paths = specimenPaths(scene, LAYOUT, 2, cache)
-    expect(paths.paths.map((p) => p.d)).toEqual(['M50 0L650 0L650 700L50 700Z', 'M50 0L250 0L250 700L50 700Z', 'M20 0L680 0L680 700L20 700ZM300 750L400 750L400 800L300 800Z'])
+    expect(paths.paths.map((p) => p.d)).toEqual([
+      'M50 0L650 0L650 700L50 700Z',
+      'M50 0L250 0L250 700L50 700Z',
+      'M20 0L680 0L680 700L20 700ZM300 750L400 750L400 800L300 800Z',
+    ])
     expect(paths.vertices).toBe(4 + 4 + 8)
     // Three distinct outlines, one shape each.
     expect(paths.paths.map((p) => p.shape)).toEqual([0, 1, 2])
@@ -87,12 +100,19 @@ describe('specimenPaths', () => {
     expect(cache.get(H)?.d).toBe(paths.paths[0].d)
     expect(cache.get(WIDE_H)?.d).toBe(paths.paths[2].d)
     // The SVG export writes the same paths.
-    const svg = specimenToSvg(scene, LAYOUT, { width: 1000, height: 600 }, 2, { fontName: 'Test', subject: 'HIH', pipeline: [] }, {
-      ink: '#000',
-      paper: '#fff',
-      background: false,
-      blur: 0,
-    }).svg
+    const svg = specimenToSvg(
+      scene,
+      LAYOUT,
+      { width: 1000, height: 600 },
+      2,
+      { fontName: 'Test', subject: 'HIH', pipeline: [] },
+      {
+        ink: '#000',
+        paper: '#fff',
+        background: false,
+        blur: 0,
+      },
+    ).svg
     for (const path of paths.paths) expect(svg).toContain(`<path transform="${path.transform}" d="${path.d}"/>`)
   })
 

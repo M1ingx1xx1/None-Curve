@@ -3,14 +3,17 @@
 // can produce and the two cannot drift apart. Keyed by each slider's Sound target id ("group.key",
 // "experimental.effect.key"). Pure: no React, no DOM.
 
-import { CRUMPLE_LIMITS } from '../geometry/crumple'
-import { DISSOLVE_LIMITS } from '../geometry/dissolve'
-import { DISTORTION_LIMITS } from '../geometry/distortion'
-import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
-import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SLIPSTREAM_LIMITS } from '../geometry/slipstream'
-import { THORN_LIMITS } from '../geometry/thorn'
-import { WHORL_LIMITS } from '../geometry/whorl'
+import {
+  CRUMPLE_LIMITS,
+  DISSOLVE_LIMITS,
+  DISTORTION_LIMITS,
+  RANDOM_ANCHOR_LIMITS,
+  RIPPLE_LIMITS,
+  SLIPSTREAM_LIMITS,
+  THORN_LIMITS,
+  WHORL_LIMITS,
+} from '../geometry/limits'
+import { TYPOGRAPHY_LIMITS } from '../specimen/artboard'
 
 export interface SliderRange {
   readonly min: number
@@ -19,6 +22,17 @@ export interface SliderRange {
 }
 
 const range = (min: number, max: number, step: number): SliderRange => ({ min, max, step })
+
+/**
+ * A slider that is not linear: its range input's own range, how a value maps to a position on it and back, and
+ * the value's own range and finest step, for its number box.
+ */
+export interface SliderCurve {
+  readonly slider: SliderRange
+  readonly toSlider: (value: number) => number
+  readonly fromSlider: (position: number) => number
+  readonly value: SliderRange
+}
 
 /**
  * Curve flattening's Tolerance slider is logarithmic: 0.1 to 500 font units on a 0–100 range input in steps
@@ -43,11 +57,20 @@ export function roundTolerance(tol: number): number {
 }
 
 /** Where a tolerance sits on the Tolerance range input (0–100). */
-export const toleranceToSlider = (tol: number) => (TOLERANCE.slider.max * Math.log(tol / TOLERANCE.min)) / Math.log(TOLERANCE.max / TOLERANCE.min)
+const toleranceToSlider = (tol: number) =>
+  (TOLERANCE.slider.max * Math.log(tol / TOLERANCE.min)) / Math.log(TOLERANCE.max / TOLERANCE.min)
 
 /** The tolerance at a position of the Tolerance range input (0–100), rounded by roundTolerance. */
 export const toleranceFromSlider = (pos: number) =>
   roundTolerance(TOLERANCE.min * Math.pow(TOLERANCE.max / TOLERANCE.min, pos / TOLERANCE.slider.max))
+
+/** The Tolerance slider's curve; its number box takes the tolerance itself, in hundredths of a unit. */
+export const TOLERANCE_CURVE: SliderCurve = {
+  slider: TOLERANCE.slider,
+  toSlider: toleranceToSlider,
+  fromSlider: toleranceFromSlider,
+  value: range(TOLERANCE.min, TOLERANCE.max, TOLERANCE.step),
+}
 
 /**
  * Thorn's Reach slider is cubic: the reach (a share of the canvas diagonal, 0–1) is the cube of the range
@@ -80,10 +103,20 @@ export function reachReadout(v: number): string {
 export const reachPercent = (reach: number) => (reach > 0 ? reachReadout(reach * 100) : '0.0')
 
 /** Where a reach sits on the Reach range input (0–1). */
-export const reachToSlider = (reach: number) => Math.min(Math.cbrt(reach / THORN_REACH.max), reach * 10_000 * THORN_REACH.slider.step)
+export const reachToSlider = (reach: number) =>
+  Math.min(Math.cbrt(reach / THORN_REACH.max), reach * 10_000 * THORN_REACH.slider.step)
 
 /** The reach at a position of the Reach range input (0–1), rounded by roundReach: the cube, or a hundredth of a percent per step near 0. */
-export const reachFromSlider = (pos: number) => roundReach(Math.max(THORN_REACH.max * pos ** 3, pos / THORN_REACH.slider.step / 10_000))
+export const reachFromSlider = (pos: number) =>
+  roundReach(Math.max(THORN_REACH.max * pos ** 3, pos / THORN_REACH.slider.step / 10_000))
+
+/** The Reach slider's curve; its number box takes the reach itself, to roundReach's unit. */
+export const REACH_CURVE: SliderCurve = {
+  slider: THORN_REACH.slider,
+  toSlider: reachToSlider,
+  fromSlider: reachFromSlider,
+  value: range(0, THORN_REACH.max, THORN_REACH.step),
+}
 
 /**
  * Every linear slider Sound can drive, Geometry tab then Experimental tab, in panel order. Steps are fine (NOCUR-63):
@@ -143,6 +176,20 @@ export const SLIDER_RANGES = {
 
 /** A linear slider's Sound target id. */
 export type SliderId = keyof typeof SLIDER_RANGES
+
+/**
+ * The Typography sliders (Text tab), keyed by their Sound target ids. Kept apart from SLIDER_RANGES: their limits
+ * are TYPOGRAPHY_LIMITS, which Sound and the saved-session check read themselves.
+ */
+export const TYPOGRAPHY_RANGES = {
+  'typography.size': range(TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize, 1),
+  'typography.tracking': range(TYPOGRAPHY_LIMITS.minTracking, TYPOGRAPHY_LIMITS.maxTracking, 1),
+  'typography.lineHeight': range(TYPOGRAPHY_LIMITS.minLineHeight, TYPOGRAPHY_LIMITS.maxLineHeight, 0.01),
+  'typography.slant': range(-TYPOGRAPHY_LIMITS.maxSlant, TYPOGRAPHY_LIMITS.maxSlant, 1),
+} as const satisfies Record<string, SliderRange>
+
+/** A Typography slider's Sound target id. */
+export type TypographySliderId = keyof typeof TYPOGRAPHY_RANGES
 
 /** The range of the slider with this target id; throws for an id that is not a linear slider (a typo, Tolerance, or Reach). */
 export function sliderRange(id: string): SliderRange {

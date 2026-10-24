@@ -54,7 +54,7 @@ function labToHex(lab: Lab): string {
 
 const chroma = ({ a, b }: Lab) => Math.hypot(a, b)
 const hue = ({ a, b }: Lab) => ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360
-const hueGap = (x: number, y: number) => Math.abs((((x - y) % 360) + 540) % 360 - 180)
+const hueGap = (x: number, y: number) => Math.abs(((((x - y) % 360) + 540) % 360) - 180)
 const fromLch = (L: number, C: number, h: number): Lab => ({
   L,
   a: C * Math.cos((h * Math.PI) / 180),
@@ -124,8 +124,7 @@ export function highlightColor(ink: string, paper: string): string {
   if (cached) return cached
   const inkLab = hexToLab(ink)
   const paperLab = hexToLab(paper)
-  const baseHue =
-    chroma(inkLab) >= NEUTRAL ? hue(inkLab) : chroma(paperLab) >= NEUTRAL ? hue(paperLab) : FALLBACK_HUE
+  const baseHue = chroma(inkLab) >= NEUTRAL ? hue(inkLab) : chroma(paperLab) >= NEUTRAL ? hue(paperLab) : FALLBACK_HUE
   const minContrast = Math.max(3, Math.min(4.5, contrastRatio(ink, paper)))
   // Moving lightness toward the background makes the highlight dimmer than the text, not stronger.
   const towardPaper = Math.sign(paperLab.L - inkLab.L)
@@ -186,7 +185,13 @@ export function gridLineColor(paper: string, contrast: number): string {
   const base = dark ? 255 : 0
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(paper.slice(i, i + 2), 16))
   const mix = (alpha: number) =>
-    `#${[r, g, b].map((v) => Math.round(base * alpha + v * (1 - alpha)).toString(16).padStart(2, '0')).join('')}`
+    `#${[r, g, b]
+      .map((v) =>
+        Math.round(base * alpha + v * (1 - alpha))
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')}`
   let low = 0
   let high = 1
   for (let i = 0; i < 16; i++) {

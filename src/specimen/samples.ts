@@ -13,7 +13,10 @@ export const SAMPLES: { label: string; text: string }[] = [
       'ex ea commodo consequat.',
     ].join('\n'),
   },
-  { label: 'Pangrams', text: 'The quick brown fox jumps over the lazy dog.\nCrazy Fredrick bought many very exquisite opal jewels.' },
+  {
+    label: 'Pangrams',
+    text: 'The quick brown fox jumps over the lazy dog.\nCrazy Fredrick bought many very exquisite opal jewels.',
+  },
   { label: 'Spacing', text: 'Hamburgefontsiv\nAVATAR Typography, Tolerance' },
   { label: 'Alphabet', text: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789\n.,:;!?()[]{}&@#$%*' },
 ]

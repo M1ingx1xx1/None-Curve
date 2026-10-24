@@ -32,7 +32,10 @@ export function bufferShares(s: BufferSnapshot): BufferShares | null {
  */
 export function bufferDescription(s: BufferSnapshot, positionMs: number, format: (seconds: number) => string): string {
   if (!(s.durationMs > 0)) return ''
-  const moves = s.plannedMs >= s.durationMs ? 'moves worked out for the whole file' : `moves worked out to ${format(s.plannedMs / 1000)}`
+  const moves =
+    s.plannedMs >= s.durationMs
+      ? 'moves worked out for the whole file'
+      : `moves worked out to ${format(s.plannedMs / 1000)}`
   let shapes = 'shapes not ready here yet'
   for (let i = 0; i + 1 < s.ready.length; i += 2) {
     if (s.ready[i] <= positionMs && positionMs <= s.ready[i + 1]) {
@@ -65,10 +68,23 @@ function BufferedBar({ id, position, format, store = bufferStore }: BufferedBarP
   return (
     <>
       {shares && (
-        <svg className="sound-buffer" aria-hidden="true" viewBox="0 0 1000 1" preserveAspectRatio="none" focusable="false">
+        <svg
+          className="sound-buffer"
+          aria-hidden="true"
+          viewBox="0 0 1000 1"
+          preserveAspectRatio="none"
+          focusable="false"
+        >
           <rect className="sound-buffer-planned" x={0} y={0} width={shares.planned * 1000} height={1} />
           {shares.ready.map(([start, end]) => (
-            <rect key={start} className="sound-buffer-ready" x={start * 1000} y={0} width={(end - start) * 1000} height={1} />
+            <rect
+              key={start}
+              className="sound-buffer-ready"
+              x={start * 1000}
+              y={0}
+              width={(end - start) * 1000}
+              height={1}
+            />
           ))}
         </svg>
       )}

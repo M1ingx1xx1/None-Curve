@@ -9,10 +9,11 @@
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findRingCrossings, findSelfCrossings, lazy } from './crossings'
 import { buildCurveRuns, sampleRun, simplifyRun } from './curveRuns'
+import { distanceToSegment, lerp, signedArea } from './primitives'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
 /** Hard limits that keep pathological input (huge or degenerate curves) from running away. */
-export const FLATTEN_LIMITS = {
+const FLATTEN_LIMITS = {
   minTolerance: 0.01,
   maxTolerance: 1000,
   minSegments: 1,
@@ -65,7 +66,7 @@ export interface FlattenResult {
   stats: FlattenStats
 }
 
-export class GeometryError extends Error {
+class GeometryError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'GeometryError'
@@ -366,7 +367,7 @@ function flattenFixed(curve: Bezier, n: number, push: (p: Point) => void, stats:
  * its control points; for a quadratic the bound is half the control point's distance from the chord,
  * for a cubic three quarters of the larger control distance.
  */
-export function flatnessBound(curve: Bezier): number {
+function flatnessBound(curve: Bezier): number {
   const a = curve[0]
   const b = curve[curve.length - 1]
   if (curve.length === 3) return distanceToLine(curve[1], a, b) / 2
@@ -398,10 +399,6 @@ function flattenAdaptive(curve: Bezier, tolerance: number, push: (p: Point) => v
 }
 
 // ---- Bézier helpers ----
-
-function lerp(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-}
 
 /** De Casteljau evaluation; also exact at t = 0 and t = 1. */
 export function evaluate(curve: Bezier, t: number): Point {
@@ -445,26 +442,7 @@ function distanceToLine(p: Point, a: Point, b: Point): number {
   return Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / length
 }
 
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSq = dx * dx + dy * dy
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
-}
-
 function recordDeviation(curve: Bezier, t: number, a: Point, b: Point, stats: Measure) {
   const d = distanceToSegment(evaluate(curve, t), a, b)
   if (d > stats.maxDeviation) stats.maxDeviation = d
-}
-
-/** Shoelace area; positive for counter-clockwise contours in y-up font space. */
-export function signedArea(points: readonly Point[]): number {
-  let area = 0
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i]
-    const b = points[(i + 1) % points.length]
-    area += a.x * b.y - b.x * a.y
-  }
-  return area / 2
 }

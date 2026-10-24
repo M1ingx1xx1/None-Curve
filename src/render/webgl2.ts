@@ -34,10 +34,11 @@ import {
   type GpuSlot,
 } from './gpuPlans'
 import { planUniforms, type PlanUniforms } from './gpuReference'
-import { hitScene } from './hitTest'
-import { glyphMatrix, multiply, type Matrix } from './strokes'
+import { hitFrame } from './hitTest'
+import { glyphMatrix, type Matrix } from './strokes'
 import { parseColor, type Rgba } from './theme'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
+import { artboardMatrix, canvasCull, canvasMatrix, hitOptions, NO_CULL, scenePoint, sizeBackingStore } from './view'
 import { COLOR_FS, COVER_VS, DISCARD_FS, EVAL_VS, FILL_VS, PATH_VS, STROKE_VS } from './webglShaders'
 
 const OUTLINE_PX = 1.5
@@ -49,13 +50,20 @@ interface Program {
   uniforms: Record<string, WebGLUniformLocation | null>
 }
 
-function compile(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: string[], feedback: string[] | null): Program {
+function compile(
+  gl: WebGL2RenderingContext,
+  vs: string,
+  fs: string,
+  uniforms: string[],
+  feedback: string[] | null,
+): Program {
   const shader = (type: number, source: string) => {
     const s = gl.createShader(type)
     if (!s) throw new Error('WebGL shader')
     gl.shaderSource(s, source)
     gl.compileShader(s)
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) throw new Error(`WebGL shader: ${gl.getShaderInfoLog(s)}`)
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost())
+      throw new Error(`WebGL shader: ${gl.getShaderInfoLog(s)}`)
     return s
   }
   const program = gl.createProgram()
@@ -66,7 +74,8 @@ function compile(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: s
   gl.attachShader(program, f)
   if (feedback) gl.transformFeedbackVaryings(program, feedback, gl.SEPARATE_ATTRIBS)
   gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS) && !gl.isContextLost()) throw new Error(`WebGL link: ${gl.getProgramInfoLog(program)}`)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS) && !gl.isContextLost())
+    throw new Error(`WebGL link: ${gl.getProgramInfoLog(program)}`)
   gl.deleteShader(v)
   gl.deleteShader(f)
   const locations: Program['uniforms'] = {}
@@ -246,11 +255,23 @@ export class WebGL2Renderer implements GlyphRenderer {
     private readonly gl: WebGL2RenderingContext,
     private readonly options: WebGLOptions,
   ) {
-    this.evalProgram = compile(gl, EVAL_VS, DISCARD_FS, ['u_p', 'u_start', 'u_end', 'u_ringA', 'u_ringB', 'u_paths'], ['v_pos'])
+    this.evalProgram = compile(
+      gl,
+      EVAL_VS,
+      DISCARD_FS,
+      ['u_p', 'u_start', 'u_end', 'u_ringA', 'u_ringB', 'u_paths'],
+      ['v_pos'],
+    )
     this.pathProgram = compile(gl, PATH_VS, DISCARD_FS, ['u_p', 'u_centre', 'u_ring'], ['v_pos'])
     this.fillProgram = compile(gl, FILL_VS, COLOR_FS, ['u_glyph', 'u_viewport', 'u_color'], null)
     this.coverProgram = compile(gl, COVER_VS, COLOR_FS, ['u_rect', 'u_viewport', 'u_color'], null)
-    this.strokeProgram = compile(gl, STROKE_VS, COLOR_FS, ['u_pos', 'u_glyph', 'u_half', 'u_limit', 'u_viewport', 'u_color'], null)
+    this.strokeProgram = compile(
+      gl,
+      STROKE_VS,
+      COLOR_FS,
+      ['u_pos', 'u_glyph', 'u_half', 'u_limit', 'u_viewport', 'u_color'],
+      null,
+    )
     this.shapes = new GpuLru((shape) => deleteShape(gl, shape))
     this.plans = new GpuLru((plan) => deletePlan(gl, plan))
     this.batch = new Batch(gl)
@@ -267,9 +288,15 @@ export class WebGL2Renderer implements GlyphRenderer {
 
   /** A renderer on `canvas`, or null when WebGL2 (with a stencil) is not available or a shader does not compile. */
   static create(canvas: HTMLCanvasElement, options: WebGLOptions): WebGL2Renderer | null {
-    let gl: WebGL2RenderingContext | null = null
+    let gl: WebGL2RenderingContext | null
     try {
-      gl = canvas.getContext('webgl2', { antialias: true, stencil: true, alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: false })
+      gl = canvas.getContext('webgl2', {
+        antialias: true,
+        stencil: true,
+        alpha: true,
+        premultipliedAlpha: true,
+        preserveDrawingBuffer: false,
+      })
     } catch {
       gl = null
     }
@@ -287,10 +314,7 @@ export class WebGL2Renderer implements GlyphRenderer {
   }
 
   setView(view: RenderView) {
-    const width = Math.max(1, Math.round(view.cssWidth * view.dpr))
-    const height = Math.max(1, Math.round(view.cssHeight * view.dpr))
-    if (this.canvas.width !== width) this.canvas.width = width
-    if (this.canvas.height !== height) this.canvas.height = height
+    sizeBackingStore(this.canvas, view)
     this.view = view
     this.dirty = true
     this.detail?.setView(view)
@@ -335,23 +359,10 @@ export class WebGL2Renderer implements GlyphRenderer {
   hitTest(x: number, y: number): RenderHit | null {
     const { view, style, frame } = this
     if (!view || view.kind !== 'canvas' || !style || !frame) return null
-    const scene = frame.scene()
-    if (!scene) return null
-    return hitScene(scene, view.left + x * view.u, -view.top + y * view.u, {
-      outline: style.outline,
-      fill: style.fill,
-      showSkeleton: style.showSkeleton,
-      showVertices: style.showVertices,
-      showMarkers: style.showMarkers,
-      markerRadius: style.markerRadius,
-      u: view.u,
-      ascender: style.ascender,
-      descender: style.descender,
-      freeMove: false,
-      offsetX: this.offsetX,
-      offsetY: this.offsetY,
-      source: this.source,
-    })
+    // Gliding glyphs are evaluated on the GPU, so the CPU makes only the outlines near the point (frame.scene() would
+    // make every one).
+    const [sx, sy] = scenePoint(view, x, y)
+    return hitFrame(frame, sx, sy, hitOptions(view, style, this.offsetX, this.offsetY, this.source))
   }
 
   draw(): boolean {
@@ -376,7 +387,8 @@ export class WebGL2Renderer implements GlyphRenderer {
       this.gl.deleteTransformFeedback(this.feedback)
       this.gl.deleteTexture(this.blank)
       this.gl.deleteVertexArray(this.emptyArray)
-      for (const p of [this.evalProgram, this.pathProgram, this.fillProgram, this.coverProgram, this.strokeProgram]) this.gl.deleteProgram(p.program)
+      for (const p of [this.evalProgram, this.pathProgram, this.fillProgram, this.coverProgram, this.strokeProgram])
+        this.gl.deleteProgram(p.program)
     }
     this.detail?.dispose()
     this.detail = null
@@ -430,7 +442,10 @@ export class WebGL2Renderer implements GlyphRenderer {
     const fill = canvasView ? style.fill && style.outline !== 'source' : style.fill
     const compare = canvasView && style.outline === 'compare'
     const stroke = !style.fill || compare
-    const half = canvasView || style.scalingStroke === null ? (OUTLINE_PX * view.dpr) / 2 : this.scalingHalf(view, style.scalingStroke)
+    const half =
+      canvasView || style.scalingStroke === null
+        ? (OUTLINE_PX * view.dpr) / 2
+        : this.scalingHalf(view, style.scalingStroke)
     for (const item of items) {
       if (fill) this.fillItem(item, compare ? COMPARE_ALPHA : 1, width, height)
       if (stroke) this.strokeItem(item, half, width, height)
@@ -463,38 +478,23 @@ export class WebGL2Renderer implements GlyphRenderer {
       if (!cpu) cpu = (frame.scene()?.lines ?? []).flatMap((line) => line.glyphs)
       return cpu[occurrence] ?? null
     }
-    let base: Matrix
-    let inView: (g: PlacedGlyph, band: boolean) => boolean
-    let bandOf: (baseline: number, ink: PlacedGlyph['ink'] | SpecimenScene['ink']) => boolean
-    if (view.kind === 'canvas') {
-      const k = view.dpr / view.u
-      base = multiply([k, 0, 0, k, -view.left * k, view.top * k], [1, 0, 0, 1, this.offsetX, this.offsetY])
-      const left = view.left
-      const right = left + view.cssWidth * view.u
-      const sceneTop = -view.top
-      const sceneBottom = sceneTop + view.cssHeight * view.u
-      const margin = style.unitsPerEm
-      const box = (b: { minX: number; maxX: number; minY: number; maxY: number } | null) =>
-        b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
-      bandOf = (baseline, ink) =>
-        (baseline - style.ascender - margin <= sceneBottom && baseline - style.descender + margin >= sceneTop) || box(ink)
-      inView = (g, band) => (band && g.x + g.advance + margin >= left && g.x - margin <= right) || box(g.ink)
-    } else {
-      const kx = this.canvas.width / view.artboard.width
-      const ky = this.canvas.height / view.artboard.height
-      const s = 1 / view.layout.unitsPerPx
-      base = [kx * s, 0, 0, ky * s, -view.layout.x * kx * s, -view.layout.y * ky * s]
-      bandOf = () => true
-      inView = () => true
-    }
+    const canvasView = view.kind === 'canvas'
+    const base: Matrix = canvasView
+      ? canvasMatrix(view, this.offsetX, this.offsetY)
+      : artboardMatrix(this.canvas.width, this.canvas.height, view.artboard, view.layout)
+    const cull = canvasView ? canvasCull(view, style) : NO_CULL
     const grew = { bytes: 0 }
     const touched = new Set<GpuPlan>()
     let occurrence = 0
     for (const line of layout.lines) {
-      const band = bandOf(line.baseline, line.ink)
+      const band = cull.band(line.baseline)
+      if (!band && !cull.ink(line.ink)) {
+        occurrence += line.glyphs.length
+        continue
+      }
       for (const g of line.glyphs) {
         const occ = occurrence++
-        if (g.missing || !inView(g, band)) continue
+        if (g.missing || !cull.glyph(g, band)) continue
         if (view.kind === 'canvas' && this.source) {
           const source = this.source(g.index)
           if (!source || source.contours.length === 0) continue
@@ -522,14 +522,11 @@ export class WebGL2Renderer implements GlyphRenderer {
             touched.add(plan)
             plan.used = 0
           }
-          let slot: GpuSlot | null = null
-          for (let i = 0; i < plan.used; i++) if (plan.slots[i].p === morph.p) slot = plan.slots[i]
-          if (!slot) {
-            const before = grew.bytes
-            slot = planSlot(gl, plan, grew)
-            this.plans.grow(morph.plan, grew.bytes - before)
-            this.evaluate(plan, slot, morph.p)
-          }
+          // A slot already at this progress (this frame's, or one a frame drawn again left) is not evaluated again.
+          const before = grew.bytes
+          const { slot, fresh } = planSlot(gl, plan, morph.p, grew)
+          this.plans.grow(morph.plan, grew.bytes - before)
+          if (fresh) this.evaluate(plan, slot, morph.p)
           item.plan = plan
           item.slot = slot
           item.bounds = plan.bounds
@@ -539,7 +536,10 @@ export class WebGL2Renderer implements GlyphRenderer {
           if (morph) {
             transient.push({ item, polygon })
             const b = polygon.contours.flatMap((c) => c.points)
-            item.bounds = b.reduce<Box>((box, p) => [Math.min(box[0], p.x), Math.min(box[1], p.y), Math.max(box[2], p.x), Math.max(box[3], p.y)], [Infinity, Infinity, -Infinity, -Infinity])
+            item.bounds = b.reduce<Box>(
+              (box, p) => [Math.min(box[0], p.x), Math.min(box[1], p.y), Math.max(box[2], p.x), Math.max(box[3], p.y)],
+              [Infinity, Infinity, -Infinity, -Infinity],
+            )
           } else {
             let shape = this.shapes.get(polygon, now)
             if (!shape) {

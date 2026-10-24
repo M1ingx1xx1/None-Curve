@@ -27,7 +27,13 @@ function frames(seconds: number, level = 1): FeatureFrame[] {
 /** The jumps so far after each frame. */
 function run(mapping: Mapping, strength: number | undefined, input: readonly FeatureFrame[]): number[] {
   const tracker = new JumpTracker()
-  return input.map((frame) => (strength === undefined ? tracker.advance(frame, [mapping], base) : tracker.advance(frame, [mapping], base, strength)).get(SEED) ?? 0)
+  return input.map(
+    (frame) =>
+      (strength === undefined
+        ? tracker.advance(frame, [mapping], base)
+        : tracker.advance(frame, [mapping], base, strength)
+      ).get(SEED) ?? 0,
+  )
 }
 
 /** How many jumps a run made (the seed wraps at its largest, so count the changes). */

@@ -8,9 +8,20 @@ import { RUNTIME_FLAGS } from '../state/flags'
  * Index, position, anchors, a hash of the anchors (rounded to 1/64 unit), and `d`: how far its anchors moved since the
  * last frame reported (font units, the largest of any anchor; 0 when it is new or its anchor count changed).
  */
-export interface ProbeGlyph { i: number; x: number; y: number; n: number; h: number; d: number }
+export interface ProbeGlyph {
+  i: number
+  x: number
+  y: number
+  n: number
+  h: number
+  d: number
+}
 /** scale = CSS px per font unit × DPR. */
-export interface ProbeFrame { t: number; scale: number; glyphs: ProbeGlyph[] }
+export interface ProbeFrame {
+  t: number
+  scale: number
+  glyphs: ProbeGlyph[]
+}
 export interface ProbeState {
   frames: number
   /** The renderer asked for. */
@@ -57,6 +68,13 @@ const DRAW_MS_KEEP = 600
 
 export const probeOn: boolean = RUNTIME_FLAGS.probe
 
+declare global {
+  interface Window {
+    /** The probe's state, for a measuring script to read (?probe=1). */
+    __noneCurveFrames?: ProbeState
+  }
+}
+
 let state: ProbeState | null = null
 
 /** The probe's state, made (and put on window.__noneCurveFrames) on first use. */
@@ -90,7 +108,7 @@ function probeState(): ProbeState {
     },
     preview: { frames: 0, drawMs: [] },
   }
-  if (typeof window !== 'undefined') (window as unknown as { __noneCurveFrames?: ProbeState }).__noneCurveFrames = state
+  if (typeof window !== 'undefined') window.__noneCurveFrames = state
   return state
 }
 
@@ -133,7 +151,13 @@ function moved(a: Float64Array, b: Float64Array): number {
 }
 
 /** Called by a renderer after it drew `scene` (morphs evaluated by the reporter; the GPU path passes the CPU scene lazily only when probeOn). */
-export function reportFrame(which: 'canvas' | 'preview', effective: string, ms: number, scene: () => SpecimenScene | null, scale: number): void {
+export function reportFrame(
+  which: 'canvas' | 'preview',
+  effective: string,
+  ms: number,
+  scene: () => SpecimenScene | null,
+  scale: number,
+): void {
   if (!probeOn) return
   const s = probeState()
   if (which === 'preview') {

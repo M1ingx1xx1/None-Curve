@@ -94,7 +94,14 @@ function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
     const current = cells.indexOf(document.activeElement as HTMLButtonElement)
     if (current < 0) return
     const columns = Math.max(1, cells.filter((c) => c.offsetTop === cells[0].offsetTop).length)
-    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: columns, ArrowUp: -columns, Home: -current, End: cells.length }[e.key]
+    const step = {
+      ArrowRight: 1,
+      ArrowLeft: -1,
+      ArrowDown: columns,
+      ArrowUp: -columns,
+      Home: -current,
+      End: cells.length,
+    }[e.key]
     if (step === undefined) return
     e.preventDefault()
     const next = cells[Math.min(cells.length - 1, Math.max(0, current + step))]
@@ -141,7 +148,13 @@ function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
       {emptyMessage ? (
         <p className="glyph-empty">{emptyMessage}</p>
       ) : (
-        <div className="glyph-grid" ref={gridRef} role="group" aria-label="Characters to insert" onKeyDown={onGridKeyDown}>
+        <div
+          className="glyph-grid"
+          ref={gridRef}
+          role="group"
+          aria-label="Characters to insert"
+          onKeyDown={onGridKeyDown}
+        >
           {shown.map((glyph, i) => (
             <GlyphCell
               key={`${glyph.index}-${glyph.unicode}`}

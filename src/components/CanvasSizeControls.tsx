@@ -89,7 +89,11 @@ export default function CanvasSizeControls({ params, onChange }: CanvasSizeContr
             </button>
           ))}
         </div>
-        <button type="button" className="button-small swap-button" onClick={() => onChange({ width: height, height: width })}>
+        <button
+          type="button"
+          className="button-small swap-button"
+          onClick={() => onChange({ width: height, height: width })}
+        >
           <Icon name="swap" />
           Swap
         </button>
@@ -98,7 +102,13 @@ export default function CanvasSizeControls({ params, onChange }: CanvasSizeContr
       <div className="canvas-size-group canvas-size-scale">
         <div className="scale-row" role="group" aria-label="Export multiplier">
           {ARTBOARD_LIMITS.scales.map((s) => (
-            <button key={s} type="button" className="button-small" aria-pressed={scale === s} onClick={() => onChange({ scale: s })}>
+            <button
+              key={s}
+              type="button"
+              className="button-small"
+              aria-pressed={scale === s}
+              onClick={() => onChange({ scale: s })}
+            >
               {s}×
             </button>
           ))}

@@ -8,24 +8,10 @@
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { hashInts } from './distortion'
-import { evaluate, signedArea, type FlattenResult } from './flatten'
+import { evaluate, type FlattenResult } from './flatten'
+import { RANDOM_ANCHOR_LIMITS } from './limits'
+import { clamp, finite, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph, RandomAnchorParams, SourceContour, SourceGlyph } from './types'
-
-export const RANDOM_ANCHOR_LIMITS = {
-  minDensity: 1,
-  maxDensity: 100,
-  maxSeed: 999_999,
-  /** A source joint that turns by more than this many degrees is kept as a corner anchor. */
-  cornerAngle: 30,
-  /** Hard cap per contour, whatever the density. */
-  maxAnchorsPerContour: 2000,
-  /** Arc-length table samples per curve segment. */
-  samplesPerCurve: 32,
-  /** Anchors closer than this (font units) are merged. */
-  minGap: 0.5,
-  /** Different random draws tried, in order, before a contour falls back to Flatten's result. */
-  attempts: 4,
-} as const
 
 export interface RandomAnchorStats {
   applied: boolean
@@ -296,12 +282,4 @@ function unit(a: Point, b: Point): Point | null {
 
 function dist(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y)
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
-}
-
-function finite(v: number, fallback: number): number {
-  return Number.isFinite(v) ? v : fallback
 }

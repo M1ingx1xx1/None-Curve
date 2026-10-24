@@ -10,7 +10,10 @@ import { writeTables } from '../export/sfnt'
 interface Woff2Internals {
   type: string
   numGlyphs: number
-  directory: { flavor: number; tables: Record<string, { tag: string; offset: number; length: number; transformed: boolean }> }
+  directory: {
+    flavor: number
+    tables: Record<string, { tag: string; offset: number; length: number; transformed: boolean }>
+  }
   stream: { buffer: Uint8Array }
   _decompress(): void
   _transformGlyfTable(): void

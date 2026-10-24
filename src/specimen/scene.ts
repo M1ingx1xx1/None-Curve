@@ -76,7 +76,10 @@ export function specimenLines(text: string): string[] {
     polygon from earlier settings, shown until the current one arrives. `occurrence` counts every glyph
     of the text in reading order (lines, then glyphs; spaces and missing glyphs included), from 0 to
     glyphCount − 1, so one occurrence of a glyph can have a polygon of its own. */
-export type PolygonLookup = (index: number, occurrence: number) => { polygon: PolygonGlyph; stale?: boolean } | { error: string } | null
+export type PolygonLookup = (
+  index: number,
+  occurrence: number,
+) => { polygon: PolygonGlyph; stale?: boolean } | { error: string } | null
 
 /** Shaped glyphs with positions, before polygons are attached (see placePolygons). */
 export interface ShapedSpecimen {
@@ -102,7 +105,9 @@ export interface ShapedSpecimen {
 export function shapeSpecimen(font: LoadedFont, text: string, layout: SceneLayout = PLAIN_LAYOUT): ShapedSpecimen {
   const { ascender, descender, lineGap, unitsPerEm } = font.metrics
   const capHeight = font.metrics.capHeight ?? unitsPerEm * 0.7
-  const lineHeight = (ascender - descender + lineGap) * (Number.isFinite(layout.lineHeight) && layout.lineHeight > 0 ? layout.lineHeight : 1)
+  const lineHeight =
+    (ascender - descender + lineGap) *
+    (Number.isFinite(layout.lineHeight) && layout.lineHeight > 0 ? layout.lineHeight : 1)
   const tracking = ((Number.isFinite(layout.tracking) ? layout.tracking : 0) * unitsPerEm) / 1000
   const slant = Number.isFinite(layout.slant) ? Math.max(-89, Math.min(89, layout.slant)) : 0
   const chars = [...text]
@@ -128,7 +133,14 @@ export function shapeSpecimen(font: LoadedFont, text: string, layout: SceneLayou
         }
         indices.add(shaped.index)
       }
-      glyphs.push({ index: shaped.index, text: glyphText, x: pen + shaped.xOffset, y: baseline - shaped.yOffset, advance: shaped.xAdvance, missing: shaped.missing })
+      glyphs.push({
+        index: shaped.index,
+        text: glyphText,
+        x: pen + shaped.xOffset,
+        y: baseline - shaped.yOffset,
+        advance: shaped.xAdvance,
+        missing: shaped.missing,
+      })
       // Tracking goes between glyphs, so a line does not grow past its last glyph.
       pen += shaped.xAdvance + (i < shapedLine.length - 1 ? tracking : 0)
       glyphCount++
@@ -139,7 +151,8 @@ export function shapeSpecimen(font: LoadedFont, text: string, layout: SceneLayou
   // Align every line inside the width of the longest one.
   const blockWidth = Math.max(0, ...lines.map((l) => l.width))
   for (const line of lines) {
-    const shift = layout.align === 'center' ? (blockWidth - line.width) / 2 : layout.align === 'right' ? blockWidth - line.width : 0
+    const shift =
+      layout.align === 'center' ? (blockWidth - line.width) / 2 : layout.align === 'right' ? blockWidth - line.width : 0
     for (const g of line.glyphs) g.x += shift
   }
 
@@ -240,7 +253,12 @@ function include(into: Extent, e: Extent) {
   into.maxY = Math.max(into.maxY, e.maxY)
 }
 
-const offset = (e: Extent, x: number, y: number): Extent => ({ minX: x + e.minX, minY: y + e.minY, maxX: x + e.maxX, maxY: y + e.maxY })
+const offset = (e: Extent, x: number, y: number): Extent => ({
+  minX: x + e.minX,
+  minY: y + e.minY,
+  maxX: x + e.maxX,
+  maxY: y + e.maxY,
+})
 
 /** A layout box that can be measured (finite, not inverted), or null. */
 function validBox(box: Extent | undefined): Extent | null {
@@ -256,7 +274,12 @@ function validBox(box: Extent | undefined): Extent | null {
 function slantedBox(box: Extent, shear: number): Extent {
   const low = shear * box.minY
   const high = shear * box.maxY
-  return { minX: box.minX + Math.min(low, high), minY: -box.maxY, maxX: box.maxX + Math.max(low, high), maxY: -box.minY }
+  return {
+    minX: box.minX + Math.min(low, high),
+    minY: -box.maxY,
+    maxX: box.maxX + Math.max(low, high),
+    maxY: -box.minY,
+  }
 }
 
 const bodies = new WeakMap<PolygonGlyph, { shear: number; extent: Extent }>()

@@ -7,7 +7,15 @@ import type { GlideStore } from '../state/useGlide'
  * subtree re-renders with each animation frame. Until the store has the scene (the render before its layout effect),
  * the scene itself is drawn.
  */
-export default function Glided({ store, scene, children }: { store: GlideStore; scene: SpecimenScene | null; children: (scene: SpecimenScene | null) => ReactNode }) {
+export default function Glided({
+  store,
+  scene,
+  children,
+}: {
+  store: GlideStore
+  scene: SpecimenScene | null
+  children: (scene: SpecimenScene | null) => ReactNode
+}) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot)
   return <>{children(snapshot.target === scene ? snapshot.scene : scene)}</>
 }

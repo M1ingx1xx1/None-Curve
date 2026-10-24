@@ -3,7 +3,7 @@ import Icon from './Icon'
 
 interface ErrorBoundaryProps {
   /** Changing this value clears a previous error, e.g. when a new font loads. */
-  resetKey: string
+  resetKey?: string
   /** What failed, used in the message, e.g. "The canvas". */
   label: string
   children: ReactNode
@@ -11,7 +11,7 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   error: Error | null
-  resetKey: string
+  resetKey: string | undefined
 }
 
 export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -21,7 +21,10 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     return { error }
   }
 
-  static getDerivedStateFromProps(props: ErrorBoundaryProps, state: ErrorBoundaryState): Partial<ErrorBoundaryState> | null {
+  static getDerivedStateFromProps(
+    props: ErrorBoundaryProps,
+    state: ErrorBoundaryState,
+  ): Partial<ErrorBoundaryState> | null {
     return props.resetKey !== state.resetKey ? { error: null, resetKey: props.resetKey } : null
   }
 

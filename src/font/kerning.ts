@@ -58,7 +58,9 @@ interface Gpos {
   lookupList: Indexed<Lookup>
   featureVariations?: {
     featureVariationRecords: {
-      conditionSet: { conditionTable: { axisIndex: number; filterRangeMinValue: number; filterRangeMaxValue: number }[] }
+      conditionSet: {
+        conditionTable: { axisIndex: number; filterRangeMinValue: number; filterRangeMaxValue: number }[]
+      }
       featureTableSubstitution: { substitutions: { featureIndex: number; alternateFeatureTable: Feature }[] }
     }[]
   }
@@ -185,7 +187,8 @@ function readPairPos(font: FontTables, table: PairPos): KernSubtable | null {
       if (pairs.has(glyph)) return
       const row = new Map<number, KernPairValue>()
       for (const record of table.pairSets!.get(index) ?? []) {
-        if (!row.has(record.secondGlyph)) row.set(record.secondGlyph, pairValue(value(record.value1), value(record.value2)))
+        if (!row.has(record.secondGlyph))
+          row.set(record.secondGlyph, pairValue(value(record.value1), value(record.value2)))
       }
       pairs.set(glyph, row)
     })
@@ -195,10 +198,12 @@ function readPairPos(font: FontTables, table: PairPos): KernSubtable | null {
     const values: KernPairValue[][] = []
     for (let c1 = 0; c1 < (table.class1Count ?? 0); c1++) {
       const row = table.classRecords.get(c1)
-      values.push(Array.from({ length: table.class2Count ?? 0 }, (_, c2) => {
-        const record = row?.get(c2)
-        return pairValue(value(record?.value1), value(record?.value2))
-      }))
+      values.push(
+        Array.from({ length: table.class2Count ?? 0 }, (_, c2) => {
+          const record = row?.get(c2)
+          return pairValue(value(record?.value1), value(record?.value2))
+        }),
+      )
     }
     return {
       format: 2,
@@ -215,16 +220,17 @@ function readPairPos(font: FontTables, table: PairPos): KernSubtable | null {
 function valueReader(font: FontTables): (record: ValueRecord | undefined) => KernValue {
   const variations = font._variationProcessor
   const store = variations ? font.GDEF?.itemVariationStore : undefined
-  const delta = (device: Device | null | undefined) => (variations && store && device ? variations.getDelta(store, device.a, device.b) : 0)
+  const delta = (device: Device | null | undefined) =>
+    variations && store && device ? variations.getDelta(store, device.a, device.b) : 0
   return (record) => {
     if (!record) return ZERO
-    const value = [
-      (record.xPlacement ?? 0) + delta(record.xPlaDevice),
-      (record.yPlacement ?? 0) + delta(record.yPlaDevice),
-      (record.xAdvance ?? 0) + delta(record.xAdvDevice),
-      (record.yAdvance ?? 0) + delta(record.yAdvDevice),
-    ].map((v) => Math.round(v))
-    return value.every((v) => v === 0) ? ZERO : (value as unknown as KernValue)
+    const value: KernValue = [
+      Math.round((record.xPlacement ?? 0) + delta(record.xPlaDevice)),
+      Math.round((record.yPlacement ?? 0) + delta(record.yPlaDevice)),
+      Math.round((record.xAdvance ?? 0) + delta(record.xAdvDevice)),
+      Math.round((record.yAdvance ?? 0) + delta(record.yAdvDevice)),
+    ]
+    return value.every((v) => v === 0) ? ZERO : value
   }
 }
 
@@ -269,7 +275,11 @@ function readLegacyKern(font: FontTables): KernLookup[] {
     return []
   }
   const applies = tables.filter((t) =>
-    t.coverage.crossStream ? false : t.version === 0 ? t.coverage.horizontal : !(t.coverage.vertical || t.coverage.variation),
+    t.coverage.crossStream
+      ? false
+      : t.version === 0
+        ? t.coverage.horizontal
+        : !(t.coverage.vertical || t.coverage.variation),
   )
   const lastOverride = applies.map((t) => Boolean(t.coverage.override)).lastIndexOf(true)
   const lookups: KernLookup[] = []
@@ -290,7 +300,12 @@ function readLegacyKern(font: FontTables): KernLookup[] {
  * What the given lookups do to the pair `first`, `second` standing alone: x/y placement and x/y
  * advance changes of the first glyph, then of the second.
  */
-export function pairKerning(kerning: SourceKerning, lookups: readonly number[], first: number, second: number): number[] {
+export function pairKerning(
+  kerning: SourceKerning,
+  lookups: readonly number[],
+  first: number,
+  second: number,
+): number[] {
   const out = [0, 0, 0, 0, 0, 0, 0, 0]
   for (const index of lookups) {
     for (const subtable of kerning.lookups[index].subtables) {

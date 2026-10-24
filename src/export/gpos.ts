@@ -23,7 +23,13 @@ export function exportKerning(kerning: SourceKerning, newGid: Map<number, number
     lookups.push({ flags: lookup.flags, subtables })
   })
   if (!lookups.length) return null
-  return { scripts: kerning.scripts.map(({ tag, lookups: list }) => ({ tag, lookups: list.flatMap((i) => position.get(i) ?? []) })), lookups }
+  return {
+    scripts: kerning.scripts.map(({ tag, lookups: list }) => ({
+      tag,
+      lookups: list.flatMap((i) => position.get(i) ?? []),
+    })),
+    lookups,
+  }
 }
 
 function remapSubtable(subtable: KernSubtable, newGid: Map<number, number>): KernSubtable | null {
@@ -126,7 +132,8 @@ function valueSize(format: number): number {
 }
 
 function writeValue(w: Writer, format: number, value: KernValue) {
-  for (let k = 0; k < VALUE_BITS; k++) if (format & (1 << k)) w.u16(Math.max(-32768, Math.min(32767, value[k])) & 0xffff)
+  for (let k = 0; k < VALUE_BITS; k++)
+    if (format & (1 << k)) w.u16(Math.max(-32768, Math.min(32767, value[k])) & 0xffff)
 }
 
 function formats(values: KernPairValue[]): [number, number] {
@@ -397,7 +404,8 @@ function checkPairs(kerning: SourceKerning, glyphCount: number): [number, number
           if (!secondOfClass.has(c)) secondOfClass.set(c, g)
         }
         for (const first of subtable.coverage) for (const second of secondOfClass.values()) add(first, second)
-        for (const first of firstOfClass.values()) for (let second = 1; second < glyphCount; second++) add(first, second)
+        for (const first of firstOfClass.values())
+          for (let second = 1; second < glyphCount; second++) add(first, second)
       }
     }
     let seed = 1
@@ -426,14 +434,21 @@ function checkPairs(kerning: SourceKerning, glyphCount: number): [number, number
  * Where the kerning read back from a written font differs from the kerning meant to be written:
  * scripts, lookup flags, and the value of every pair from `checkPairs`. Empty when they agree.
  */
-export function kerningDifferences(want: SourceKerning | null, got: SourceKerning | null, glyphCount: number): string[] {
-  if (!want || !got) return want === got ? [] : [want ? 'the kerning is missing' : 'there is kerning that was not written']
+export function kerningDifferences(
+  want: SourceKerning | null,
+  got: SourceKerning | null,
+  glyphCount: number,
+): string[] {
+  if (!want || !got)
+    return want === got ? [] : [want ? 'the kerning is missing' : 'there is kerning that was not written']
   const problems: string[] = []
   const tags = (k: SourceKerning) => k.scripts.map((s) => s.tag).join(' ')
   if (tags(want) !== tags(got)) return [`kerning scripts read back as “${tags(got)}”, expected “${tags(want)}”`]
-  if (want.lookups.length !== got.lookups.length) return [`${got.lookups.length} kerning lookups read back, expected ${want.lookups.length}`]
+  if (want.lookups.length !== got.lookups.length)
+    return [`${got.lookups.length} kerning lookups read back, expected ${want.lookups.length}`]
   want.lookups.forEach((lookup, i) => {
-    if (lookup.flags !== got.lookups[i].flags) problems.push(`kerning lookup ${i + 1} flags read back as ${got.lookups[i].flags}`)
+    if (lookup.flags !== got.lookups[i].flags)
+      problems.push(`kerning lookup ${i + 1} flags read back as ${got.lookups[i].flags}`)
   })
   const pairs = checkPairs(want, glyphCount)
   want.scripts.forEach((script, i) => {
@@ -449,7 +464,8 @@ export function kerningDifferences(want: SourceKerning | null, got: SourceKernin
     for (const [first, second] of pairs) {
       const a = pairKerning(want, script.lookups, first, second)
       const b = pairKerning(got, script.lookups, first, second)
-      if (a.some((v, k) => v !== b[k]) && wrong++ < 3) problems.push(`kerning of glyphs ${first} and ${second} reads back as ${show(b)}, expected ${show(a)}`)
+      if (a.some((v, k) => v !== b[k]) && wrong++ < 3)
+        problems.push(`kerning of glyphs ${first} and ${second} reads back as ${show(b)}, expected ${show(a)}`)
     }
     if (wrong > 3) problems.push(`and ${wrong - 3} more kerning pairs differ`)
   })

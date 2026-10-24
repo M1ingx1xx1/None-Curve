@@ -11,7 +11,7 @@
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, lazy } from './crossings'
-import { signedArea } from './flatten'
+import { signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 
 export type SquaringScope = 'round' | 'all'
@@ -24,9 +24,9 @@ export interface SquaringParams {
 }
 
 /** Mean deviation from the ellipse fitted to the bounding box, below which a contour counts as fully round. */
-export const ROUND_FULL = 0.06
+const ROUND_FULL = 0.06
 /** Mean deviation above which a contour is not treated as round at all. */
-export const ROUND_NONE = 0.16
+const ROUND_NONE = 0.16
 
 export interface SquaringStats {
   applied: boolean
@@ -54,7 +54,10 @@ const REDUCE_MIN = 0.05
  */
 const REDUCE_MARGIN = 0.85
 
-export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { polygon: PolygonGlyph; stats: SquaringStats } {
+export function applySquaring(
+  polygon: PolygonGlyph,
+  params: SquaringParams,
+): { polygon: PolygonGlyph; stats: SquaringStats } {
   const stats: SquaringStats = { applied: false, squared: 0, partial: 0, notRound: 0, reduced: 0, fallbacks: [] }
   const amount = Number.isFinite(params.amount) ? Math.min(1, Math.max(0, params.amount)) : 0
   if (amount === 0) return { polygon, stats }
@@ -137,7 +140,7 @@ function boundingBox(points: readonly Point[]): Box | null {
  * O, o, 0), 0 for clearly non-round contours (triangles, stems, S-curves), linear in between. The
  * deviation is the edge-length-weighted mean of |r₂ − 1| in normalized box coordinates.
  */
-export function roundnessWeight(points: readonly Point[], box: Box): number {
+function roundnessWeight(points: readonly Point[], box: Box): number {
   const n = points.length
   let sum = 0
   let total = 0
@@ -187,7 +190,11 @@ function squareContour(points: readonly Point[], box: Box, k: number): Point[] {
   return out
 }
 
-function validate(before: readonly Point[], after: readonly Point[], beforeCrossings: () => number): SquaringFailure | null {
+function validate(
+  before: readonly Point[],
+  after: readonly Point[],
+  beforeCrossings: () => number,
+): SquaringFailure | null {
   if (after.length < 3) return 'collapsed'
   for (let i = 0; i < after.length; i++) {
     const a = after[i]

@@ -3,8 +3,7 @@
 // melodies, glides and vibrato for Melody, the pitch confidence and the melody range.
 
 import { describe, expect, it } from 'vitest'
-import { analyserFftSize } from '../../src/sound/engine'
-import { FeatureExtractor } from '../../src/sound/features'
+import { analyserFftSize, FeatureExtractor } from '../../src/sound/features'
 import { DEFAULT_FEATURE_SETTINGS, SILENT_FRAME, SOUND_LIMITS } from '../../src/sound/types'
 import {
   analyse,
@@ -31,7 +30,20 @@ import {
   type ProbedFrame,
 } from '../helpers/audio'
 
-const FEATURES = ['level', 'swell', 'bass', 'mids', 'treble', 'brightness', 'pitch', 'melody', 'pitchConfidence', 'beat', 'activity', 'pan'] as const
+const FEATURES = [
+  'level',
+  'swell',
+  'bass',
+  'mids',
+  'treble',
+  'brightness',
+  'pitch',
+  'melody',
+  'pitchConfidence',
+  'beat',
+  'activity',
+  'pan',
+] as const
 const avg = (frames: ProbedFrame[], key: (typeof FEATURES)[number]) => mean(frames.map((f) => f[key]))
 const onsets = (frames: ProbedFrame[]) => frames.filter((f) => f.onset).length
 const kicks = (frames: ProbedFrame[]) => frames.filter((f) => f.kick).length
@@ -65,7 +77,11 @@ describe('sound features', () => {
   })
 
   it('raises Level with the amplitude, and with Sensitivity', () => {
-    const level = (db: number, sensitivity = 0) => avg(from(analyse(sine(1000, db, 1.5), null, { settings: { ...DEFAULT_FEATURE_SETTINGS, sensitivity } }), 500), 'level')
+    const level = (db: number, sensitivity = 0) =>
+      avg(
+        from(analyse(sine(1000, db, 1.5), null, { settings: { ...DEFAULT_FEATURE_SETTINGS, sensitivity } }), 500),
+        'level',
+      )
     const levels = [-48, -36, -24, -12].map((db) => level(db))
     expect(levels[0]).toBeGreaterThan(0)
     expect(levels.every((v, i) => i === 0 || v > levels[i - 1])).toBe(true)
@@ -106,12 +122,18 @@ describe('sound features', () => {
     reseed(12)
     const tone = sine(440, -12, 3)
     const quiet = new Float64Array(tone.length)
-    const pan = (left: Float64Array, right: Float64Array, stereo = true) => avg(from(analyse(left, right, { stereo }), 1500), 'pan')
+    const pan = (left: Float64Array, right: Float64Array, stereo = true) =>
+      avg(from(analyse(left, right, { stereo }), 1500), 'pan')
     expect(pan(tone, quiet)).toBeLessThan(-0.99)
     expect(pan(quiet, tone)).toBeGreaterThan(0.99)
     expect(Math.abs(pan(tone, tone))).toBeLessThan(1e-9)
     // -6 dB on the left: (1 - 0.5) / (1 + 0.5).
-    expect(pan(tone.map((v) => v / 2), tone)).toBeCloseTo(1 / 3, 2)
+    expect(
+      pan(
+        tone.map((v) => v / 2),
+        tone,
+      ),
+    ).toBeCloseTo(1 / 3, 2)
     expect(Math.abs(pan(noise(-20, 3), noise(-20, 3)))).toBeLessThan(0.05)
     // Without the channels, Pan reads 0.
     expect(pan(tone, quiet, false)).toBe(0)
@@ -174,7 +196,10 @@ describe('Release, pitch confidence and Melody', () => {
     for (const freq of [110, 220, 880]) none(analyse(sine(freq, -12, 2)), `${freq} Hz`)
     for (const freq of [110, 220, 440, 880]) {
       none(analyse(vibrato(freq, 30, 5.5, 3, -12)), `vibrato at ${freq} Hz`)
-      none(analyse(vibrato(freq, 30, 5.5, 3, -12), null, { jitterMs: 1, quantum: 128 }), `vibrato at ${freq} Hz, browser-like`)
+      none(
+        analyse(vibrato(freq, 30, 5.5, 3, -12), null, { jitterMs: 1, quantum: 128 }),
+        `vibrato at ${freq} Hz, browser-like`,
+      )
     }
     reseed(22)
     none(analyse(noise(-20, 3)), 'noise')
@@ -185,7 +210,8 @@ describe('Release, pitch confidence and Melody', () => {
     // One frame's window an octave up: Pitch reads it, Melody does not.
     const blip = analyse(sine(220, -12, 2), null, {
       edit: (frame, samples) => {
-        if (frame === 60) for (let i = 0; i < samples.length; i++) samples[i] = fromDb(-12) * Math.sin((2 * Math.PI * 440 * i) / SR)
+        if (frame === 60)
+          for (let i = 0; i < samples.length; i++) samples[i] = fromDb(-12) * Math.sin((2 * Math.PI * 440 * i) / SR)
       },
     })
     expect(blip[59].pitch - blip[58].pitch).toBeGreaterThan(0.05)
@@ -201,13 +227,16 @@ describe('Release, pitch confidence and Melody', () => {
       for (const kickDb of [-8, -14]) {
         const signal = mix(harmonics(freq, -14, 4, 6), drumHits(hitTimes(2, 4), 4, kickDb))
         for (const fps of [60, 75, 90, 120, 144]) {
-          expect(rises(analyse(signal, null, browser(fps))), `${freq} Hz, kicks at ${kickDb} dB, ${fps} fps`).toHaveLength(0)
+          expect(
+            rises(analyse(signal, null, browser(fps))),
+            `${freq} Hz, kicks at ${kickDb} dB, ${fps} fps`,
+          ).toHaveLength(0)
         }
       }
     }
   })
 
-  it('does not pulse on a held note with a singer\'s vibrato of ±50 or ±80 cents', () => {
+  it("does not pulse on a held note with a singer's vibrato of ±50 or ±80 cents", () => {
     for (const cents of [50, 80]) {
       for (const fps of [60, 120]) {
         const pulses = rises(analyse(vibrato(330, cents, 5.5, 3, -12), null, browser(fps)))
@@ -217,7 +246,8 @@ describe('Release, pitch confidence and Melody', () => {
   })
 
   it('does not pulse on a note that slides into its pitch after silence', () => {
-    const semitone = (seconds: number, from: number) => (t: number) => (t < seconds ? semitones(330, -from * (1 - t / seconds)) : 330)
+    const semitone = (seconds: number, from: number) => (t: number) =>
+      t < seconds ? semitones(330, -from * (1 - t / seconds)) : 330
     for (const [from, seconds] of [
       [1, 0.04],
       [1, 0.08],
@@ -225,7 +255,10 @@ describe('Release, pitch confidence and Melody', () => {
       const signal = new Float64Array(samplesIn(2))
       signal.set(tone(semitone(seconds, from), -12, 1.5), samplesIn(0.3))
       for (const fps of [60, 120]) {
-        expect(Math.max(...analyse(signal, null, browser(fps)).map((f) => f.melody)), `${from} st over ${seconds * 1000} ms, ${fps} fps`).toBe(0)
+        expect(
+          Math.max(...analyse(signal, null, browser(fps)).map((f) => f.melody)),
+          `${from} st over ${seconds * 1000} ms, ${fps} fps`,
+        ).toBe(0)
       }
     }
   })
@@ -299,21 +332,48 @@ describe('the melody range (pitchLow, pitchHigh)', () => {
   })
 
   it('is an octave around a held note, kept within Pitch, and not moved by a kick under it or a one-frame octave error', () => {
-    near(analyse(sine(330, -12, 2)).filter((f) => f.time > 100), place(330) - OCTAVE / 2, place(330) + OCTAVE / 2, 0.005, '330 Hz')
-    near(analyse(sine(65, -12, 2)).filter((f) => f.time > 300), 0, OCTAVE, 0.005, '65 Hz')
-    near(analyse(sine(1500, -12, 2)).filter((f) => f.time > 300), 1 - OCTAVE, 1, 0.005, '1500 Hz')
+    near(
+      analyse(sine(330, -12, 2)).filter((f) => f.time > 100),
+      place(330) - OCTAVE / 2,
+      place(330) + OCTAVE / 2,
+      0.005,
+      '330 Hz',
+    )
+    near(
+      analyse(sine(65, -12, 2)).filter((f) => f.time > 300),
+      0,
+      OCTAVE,
+      0.005,
+      '65 Hz',
+    )
+    near(
+      analyse(sine(1500, -12, 2)).filter((f) => f.time > 300),
+      1 - OCTAVE,
+      1,
+      0.005,
+      '1500 Hz',
+    )
     for (const freq of [220, 330]) {
       for (const db of [-8, -14]) {
-        const frames = analyse(mix(harmonics(freq, -14, 4, 6), drumHits(hitTimes(2, 4), 4, db))).filter((f) => f.time > 300)
+        const frames = analyse(mix(harmonics(freq, -14, 4, 6), drumHits(hitTimes(2, 4), 4, db))).filter(
+          (f) => f.time > 300,
+        )
         near(frames, place(freq) - OCTAVE / 2, place(freq) + OCTAVE / 2, 0.005, `kicks at ${db} dB under ${freq} Hz`)
       }
     }
     const blip = analyse(sine(220, -12, 2), null, {
       edit: (frame, samples) => {
-        if (frame === 60) for (let i = 0; i < samples.length; i++) samples[i] = fromDb(-12) * Math.sin((2 * Math.PI * 440 * i) / SR)
+        if (frame === 60)
+          for (let i = 0; i < samples.length; i++) samples[i] = fromDb(-12) * Math.sin((2 * Math.PI * 440 * i) / SR)
       },
     })
-    near(blip.filter((f) => f.time > 300), place(220) - OCTAVE / 2, place(220) + OCTAVE / 2, 0.005, 'octave error')
+    near(
+      blip.filter((f) => f.time > 300),
+      place(220) - OCTAVE / 2,
+      place(220) + OCTAVE / 2,
+      0.005,
+      'octave error',
+    )
   })
 
   it('spans a melody from its lowest to its highest note: C4 and C5, 500 ms each', () => {
@@ -323,7 +383,13 @@ describe('the melody range (pitchLow, pitchHigh)', () => {
     expect(low).toBeCloseTo(place(C4) - OCTAVE / 2, 2)
     expect(high).toBeCloseTo(place(C4) + OCTAVE / 2, 2)
     // From the third note on: C4 to C5, so each note sits at one end.
-    near(frames.filter((f) => f.time > 1300), place(C4), place(C5), 0.015, 'C4 and C5')
+    near(
+      frames.filter((f) => f.time > 1300),
+      place(C4),
+      place(C5),
+      0.015,
+      'C4 and C5',
+    )
     for (const f of frames.filter((f) => f.time > 1300 && f.time % 500 > 250)) {
       const at = (f.pitch - f.pitchLow) / (f.pitchHigh - f.pitchLow)
       expect(Math.min(at, 1 - at), `${f.time.toFixed(0)} ms`).toBeLessThan(0.1)
@@ -335,7 +401,13 @@ describe('the melody range (pitchLow, pitchHigh)', () => {
     const moved = analyse(notes([...leaps(C4, C5, 8), ...leaps(C5, C6, 24)], 500, -12))
     expect(rangeOf(moved, 6000)[1]).toBeCloseTo(place(C6), 2)
     expect(rangeOf(moved, 9000)[0]).toBeGreaterThan(place(C4) + 0.05)
-    near(moved.filter((f) => f.time > 15_000), place(C5), place(C6), 0.015, 'C5 and C6')
+    near(
+      moved.filter((f) => f.time > 15_000),
+      place(C5),
+      place(C6),
+      0.015,
+      'C5 and C6',
+    )
     // C4 and C5 for 2 s, a pause, then G5 and G6.
     const after = (pauseS: number) => {
       const signal = new Float64Array(samplesIn(2 + pauseS + 3))
@@ -348,7 +420,13 @@ describe('the melody range (pitchLow, pitchHigh)', () => {
     expect(short[short.length - 1].pitchLow).toBeLessThan(place(C5))
     expect(short[short.length - 1].pitchHigh).toBeCloseTo(place(G6), 2)
     // After 9 s: the new notes alone.
-    near(after(9).filter((f) => f.time > 12_800), place(G5), place(G6), 0.015, 'after a long pause')
+    near(
+      after(9).filter((f) => f.time > 12_800),
+      place(G5),
+      place(G6),
+      0.015,
+      'after a long pause',
+    )
   })
 
   it('forgets the range on reset', () => {
@@ -357,6 +435,12 @@ describe('the melody range (pitchLow, pitchHigh)', () => {
     extractor.reset()
     const frames = analyse(sine(1500, -12, 1), null, { extractor, clockMs: 2000 })
     expect([frames[0].pitchLow, frames[0].pitchHigh]).toEqual([0, 1])
-    near(frames.filter((f) => f.time > 2300), 1 - OCTAVE, 1, 0.005, 'after reset')
+    near(
+      frames.filter((f) => f.time > 2300),
+      1 - OCTAVE,
+      1,
+      0.005,
+      'after reset',
+    )
   })
 })

@@ -104,7 +104,12 @@ export class GlideStore {
     const glide = options.live || this.lastLive
     this.lastLive = options.live
     const now = options.at ?? this.clock.now()
-    this.glide.retarget(scene, now, { durationMs: options.durationMs, glide, key: options.key, chain: options.chain ?? null })
+    this.glide.retarget(scene, now, {
+      durationMs: options.durationMs,
+      glide,
+      key: options.key,
+      chain: options.chain ?? null,
+    })
     // The frame already asked for would run tick a second time: one chain of frames at most.
     this.stop()
     this.tick()
@@ -140,7 +145,12 @@ function glideMs(): number {
  * font the scene sets; `timing`, a precomputed commit's (the director's), starts the glide at the commit's time and
  * lets it use the plans the workers chained ahead. Views draw from it with <Glided>.
  */
-export function useSceneGlide(scene: SpecimenScene | null, live: boolean, key: string, timing?: CommitTiming | null): GlideStore {
+export function useSceneGlide(
+  scene: SpecimenScene | null,
+  live: boolean,
+  key: string,
+  timing?: CommitTiming | null,
+): GlideStore {
   const [store] = useState(
     () =>
       new GlideStore(pageClock, {

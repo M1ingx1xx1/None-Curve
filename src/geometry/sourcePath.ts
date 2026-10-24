@@ -63,39 +63,6 @@ export function sourceGlyphSkeleton(glyph: SourceGlyph): Skeleton {
   return skeleton
 }
 
-export interface Bounds {
-  minX: number
-  minY: number
-  maxX: number
-  maxY: number
-}
-
-/** Bounds of all on- and off-curve points, or null for an empty glyph. */
-export function sourceGlyphBounds(glyph: SourceGlyph): Bounds | null {
-  let bounds: Bounds | null = null
-  const add = (p: Point) => {
-    if (!bounds) bounds = { minX: p.x, minY: p.y, maxX: p.x, maxY: p.y }
-    else {
-      bounds.minX = Math.min(bounds.minX, p.x)
-      bounds.minY = Math.min(bounds.minY, p.y)
-      bounds.maxX = Math.max(bounds.maxX, p.x)
-      bounds.maxY = Math.max(bounds.maxY, p.y)
-    }
-  }
-  for (const contour of glyph.contours) {
-    add(contour.start)
-    for (const seg of contour.segments) {
-      if (seg.type === 'quad') add(seg.control)
-      if (seg.type === 'cubic') {
-        add(seg.control1)
-        add(seg.control2)
-      }
-      add(seg.to)
-    }
-  }
-  return bounds
-}
-
 /** SVG path data (font units, y-up) for a polygon: only M, L, and Z commands. */
 export function polygonGlyphToPath(polygon: PolygonGlyph): string {
   return contoursToPath(polygon.contours)

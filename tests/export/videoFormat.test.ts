@@ -18,7 +18,12 @@ import {
   videoSupport,
 } from '../../src/export/videoFormat'
 
-const MP4_AUDIO = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']
+const MP4_AUDIO = [
+  'video/mp4;codecs=avc1.640028,mp4a.40.2',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4',
+]
 const MP4_VIDEO = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4']
 const WEBM_AUDIO = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
 const WEBM_VIDEO = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
@@ -29,7 +34,13 @@ const chrome = (mime: string) => [...MP4_AUDIO, ...MP4_VIDEO, ...WEBM_AUDIO, ...
 const firefox = (mime: string) => [...WEBM_AUDIO, ...WEBM_VIDEO].includes(mime)
 /** Safari: MP4 only, Baseline H.264, no High-profile string. */
 const safari = (mime: string) =>
-  ['video/mp4', 'video/mp4;codecs=avc1', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2'].includes(mime)
+  [
+    'video/mp4',
+    'video/mp4;codecs=avc1',
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  ].includes(mime)
 const nothing = () => false
 
 describe('video MIME types', () => {

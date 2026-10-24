@@ -14,10 +14,9 @@ import { parseFont } from '../font/parse'
 import { planMorph, settleInBetween } from '../specimen/morph'
 import { decodeGlyph, encodePlan, encodeSettled } from '../specimen/planCodec'
 import { AheadCore, type StepRecord } from './aheadCore'
-import { cachedGeometry, glyphGeometry, isCached, shareCacheLimits } from './cache'
-import { clonePacked, packGeometry, unpackGeometry } from './packed'
-import type { AheadResult, GlyphResult, Lane, WorkerRequest, WorkerResponse } from './protocol'
-import type { PolygonGlyph } from './types'
+import { glyphGeometry, isCached, shareCacheLimits } from './cache'
+import { clonePacked, packGeometry } from './packed'
+import type { GlyphResult, Lane, WorkerRequest, WorkerResponse } from './protocol'
 
 /** How long the worker computes before sending what it has and checking for newer requests (ms). */
 const BATCH_MS = 40
@@ -30,7 +29,9 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 const idle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 /** The worker's message handler; `post` sends a message to the page (with the buffers to transfer, if any). */
-export function createGeometryWorker(post: (message: WorkerResponse, transfer?: Transferable[]) => void): (message: WorkerRequest) => void {
+export function createGeometryWorker(
+  post: (message: WorkerResponse, transfer?: Transferable[]) => void,
+): (message: WorkerRequest) => void {
   const fonts = new Map<string, Promise<LoadedFont>>()
   /** Each lane's latest request (0: none, or cancelled). Plans run each to its end unless cancelled. */
   const latest: Record<Exclude<Lane, 'plan'>, number> = { canvas: 0, ahead: 0 }
@@ -44,7 +45,13 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
   async function compute(request: Extract<WorkerRequest, { type: 'compute' }>) {
     const { requestId, fontId } = request
     const loading = fonts.get(fontId)
-    if (!loading) return post({ type: 'failed', requestId, reason: 'no-font', message: 'The geometry worker does not have this font.' })
+    if (!loading)
+      return post({
+        type: 'failed',
+        requestId,
+        reason: 'no-font',
+        message: 'The geometry worker does not have this font.',
+      })
     let font: LoadedFont
     try {
       font = await loading
@@ -55,11 +62,14 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
     const live = request.live === true
     let batch: GlyphResult[] = []
     let times: (number | null)[] = []
+    let transfer: ArrayBuffer[] = []
     let started = performance.now()
     const flush = (key: string) => {
-      if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}), times })
+      if (batch.length)
+        post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}), times }, transfer)
       batch = []
       times = []
+      transfer = []
     }
     for (const { params, key, indices } of request.jobs) {
       for (const index of indices) {
@@ -74,7 +84,13 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
         const begun = performance.now()
         try {
           const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, live)
-          batch.push({ index, geometry })
+          // Packed (the cache keeps its objects; the arrays move to the page), with statistics only for the glyph asked.
+          const { packed, transfer: buffers } = packGeometry(
+            geometry,
+            request.stats?.key === key && request.stats.index === index,
+          )
+          batch.push({ index, packed })
+          transfer.push(...buffers)
         } catch (error) {
           batch.push({ index, error: errorText(error) })
         }
@@ -97,7 +113,12 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
     const { requestId, fontId, generation, glideMs, playheadMs, items } = request
     const stopped = () => latest.ahead !== requestId
     const done = (stoppedEarly: boolean) =>
-      post({ type: 'ahead-done', requestId, ...(stoppedEarly ? { stopped: true } : {}), stored: { bytes: core.size.bytes } })
+      post({
+        type: 'ahead-done',
+        requestId,
+        ...(stoppedEarly ? { stopped: true } : {}),
+        stored: { bytes: core.size.bytes },
+      })
     let font: LoadedFont
     try {
       const loading = fonts.get(fontId)
@@ -108,11 +129,18 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
       return post({ type: 'ahead-done', requestId, stopped: true })
     }
     core.begin(fontId, generation, glideMs, playheadMs)
-    core.reserve(items.flatMap((item) => (item.kind === 'step' ? [item] : item.indices.map((index) => ({ seq: item.seq, key: item.key, index, mediaMs: item.mediaMs })))))
+    core.reserve(
+      items.flatMap((item) =>
+        item.kind === 'step'
+          ? [item]
+          : item.indices.map((index) => ({ seq: item.seq, key: item.key, index, mediaMs: item.mediaMs })),
+      ),
+    )
     let started = performance.now()
     let plansOf: { seq: number; plans: StepRecord[] } | null = null
     const flushPlans = () => {
-      if (plansOf && plansOf.plans.length) post({ type: 'ahead-plans', requestId, generation, seq: plansOf.seq, plans: plansOf.plans })
+      if (plansOf && plansOf.plans.length)
+        post({ type: 'ahead-plans', requestId, generation, seq: plansOf.seq, plans: plansOf.plans })
       plansOf = null
     }
     /** Waits while a higher lane works, and between batches; false once a newer ahead request replaced this one. */
@@ -140,7 +168,7 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
       }
       flushPlans()
       const { seq, key, params, indices } = item
-      let results: AheadResult[] = []
+      let results: GlyphResult[] = []
       let times: (number | null)[] = []
       let transfer: ArrayBuffer[] = []
       const flush = () => {
@@ -196,21 +224,15 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
       while (busy.canvas > 0 && !cancelledPlans.has(requestId)) await idle()
       if (cancelledPlans.has(requestId)) return
       const from = decodeGlyph(request.from)
-      let to: PolygonGlyph | null = null
-      if ('glyph' in request.to) to = decodeGlyph(request.to)
-      else {
-        const { key, index } = request.to
-        const stored = core.get(key, index)
-        if (stored && 'packed' in stored) to = unpackGeometry(stored.packed).polygon
-        else {
-          const font = await fonts.get(request.fontId)?.catch(() => undefined)
-          to = (font && cachedGeometry(font, index, key)?.polygon) ?? null
-        }
-      }
-      const settled = to ? settleInBetween(from, to) : from
-      const planned = to ? planMorph(settled, to) : null
+      const to = decodeGlyph(request.to)
+      const settled = settleInBetween(from, to)
+      const planned = planMorph(settled, to)
       const data = planned ? encodePlan(planned).data : null
-      post({ type: 'plan-result', requestId, data: data && settled !== from ? { ...data, settled: encodeSettled(settled) } : data })
+      post({
+        type: 'plan-result',
+        requestId,
+        data: data && settled !== from ? { ...data, settled: encodeSettled(settled) } : data,
+      })
     } finally {
       plans.delete(requestId)
       cancelledPlans.delete(requestId)

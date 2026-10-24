@@ -9,7 +9,12 @@ import type { AdoptedState, PlannedCommit } from '../../src/sound/timelineTypes'
 const STEP = 1000 / 30
 
 /** A planned commit: keys and glyph ids per occurrence; `edges` makes it carry flash edges, `restore` the sliders' own. */
-function commit(seq: number, mediaMs: number, keys: string[], options: { edges?: number[]; restore?: boolean; indices?: number[] } = {}): PlannedCommit {
+function commit(
+  seq: number,
+  mediaMs: number,
+  keys: string[],
+  options: { edges?: number[]; restore?: boolean; indices?: number[] } = {},
+): PlannedCommit {
   const adopted = { brand: 'adopted', edges: options.edges ?? [] } as unknown as AdoptedState
   return {
     generation: 1,
@@ -45,7 +50,9 @@ describe('lineages', () => {
     expect(book.lineagesOf(c2, 1)).toBe(l2)
     const again = new LineageBook()
     again.lineagesOf(c1, -1)
-    expect(Array.from(again.lineagesOf(c2, 1))).toEqual(Array.from(l2).map((id) => id - l2[0] + again.lineagesOf(c2, 1)[0]))
+    expect(Array.from(again.lineagesOf(c2, 1))).toEqual(
+      Array.from(l2).map((id) => id - l2[0] + again.lineagesOf(c2, 1)[0]),
+    )
   })
 
   it('names each lineage’s parent, and steps each lineage once', () => {

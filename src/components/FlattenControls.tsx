@@ -3,10 +3,9 @@ import type { BreakRule } from '../geometry/curveRuns'
 import type { FlattenStats } from '../geometry/flatten'
 import type { FlattenMode, FlattenParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
-import { roundTolerance, SLIDER_RANGES, TOLERANCE, toleranceFromSlider, toleranceToSlider } from '../state/sliderScales'
+import { roundTolerance, TOLERANCE_CURVE } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface FlattenControlsProps {
@@ -93,69 +92,36 @@ function FlattenControls({
         </div>
 
         {params.mode === 'adaptive' ? (
-          <div className="field">
-            <div className="field-head">
-              <span className="field-title">
-                <label htmlFor="flatten-tolerance">Tolerance</label>
-                <HintButton hint={toleranceHint} topic="Tolerance" />
-              </span>
-              {/* The tolerance itself, in hundredths, rounded as the slider rounds it. */}
-              <SliderNumber
-                min={TOLERANCE.min}
-                max={TOLERANCE.max}
-                step={TOLERANCE.step}
-                value={params.tolerance}
-                unit="u"
-                label="Tolerance"
-                onCommit={(tolerance) => update({ tolerance: roundTolerance(tolerance) })}
-              />
-            </div>
-            <span className="live-slider">
-              <input
-                id="flatten-tolerance"
-                type="range"
-                {...TOLERANCE.slider}
-                value={toleranceToSlider(params.tolerance)}
-                aria-valuetext={`${params.tolerance} font units`}
-                aria-describedby={toleranceHint.id}
-                onChange={(e) => update({ tolerance: toleranceFromSlider(Number(e.target.value)) })}
-              />
-              <LiveMarker target="flatten.tolerance" />
-            </span>
-            <HintText hint={toleranceHint}>
-              Maximum distance between a curve and its straight edges, in font units
-              {emPercent ? ` (${emPercent}% of the em)` : ''}. Smaller values follow the curve more closely and add
-              vertices; sharper bends get more edges.
-              {params.mergeCurves
-                ? ' With Merge joined curves, it applies to each whole merged curve, so large values reduce a bowl to a few edges.'
-                : ' Each font curve keeps at least one edge, so large values only go so far — turn on Merge joined curves for coarser shapes.'}
-            </HintText>
-          </div>
+          <SliderField
+            id="flatten-tolerance"
+            target="flatten.tolerance"
+            curve={TOLERANCE_CURVE}
+            label="Tolerance"
+            value={params.tolerance}
+            unit="u"
+            valueText={`${params.tolerance} font units`}
+            hint={
+              <>
+                Maximum distance between a curve and its straight edges, in font units
+                {emPercent ? ` (${emPercent}% of the em)` : ''}. Smaller values follow the curve more closely and add
+                vertices; sharper bends get more edges.
+                {params.mergeCurves
+                  ? ' With Merge joined curves, it applies to each whole merged curve, so large values reduce a bowl to a few edges.'
+                  : ' Each font curve keeps at least one edge, so large values only go so far — turn on Merge joined curves for coarser shapes.'}
+              </>
+            }
+            hintState={toleranceHint}
+            // A typed tolerance (in hundredths) is rounded as the slider rounds it.
+            onChange={(tolerance) => update({ tolerance: roundTolerance(tolerance) })}
+          />
         ) : (
-          <div className="field">
-            <div className="field-head">
-              <span className="field-title">
-                <label htmlFor="flatten-segments">Segments per curve</label>
-
-              </span>
-              <SliderNumber
-                {...SLIDER_RANGES['flatten.segmentsPerCurve']}
-                value={params.segmentsPerCurve}
-                label="Segments per curve"
-                onCommit={(segmentsPerCurve) => update({ segmentsPerCurve })}
-              />
-            </div>
-            <span className="live-slider">
-              <input
-                id="flatten-segments"
-                type="range"
-                {...SLIDER_RANGES['flatten.segmentsPerCurve']}
-                value={params.segmentsPerCurve}
-                onChange={(e) => update({ segmentsPerCurve: Number(e.target.value) })}
-              />
-              <LiveMarker target="flatten.segmentsPerCurve" />
-            </span>
-          </div>
+          <SliderField
+            id="flatten-segments"
+            target="flatten.segmentsPerCurve"
+            label="Segments per curve"
+            value={params.segmentsPerCurve}
+            onChange={(segmentsPerCurve) => update({ segmentsPerCurve })}
+          />
         )}
 
         <div className="merge-controls">
@@ -226,39 +192,24 @@ function FlattenControls({
                 into their arches, or the straight sides of some O shapes — so they are resampled together. This changes
                 letters a lot: stems can lose their ends and corners can be cut. Off by default.
               </HintText>
-              <div className="field">
-                <div className="field-head">
-                  <span className="field-title">
-                    <label htmlFor="flatten-corner">Corner angle</label>
-                    <HintButton hint={cornerHint} topic="Corner angle" />
-                  </span>
-                  <SliderNumber
-                    {...SLIDER_RANGES['flatten.cornerAngle']}
-                    value={params.cornerAngle}
-                    unit="°"
-                    label="Corner angle"
-                    onCommit={(cornerAngle) => update({ cornerAngle })}
-                  />
-                </div>
-                <span className="live-slider">
-                  <input
-                    id="flatten-corner"
-                    type="range"
-                    {...SLIDER_RANGES['flatten.cornerAngle']}
-                    value={params.cornerAngle}
-                    aria-valuetext={`${params.cornerAngle} degrees`}
-                    aria-describedby={cornerHint.id}
-                    onChange={(e) => update({ cornerAngle: Number(e.target.value) })}
-                  />
-                  <LiveMarker target="flatten.cornerAngle" />
-                </span>
-                <HintText hint={cornerHint}>
-                  Joints that turn by more than this are corners and always break; gentler joints are merged.
-                  {params.mergeLines
-                    ? ' With Merge through straight lines, this decides which line-to-curve and line-to-line joints merge, so larger values give a much coarser, lower-resolution outline.'
-                    : ' Without Merge through straight lines it only affects joints between two curves, which in most fonts are already smooth — so it rarely changes anything. Turn on Merge through straight lines to make it effective.'}
-                </HintText>
-              </div>
+              <SliderField
+                id="flatten-corner"
+                target="flatten.cornerAngle"
+                label="Corner angle"
+                value={params.cornerAngle}
+                unit="°"
+                valueText={`${params.cornerAngle} degrees`}
+                hint={
+                  <>
+                    Joints that turn by more than this are corners and always break; gentler joints are merged.
+                    {params.mergeLines
+                      ? ' With Merge through straight lines, this decides which line-to-curve and line-to-line joints merge, so larger values give a much coarser, lower-resolution outline.'
+                      : ' Without Merge through straight lines it only affects joints between two curves, which in most fonts are already smooth — so it rarely changes anything. Turn on Merge through straight lines to make it effective.'}
+                  </>
+                }
+                hintState={cornerHint}
+                onChange={(cornerAngle) => update({ cornerAngle })}
+              />
             </>
           )}
         </div>
@@ -306,8 +257,8 @@ function FlattenControls({
         )}
         {stats && stats.unresolvedContours > 0 && (
           <p className="font-warning">
-            {stats.unresolvedContours} contour{stats.unresolvedContours === 1 ? ' still crosses' : 's still cross'} where
-            the original does not, even at the finest flattening tried.
+            {stats.unresolvedContours} contour{stats.unresolvedContours === 1 ? ' still crosses' : 's still cross'}{' '}
+            where the original does not, even at the finest flattening tried.
           </p>
         )}
         {stats && stats.limitedCurves > 0 && (

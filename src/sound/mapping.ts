@@ -15,15 +15,21 @@
 // the outlines and the shaping); and switches, the Experimental tab's checkboxes ("Use …", Burst, Reverse), which
 // flip on Trigger and Toggle (see modulate).
 
-import { DISTORTION_LIMITS } from '../geometry/distortion'
-import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
-import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
-import { THORN_FALLBACK } from '../geometry/thorn'
+import { DISTORTION_LIMITS, EXPERIMENTAL_LIMITS, RANDOM_ANCHOR_LIMITS, THORN_FALLBACK } from '../geometry/limits'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
 import type { LoadedFont, VariationAxis } from '../font/model'
-import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, TYPOGRAPHY_LIMITS, type PaletteParams, type TypographyParams } from '../specimen/artboard'
+import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, type PaletteParams, type TypographyParams } from '../specimen/artboard'
 import { hexToLch, isNeutralColor, lchToHex } from '../specimen/color'
-import { reachFromSlider, reachToSlider, sliderRange, THORN_REACH, TOLERANCE, toleranceFromSlider } from '../state/sliderScales'
+import {
+  reachFromSlider,
+  reachToSlider,
+  sliderRange,
+  THORN_REACH,
+  TOLERANCE,
+  toleranceFromSlider,
+  TYPOGRAPHY_RANGES,
+  type TypographySliderId,
+} from '../state/sliderScales'
 import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, type FeatureFrame, type ResponseSettings } from './types'
 
 const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
@@ -31,9 +37,8 @@ const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
 // ---- Features ----
 
 /** The features a mapping can follow: numeric fields of FeatureFrame. */
-export type FeatureId = 'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'melody' | 'beat' | 'activity' | 'pan'
-/** The old name, kept so existing imports keep working. */
-export type ContinuousFeature = FeatureId
+export type FeatureId =
+  'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'melody' | 'beat' | 'activity' | 'pan'
 
 export type FeatureGroup = 'Loudness' | 'Bands' | 'Tone' | 'Rhythm' | 'Stereo'
 
@@ -63,9 +68,6 @@ export const FEATURES: readonly FeatureSpec[] = [
   { id: 'activity', label: 'Activity', group: 'Rhythm' },
   { id: 'pan', label: 'Pan', group: 'Stereo', bipolar: true },
 ]
-
-/** Kept for existing imports: the same list. */
-export const CONTINUOUS_FEATURES = FEATURES
 
 const featuresById = new Map<string, FeatureSpec>(FEATURES.map((f) => [f.id, f]))
 
@@ -152,7 +154,8 @@ export interface TargetSpec {
 export function applyPatches<P extends DrivenParams>(params: P, patches: readonly ParamPatch[]): P {
   for (const { group, patch } of patches) {
     // Geometry alone has no typography or palette: they start from the defaults.
-    const current = params[group] ?? (group === 'typography' ? DEFAULT_TYPOGRAPHY : group === 'palette' ? DEFAULT_PALETTE : {})
+    const current =
+      params[group] ?? (group === 'typography' ? DEFAULT_TYPOGRAPHY : group === 'palette' ? DEFAULT_PALETTE : {})
     params = { ...params, [group]: { ...current, ...patch } }
   }
   return params
@@ -270,16 +273,23 @@ const effectOn = (effect: EffectKey): Requirement => ({
   unmet: (p) => (p.experimental[effect]?.enabled ? null : `Turn on ${EFFECT_NAMES[effect]} to hear this.`),
   meet: (p) => ({
     // The whole effect object: updateParams merges the experimental group one level deep only.
-    patch: { group: 'experimental', patch: { [effect]: { ...p.experimental[effect], enabled: true } } as Partial<ExperimentalParams> },
+    patch: {
+      group: 'experimental',
+      patch: { [effect]: { ...p.experimental[effect], enabled: true } } as Partial<ExperimentalParams>,
+    },
     notice: `Turned on ${EFFECT_NAMES[effect]}.`,
   }),
 })
 // Thorn's Burst (applyThorn) spreads its own number of spikes, sunk by Dent, and grows no roots: Anchors and Root act
 // with Burst off, Burst's Anchors and Dent with it on.
 const burst = (on: boolean): Requirement => ({
-  unmet: (p) => ((p.experimental.thorn?.burst === true) === on ? null : `Turn ${on ? 'on' : 'off'} Burst to hear this.`),
+  unmet: (p) =>
+    (p.experimental.thorn?.burst === true) === on ? null : `Turn ${on ? 'on' : 'off'} Burst to hear this.`,
   meet: (p) => ({
-    patch: { group: 'experimental', patch: { thorn: { ...p.experimental.thorn, burst: on } } as Partial<ExperimentalParams> },
+    patch: {
+      group: 'experimental',
+      patch: { thorn: { ...p.experimental.thorn, burst: on } } as Partial<ExperimentalParams>,
+    },
     notice: `Turned ${on ? 'on' : 'off'} Burst.`,
   }),
 })
@@ -287,7 +297,10 @@ const burst = (on: boolean): Requirement => ({
 const refractionOn: Requirement = {
   unmet: (p) => ((p.experimental.thorn?.refraction ?? 0) > 0 ? null : 'Set Refraction above 0% to hear this.'),
   meet: (p) => ({
-    patch: { group: 'experimental', patch: { thorn: { ...p.experimental.thorn, refraction: ACTIVE_REFRACTION } } as Partial<ExperimentalParams> },
+    patch: {
+      group: 'experimental',
+      patch: { thorn: { ...p.experimental.thorn, refraction: ACTIVE_REFRACTION } } as Partial<ExperimentalParams>,
+    },
     notice: `Set Refraction to ${Math.round(ACTIVE_REFRACTION * 100)}%.`,
   }),
 }
@@ -295,7 +308,10 @@ const refractionOn: Requirement = {
 // Dissolve's ink; Ripple and Whorl have no randomness.
 const seededEffectOn: Requirement = {
   unmet: (p) =>
-    p.experimental.crumple.enabled || p.experimental.slipstream.enabled || p.experimental.thorn?.enabled || p.experimental.dissolve?.enabled
+    p.experimental.crumple.enabled ||
+    p.experimental.slipstream.enabled ||
+    p.experimental.thorn?.enabled ||
+    p.experimental.dissolve?.enabled
       ? null
       : 'Turn on Crumple, Slipstream, Thorn or Dissolve to hear this.',
   meet: effectOn('crumple').meet!,
@@ -323,7 +339,8 @@ function activation(requires: readonly Requirement[], params: DrivenParams): Act
     const { patch, notice } = requirement.meet(params)
     params = applyPatches(params, [patch])
     const last = patches[patches.length - 1]
-    if (last?.group === patch.group) patches[patches.length - 1] = { group: last.group, patch: { ...last.patch, ...patch.patch } } as ParamPatch
+    if (last?.group === patch.group)
+      patches[patches.length - 1] = { group: last.group, patch: { ...last.patch, ...patch.patch } } as ParamPatch
     else patches.push(patch)
     notices.push(notice)
   }
@@ -375,7 +392,7 @@ function experimentalField(key: NumericKeys<ExperimentalParams>): Field {
 function switchField<E extends EffectKey>(effect: E, key: 'enabled' | 'reverse' | 'burst'): Field {
   return {
     id: `experimental.${effect}.${key}`,
-    read: (p) => ((p.experimental[effect] as unknown as Record<string, unknown> | undefined)?.[key] === true ? 1 : 0),
+    read: (p) => ((p.experimental[effect] as Partial<Record<typeof key, unknown>> | undefined)?.[key] === true ? 1 : 0),
     write: (p, value) => ({
       ...p,
       experimental: { ...p.experimental, [effect]: { ...p.experimental[effect], [key]: value >= 0.5 } },
@@ -490,24 +507,66 @@ function target(def: TargetDef): TargetSpec {
 // Sliders take their range from SLIDER_RANGES (src/state/sliderScales.ts), as the panels do.
 const geometry = (section: string, field: Field, label: string, rest: Partial<TargetDef> = {}) =>
   target({ field, tab: 'geometry', section, label, ...sliderRange(field.id), ...rest })
-const experimental = <E extends EffectKey>(effect: E, key: NumericKeys<ExperimentalParams[E]>, label: string, rest: Partial<TargetDef> = {}) => {
+const experimental = <E extends EffectKey>(
+  effect: E,
+  key: NumericKeys<ExperimentalParams[E]>,
+  label: string,
+  rest: Partial<TargetDef> = {},
+) => {
   const field = effectField(effect, key)
-  return target({ field, tab: 'experimental', section: EFFECT_NAMES[effect], label, ...sliderRange(field.id), requires: [effectOn(effect)], ...rest })
+  return target({
+    field,
+    tab: 'experimental',
+    section: EFFECT_NAMES[effect],
+    label,
+    ...sliderRange(field.id),
+    requires: [effectOn(effect)],
+    ...rest,
+  })
 }
 /** A seed field (whole numbers 0 to its largest seed): a jump target. */
 const seed = (tab: TargetSpec['tab'], section: string, field: Field, max: number, requires: readonly Requirement[]) =>
   target({ field, tab, kind: 'jump', section, label: 'Seed', min: 0, max, step: 1, requires })
 /** A checkbox of an Experimental effect (labelled as in ExperimentalControls): a switch target. */
-const toggle = <E extends EffectKey>(effect: E, key: 'enabled' | 'reverse' | 'burst', label: string, requires: readonly Requirement[] = []) =>
-  target({ field: switchField(effect, key), tab: 'experimental', kind: 'switch', section: EFFECT_NAMES[effect], label, min: 0, max: 1, step: 1, requires })
-/** A Typography slider, with the range and step of TypographyControls. */
-const typography = (key: TypographyKey, label: string, min: number, max: number, step: number) =>
-  target({ field: typographyField(key), tab: 'typography', section: 'Typography', label, min, max, step, fallback: DEFAULT_TYPOGRAPHY[key] })
+const toggle = <E extends EffectKey>(
+  effect: E,
+  key: 'enabled' | 'reverse' | 'burst',
+  label: string,
+  requires: readonly Requirement[] = [],
+) =>
+  target({
+    field: switchField(effect, key),
+    tab: 'experimental',
+    kind: 'switch',
+    section: EFFECT_NAMES[effect],
+    label,
+    min: 0,
+    max: 1,
+    step: 1,
+    requires,
+  })
+/** A Typography slider, with the range and step of TypographyControls (TYPOGRAPHY_RANGES). */
+const typography = (
+  key: TypographySliderId extends `typography.${infer K extends TypographyKey}` ? K : never,
+  label: string,
+) =>
+  target({
+    field: typographyField(key),
+    tab: 'typography',
+    section: 'Typography',
+    label,
+    ...TYPOGRAPHY_RANGES[`typography.${key}`],
+    fallback: DEFAULT_TYPOGRAPHY[key],
+  })
 
 // With a transparent background there is no background colour to see.
 const backgroundShown: Requirement = {
-  unmet: (p) => (p.palette?.transparent ? 'The background is transparent: turn off Transparent background to hear this.' : null),
-  meet: () => ({ patch: { group: 'palette', patch: { transparent: false } }, notice: 'Turned off Transparent background.' }),
+  unmet: (p) =>
+    p.palette?.transparent ? 'The background is transparent: turn off Transparent background to hear this.' : null,
+  meet: () => ({
+    patch: { group: 'palette', patch: { transparent: false } },
+    notice: 'Turned off Transparent background.',
+  }),
 }
 // A grey has no hue: moving it changes nothing (no setting of this app gives it one).
 const colored = (color: ColorKey): Requirement => ({
@@ -563,7 +622,10 @@ export const TARGETS: readonly TargetSpec[] = [
   seed('geometry', 'Distortion', groupField('distortion', 'seed'), DISTORTION_LIMITS.maxSeed, [distortionOn]),
   geometry('Random anchors', groupField('random', 'density'), 'Density', { requires: [randomOn] }),
   geometry('Random anchors', groupField('random', 'randomness'), 'Randomness', { requires: [randomOn] }),
-  seed('geometry', 'Random anchors', groupField('random', 'seed'), RANDOM_ANCHOR_LIMITS.maxSeed, [randomOn, randomnessOn]),
+  seed('geometry', 'Random anchors', groupField('random', 'seed'), RANDOM_ANCHOR_LIMITS.maxSeed, [
+    randomOn,
+    randomnessOn,
+  ]),
 
   // Experimental tab, as in ExperimentalControls: each effect acts only while its "Use …" is on; the
   // shared Seed sits in its own group at the bottom.
@@ -610,7 +672,10 @@ export const TARGETS: readonly TargetSpec[] = [
     requires: [effectOn('thorn'), refractionOn],
   }),
   // Burst's own sliders: the panel shows its Anchors in place of Anchors, and disables Dent with Burst off.
-  experimental('thorn', 'spikes', 'Burst anchors', { fallback: THORN_FALLBACK.spikes, requires: [effectOn('thorn'), burst(true)] }),
+  experimental('thorn', 'spikes', 'Burst anchors', {
+    fallback: THORN_FALLBACK.spikes,
+    requires: [effectOn('thorn'), burst(true)],
+  }),
   experimental('thorn', 'dent', 'Dent', { fallback: THORN_FALLBACK.dent, requires: [effectOn('thorn'), burst(true)] }),
   experimental('dissolve', 'amount', 'Amount'),
   experimental('dissolve', 'grain', 'Grain'),
@@ -633,10 +698,10 @@ export const TARGETS: readonly TargetSpec[] = [
   toggle('dissolve', 'enabled', 'Use dissolve'),
 
   // The Typography tab, as in TypographyControls.
-  typography('size', 'Size', TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize, 1),
-  typography('tracking', 'Tracking', TYPOGRAPHY_LIMITS.minTracking, TYPOGRAPHY_LIMITS.maxTracking, 1),
-  typography('lineHeight', 'Line height', TYPOGRAPHY_LIMITS.minLineHeight, TYPOGRAPHY_LIMITS.maxLineHeight, 0.01),
-  typography('slant', 'Slant', -TYPOGRAPHY_LIMITS.maxSlant, TYPOGRAPHY_LIMITS.maxSlant, 1),
+  typography('size', 'Size'),
+  typography('tracking', 'Tracking'),
+  typography('lineHeight', 'Line height'),
+  typography('slant', 'Slant'),
 
   // The Color tab's text and background colours (ColorControls).
   color('ink', 'h'),
@@ -662,7 +727,10 @@ const AXIS_PREFIX = 'axis.'
 const AXIS_TAG = /^[\x21-\x7e][\x20-\x7e]{0,3}$/
 
 /** The loaded font's axes and own instance, which the axis targets follow (setTargetFont). */
-let targetFont: { axes: readonly VariationAxis[]; instance: Readonly<Record<string, number>> | null } = { axes: [], instance: null }
+let targetFont: { axes: readonly VariationAxis[]; instance: Readonly<Record<string, number>> | null } = {
+  axes: [],
+  instance: null,
+}
 const axisSpecs = new Map<string, TargetSpec>()
 
 /**
@@ -740,7 +808,7 @@ function axisTarget(tag: string): TargetSpec | undefined {
 }
 
 /** A seed moved on by `jumps` (a whole number), wrapped past the target's largest seed to 0; 0 jumps keep it exactly. */
-export function seedAfter(spec: TargetSpec, seed: number, jumps: number): number {
+function seedAfter(spec: TargetSpec, seed: number, jumps: number): number {
   if (jumps === 0) return seed
   const count = spec.max + 1
   return (((Math.trunc(seed) + Math.trunc(jumps)) % count) + count) % count
@@ -828,7 +896,8 @@ export interface Mapping extends Partial<Shaping> {
   depth: number
 }
 
-const snapTo = (value: number, step: number) => Number((Math.round(value / step) * step).toFixed(String(step).split('.')[1]?.length ?? 0))
+const snapTo = (value: number, step: number) =>
+  Number((Math.round(value / step) * step).toFixed(String(step).split('.')[1]?.length ?? 0))
 const within = (value: unknown, min: number, max: number, fallback: number): number =>
   typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
 
@@ -837,12 +906,16 @@ const within = (value: unknown, min: number, max: number, fallback: number): num
  * (or an unknown mode) comes from `current`. The range keeps at least minSpan between its ends: a patch that moves one
  * end stops it short of the other; one that sets both (a saved mapping) keeps rangeMin and moves rangeMax up.
  */
-export function clampShaping(patch: Partial<Record<keyof Shaping, unknown>>, current: Shaping = DEFAULT_SHAPING): Shaping {
+export function clampShaping(
+  patch: Partial<Record<keyof Shaping, unknown>>,
+  current: Shaping = DEFAULT_SHAPING,
+): Shaping {
   const { curve, smoothMs, gate, rangeStep, minSpan } = SHAPING_LIMITS
   let rangeMin = snapTo(within(patch.rangeMin, 0, 1, current.rangeMin), rangeStep)
   let rangeMax = snapTo(within(patch.rangeMax, 0, 1, current.rangeMax), rangeStep)
   if (rangeMax - rangeMin < minSpan - 1e-9) {
-    if (patch.rangeMin !== undefined && patch.rangeMax === undefined) rangeMin = snapTo(Math.max(0, rangeMax - minSpan), rangeStep)
+    if (patch.rangeMin !== undefined && patch.rangeMax === undefined)
+      rangeMin = snapTo(Math.max(0, rangeMax - minSpan), rangeStep)
     else rangeMax = snapTo(Math.min(1, rangeMin + minSpan), rangeStep)
     if (rangeMax - rangeMin < minSpan - 1e-9) rangeMin = snapTo(rangeMax - minSpan, rangeStep)
   }
@@ -921,7 +994,11 @@ export interface Modulated {
 }
 
 /** `position` kept to `bounds` (none: unchanged); a slider position outside them is not pulled in (see Shaping.rangeMin). */
-export function withinBounds(position: number, basePosition: number, bounds: readonly [number, number] | undefined): number {
+export function withinBounds(
+  position: number,
+  basePosition: number,
+  bounds: readonly [number, number] | undefined,
+): number {
   if (!bounds) return position
   const low = Math.min(bounds[0], basePosition)
   const high = Math.max(bounds[1], basePosition)
@@ -935,7 +1012,8 @@ export function withinBounds(position: number, basePosition: number, bounds: rea
 export function sharedRange(mappings: readonly Mapping[], targetId: string): readonly [number, number] | undefined {
   let span: [number, number] | undefined
   for (const mapping of mappings) {
-    if (mapping.target !== targetId || !mapping.enabled || mapping.depth === 0 || !Number.isFinite(mapping.depth)) continue
+    if (mapping.target !== targetId || !mapping.enabled || mapping.depth === 0 || !Number.isFinite(mapping.depth))
+      continue
     const low = mapping.rangeMin ?? 0
     const high = mapping.rangeMax ?? 1
     if (!span) span = [low, high]
@@ -950,7 +1028,7 @@ export function sharedRange(mappings: readonly Mapping[], targetId: string): rea
 const NO_VALUES: ReadonlyMap<string, number> = new Map()
 
 /** A switch mapping in Toggle or Follow flips its switch while its shaped value is at least this. */
-export const SWITCH_LEVEL = 0.5
+const SWITCH_LEVEL = 0.5
 
 /**
  * Whether a switch mapping fires now, from its shaped value (ShapingTracker): in Trigger while its pulse lasts (Smooth,
@@ -966,10 +1044,12 @@ export function switchFires(mapping: Mapping, shaped: number): boolean {
 const drives = (mapping: Mapping) => mapping.enabled && mapping.depth !== 0 && Number.isFinite(mapping.depth)
 
 /** The id of Return to plain's beat pulse among the shaped values (no mapping row has it: theirs are m1, m2 and so on). */
-export const PLAIN_PULSE_ID = 'plain'
+const PLAIN_PULSE_ID = 'plain'
 
 /** The Experimental effects' Use switches: Return to plain turns those switched on off between beats. */
-export const PLAIN_SWITCHES: readonly TargetSpec[] = TARGETS.filter((spec) => /^experimental\.\w+\.enabled$/.test(spec.id))
+export const PLAIN_SWITCHES: readonly TargetSpec[] = TARGETS.filter((spec) =>
+  /^experimental\.\w+\.enabled$/.test(spec.id),
+)
 
 /**
  * Return to plain's beat pulse, shaped as a hidden Trigger row on Beat with Smooth set to Hold (ShapingTracker), or null
@@ -1118,7 +1198,8 @@ export function modulate(
     sums ??= new Map()
     let value = shaped.get(mapping.id) ?? shapeStateless(mapping, frame)
     const follow = (mapping.mode ?? 'follow') === 'follow'
-    if (boost > 0 && follow && mapping.feature !== 'melody' && !featuresById.get(mapping.feature)?.bipolar) value = Math.min(1, value + boost)
+    if (boost > 0 && follow && mapping.feature !== 'melody' && !featuresById.get(mapping.feature)?.bipolar)
+      value = Math.min(1, value + boost)
     sums.set(spec, (sums.get(spec) ?? 0) + mapping.depth * value)
     spans ??= new Map()
     const low = mapping.rangeMin ?? 0
@@ -1158,7 +1239,9 @@ export function modulate(
     positions.set(spec.id, spec.toSlider(live))
   }
   for (const [spec, flipped] of flips ?? []) positions.set(spec.id, flipped ? 1 - spec.get(base) : spec.get(base))
-  return bounds ? { params, positions, seeds: seeds ?? NO_VALUES, bounds } : { params, positions, seeds: seeds ?? NO_VALUES }
+  return bounds
+    ? { params, positions, seeds: seeds ?? NO_VALUES, bounds }
+    : { params, positions, seeds: seeds ?? NO_VALUES }
 }
 
 // ---- The canvas's look ----
@@ -1188,7 +1271,8 @@ export function lookChanges(base: DrivenParams, live: DrivenParams): LookChanges
   const typography = live.typography
   if (typography && typography !== base.typography) {
     for (const key of TYPOGRAPHY_KEYS) {
-      if (typography[key] !== (base.typography ?? DEFAULT_TYPOGRAPHY)[key]) ((changes ??= {}).typography ??= {})[key] = typography[key]
+      if (typography[key] !== (base.typography ?? DEFAULT_TYPOGRAPHY)[key])
+        ((changes ??= {}).typography ??= {})[key] = typography[key]
     }
   }
   const palette = live.palette

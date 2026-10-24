@@ -11,7 +11,7 @@
 // compact (planStore.ts); past the plan's byte budget, those far from the playhead are thinned, and a thinned stretch
 // the playhead comes back to is planned again from the start (the same commits: the plan is deterministic).
 
-import { paramsKey } from '../geometry/cache'
+import { paramsKey } from '../geometry/paramsKey'
 import type { FrameJob } from '../geometry/types'
 import { SHARED } from './letters'
 import { LiveScheduler, PLANNER_CLOCK_OFFSET, type LiveCommit, type LiveInputs } from './live'
@@ -143,7 +143,9 @@ class PlanPass {
   private advance(to: number) {
     for (;;) {
       let next: VirtualTimer | null = null
-      for (const timer of this.timers) if (timer.at <= to && (!next || timer.at < next.at || (timer.at === next.at && timer.id < next.id))) next = timer
+      for (const timer of this.timers)
+        if (timer.at <= to && (!next || timer.at < next.at || (timer.at === next.at && timer.id < next.id)))
+          next = timer
       if (!next) break
       this.timers.splice(this.timers.indexOf(next), 1)
       this.clock = Math.max(this.clock, next.at)
@@ -167,7 +169,9 @@ class PlanPass {
     const shared = commit?.params ? paramsKey(commit.params) : inputs.base ? paramsKey(inputs.base) : ''
     const letters = commit?.params ? commit.letters : null
     const keys: string[] = new Array(slots.count)
-    for (let j = 0; j < slots.count; j++) keys[j] = letters && letters.slots === slots && letters.assign[j] !== SHARED ? letters.keys[letters.assign[j]] : shared
+    for (let j = 0; j < slots.count; j++)
+      keys[j] =
+        letters && letters.slots === slots && letters.assign[j] !== SHARED ? letters.keys[letters.assign[j]] : shared
     const ordinal = this.count++
     this.emit(
       {
@@ -202,7 +206,8 @@ export class PlaybackPlanner {
   private lastThin: { focusMs: number; bytes: number } | null = null
   /** Bumps whenever records are thinned or filled again (range's memo). */
   private epoch = 0
-  private memo: { generation: number; epoch: number; lo: number; hi: number; value: readonly PlannedCommit[] } | null = null
+  private memo: { generation: number; epoch: number; lo: number; hi: number; value: readonly PlannedCommit[] } | null =
+    null
   private spent = 0
   /** Re-planned commits that did not match what was planned (expected 0). */
   mismatches = 0
@@ -254,7 +259,9 @@ export class PlaybackPlanner {
       let reached = pass.ended
       if (!reached && this.wallNow() < deadline) {
         const last = Math.floor((untilMs * this.source.hz) / 1000)
-        reached = pass.feed(last, deadline, this.wallNow) && (pass.ended || pass.nextIndex > Math.min(last, this.source.frameCount() - 1))
+        reached =
+          pass.feed(last, deadline, this.wallNow) &&
+          (pass.ended || pass.nextIndex > Math.min(last, this.source.frameCount() - 1))
       }
       // Refills only add bytes: the budget is checked after every slice, the main pass ended or not.
       this.keepWithinBudget()
@@ -275,7 +282,8 @@ export class PlaybackPlanner {
     let hi = lastAtOrBefore(records, toMs)
     if (hi < lo) hi = lo - 1
     const memo = this.memo
-    if (memo && memo.generation === this.generation && memo.epoch === this.epoch && memo.lo === lo && memo.hi === hi) return memo.value
+    if (memo && memo.generation === this.generation && memo.epoch === this.epoch && memo.lo === lo && memo.hi === hi)
+      return memo.value
     const value: PlannedCommit[] = []
     for (let i = lo; i <= hi && i < records.length; i++) {
       const full = records[i].full
@@ -290,7 +298,8 @@ export class PlaybackPlanner {
   edgesIn(afterMs: number, untilMs: number): number[] {
     const records = this.store?.records ?? []
     const out: number[] = []
-    for (let i = lastAtOrBefore(records, afterMs) + 1; i < records.length && records[i].mediaMs <= untilMs; i++) out.push(...records[i].edges)
+    for (let i = lastAtOrBefore(records, afterMs) + 1; i < records.length && records[i].mediaMs <= untilMs; i++)
+      out.push(...records[i].edges)
     return out
   }
 

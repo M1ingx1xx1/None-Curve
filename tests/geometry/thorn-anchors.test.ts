@@ -7,10 +7,10 @@
 import { describe, expect, it } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
 import { crumpleWarp } from '../../src/geometry/crumple'
-import { experimentalFolds } from '../../src/geometry/experimental'
+import { experimentalFolds, THORN_LIMITS } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import { inkBox, rippleWarp, type Box } from '../../src/geometry/ripple'
-import { THORN_LIMITS, ThornAnchors, type ThornSite } from '../../src/geometry/thorn'
+import { ThornAnchors, type ThornSite } from '../../src/geometry/thorn'
 import type { ExperimentalParams, GeometryParams, Point } from '../../src/geometry/types'
 import { applyWarp, type CreaseMarks, type Warp } from '../../src/geometry/warp'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
@@ -20,7 +20,10 @@ const CANVAS_EM = 7.71
 const TEXT = 'HelloThisisMing'
 
 const STACK = paramsWith(
-  { flatten: { ...BASE.flatten, tolerance: 4.2 }, distortion: { ...BASE.distortion, amount: 46, frequency: 8, normalBias: 0.7, seed: 1 } },
+  {
+    flatten: { ...BASE.flatten, tolerance: 4.2 },
+    distortion: { ...BASE.distortion, amount: 46, frequency: 8, normalBias: 0.7, seed: 1 },
+  },
   {
     ...on('crumple', { amount: 0.7, facet: 0.18 }),
     ...on('ripple', { amount: 0.5, wavelength: 0.3, sides: 8 }),
@@ -29,11 +32,15 @@ const STACK = paramsWith(
 )
 
 type Step = (params: GeometryParams) => GeometryParams
-const distortion = (patch: Partial<GeometryParams['distortion']>): Step => (p) => ({ ...p, distortion: { ...p.distortion, ...patch } })
+const distortion =
+  (patch: Partial<GeometryParams['distortion']>): Step =>
+  (p) => ({ ...p, distortion: { ...p.distortion, ...patch } })
 const effect =
   <E extends 'crumple' | 'ripple' | 'thorn'>(name: E, patch: Partial<ExperimentalParams[E]>): Step =>
   (p) => ({ ...p, experimental: { ...p.experimental, [name]: { ...p.experimental[name], ...patch } } })
-const seed = (value: number): Step => (p) => ({ ...p, experimental: { ...p.experimental, seed: value } })
+const seed =
+  (value: number): Step =>
+  (p) => ({ ...p, experimental: { ...p.experimental, seed: value } })
 
 /** A thorn as Thorn grows it: its pick, the vertex it grows from, and the outline's direction there. */
 interface Grown extends ThornSite {
@@ -45,7 +52,10 @@ interface Grown extends ThornSite {
 function outlines(font: LoadedFont, index: number, params: GeometryParams) {
   const plain = withoutEffects(params)
   const derived = deriveGeometry(font.getGlyph(index), plain)
-  const reference = deriveGeometry(font.getGlyph(index), { ...plain, distortion: { ...plain.distortion, amount: 0 } }).polygon
+  const reference = deriveGeometry(font.getGlyph(index), {
+    ...plain,
+    distortion: { ...plain.distortion, amount: 0 },
+  }).polygon
   return { reference, distorted: derived.polygon, maxShift: derived.distortion.maxShift }
 }
 
@@ -84,7 +94,11 @@ function thornsOf(font: LoadedFont, index: number, params: GeometryParams, warps
     const prev = points[(site.index - 1 + n) % n]
     const next = points[(site.index + 1) % n]
     const along = Math.hypot(next.x - prev.x, next.y - prev.y) || 1
-    return { ...site, root: points[site.index], tangent: { x: (next.x - prev.x) / along, y: (next.y - prev.y) / along } }
+    return {
+      ...site,
+      root: points[site.index],
+      tangent: { x: (next.x - prev.x) / along, y: (next.y - prev.y) / along },
+    }
   })
 }
 
@@ -101,7 +115,8 @@ function kept(before: Grown[], after: Grown[], em: number): number {
       const slide = Math.abs(dx * b.tangent.x + dy * b.tangent.y)
       const distance = Math.hypot(dx, dy)
       const cos = a.normal.x * b.normal.x + a.normal.y * b.normal.y
-      if (slide <= 0.05 * em && distance <= 0.1 * em && cos >= Math.cos((10 * Math.PI) / 180)) pairs.push({ i, j, distance })
+      if (slide <= 0.05 * em && distance <= 0.1 * em && cos >= Math.cos((10 * Math.PI) / 180))
+        pairs.push({ i, j, distance })
     })
   })
   pairs.sort((p, q) => p.distance - q.distance)
@@ -115,7 +130,14 @@ function kept(before: Grown[], after: Grown[], em: number): number {
 }
 
 /** A pick as it is chosen, without where the outline took it. */
-const pickOf = ({ contour, index, normal, turn, share, lean }: ThornSite) => ({ contour, index, normal, turn, share, lean })
+const pickOf = ({ contour, index, normal, turn, share, lean }: ThornSite) => ({
+  contour,
+  index,
+  normal,
+  turn,
+  share,
+  lean,
+})
 
 describe.each(FIXTURE_FONTS)('Thorn anchors: %s', (fontName) => {
   it('picks the same anchors and directions whatever Distortion does', async () => {
@@ -125,7 +147,11 @@ describe.each(FIXTURE_FONTS)('Thorn anchors: %s', (fontName) => {
     for (const glyph of sampleGlyphs(font, TEXT)) {
       const still = thornsOf(font, glyph.index, distortion({ amount: 0 })(STACK), false).map(pickOf)
       thorns += still.length
-      for (const step of [distortion({ amount: 45 }), distortion({ amount: 47 }), ...[1, 2, 3, 7].map((s) => distortion({ seed: s }))]) {
+      for (const step of [
+        distortion({ amount: 45 }),
+        distortion({ amount: 47 }),
+        ...[1, 2, 3, 7].map((s) => distortion({ seed: s })),
+      ]) {
         const params = step(STACK)
         const label = `"${glyph.char}" ${JSON.stringify(params.distortion)}`
         expect(thornsOf(font, glyph.index, params, false).map(pickOf), label).toEqual(still)
@@ -136,12 +162,15 @@ describe.each(FIXTURE_FONTS)('Thorn anchors: %s', (fontName) => {
         const { reference, maxShift } = outlines(font, glyph.index, params)
         const sparse = thornsOf(font, glyph.index, params, false)
         const label = `"${glyph.char}" sparse, seed ${s}`
-        expect(sparse.map(({ normal, turn, share, lean }) => ({ normal, turn, share, lean })), label).toEqual(
-          still.map(({ normal, turn, share, lean }) => ({ normal, turn, share, lean })),
-        )
+        expect(
+          sparse.map(({ normal, turn, share, lean }) => ({ normal, turn, share, lean })),
+          label,
+        ).toEqual(still.map(({ normal, turn, share, lean }) => ({ normal, turn, share, lean })))
         sparse.forEach((thorn, t) => {
           const anchor = reference.contours[still[t].contour].points[still[t].index]
-          expect(Math.hypot(thorn.root.x - anchor.x, thorn.root.y - anchor.y), label).toBeLessThanOrEqual(maxShift + 1e-9 * upm)
+          expect(Math.hypot(thorn.root.x - anchor.x, thorn.root.y - anchor.y), label).toBeLessThanOrEqual(
+            maxShift + 1e-9 * upm,
+          )
         })
       }
     }
@@ -224,13 +253,24 @@ describe.each(FIXTURE_FONTS)('Thorn anchors: %s', (fontName) => {
         fewer = some.length
       }
       const three = thornsOf(font, glyph.index, STACK).map(pickOf)
-      for (const patch of [{ canvasReach: 0.3 }, { canvasReach: 1, canvasEm: 30 }, { spread: 0.9 }, { width: 1 }, { root: 0 }, { refraction: 1 }]) {
-        expect(thornsOf(font, glyph.index, effect('thorn', patch)(STACK)).map(pickOf), `"${glyph.char}" ${JSON.stringify(patch)}`).toEqual(three)
+      for (const patch of [
+        { canvasReach: 0.3 },
+        { canvasReach: 1, canvasEm: 30 },
+        { spread: 0.9 },
+        { width: 1 },
+        { root: 0 },
+        { refraction: 1 },
+      ]) {
+        expect(
+          thornsOf(font, glyph.index, effect('thorn', patch)(STACK)).map(pickOf),
+          `"${glyph.char}" ${JSON.stringify(patch)}`,
+        ).toEqual(three)
       }
     }
     // Reach sets only how long the thorns are.
     for (const glyph of sampleGlyphs(font, 'Hg')) {
-      const at = (canvasReach: number) => deriveGeometry(font.getGlyph(glyph.index), effect('thorn', { canvasReach, root: 0 })(STACK)).experimental.thorn
+      const at = (canvasReach: number) =>
+        deriveGeometry(font.getGlyph(glyph.index), effect('thorn', { canvasReach, root: 0 })(STACK)).experimental.thorn
       const near = at(0.3 / CANVAS_EM)
       const far = at(0.6 / CANVAS_EM)
       expect(far.thorns, `"${glyph.char}"`).toBe(near.thorns)
@@ -280,7 +320,8 @@ describe('Thorn anchors where contours overlap', () => {
           const own = contours[contour]
           const crosses = (points: readonly Point[]) =>
             new Set(own.map((q) => inside(points, q))).size > 1 || new Set(points.map((q) => inside(own, q))).size > 1
-          for (const points of others.filter(crosses)) expect(distance(points, p), label).toBeGreaterThanOrEqual(0.1 * em)
+          for (const points of others.filter(crosses))
+            expect(distance(points, p), label).toBeGreaterThanOrEqual(0.1 * em)
         }
       }
     }

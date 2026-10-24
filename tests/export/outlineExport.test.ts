@@ -11,9 +11,23 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import ExportedArtboard from '../../src/components/ExportedArtboard'
-import { drawArtboard, polygonPaths, type DrawTarget, type Painter, type PathSink, type VideoLook } from '../../src/export/drawArtboard'
-import { OUTLINE_MITER_LIMIT, OUTLINE_STROKE_PX, outlineStrokeWidth, specimenToSvg, type SvgLook } from '../../src/export/svg'
-import { glyphGeometry, paramsKey } from '../../src/geometry/cache'
+import {
+  drawArtboard,
+  polygonPaths,
+  type DrawTarget,
+  type Painter,
+  type PathSink,
+  type VideoLook,
+} from '../../src/export/drawArtboard'
+import {
+  OUTLINE_MITER_LIMIT,
+  OUTLINE_STROKE_PX,
+  outlineStrokeWidth,
+  specimenToSvg,
+  type SvgLook,
+} from '../../src/export/svg'
+import { glyphGeometry } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import { DEFAULT_ARTBOARD, DEFAULT_TYPOGRAPHY, layoutArtboard } from '../../src/specimen/artboard'
 import { DEFAULT_TEXT } from '../../src/specimen/samples'
 import { placePolygons, shapeSpecimen } from '../../src/specimen/scene'
@@ -68,7 +82,8 @@ function recordingPainter() {
   const painter = new Proxy({} as Record<string, unknown>, {
     get(_, name: string) {
       if (name in props) return props[name]
-      return (...args: unknown[]) => calls.push([name, ...args.map((a) => (a instanceof FakePath ? a.commands.join('') : a))])
+      return (...args: unknown[]) =>
+        calls.push([name, ...args.map((a) => (a instanceof FakePath ? a.commands.join('') : a))])
     },
     set(_, name: string, value) {
       calls.push(['set', name, value])
@@ -82,22 +97,34 @@ function recordingPainter() {
 function drawVideo({ scene, layout }: Roboto, look: VideoLook) {
   const { painter, calls } = recordingPainter()
   const target: DrawTarget<FakePath> = { ctx: painter, width: 2400, height: 1600, layer: null, filter: true }
-  const result = drawArtboard(target, scene, layout, DEFAULT_ARTBOARD, look, polygonPaths(() => new FakePath()))
+  const result = drawArtboard(
+    target,
+    scene,
+    layout,
+    DEFAULT_ARTBOARD,
+    look,
+    polygonPaths(() => new FakePath()),
+  )
   return { calls, result }
 }
 
-const groupLine = (svg: string) => svg.split('\n').find((line) => line.startsWith('  <g ') && line.includes('transform='))!
+const groupLine = (svg: string) =>
+  svg.split('\n').find((line) => line.startsWith('  <g ') && line.includes('transform='))!
 const pathData = (svg: string) => [...svg.matchAll(/ d="([^"]*)"/g)].map((m) => m[1])
 
 describe('exports with Fill on are unchanged', () => {
   it('SVG: byte for byte as on develop, with outlineOnly left out or false', async () => {
     const roboto = await robotoScene()
     for (const outlineOnly of [undefined, false]) {
-      const hashes = LOOKS.map((look) => sha(specimenToSvg(roboto.scene, roboto.layout, DEFAULT_ARTBOARD, 2, META, { ...look, outlineOnly }).svg))
+      const hashes = LOOKS.map((look) =>
+        sha(specimenToSvg(roboto.scene, roboto.layout, DEFAULT_ARTBOARD, 2, META, { ...look, outlineOnly }).svg),
+      )
       expect(hashes).toEqual(PINNED.svg)
     }
     const slanted = await robotoScene(12)
-    expect(sha(specimenToSvg(slanted.scene, slanted.layout, DEFAULT_ARTBOARD, 2, META, LOOKS[0]).svg)).toBe(PINNED.slanted)
+    expect(sha(specimenToSvg(slanted.scene, slanted.layout, DEFAULT_ARTBOARD, 2, META, LOOKS[0]).svg)).toBe(
+      PINNED.slanted,
+    )
   })
 
   it('video canvas: the same calls as on develop', async () => {
@@ -114,7 +141,10 @@ describe('exports with Fill off draw outlines only', () => {
     const roboto = await robotoScene()
     for (const look of LOOKS) {
       const filled = specimenToSvg(roboto.scene, roboto.layout, DEFAULT_ARTBOARD, 2, META, look)
-      const outlined = specimenToSvg(roboto.scene, roboto.layout, DEFAULT_ARTBOARD, 2, META, { ...look, outlineOnly: true })
+      const outlined = specimenToSvg(roboto.scene, roboto.layout, DEFAULT_ARTBOARD, 2, META, {
+        ...look,
+        outlineOnly: true,
+      })
       const group = groupLine(outlined.svg)
       expect(group).toContain('fill="none"')
       expect(group).toContain(`stroke="${look.ink}"`)
@@ -128,7 +158,9 @@ describe('exports with Fill off draw outlines only', () => {
       expect(width / roboto.layout.unitsPerPx).toBeCloseTo(OUTLINE_STROKE_PX, 4)
       // Nothing is filled in the ink: only the background (when painted) has a fill colour.
       expect(outlined.svg).not.toContain(`fill="${look.ink}"`)
-      expect([...outlined.svg.matchAll(/fill="([^"]*)"/g)].map((m) => m[1])).toEqual(look.background ? [look.paper, 'none'] : ['none'])
+      expect([...outlined.svg.matchAll(/fill="([^"]*)"/g)].map((m) => m[1])).toEqual(
+        look.background ? [look.paper, 'none'] : ['none'],
+      )
 
       // The same paths, straight segments only, and the same counts.
       const paths = pathData(outlined.svg)
@@ -172,7 +204,9 @@ describe('exports with Fill off draw outlines only', () => {
     ])
     // Set under the group transform (font units), before the first glyph is placed.
     const index = (name: string) => outlined.calls.findIndex((c) => c[0] === 'set' && c[1] === name)
-    const groupTransform = outlined.calls.findIndex((c, i) => c[0] === 'setTransform' && i > 0 && (c[1] as number) !== 1)
+    const groupTransform = outlined.calls.findIndex(
+      (c, i) => c[0] === 'setTransform' && i > 0 && (c[1] as number) !== 1,
+    )
     expect(index('lineWidth')).toBeGreaterThan(groupTransform)
     expect(index('lineWidth')).toBeLessThan(outlined.calls.findIndex((c) => c[0] === 'translate'))
   })
@@ -202,7 +236,9 @@ describe('exports with Fill off draw outlines only', () => {
     expect(filled).toMatch(/<g transform="[^"]+" fill="#111111" fill-rule="nonzero">/)
     const width = outlineStrokeWidth(layout.unitsPerPx)
     expect(outlined).toMatch(
-      new RegExp(`<g transform="[^"]+" fill="none" stroke="#111111" stroke-width="${width}" stroke-linejoin="miter" stroke-miterlimit="${OUTLINE_MITER_LIMIT}">`),
+      new RegExp(
+        `<g transform="[^"]+" fill="none" stroke="#111111" stroke-width="${width}" stroke-linejoin="miter" stroke-miterlimit="${OUTLINE_MITER_LIMIT}">`,
+      ),
     )
     expect(pathData(outlined)).toEqual(pathData(filled))
   })

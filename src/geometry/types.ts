@@ -196,7 +196,7 @@ export interface ThornParams {
   /** How far they jump, as a share of the canvas diagonal (0–1; 1 = the whole diagonal): each goes a seeded 35–100% of it. */
   canvasReach: number
   /**
-   * The canvas diagonal in em (see canvasDiagonalEm in thorn.ts), which canvasReach is a share of. Set by the app from
+   * The canvas diagonal in em (see canvasDiagonalEm in limits.ts), which canvasReach is a share of. Set by the app from
    * the artboard and the text size only while Thorn is on, and never saved. Missing: the default canvas at the default size.
    */
   canvasEm?: number

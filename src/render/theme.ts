@@ -6,7 +6,7 @@
 import type { RenderColors } from './types'
 
 /** The tokens read from the stylesheet, by RenderColors field. Ink and highlight come from the palette instead. */
-export const THEME_TOKENS = {
+const THEME_TOKENS = {
   accent: '--accent',
   control: '--control',
   vertex: '--vertex',
@@ -32,7 +32,7 @@ export type ColorReader = (expression: string) => string
 export function resolveTokens(read: ColorReader): ThemeTokens {
   const colors = { ...FALLBACK }
   for (const key of Object.keys(THEME_TOKENS) as (keyof ThemeTokens)[]) {
-    let value = ''
+    let value: string
     try {
       value = read(`var(${THEME_TOKENS[key]})`).trim()
     } catch {
@@ -47,7 +47,10 @@ export function resolveTokens(read: ColorReader): ThemeTokens {
  * A reader that resolves through a hidden span inside `container` (so the container's own tokens apply). The span is
  * made for the read and removed again.
  */
-export function probeReader(container: HTMLElement, computed: (el: Element) => { color: string } = getComputedStyle): ColorReader {
+export function probeReader(
+  container: HTMLElement,
+  computed: (el: Element) => { color: string } = getComputedStyle,
+): ColorReader {
   return (expression) => {
     const span = container.ownerDocument.createElement('span')
     span.style.display = 'none'
@@ -74,7 +77,10 @@ function browserEnvironment(): ThemeEnvironment {
     observeRoot(listener) {
       if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') return () => {}
       const observer = new MutationObserver(listener)
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] })
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme', 'class', 'style'],
+      })
       return () => observer.disconnect()
     },
     observeScheme(listener) {

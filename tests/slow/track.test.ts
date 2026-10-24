@@ -22,7 +22,8 @@ describe.each(RIGS)('test track: %s', (_, rig) => {
   const frames = () => (analysed ??= analyse(left, right, rig))
   const section = (a: number, b: number) => between(frames(), (a + 0.3) * 1000, b * 1000)
   const avg = (a: number, b: number, key: Key) => mean(section(a, b).map((f) => f[key]))
-  const perSecond = (a: number, b: number, test: (f: ProbedFrame) => boolean) => section(a, b).filter(test).length / (b - a - 0.3)
+  const perSecond = (a: number, b: number, test: (f: ProbedFrame) => boolean) =>
+    section(a, b).filter(test).length / (b - a - 0.3)
 
   it('is the same file the Sound tab offers', () => {
     expect(encodeWav(track).length).toBe(7_408_844)
@@ -80,14 +81,18 @@ describe.each(RIGS)('test track: %s', (_, rig) => {
 
   it('26-32 s, the melody A2 A3 A4 A5 A4 A3: Pitch steps a fifth of its range an octave', () => {
     const expected = [0.2, 0.4, 0.6, 0.8, 0.6, 0.4, 0.2, 0.4, 0.6, 0.8, 0.6, 0.4]
-    const notes = expected.map((_, i) => mean(between(frames(), (26.15 + i / 2) * 1000, (26.45 + i / 2) * 1000).map((f) => f.pitch)))
+    const notes = expected.map((_, i) =>
+      mean(between(frames(), (26.15 + i / 2) * 1000, (26.45 + i / 2) * 1000).map((f) => f.pitch)),
+    )
     notes.forEach((pitch, i) => expect(pitch, `note ${i + 1}`).toBeCloseTo(expected[i], 1))
     expect(avg(26, 32, 'pan')).toBeCloseTo(0, 2)
   })
 
   it('26-32 s, the melody: a Melody pulse on each of the 11 note changes, and a sure pitch; none on the hats before', () => {
     const changes = rises(between(frames(), 26000, 32000))
-    expect(Math.abs(changes.length - 11), changes.map((f) => (f.time / 1000).toFixed(2)).join(' ')).toBeLessThanOrEqual(1)
+    expect(Math.abs(changes.length - 11), changes.map((f) => (f.time / 1000).toFixed(2)).join(' ')).toBeLessThanOrEqual(
+      1,
+    )
     expect(mean(changes.map((f) => f.melody))).toBeGreaterThan(0.8)
     expect(mean(section(26, 32).map((f) => f.pitchConfidence))).toBeGreaterThan(0.6)
     expect(rises(between(frames(), 21500, 26000))).toEqual([])

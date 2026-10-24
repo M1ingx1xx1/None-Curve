@@ -24,7 +24,12 @@ describe('test track', () => {
     const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength)
     const ascii = (at: number) => String.fromCharCode(...wav.subarray(at, at + 4))
     expect([ascii(0), ascii(8), ascii(12), ascii(36)]).toEqual(['RIFF', 'WAVE', 'fmt ', 'data'])
-    expect([view.getUint16(20, true), view.getUint16(22, true), view.getUint32(24, true), view.getUint16(34, true)]).toEqual([1, 2, 44100, 16])
+    expect([
+      view.getUint16(20, true),
+      view.getUint16(22, true),
+      view.getUint32(24, true),
+      view.getUint16(34, true),
+    ]).toEqual([1, 2, 44100, 16])
 
     // The peak stays at or below -1 dBFS (0.89 of full scale).
     let peak = 0

@@ -48,7 +48,11 @@ function readStored(key: string, fallback: number[]): number[] {
     if (raw === null) return fallback
     const parsed: unknown = JSON.parse(raw)
     const values = typeof parsed === 'number' && fallback.length === 2 ? [parsed, 1 - parsed] : parsed
-    if (!Array.isArray(values) || values.length !== fallback.length || !values.every((v) => typeof v === 'number' && v > 0)) {
+    if (
+      !Array.isArray(values) ||
+      values.length !== fallback.length ||
+      !values.every((v) => typeof v === 'number' && v > 0)
+    ) {
       return fallback
     }
     const total = sum(values)
@@ -83,7 +87,7 @@ function fit(values: number[], minShares: number[]): number[] {
  * the user's choice and the shown value is fitted to what fits right now, so a smaller window does
  * not lose the preference.
  */
-export function useSplits<T extends HTMLElement>({ storageKey, defaults, axis, mins, cssVars }: SplitsOptions) {
+function useSplits<T extends HTMLElement>({ storageKey, defaults, axis, mins, cssVars }: SplitsOptions) {
   const containerRef = useRef<T>(null)
   const [values, setValues] = useState(() => readStored(storageKey, defaults))
   const [size, setSize] = useState(0)
@@ -194,7 +198,14 @@ export function useSplits<T extends HTMLElement>({ storageKey, defaults, axis, m
 }
 
 /** Two panes with one handle between them (see useSplits). */
-export function useSplit<T extends HTMLElement>({ storageKey, defaultValue, axis, minStart, minEnd, cssVars }: SplitOptions) {
+export function useSplit<T extends HTMLElement>({
+  storageKey,
+  defaultValue,
+  axis,
+  minStart,
+  minEnd,
+  cssVars,
+}: SplitOptions) {
   const split = useSplits<T>({
     storageKey,
     defaults: [defaultValue, 1 - defaultValue],

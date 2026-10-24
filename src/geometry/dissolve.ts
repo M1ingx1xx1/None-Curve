@@ -27,18 +27,9 @@
 
 import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { signedArea } from './flatten'
+import { DISSOLVE_LIMITS, dissolveIsOn } from './limits'
+import { clamp, finite, signedArea } from './primitives'
 import type { DissolveParams, Point, PolygonContour, PolygonGlyph } from './types'
-
-export const DISSOLVE_LIMITS = {
-  /** Grain: one noise period as a share of the stroke width. */
-  minGrain: 0.15,
-  maxGrain: 1,
-  /** How far the ragged edge reaches past the outline, in half-strokes. */
-  maxSpread: 1.5,
-  /** Grid nodes per glyph at most: a larger glyph (one with long thorns) is sampled on a coarser grid. */
-  maxNodes: 1_000_000,
-} as const
 
 /** The grid and the facets, by the noise period (see the header). */
 const GRID = {
@@ -107,7 +98,14 @@ export interface DissolveStats {
   reduced: boolean
 }
 
-export const emptyDissolveStats = (): DissolveStats => ({ applied: false, islands: 0, holes: 0, coarser: false, facet: 0, reduced: false })
+export const emptyDissolveStats = (): DissolveStats => ({
+  applied: false,
+  islands: 0,
+  holes: 0,
+  coarser: false,
+  facet: 0,
+  reduced: false,
+})
 
 /** Channel numbers keep Dissolve's random numbers apart from the other effects' for the same seed. */
 const CHANNEL = {
@@ -124,10 +122,6 @@ const CHANNEL = {
   speck: 0x0db,
   speckFine: 0x0dc,
 } as const
-
-export function dissolveIsOn(params: DissolveParams | undefined): params is DissolveParams {
-  return !!params && params.enabled
-}
 
 /**
  * The glyph dissolved (see the header). `maxVertices`: the glyph's vertex budget (budget.ts). Contours come out
@@ -216,7 +210,10 @@ function inkField(
 
   // The half stroke (the largest distance from the outline inside the ink), on a coarse grid; it sizes the rest.
   const band = 0.16 * upm
-  const coarseCell = Math.max(upm / GRID.coarsePerEm, Math.sqrt(((width + 2 * band) * (height + 2 * band)) / GRID.coarseNodes))
+  const coarseCell = Math.max(
+    upm / GRID.coarsePerEm,
+    Math.sqrt(((width + 2 * band) * (height + 2 * band)) / GRID.coarseNodes),
+  )
   const coarse = gridAround(box, coarseCell, coarseCell)
   const coarseInside = insideMask(contours, coarse)
   const coarseDistance = distanceField(simplified(outline, GRID.outlineTolerance * coarseCell), coarse, band)
@@ -332,7 +329,8 @@ function insideMask(contours: Point[][], grid: Grid): Uint8Array {
       for (let j = j0; j <= j1; j++) {
         const y = oy + j * cell
         // Half-open in y, so a vertex on the scanline counts once.
-        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) rows[j].push({ x: a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x), w: b.y > a.y ? 1 : -1 })
+        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y))
+          rows[j].push({ x: a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x), w: b.y > a.y ? 1 : -1 })
       }
     }
   }
@@ -437,7 +435,10 @@ function visibleOutline(contours: Point[][], winding: WindingIndex, step: number
       const at = (t: number): Point => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
       const shows = Array.from({ length: pieces }, (_, k) => {
         const m = at((k + 0.5) / pieces)
-        return (winding.at(m.x + nx * probe, m.y + ny * probe) !== 0) !== (winding.at(m.x - nx * probe, m.y - ny * probe) !== 0)
+        return (
+          (winding.at(m.x + nx * probe, m.y + ny * probe) !== 0) !==
+          (winding.at(m.x - nx * probe, m.y - ny * probe) !== 0)
+        )
       })
       for (let k = 0; k < pieces; k++) {
         if (!shows[k]) {
@@ -649,7 +650,9 @@ function leaveOutSmallest(loops: Point[][], limit: number): Point[][] {
   parent.forEach((p, k) => p >= 0 && children[p].push(k))
   const out = loops.map(() => false)
   let total = countVertices(loops)
-  const order = loops.map((loop, k) => ({ k, area: Math.abs(signedArea(loop)) })).sort((a, b) => a.area - b.area || a.k - b.k)
+  const order = loops
+    .map((loop, k) => ({ k, area: Math.abs(signedArea(loop)) }))
+    .sort((a, b) => a.area - b.area || a.k - b.k)
   for (const { k } of order) {
     if (total <= limit) break
     if (out[k]) continue
@@ -677,7 +680,8 @@ function parents(loops: Point[][]): number[] {
     for (const d of byLeft) {
       const outer = boxes[d]
       if (outer.minX > box.minX) break
-      if (d === k || areas[d] <= areas[k] || outer.maxX < box.maxX || outer.minY > box.minY || outer.maxY < box.maxY) continue
+      if (d === k || areas[d] <= areas[k] || outer.maxX < box.maxX || outer.minY > box.minY || outer.maxY < box.maxY)
+        continue
       if ((best < 0 || areas[d] < areas[best]) && insideRing(loop[0], loops[d])) best = d
     }
     return best
@@ -754,7 +758,11 @@ class FacetMesh {
     })
     const box = bounds(loops as Point[][]) ?? { minX: 0, minY: 0, maxX: 0, maxY: 0 }
     // Buckets about a facet across, but no more than about one per vertex.
-    this.size = Math.max(facet, cell, Math.sqrt(((box.maxX - box.minX + 1) * (box.maxY - box.minY + 1)) / Math.max(n, 1)))
+    this.size = Math.max(
+      facet,
+      cell,
+      Math.sqrt(((box.maxX - box.minX + 1) * (box.maxY - box.minY + 1)) / Math.max(n, 1)),
+    )
     this.bx0 = Math.floor(box.minX / this.size)
     this.by0 = Math.floor(box.minY / this.size)
     this.bw = Math.floor(box.maxX / this.size) - this.bx0 + 1
@@ -842,7 +850,10 @@ class FacetMesh {
       const m = ring.length
       const sign = ring.map((k) => {
         const t = this.turn(k)
-        const gentle = Math.abs(t) < FACET.arcTurn && this.length(this.prev[k], k) < this.arcEdge && this.length(k, this.next[k]) < this.arcEdge
+        const gentle =
+          Math.abs(t) < FACET.arcTurn &&
+          this.length(this.prev[k], k) < this.arcEdge &&
+          this.length(k, this.next[k]) < this.arcEdge
         return gentle ? Math.sign(t) : 0
       })
       const start = sign.findIndex((s) => s === 0)
@@ -867,7 +878,19 @@ class FacetMesh {
         // The weakest corner of the run that may go.
         const order = run
           .filter((k) => this.alive[k])
-          .map((k) => ({ k, area: Math.abs(cross(this.x[this.prev[k]], this.y[this.prev[k]], this.x[k], this.y[k], this.x[this.next[k]], this.y[this.next[k]])) }))
+          .map((k) => ({
+            k,
+            area: Math.abs(
+              cross(
+                this.x[this.prev[k]],
+                this.y[this.prev[k]],
+                this.x[k],
+                this.y[k],
+                this.x[this.next[k]],
+                this.y[this.next[k]],
+              ),
+            ),
+          }))
           .sort((a, b) => a.area - b.area || a.k - b.k)
         for (const { k } of order) {
           if (this.replaceable([k], null)) {
@@ -900,12 +923,14 @@ class FacetMesh {
     if (Math.sign(area) !== Math.sign(this.area[r]) || Math.abs(area) < 1e-9) return false
     // No spike: the new path must not double back on itself or along its neighbours.
     const path = [at(this.prev[p]), at(p), ...(via ? [via] : []), at(n), at(this.next[n])]
-    for (let k = 1; k < path.length - 1; k++) if (foldsBack(path[k - 1].x, path[k - 1].y, path[k].x, path[k].y, path[k + 1].x, path[k + 1].y)) return false
+    for (let k = 1; k < path.length - 1; k++)
+      if (foldsBack(path[k - 1].x, path[k - 1].y, path[k].x, path[k].y, path[k + 1].x, path[k + 1].y)) return false
     const old = [at(p), ...gone.map(at), at(n)]
     const fresh = path.slice(1, -1)
     const distance = (line: Point[], ax: number, ay: number, bx: number, by: number) => {
       let d = Infinity
-      for (let k = 0; k + 1 < line.length; k++) d = Math.min(d, segmentDistance(line[k].x, line[k].y, line[k + 1].x, line[k + 1].y, ax, ay, bx, by))
+      for (let k = 0; k + 1 < line.length; k++)
+        d = Math.min(d, segmentDistance(line[k].x, line[k].y, line[k + 1].x, line[k + 1].y, ax, ay, bx, by))
       return d
     }
     const c = this.clearance
@@ -1152,7 +1177,9 @@ function bounds(contours: readonly (readonly Point[])[]): Box | null {
 
 function perimeter(contours: readonly (readonly Point[])[]): number {
   let total = 0
-  for (const c of contours) for (let i = 0; i < c.length; i++) total += Math.hypot(c[(i + 1) % c.length].x - c[i].x, c[(i + 1) % c.length].y - c[i].y)
+  for (const c of contours)
+    for (let i = 0; i < c.length; i++)
+      total += Math.hypot(c[(i + 1) % c.length].x - c[i].x, c[(i + 1) % c.length].y - c[i].y)
   return total
 }
 
@@ -1163,22 +1190,28 @@ function cross(ax: number, ay: number, bx: number, by: number, cx: number, cy: n
   return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
 }
 
-/** True when (px, py) lies strictly inside the triangle a, b, c (either way round). */
-function insideTriangle(px: number, py: number, ax: number, ay: number, bx: number, by: number, cx: number, cy: number): boolean {
-  const d1 = cross(ax, ay, bx, by, px, py)
-  const d2 = cross(bx, by, cx, cy, px, py)
-  const d3 = cross(cx, cy, ax, ay, px, py)
-  return (d1 > 0 && d2 > 0 && d3 > 0) || (d1 < 0 && d2 < 0 && d3 < 0)
-}
-
 /** The distance between the segments a–b and c–d (0 when they cross). */
-function segmentDistance(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): number {
+function segmentDistance(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+): number {
   const d1 = cross(ax, ay, bx, by, cx, cy)
   const d2 = cross(ax, ay, bx, by, dx, dy)
   const d3 = cross(cx, cy, dx, dy, ax, ay)
   const d4 = cross(cx, cy, dx, dy, bx, by)
   if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return 0
-  return Math.min(pointSegment(cx, cy, ax, ay, bx, by), pointSegment(dx, dy, ax, ay, bx, by), pointSegment(ax, ay, cx, cy, dx, dy), pointSegment(bx, by, cx, cy, dx, dy))
+  return Math.min(
+    pointSegment(cx, cy, ax, ay, bx, by),
+    pointSegment(dx, dy, ax, ay, bx, by),
+    pointSegment(ax, ay, cx, cy, dx, dy),
+    pointSegment(bx, by, cx, cy, dx, dy),
+  )
 }
 
 function pointSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
@@ -1199,11 +1232,3 @@ function foldsBack(ax: number, ay: number, bx: number, by: number, cx: number, c
 }
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v))
-}
-
-function finite(v: number | undefined, fallback: number): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
-}

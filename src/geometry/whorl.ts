@@ -22,31 +22,11 @@
 // triangles flip, the letter folds onto itself, and the overlaps are merged into one outline (see
 // overlaps.ts).
 
+import { WHORL_LIMITS } from './limits'
+import { clamp, finite } from './primitives'
 import type { Box } from './ripple'
 import type { PolygonGlyph, WhorlMotion, WhorlParams, Point } from './types'
 import type { Warp } from './warp'
-
-export const WHORL_LIMITS = {
-  minRings: 2,
-  maxRings: 12,
-  minSides: 3,
-  maxSides: 12,
-  /** -4 to 4: above 1 either way (the safe range), the letter folds. */
-  maxAmount: 4,
-  /** At 100%, the share of the largest step between rings that keeps every triangle the same way round. */
-  safety: 0.9,
-  /** The swirl reaches at least this far from the centre (× the em), so flat glyphs such as a hyphen still turn. */
-  minRadius: 0.05,
-} as const
-
-export function whorlIsOn(params: WhorlParams | undefined): boolean {
-  return !!params && params.enabled && finite(params.amount, 0) !== 0
-}
-
-/** True when Whorl goes beyond its safe range, so the letter folds onto itself. */
-export function whorlFolds(params: WhorlParams | undefined): boolean {
-  return whorlIsOn(params) && Math.abs(params!.amount) > 1
-}
 
 /**
  * What Glide needs to turn the letter's anchors the way Whorl turns them (PolygonGlyph.motion): its centre, Sides,
@@ -55,7 +35,16 @@ export function whorlFolds(params: WhorlParams | undefined): boolean {
  */
 export function whorlMotion(params: WhorlParams, box: Box, unitsPerEm: number, before?: PolygonGlyph): WhorlMotion {
   const { rings, sides, amount, pinned, centre, radius, turn } = whorlSetup(params, box, unitsPerEm, 1)
-  const motion: WhorlMotion = { x: centre.x, y: centre.y, sides, rings, amount, pinned, radius, turns: Array.from({ length: rings + 1 }, (_, k) => turn(k)) }
+  const motion: WhorlMotion = {
+    x: centre.x,
+    y: centre.y,
+    sides,
+    rings,
+    amount,
+    pinned,
+    radius,
+    turns: Array.from({ length: rings + 1 }, (_, k) => turn(k)),
+  }
   if (before) motion.outline = before.contours.map((c) => c.points)
   return motion
 }
@@ -93,7 +82,12 @@ function whorlSetup(params: WhorlParams, box: Box, unitsPerEm: number, scale: nu
 
 /** The Whorl warp for a glyph with this ink box, at `scale` × its strength. */
 export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, scale = 1): Warp {
-  const { rings, sides, centre, spacing, half, tanHalf, first, rising, turn } = whorlSetup(params, box, unitsPerEm, scale)
+  const { rings, sides, centre, spacing, half, tanHalf, first, rising, turn } = whorlSetup(
+    params,
+    box,
+    unitsPerEm,
+    scale,
+  )
 
   const frames = Array.from({ length: sides }, (_, j) => {
     const mid = first + (2 * j + 1) * half
@@ -174,7 +168,12 @@ export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, sca
       // A segment through the centre crosses every ray there at once: split it at the centre.
       const length2 = dx * dx + dy * dy
       const tc = length2 > 0 ? ((centre.x - a.x) * dx + (centre.y - a.y) * dy) / length2 : -1
-      if (tc > 0 && tc < 1 && Math.hypot(a.x + dx * tc - centre.x, a.y + dy * tc - centre.y) <= 1e-9 * Math.sqrt(length2)) ts.push({ t: tc, crease: true })
+      if (
+        tc > 0 &&
+        tc < 1 &&
+        Math.hypot(a.x + dx * tc - centre.x, a.y + dy * tc - centre.y) <= 1e-9 * Math.sqrt(length2)
+      )
+        ts.push({ t: tc, crease: true })
       ts.sort((p, q) => p.t - q.t)
 
       const out: number[] = []
@@ -231,8 +230,19 @@ export function whorlWarp(params: WhorlParams, box: Box, unitsPerEm: number, sca
  * triangles hold the point: the answer with the lowest `score` wins. Null when none holds it.
  */
 export function whorlUnwarp(motion: WhorlMotion): (p: Point, score: (x: number, y: number) => number) => Point | null {
-  const params: WhorlParams = { enabled: true, amount: motion.amount, rings: motion.rings, sides: motion.sides, pinned: motion.pinned }
-  const box: Box = { minX: motion.x - 1, maxX: motion.x + 1, minY: motion.y - motion.radius, maxY: motion.y + motion.radius }
+  const params: WhorlParams = {
+    enabled: true,
+    amount: motion.amount,
+    rings: motion.rings,
+    sides: motion.sides,
+    pinned: motion.pinned,
+  }
+  const box: Box = {
+    minX: motion.x - 1,
+    maxX: motion.x + 1,
+    minY: motion.y - motion.radius,
+    maxY: motion.y + motion.radius,
+  }
   const { rings, sides, centre, spacing, half, tanHalf, first, rising } = whorlSetup(params, box, 0, 1)
   const last = motion.turns.length - 1
   const turn = (k: number) => (last >= 0 ? motion.turns[Math.min(k, last)] : 0)
@@ -250,7 +260,18 @@ export function whorlUnwarp(motion: WhorlMotion): (p: Point, score: (x: number, 
       const b: Corner = [k, k]
       const c: Corner = [k + 1, k + 1]
       const d: Corner = [k + 1, -(k + 1)]
-      const triangles: Corner[][] = k === 0 ? [[a, c, d]] : rising ? [[a, b, c], [a, c, d]] : [[b, c, d], [a, b, d]]
+      const triangles: Corner[][] =
+        k === 0
+          ? [[a, c, d]]
+          : rising
+            ? [
+                [a, b, c],
+                [a, c, d],
+              ]
+            : [
+                [b, c, d],
+                [a, b, d],
+              ]
       for (const triangle of triangles)
         for (const [cs, cx] of triangle) {
           const along = cs * spacing
@@ -329,8 +350,19 @@ export interface WhorlMesh {
 
 /** The mesh Whorl turned a glyph's letter with, from its motion (PolygonGlyph.motion). */
 export function whorlMesh(motion: WhorlMotion): WhorlMesh {
-  const params: WhorlParams = { enabled: true, amount: motion.amount, rings: motion.rings, sides: motion.sides, pinned: motion.pinned }
-  const box: Box = { minX: motion.x - 1, maxX: motion.x + 1, minY: motion.y - motion.radius, maxY: motion.y + motion.radius }
+  const params: WhorlParams = {
+    enabled: true,
+    amount: motion.amount,
+    rings: motion.rings,
+    sides: motion.sides,
+    pinned: motion.pinned,
+  }
+  const box: Box = {
+    minX: motion.x - 1,
+    maxX: motion.x + 1,
+    minY: motion.y - motion.radius,
+    maxY: motion.y + motion.radius,
+  }
   const { rings, sides, centre, spacing, half, tanHalf, first, rising } = whorlSetup(params, box, 0, 1)
   const count = 1 + rings * sides
   const cornerX = new Float64Array(count)
@@ -382,7 +414,11 @@ export function whorlMesh(motion: WhorlMotion): WhorlMesh {
       else triangle = x >= k - (2 * k + 1) * (s - k) ? [b, c, d] : [a, b, d]
       const weights = barycentric(s, x, ...triangle)
       // [k, -k] lies on ray j, [k, k] on ray j + 1.
-      const ids = triangle.map(([cs, cx]) => corner(cs, cx < 0 || (cs > 0 && cx === -cs) ? j : j + 1)) as [number, number, number]
+      const ids = triangle.map(([cs, cx]) => corner(cs, cx < 0 || (cs > 0 && cx === -cs) ? j : j + 1)) as [
+        number,
+        number,
+        number,
+      ]
       return { ids, weights }
     },
     creases: (a, b) => warp.creases(a, b),
@@ -422,19 +458,26 @@ function searchStep(rings: number, half: number, rising: boolean, relative: numb
     const b = at(k, k, 0)
     const c = at(k + 1, k + 1, angle)
     const d = at(k + 1, -(k + 1), angle)
-    const triangles = rising ? [[a, b, c], [a, c, d]] : [[a, b, d], [b, c, d]]
+    const triangles = rising
+      ? [
+          [a, b, c],
+          [a, c, d],
+        ]
+      : [
+          [a, b, d],
+          [b, c, d],
+        ]
     // These corner orders run clockwise in the unturned mesh.
     return triangles.every(([p, q, r]) => area(p, q, r) < 0)
   }
   let limit = Math.PI
   for (let k = 1; k < rings; k++) {
     // Walk out in small steps to the first flip, then narrow it down.
-    let lo = 0
     let hi = 0
     const stride = Math.PI / 720
     while (hi < limit && keeps(k, relative * (hi + stride))) hi += stride
     if (hi >= limit) continue
-    lo = hi
+    let lo = hi
     hi = Math.min(limit, hi + stride)
     for (let n = 0; n < 40; n++) {
       const mid = (lo + hi) / 2
@@ -452,12 +495,4 @@ function barycentric(s: number, x: number, t1: Corner, t2: Corner, t3: Corner): 
   const w2 = ((s - t1[0]) * (t3[1] - t1[1]) - (t3[0] - t1[0]) * (x - t1[1])) / area
   const w3 = ((t2[0] - t1[0]) * (x - t1[1]) - (s - t1[0]) * (t2[1] - t1[1])) / area
   return [1 - w2 - w3, w2, w3]
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
-}
-
-function finite(v: number, fallback: number): number {
-  return Number.isFinite(v) ? v : fallback
 }

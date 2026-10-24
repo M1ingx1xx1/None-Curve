@@ -26,7 +26,12 @@ export function LiveSwitch({ target }: { target: string }) {
   return (
     <>
       <MapTarget target={target} />
-      <span className="live-switch" data-on={on || undefined} aria-hidden="true" title={on ? 'Live: on' : 'Live: off'} />
+      <span
+        className="live-switch"
+        data-on={on || undefined}
+        aria-hidden="true"
+        title={on ? 'Live: on' : 'Live: off'}
+      />
     </>
   )
 }

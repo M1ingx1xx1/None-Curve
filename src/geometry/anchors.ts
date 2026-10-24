@@ -3,7 +3,7 @@
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings } from './crossings'
-import { signedArea } from './flatten'
+import { distanceToSegment, signedArea } from './primitives'
 import type { AnchorParams, Point, PolygonContour, PolygonGlyph } from './types'
 
 export const ANCHOR_LIMITS = {
@@ -39,7 +39,10 @@ export interface AnchorStats {
 }
 
 /** Runs spacing, then reduction, on a flattened polygon. Order is fixed. */
-export function applyAnchorControls(polygon: PolygonGlyph, params: AnchorParams): { polygon: PolygonGlyph; stats: AnchorStats } {
+export function applyAnchorControls(
+  polygon: PolygonGlyph,
+  params: AnchorParams,
+): { polygon: PolygonGlyph; stats: AnchorStats } {
   const flattenedVertices = countVertices(polygon)
   const stats: AnchorStats = {
     flattenedVertices,
@@ -121,7 +124,7 @@ function predictSpacedCount(points: readonly Point[], spacing: number): number {
  * Splits every edge, including the closing edge back to the start, into equal parts no longer than
  * `spacing`. New points lie on the original edge; the start point stays first and is not repeated.
  */
-export function subdivide(points: readonly Point[], spacing: number): Point[] {
+function subdivide(points: readonly Point[], spacing: number): Point[] {
   const out: Point[] = []
   for (let i = 0; i < points.length; i++) {
     const a = points[i]
@@ -201,7 +204,13 @@ export function simplifyClosed(
  * Iterative RDP over points[from..to] (to may equal points.length, meaning index 0): marks in `keep` the points that lie
  * further than `tolerance` from the simplified chain, and returns the largest distance of a point left out.
  */
-export function rdpChain(points: readonly Point[], from: number, to: number, tolerance: number, keep: Uint8Array): number {
+export function rdpChain(
+  points: readonly Point[],
+  from: number,
+  to: number,
+  tolerance: number,
+  keep: Uint8Array,
+): number {
   const at = (i: number) => points[i % points.length]
   let accepted = 0
   const stack: [number, number][] = [[from, to]]
@@ -227,15 +236,6 @@ export function rdpChain(points: readonly Point[], from: number, to: number, tol
   return accepted
 }
 
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSq = dx * dx + dy * dy
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
-}
-
 function distinctCount(points: readonly Point[]): number {
   return new Set(points.map((p) => `${p.x},${p.y}`)).size
 }
-

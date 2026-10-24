@@ -11,7 +11,14 @@ import type { FrameJob } from '../../src/geometry/types'
 import type { BufferSnapshot } from '../../src/sound/bufferStore'
 import { PlaybackDirector, type DirectorPlanner } from '../../src/sound/director'
 import { FLASH_LIMITS } from '../../src/sound/flash'
-import { LiveScheduler, PLANNER_CLOCK_OFFSET, plannedEdges, type LiveCommit, type LiveDeps, type LiveInputs } from '../../src/sound/live'
+import {
+  LiveScheduler,
+  PLANNER_CLOCK_OFFSET,
+  plannedEdges,
+  type LiveCommit,
+  type LiveDeps,
+  type LiveInputs,
+} from '../../src/sound/live'
 import type { Mapping } from '../../src/sound/mapping'
 import { PlaybackPlanner } from '../../src/sound/planner'
 import { NO_SLOTS } from '../../src/sound/letters'
@@ -24,7 +31,14 @@ const STEP = 1000 / 30
 
 /** The last commit at or before media ms `ms`. */
 const lastAt = (commits: readonly PlannedCommit[], ms: number) => commits.filter((c) => c.mediaMs <= ms).at(-1)!
-const INPUTS: LiveInputs = { base: BASE, hasFont: true, mappings: [], drive: true, response: NEUTRAL_RESPONSE, slots: NO_SLOTS }
+const INPUTS: LiveInputs = {
+  base: BASE,
+  hasFont: true,
+  mappings: [],
+  drive: true,
+  response: NEUTRAL_RESPONSE,
+  slots: NO_SLOTS,
+}
 
 function planned(seq: number, mediaMs: number, generation = 1, edges: number[] = []): PlannedCommit {
   const job: FrameJob = { params: BASE, key: `k${seq}` }
@@ -91,7 +105,9 @@ class FakePlanner implements DirectorPlanner {
     return value
   }
   edgesIn(after: number, until: number) {
-    return this.commits.filter((c) => c.mediaMs > after && c.mediaMs <= until).flatMap((c) => [...plannedEdges(c.adopted)])
+    return this.commits
+      .filter((c) => c.mediaMs > after && c.mediaMs <= until)
+      .flatMap((c) => [...plannedEdges(c.adopted)])
   }
   glyphRate() {
     return 60
@@ -179,7 +195,8 @@ function rig(
       inFlight = null
     }
   }
-  const missing = (key: string) => (options.prefetchMisses?.has(key) ?? false) || (options.fetchMs !== undefined && !fetched.has(key))
+  const missing = (key: string) =>
+    (options.prefetchMisses?.has(key) ?? false) || (options.fetchMs !== undefined && !fetched.has(key))
   let adoptSeq = 100
   const director = new PlaybackDirector({
     now: () => now,
@@ -474,7 +491,8 @@ describe('the director and the flash limit', () => {
         const now = since + FLASH_LIMITS.windowMs
         const stop = reservations.length ? reservations[0] - FLASH_LIMITS.windowMs : Infinity
         const edges: number[] = []
-        for (let t = Math.floor(Math.min(now, stop - 1) / 100) * 100; t >= since && edges.length < 6; t -= 100) edges.unshift(t)
+        for (let t = Math.floor(Math.min(now, stop - 1) / 100) * 100; t >= since && edges.length < 6; t -= 100)
+          edges.unshift(t)
         return edges
       },
     })
@@ -501,7 +519,6 @@ describe('the director and the flash limit', () => {
     expect(r.following).toBe(true)
   })
 
-
   it('takes over at once without recent edges, and a new generation waits for room too', () => {
     let recent = lately(0)
     const r = rig({ recentEdges: (since) => recent(since), edgesOf })
@@ -522,7 +539,9 @@ describe('the director and the flash limit', () => {
     r.play(300)
     expect(r.following).toBe(true)
     // The next commit with an edge is not ready; the one after it is.
-    const edged = r.planner.range(-Infinity, Infinity).find((c) => c.mediaMs > 300 && plannedEdges(c.adopted).length > 0)!
+    const edged = r.planner
+      .range(-Infinity, Infinity)
+      .find((c) => c.mediaMs > 300 && plannedEdges(c.adopted).length > 0)!
     r.setReady((seq) => seq !== edged.seq)
     r.play(edged.mediaMs + STEP + 1)
     expect(r.commits.some((c) => c!.timing!.seq === edged.seq)).toBe(false)
@@ -534,7 +553,11 @@ describe('the director and the flash limit', () => {
 describe('the page scheduler following planned commits', () => {
   const mapping: Mapping = { id: 'm', enabled: true, feature: 'level', target: 'distortion.amount', depth: 1 }
   const seedMapping: Mapping = { id: 's', enabled: true, feature: 'level', target: 'distortion.seed', depth: 1 }
-  const inputs: LiveInputs = { ...INPUTS, mappings: [mapping, seedMapping], base: { ...BASE, distortion: { ...BASE.distortion, amount: 10 } } }
+  const inputs: LiveInputs = {
+    ...INPUTS,
+    mappings: [mapping, seedMapping],
+    base: { ...BASE, distortion: { ...BASE.distortion, amount: 10 } },
+  }
   const frameAt = (k: number): FeatureFrame => {
     const level = k % 20 < 10 ? 0.9 : 0.1
     return { ...SILENT_FRAME, time: (k * 1000) / 60, level, silent: false, levelDb: -20 }
@@ -561,7 +584,12 @@ describe('the page scheduler following planned commits', () => {
 
   it('is off by default, and adopts markers, status and Freeze from a planned commit without committing', () => {
     const frames = Array.from({ length: 180 }, (_, k) => frameAt(k))
-    const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
+    const planner = new PlaybackPlanner({
+      hz: 60,
+      frameCount: () => frames.length,
+      isCovered: () => true,
+      frameAt: (i) => frames[i] ?? null,
+    })
     planner.setInputs(inputs)
     planner.ensure(Infinity, Infinity)
     const withEdges = planner.range(-Infinity, Infinity).find((c) => c.commit && plannedEdges(c.adopted).length > 0)!
@@ -593,13 +621,24 @@ describe('the page scheduler following planned commits', () => {
 
   it('hands back with the flash state on screen: a move back from the planned sliders is a turn, and the seeds stay', () => {
     const frames = Array.from({ length: 180 }, (_, k) => frameAt(k))
-    const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
+    const planner = new PlaybackPlanner({
+      hz: 60,
+      frameCount: () => frames.length,
+      isCovered: () => true,
+      frameAt: (i) => frames[i] ?? null,
+    })
     planner.setInputs(inputs)
     planner.ensure(Infinity, Infinity)
     // A commit in a loud stretch after the sliders turned, with the seed moved on by its jumps.
-    const high = planner.range(-Infinity, Infinity).find(
-      (c) => c.mediaMs > 1000 && c.commit?.params && frames[Math.round((c.mediaMs * 60) / 1000)].level > 0.5 && c.commit.params.distortion.seed !== inputs.base!.distortion.seed,
-    )!
+    const high = planner
+      .range(-Infinity, Infinity)
+      .find(
+        (c) =>
+          c.mediaMs > 1000 &&
+          c.commit?.params &&
+          frames[Math.round((c.mediaMs * 60) / 1000)].level > 0.5 &&
+          c.commit.params.distortion.seed !== inputs.base!.distortion.seed,
+      )!
     expect(high).toBeDefined()
     const p = page()
     p.at(6000)
@@ -615,7 +654,12 @@ describe('the page scheduler following planned commits', () => {
 
   it('stops with the sliders’ own when the sound stops after handing back', () => {
     const frames = Array.from({ length: 60 }, (_, k) => frameAt(k))
-    const planner = new PlaybackPlanner({ hz: 60, frameCount: () => frames.length + 600, isCovered: (i) => i < frames.length, frameAt: (i) => frames[i] ?? null })
+    const planner = new PlaybackPlanner({
+      hz: 60,
+      frameCount: () => frames.length + 600,
+      isCovered: (i) => i < frames.length,
+      frameAt: (i) => frames[i] ?? null,
+    })
     planner.setInputs(inputs)
     planner.ensure(Infinity, Infinity)
     const driving = planner.range(-Infinity, Infinity).find((c) => c.commit)!
@@ -759,12 +803,17 @@ describe('the director in the background', () => {
     const offered = r.buffers.length
     r.setInputs({ ...INPUTS, mappings: [] })
     r.play(r.ph.mediaMs + PRECOMPUTE_LIMITS.settleMs / 2)
-    expect(r.buffers.slice(offered)).toEqual([{ snapshot: { durationMs: 20_000, plannedMs: 0, ready: new Float32Array(0) }, force: true }])
+    expect(r.buffers.slice(offered)).toEqual([
+      { snapshot: { durationMs: 20_000, plannedMs: 0, ready: new Float32Array(0) }, force: true },
+    ])
     r.play(r.ph.mediaMs + PRECOMPUTE_LIMITS.settleMs)
     expect(r.buffers.filter((b) => b.force)).toHaveLength(3)
     expect(r.buffers.at(-1)!.snapshot.plannedMs).toBe(20_000)
     r.director.reset()
-    expect(r.buffers.at(-1)).toEqual({ snapshot: { durationMs: 0, plannedMs: 0, ready: new Float32Array(0) }, force: true })
+    expect(r.buffers.at(-1)).toEqual({
+      snapshot: { durationMs: 0, plannedMs: 0, ready: new Float32Array(0) },
+      force: true,
+    })
     expect(r.clears).toBe(1)
   })
 })

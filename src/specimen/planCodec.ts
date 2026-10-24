@@ -25,12 +25,40 @@ export function encodePlan(plan: MorphPlan): { data: PlanData; transfer: ArrayBu
     if (track.kind === 'still') continue
     for (const array of [track.sx, track.sy, track.tx, track.ty, track.base]) add(array)
     if (track.kind === 'whorl') {
-      for (const array of [track.a0, track.turn, track.sizeA, track.sizeB, track.ox, track.oy, track.ex, track.ey, track.rx, track.ry, track.mx, track.my]) add(array)
+      for (const array of [
+        track.a0,
+        track.turn,
+        track.sizeA,
+        track.sizeB,
+        track.ox,
+        track.oy,
+        track.ex,
+        track.ey,
+        track.rx,
+        track.ry,
+        track.mx,
+        track.my,
+      ])
+        add(array)
     }
   }
   const mesh = data.mesh
   if (mesh) {
-    for (const array of [mesh.a0, mesh.a1, mesh.size, mesh.x0, mesh.y0, mesh.x1, mesh.y1, mesh.ids, mesh.weights, mesh.outerOf, mesh.startTurns, mesh.endTurns]) add(array)
+    for (const array of [
+      mesh.a0,
+      mesh.a1,
+      mesh.size,
+      mesh.x0,
+      mesh.y0,
+      mesh.x1,
+      mesh.y1,
+      mesh.ids,
+      mesh.weights,
+      mesh.outerOf,
+      mesh.startTurns,
+      mesh.endTurns,
+    ])
+      add(array)
   }
   if (data.settled) for (const array of [data.settled.points, data.settled.counts, data.settled.clockwise]) add(array)
   return { data, transfer: [...buffers] }
@@ -63,7 +91,14 @@ export function encodeSettled(glyph: PolygonGlyph): NonNullable<PlanData['settle
 export function encodeGlyph(glyph: PolygonGlyph): EncodedGlyph {
   const { kept, pose } = sideTablesOf(glyph)
   const encoded: EncodedPose | null = pose
-    ? { meshKey: pose.prepared.mesh.key, turns: pose.turns, cornerX: pose.cornerX, cornerY: pose.cornerY, outerX: pose.outerX, outerY: pose.outerY }
+    ? {
+        meshKey: pose.prepared.mesh.key,
+        turns: pose.turns,
+        cornerX: pose.cornerX,
+        cornerY: pose.cornerY,
+        outerX: pose.outerX,
+        outerY: pose.outerY,
+      }
     : null
   return { glyph, kept, pose: encoded }
 }

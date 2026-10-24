@@ -38,7 +38,10 @@ export function sceneOf(lines: GlyphSpec[][], slant = 0, metrics = { ascender: 9
     textTop: -metrics.ascender,
     textBottom: (lines.length - 1) * 1200 - metrics.descender,
     slant,
-    missingCharacters: lines.flat().filter((g) => g.missing).map((g) => g.text ?? ''),
+    missingCharacters: lines
+      .flat()
+      .filter((g) => g.missing)
+      .map((g) => g.text ?? ''),
     failedGlyphs: 0,
     pendingGlyphs: 0,
     glyphCount: lines.flat().length,
@@ -51,7 +54,14 @@ export function sceneOf(lines: GlyphSpec[][], slant = 0, metrics = { ascender: 9
 export function square(x0: number, y0: number, x1: number, y1: number): PolygonGlyph {
   return {
     ref: { index: 1, name: 'sq', unicode: null },
-    metrics: { unitsPerEm: 1000, advanceWidth: 600, leftSideBearing: 0, rightSideBearing: 0, ascender: 900, descender: -250 },
+    metrics: {
+      unitsPerEm: 1000,
+      advanceWidth: 600,
+      leftSideBearing: 0,
+      rightSideBearing: 0,
+      ascender: 900,
+      descender: -250,
+    },
     contours: [
       {
         points: [
@@ -70,7 +80,14 @@ export function square(x0: number, y0: number, x1: number, y1: number): PolygonG
 export function squareSource(index = 1): SourceGlyph {
   return {
     ref: { index, name: 'sq', unicode: null },
-    metrics: { unitsPerEm: 1000, advanceWidth: 600, leftSideBearing: 0, rightSideBearing: 0, ascender: 900, descender: -250 },
+    metrics: {
+      unitsPerEm: 1000,
+      advanceWidth: 600,
+      leftSideBearing: 0,
+      rightSideBearing: 0,
+      ascender: 900,
+      descender: -250,
+    },
     contours: [
       {
         start: { x: 100, y: 0 },
@@ -130,7 +147,14 @@ export type Call = [string, ...unknown[]]
 /** A 2D context that records every call and property set, in order. */
 export class RecordingContext implements Context2D<RecordingPath> {
   calls: Call[] = []
-  private state: Record<string, unknown> = { fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, lineJoin: 'miter', miterLimit: 10, globalAlpha: 1 }
+  private state: Record<string, unknown> = {
+    fillStyle: '#000',
+    strokeStyle: '#000',
+    lineWidth: 1,
+    lineJoin: 'miter',
+    miterLimit: 10,
+    globalAlpha: 1,
+  }
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number) {
     this.calls.push(['setTransform', a, b, c, d, e, f])
   }
@@ -198,7 +222,15 @@ export class RecordingContext implements Context2D<RecordingPath> {
 /** The canvas's style with every colour told apart. */
 export function testStyle(patch: Partial<RenderStyle> = {}): RenderStyle {
   return {
-    colors: { ink: 'ink', highlight: 'highlight', accent: 'accent', control: 'control', vertex: 'vertex', danger: 'danger', canvas: 'canvas' },
+    colors: {
+      ink: 'ink',
+      highlight: 'highlight',
+      accent: 'accent',
+      control: 'control',
+      vertex: 'vertex',
+      danger: 'danger',
+      canvas: 'canvas',
+    },
     outline: 'flattened',
     fill: true,
     showSkeleton: false,

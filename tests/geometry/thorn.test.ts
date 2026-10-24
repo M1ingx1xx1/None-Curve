@@ -4,8 +4,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { flattenGlyph } from '../../src/geometry/flatten'
+import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import { applyThorn, canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
+import { applyThorn } from '../../src/geometry/thorn'
 import type { GeometryParams, Point, PolygonGlyph, ThornParams } from '../../src/geometry/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { boundsOf, contoursOf, sameContours, winding } from '../helpers/outline'
@@ -39,7 +40,9 @@ describe('canvasDiagonalEm', () => {
       [1200, -800, 48],
       [1200, 800, NaN],
     ]) {
-      expect(canvasDiagonalEm(width, height, size), `${width} × ${height} at ${size}`).toBe(THORN_LIMITS.defaultCanvasEm)
+      expect(canvasDiagonalEm(width, height, size), `${width} × ${height} at ${size}`).toBe(
+        THORN_LIMITS.defaultCanvasEm,
+      )
     }
   })
 })
@@ -54,7 +57,10 @@ describe('thornIsOn', () => {
 })
 
 /** The farthest any point of the outline lies outside the box. */
-function farthestOutside(polygon: PolygonGlyph, box: { minX: number; minY: number; maxX: number; maxY: number }): number {
+function farthestOutside(
+  polygon: PolygonGlyph,
+  box: { minX: number; minY: number; maxX: number; maxY: number },
+): number {
   let farthest = 0
   for (const c of polygon.contours) {
     for (const p of c.points) {
@@ -113,7 +119,8 @@ describe.each(FIXTURE_FONTS)('Thorn on the canvas: %s', (fontName) => {
         expect(before.polygon.layoutBox, label).toBeUndefined()
       }
     }
-    for (const glyph of sampleGlyphs(font, 'Ag')) expect(deriveGeometry(font.getGlyph(glyph.index), BASE).polygon.layoutBox).toBeUndefined()
+    for (const glyph of sampleGlyphs(font, 'Ag'))
+      expect(deriveGeometry(font.getGlyph(glyph.index), BASE).polygon.layoutBox).toBeUndefined()
   })
 
   it('refracts only the letter: its points and the budget do not grow with Reach', async () => {
@@ -142,13 +149,19 @@ describe.each(FIXTURE_FONTS)('Thorn on the canvas: %s', (fontName) => {
       const inside: Point[] = []
       for (let i = 0; i < 30; i++) {
         for (let j = 0; j < 30; j++) {
-          const p = { x: box.minX + ((box.maxX - box.minX) * (i + 0.5)) / 30, y: box.minY + ((box.maxY - box.minY) * (j + 0.5)) / 30 }
+          const p = {
+            x: box.minX + ((box.maxX - box.minX) * (i + 0.5)) / 30,
+            y: box.minY + ((box.maxY - box.minY) * (j + 0.5)) / 30,
+          }
           if (winding(letter, p) !== 0) inside.push(p)
         }
       }
       // The share of points inside the letter that are still ink, with thorns reaching `canvasEm`.
       const kept = (root: number, canvasEm: number) => {
-        const params = paramsWith(GEOMETRY.plain, on('thorn', { count: 3, canvasReach: 1, canvasEm, root, width: 0, refraction: 0 }))
+        const params = paramsWith(
+          GEOMETRY.plain,
+          on('thorn', { count: 3, canvasReach: 1, canvasEm, root, width: 0, refraction: 0 }),
+        )
         const contours = contoursOf(deriveGeometry(font.getGlyph(glyph.index), params).polygon)
         return inside.filter((p) => winding(contours, p) !== 0).length / inside.length
       }
@@ -156,7 +169,8 @@ describe.each(FIXTURE_FONTS)('Thorn on the canvas: %s', (fontName) => {
         // As much of it as with thorns 2 em long (Root takes some of the letter into the root, whatever the Reach).
         const near = kept(root, 2)
         if (root === 0) expect(near, `"${glyph.char}"`).toBeGreaterThan(0.99)
-        for (const canvasEm of [120, 256]) expect(kept(root, canvasEm), `"${glyph.char}" Root ${root}, ${canvasEm} em`).toBeGreaterThan(near - 0.01)
+        for (const canvasEm of [120, 256])
+          expect(kept(root, canvasEm), `"${glyph.char}" Root ${root}, ${canvasEm} em`).toBeGreaterThan(near - 0.01)
       }
     }
   })
@@ -186,7 +200,7 @@ describe.each(FIXTURE_FONTS)('Thorn on the canvas: %s', (fontName) => {
 })
 
 describe.each(FIXTURE_FONTS)('Thorn click outline: %s', (fontName) => {
-  it('gives the letter the font\'s own outline, flattened, whatever the later steps do, and none without Thorn', async () => {
+  it("gives the letter the font's own outline, flattened, whatever the later steps do, and none without Thorn", async () => {
     const font = await loadFixture(fontName)
     for (const [geometryName, geometry] of [
       ['plain', GEOMETRY.plain],
@@ -196,7 +210,10 @@ describe.each(FIXTURE_FONTS)('Thorn click outline: %s', (fontName) => {
     ] as const) {
       for (const [name, effects] of [
         ['Thorn default', on('thorn')],
-        ['Ripple petals, Slipstream and Thorn', { ...on('ripple', { petals: 1.5 }), ...on('slipstream'), ...on('thorn', { canvasReach: 0.5 }) }],
+        [
+          'Ripple petals, Slipstream and Thorn',
+          { ...on('ripple', { petals: 1.5 }), ...on('slipstream'), ...on('thorn', { canvasReach: 0.5 }) },
+        ],
       ] as const) {
         const params = paramsWith(geometry, effects)
         for (const glyph of sampleGlyphs(font, 'AgQ@&W8o')) {
@@ -204,7 +221,13 @@ describe.each(FIXTURE_FONTS)('Thorn click outline: %s', (fontName) => {
           const source = font.getGlyph(glyph.index)
           const derived = deriveGeometry(source, params)
           const flattened = flattenGlyph(source, params.flatten).polygon
-          expect(sameContours(derived.polygon.clickOutline!.map((c) => c.points), contoursOf(flattened)), label).toBe(true)
+          expect(
+            sameContours(
+              derived.polygon.clickOutline!.map((c) => c.points),
+              contoursOf(flattened),
+            ),
+            label,
+          ).toBe(true)
           expect(deriveGeometry(source, withoutThorn(params)).polygon.clickOutline, label).toBeUndefined()
         }
       }
@@ -233,7 +256,10 @@ describe.each(FIXTURE_FONTS)('Thorn layout hull: %s', (fontName) => {
         // Its corners are points of the letter, turning left at every one, with the whole letter inside.
         expect(boundsOf([hull]), label).toEqual(derived.polygon.layoutBox)
         const points = new Set(letter.map((p) => `${p.x},${p.y}`))
-        expect(hull.every((p) => points.has(`${p.x},${p.y}`)), label).toBe(true)
+        expect(
+          hull.every((p) => points.has(`${p.x},${p.y}`)),
+          label,
+        ).toBe(true)
         hull.forEach((p, i) => {
           const next = hull[(i + 1) % hull.length]
           expect(turn(p, next, hull[(i + 2) % hull.length]), label).toBeGreaterThan(0)
@@ -248,6 +274,7 @@ describe.each(FIXTURE_FONTS)('Thorn layout hull: %s', (fontName) => {
         }
       }
     }
-    for (const glyph of sampleGlyphs(font, 'Ag')) expect(deriveGeometry(font.getGlyph(glyph.index), BASE).polygon.layoutHull).toBeUndefined()
+    for (const glyph of sampleGlyphs(font, 'Ag'))
+      expect(deriveGeometry(font.getGlyph(glyph.index), BASE).polygon.layoutHull).toBeUndefined()
   })
 })

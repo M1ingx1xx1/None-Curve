@@ -69,7 +69,13 @@ export function addsCrossings(after: readonly Point[], before: () => number): bo
  * segments and `j` `b`'s. With `limit`, the search stops once more than `limit` are found (only how many
  * tells anything then). Indexes of either ring (see RingIndex) only make it faster.
  */
-export function findRingCrossings(a: readonly Point[], b: readonly Point[], limit = Infinity, indexA?: RingIndex, indexB?: RingIndex): Crossing[] {
+export function findRingCrossings(
+  a: readonly Point[],
+  b: readonly Point[],
+  limit = Infinity,
+  indexA?: RingIndex,
+  indexB?: RingIndex,
+): Crossing[] {
   const found: Crossing[] = []
   const boxA = ringBox(a)
   const boxB = ringBox(b)
@@ -96,7 +102,13 @@ export function findRingCrossings(a: readonly Point[], b: readonly Point[], limi
       const i = near ? near[k] : k
       const p = points[i]
       const q = points[(i + 1) % n]
-      if (Math.max(p.x, q.x) < minX || Math.min(p.x, q.x) > maxX || Math.max(p.y, q.y) < minY || Math.min(p.y, q.y) > maxY) continue
+      if (
+        Math.max(p.x, q.x) < minX ||
+        Math.min(p.x, q.x) > maxX ||
+        Math.max(p.y, q.y) < minY ||
+        Math.min(p.y, q.y) > maxY
+      )
+        continue
       index.push(i)
       ax.push(p.x)
       ay.push(p.y)
@@ -218,7 +230,8 @@ export class SegmentSweep {
       }
       const [c, s] = SWEEPS[best]
       let extent = 0
-      for (let i = 0; i < n; i++) extent = Math.max(extent, Math.abs(ax[i]), Math.abs(ay[i]), Math.abs(bx[i]), Math.abs(by[i]))
+      for (let i = 0; i < n; i++)
+        extent = Math.max(extent, Math.abs(ax[i]), Math.abs(ay[i]), Math.abs(bx[i]), Math.abs(by[i]))
       // Along y the turned coordinates are exact.
       const slack = best === 2 ? 0 : TURNED_SLACK + 1e-12 * extent
       const u0: number[] = (this.u0 = [])
@@ -241,7 +254,10 @@ export class SegmentSweep {
 
   /** True when the boxes of segments s and t overlap or touch along x and y (always, for pairs a sweep along x compares). */
   boxesMeet(s: number, t: number): boolean {
-    return this.alongX || !(this.x0[t] > this.x1[s] || this.x1[t] < this.x0[s] || this.y0[t] > this.y1[s] || this.y1[t] < this.y0[s])
+    return (
+      this.alongX ||
+      !(this.x0[t] > this.x1[s] || this.x1[t] < this.x0[s] || this.y0[t] > this.y1[s] || this.y1[t] < this.y0[s])
+    )
   }
 
   /**
@@ -254,7 +270,10 @@ export class SegmentSweep {
     SegmentSweep.sorted(this.x0).forEach((s, k) => (rank[s] = k))
     const first = found.map((_, k) => Math.min(rank[pairs[2 * k]], rank[pairs[2 * k + 1]]))
     const second = found.map((_, k) => Math.max(rank[pairs[2 * k]], rank[pairs[2 * k + 1]]))
-    return found.map((_, k) => k).sort((k, m) => first[k] - first[m] || second[k] - second[m]).map((k) => found[k])
+    return found
+      .map((_, k) => k)
+      .sort((k, m) => first[k] - first[m] || second[k] - second[m])
+      .map((k) => found[k])
   }
 
   /**
@@ -333,7 +352,8 @@ export class RingIndex {
     for (let k = 0; k < this.strips; k++) this.start[k + 1] += this.start[k]
     this.segments = new Int32Array(this.start[this.strips])
     const filled = this.start.slice(0, this.strips)
-    for (let i = 0; i < n; i++) for (let k = this.stripOf(i, 0); k <= this.stripOf(i, 1); k++) this.segments[filled[k]++] = i
+    for (let i = 0; i < n; i++)
+      for (let k = this.stripOf(i, 0); k <= this.stripOf(i, 1); k++) this.segments[filled[k]++] = i
     this.seen = new Int32Array(n)
   }
 
@@ -351,7 +371,13 @@ export class RingIndex {
         this.seen[i] = visit
         const p = this.points[i]
         const q = this.points[(i + 1) % n]
-        if (Math.max(p.x, q.x) < minX || Math.min(p.x, q.x) > maxX || Math.max(p.y, q.y) < minY || Math.min(p.y, q.y) > maxY) continue
+        if (
+          Math.max(p.x, q.x) < minX ||
+          Math.min(p.x, q.x) > maxX ||
+          Math.max(p.y, q.y) < minY ||
+          Math.min(p.y, q.y) > maxY
+        )
+          continue
         out.push(i)
       }
     }

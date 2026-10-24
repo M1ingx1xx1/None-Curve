@@ -14,7 +14,13 @@ const still = (scene: SpecimenScene): GlideFrame => ({ target: scene, layout: sc
 
 const VIEW: CanvasView = { kind: 'canvas', left: -500, top: 1000, u: 2.5, cssWidth: 800, cssHeight: 600, dpr: 2 }
 
-function draw(scene: SpecimenScene, style: RenderStyle, setup?: (r: Canvas2DRenderer<RecordingPath>) => void, mode: Canvas2DMode = 'full', view = VIEW) {
+function draw(
+  scene: SpecimenScene,
+  style: RenderStyle,
+  setup?: (r: Canvas2DRenderer<RecordingPath>) => void,
+  mode: Canvas2DMode = 'full',
+  view = VIEW,
+) {
   const ctx = new RecordingContext()
   const canvas = { width: 0, height: 0 }
   const renderer = new Canvas2DRenderer<RecordingPath>(canvas, ctx, mode, () => new RecordingPath())
@@ -40,7 +46,10 @@ function svgDevice(view: CanvasView, x: number, y: number, slant: number, px: nu
   return [((sx - view.left) / view.u) * view.dpr, ((sy + view.top) / view.u) * view.dpr]
 }
 
-const applyM = (m: number[], x: number, y: number): [number, number] => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]
+const applyM = (m: number[], x: number, y: number): [number, number] => [
+  m[0] * x + m[2] * y + m[4],
+  m[1] * x + m[3] * y + m[5],
+]
 
 describe('the Canvas2D renderer', () => {
   it('sizes the backing store by the DPR', () => {
@@ -50,7 +59,15 @@ describe('the Canvas2D renderer', () => {
 
   it('places each glyph exactly as the SVG canvas does: translate, slant, flip', () => {
     for (const slant of [0, 12, -30]) {
-      const scene = sceneOf([[{ index: 1, polygon: square(0, 0, 400, 700) }, { index: 1, polygon: square(0, 0, 400, 700), x: 650, y: 40 }]], slant)
+      const scene = sceneOf(
+        [
+          [
+            { index: 1, polygon: square(0, 0, 400, 700) },
+            { index: 1, polygon: square(0, 0, 400, 700), x: 650, y: 40 },
+          ],
+        ],
+        slant,
+      )
       const { ctx } = draw(scene, testStyle())
       const found = fills(ctx)
       expect(found).toHaveLength(2)
@@ -87,7 +104,12 @@ describe('the Canvas2D renderer', () => {
     expect(found).toHaveLength(1)
     const [call, i] = found[0]
     expect(ctx.transformBefore(i)).toEqual([1, 0, 0, 1, 0, 0])
-    expect(stateOf(call)).toMatchObject({ lineWidth: 1.5 * VIEW.dpr, lineJoin: 'miter', miterLimit: 4, strokeStyle: 'ink' })
+    expect(stateOf(call)).toMatchObject({
+      lineWidth: 1.5 * VIEW.dpr,
+      lineJoin: 'miter',
+      miterLimit: 4,
+      strokeStyle: 'ink',
+    })
     const path = call[1] as RecordingPath
     expect(new Set(path.commands.map((c) => c[0]))).toEqual(new Set(['M', 'L', 'Z']))
     // The path's points are the glyph's corners in device pixels.
@@ -156,7 +178,14 @@ describe('the Canvas2D renderer', () => {
 
   it("draws the preview as drawArtboard does in 'artboard' mode, with a scaling outline", () => {
     const layout = { unitsPerPx: 2, x: -100, y: -900, width: 2000, height: 1200 }
-    const view = { kind: 'artboard' as const, layout, artboard: { width: 1000, height: 600 }, cssWidth: 500, cssHeight: 300, dpr: 2 }
+    const view = {
+      kind: 'artboard' as const,
+      layout,
+      artboard: { width: 1000, height: 600 },
+      cssWidth: 500,
+      cssHeight: 300,
+      dpr: 2,
+    }
     const scene = sceneOf([[{ index: 1, polygon: square(0, 0, 400, 700), x: 30 }]], 10)
     const { ctx } = draw(scene, testStyle({ fill: false, scalingStroke: 3 }), undefined, 'artboard', view as never)
     const [[call, i]] = strokes(ctx)

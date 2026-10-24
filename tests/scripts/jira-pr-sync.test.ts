@@ -12,7 +12,12 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { FINISH, issueKeys, moveIssues, run, START, stepFor, type Fetch } from '../../scripts/jira-pr-sync'
 
-const CATEGORY: Record<string, string> = { 'To Do': 'new', 'In Progress': 'indeterminate', 'In Review': 'indeterminate', Done: 'done' }
+const CATEGORY: Record<string, string> = {
+  'To Do': 'new',
+  'In Progress': 'indeterminate',
+  'In Review': 'indeterminate',
+  Done: 'done',
+}
 const TRANSITIONS = [
   { id: '11', name: 'To Do', to: { name: 'To Do' } },
   { id: '21', name: 'Start work', to: { name: 'In Progress' } },
@@ -20,7 +25,12 @@ const TRANSITIONS = [
   { id: '41', name: 'Done', to: { name: 'Done' } },
 ]
 const CONFIG = { baseUrl: 'https://example.atlassian.net/', email: 'me@example.com', token: 'secret-token' }
-const ENV = { JIRA_BASE_URL: CONFIG.baseUrl, JIRA_EMAIL: CONFIG.email, JIRA_API_TOKEN: CONFIG.token, JIRA_PROJECT: 'NOCUR' }
+const ENV = {
+  JIRA_BASE_URL: CONFIG.baseUrl,
+  JIRA_EMAIL: CONFIG.email,
+  JIRA_API_TOKEN: CONFIG.token,
+  JIRA_PROJECT: 'NOCUR',
+}
 const SIGN_IN = 'GET https://example.atlassian.net/rest/api/3/myself'
 
 interface Call {
@@ -41,7 +51,10 @@ function fakeJira(
 ) {
   const calls: Call[] = []
   const reply = (status: number, body?: unknown) =>
-    new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+    new Response(body === undefined ? null : JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    })
   const fetch: Fetch = async (url, init) => {
     const body = init.body && JSON.parse(init.body)
     calls.push({ method: init.method, url, body, authorization: init.headers.Authorization, redirect: init.redirect })
@@ -50,10 +63,12 @@ function fakeJira(
     const stage: Stage = !key ? 'myself' : !match?.[2] ? 'issue' : init.method === 'GET' ? 'list' : 'move'
     const refused = options.refuse?.[stage]
     if (refused) return reply(refused, { errorMessages: ['You do not have permission'] })
-    if (options.signedOut) return stage === 'myself' ? reply(401) : reply(404, { errorMessages: ['Issue does not exist'] })
+    if (options.signedOut)
+      return stage === 'myself' ? reply(401) : reply(404, { errorMessages: ['Issue does not exist'] })
     if (stage === 'myself') return reply(200, { accountId: 'me' })
     if (!(key in issues)) return reply(404, { errorMessages: ['Issue does not exist'] })
-    if (stage === 'issue') return reply(200, { fields: { status: { name: issues[key], statusCategory: { key: CATEGORY[issues[key]] } } } })
+    if (stage === 'issue')
+      return reply(200, { fields: { status: { name: issues[key], statusCategory: { key: CATEGORY[issues[key]] } } } })
     if (stage === 'list') return reply(200, { transitions: options.transitions ?? TRANSITIONS })
     issues[key] = TRANSITIONS.find((t) => t.id === body.transition.id)!.to.name
     return reply(204)
@@ -71,7 +86,10 @@ const event = (
     merged: pr.merged ?? false,
     title: pr.title ?? 'A change',
     body: pr.body ?? null,
-    head: { ref: pr.branch ?? 'feature/thing', repo: { full_name: pr.fork ? 'someone/None-Curve' : 'M1ingx1xx1/None-Curve' } },
+    head: {
+      ref: pr.branch ?? 'feature/thing',
+      repo: { full_name: pr.fork ? 'someone/None-Curve' : 'M1ingx1xx1/None-Curve' },
+    },
     base: { repo: { full_name: 'M1ingx1xx1/None-Curve' } },
   },
 })
@@ -93,7 +111,13 @@ describe('issueKeys', () => {
       '- **Jira:** [NOCUR-8](https://example.atlassian.net/browse/NOCUR-8)',
       '> jira : `NOCUR-9`',
     ].join('\r\n')
-    expect(keys({ branch: 'feature/NOCUR-57-x', title: 'NOCUR-9: Sync', body })).toEqual(['NOCUR-57', 'NOCUR-9', 'NOCUR-12', 'NOCUR-3', 'NOCUR-8'])
+    expect(keys({ branch: 'feature/NOCUR-57-x', title: 'NOCUR-9: Sync', body })).toEqual([
+      'NOCUR-57',
+      'NOCUR-9',
+      'NOCUR-12',
+      'NOCUR-3',
+      'NOCUR-8',
+    ])
   })
 
   it('stops a "Jira:" line at its first word that is not a key', () => {
@@ -133,7 +157,12 @@ describe('moveIssues', () => {
   it('checks the account, then moves an issue in To Do by the transition leading to In Progress', async () => {
     const jira = fakeJira({ 'NOCUR-1': 'To Do' })
     const [result] = await moveIssues(['NOCUR-1'], START, CONFIG, jira.fetch)
-    expect(result).toEqual({ key: 'NOCUR-1', outcome: 'moved', status: 'To Do', message: 'NOCUR-1: To Do → In Progress' })
+    expect(result).toEqual({
+      key: 'NOCUR-1',
+      outcome: 'moved',
+      status: 'To Do',
+      message: 'NOCUR-1: To Do → In Progress',
+    })
     expect(jira.issues['NOCUR-1']).toBe('In Progress')
     expect(jira.calls.map((c) => `${c.method} ${c.url}`)).toEqual([
       SIGN_IN,
@@ -171,35 +200,67 @@ describe('moveIssues', () => {
     const jira = fakeJira({ 'NOCUR-1': 'To Do' }, { signedOut: true })
     const results = await moveIssues(['NOCUR-1', 'NOCUR-2'], START, CONFIG, jira.fetch)
     expect(results).toEqual([
-      { key: 'NOCUR-1', outcome: 'failed', message: 'NOCUR-1: Jira answered 401 signing in (check JIRA_EMAIL and JIRA_API_TOKEN)' },
-      { key: 'NOCUR-2', outcome: 'failed', message: 'NOCUR-2: Jira answered 401 signing in (check JIRA_EMAIL and JIRA_API_TOKEN)' },
+      {
+        key: 'NOCUR-1',
+        outcome: 'failed',
+        message: 'NOCUR-1: Jira answered 401 signing in (check JIRA_EMAIL and JIRA_API_TOKEN)',
+      },
+      {
+        key: 'NOCUR-2',
+        outcome: 'failed',
+        message: 'NOCUR-2: Jira answered 401 signing in (check JIRA_EMAIL and JIRA_API_TOKEN)',
+      },
     ])
     expect(jira.calls.map((c) => `${c.method} ${c.url}`)).toEqual([SIGN_IN])
   })
 
   it('reports a refusal at each stage with what Jira said', async () => {
     const at = async (stage: Stage, status: number) =>
-      (await moveIssues(['NOCUR-1'], START, CONFIG, fakeJira({ 'NOCUR-1': 'To Do' }, { refuse: { [stage]: status } }).fetch))[0]
+      (
+        await moveIssues(
+          ['NOCUR-1'],
+          START,
+          CONFIG,
+          fakeJira({ 'NOCUR-1': 'To Do' }, { refuse: { [stage]: status } }).fetch,
+        )
+      )[0]
     expect(await at('issue', 403)).toMatchObject({
       outcome: 'failed',
-      message: 'NOCUR-1: Jira answered 403 reading the issue (check JIRA_EMAIL and JIRA_API_TOKEN): You do not have permission',
+      message:
+        'NOCUR-1: Jira answered 403 reading the issue (check JIRA_EMAIL and JIRA_API_TOKEN): You do not have permission',
     })
-    expect((await at('list', 500)).message).toBe('NOCUR-1: Jira answered 500 listing its transitions: You do not have permission')
-    expect((await at('move', 400)).message).toBe('NOCUR-1: Jira answered 400 moving it to In Progress: You do not have permission')
+    expect((await at('list', 500)).message).toBe(
+      'NOCUR-1: Jira answered 500 listing its transitions: You do not have permission',
+    )
+    expect((await at('move', 400)).message).toBe(
+      'NOCUR-1: Jira answered 400 moving it to In Progress: You do not have permission',
+    )
   })
 
   it('fails an issue Jira lists no transitions for, naming the permission it may lack', async () => {
-    const [result] = await moveIssues(['NOCUR-1'], START, CONFIG, fakeJira({ 'NOCUR-1': 'To Do' }, { transitions: [] }).fetch)
-    expect(result).toMatchObject({ outcome: 'failed', message: expect.stringContaining('Transition issues permission') })
+    const [result] = await moveIssues(
+      ['NOCUR-1'],
+      START,
+      CONFIG,
+      fakeJira({ 'NOCUR-1': 'To Do' }, { transitions: [] }).fetch,
+    )
+    expect(result).toMatchObject({
+      outcome: 'failed',
+      message: expect.stringContaining('Transition issues permission'),
+    })
   })
 
   it('reports a network failure with its cause, without the site name and without throwing', async () => {
     const offline = await moveIssues(['NOCUR-1'], START, CONFIG, async () => {
       throw new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND example.atlassian.net') })
     })
-    expect(offline).toEqual([{ key: 'NOCUR-1', outcome: 'failed', message: 'NOCUR-1: fetch failed (getaddrinfo ENOTFOUND <jira>)' }])
+    expect(offline).toEqual([
+      { key: 'NOCUR-1', outcome: 'failed', message: 'NOCUR-1: fetch failed (getaddrinfo ENOTFOUND <jira>)' },
+    ])
     const refused = await moveIssues(['NOCUR-1'], START, CONFIG, async () => {
-      const cause = Object.assign(new AggregateError([new Error('connect ECONNREFUSED 10.0.0.1:443')], ''), { code: 'ECONNREFUSED' })
+      const cause = Object.assign(new AggregateError([new Error('connect ECONNREFUSED 10.0.0.1:443')], ''), {
+        code: 'ECONNREFUSED',
+      })
       throw new TypeError('fetch failed', { cause })
     })
     expect(refused[0].message).toBe('NOCUR-1: fetch failed (connect ECONNREFUSED 10.0.0.1:443)')
@@ -209,7 +270,11 @@ describe('moveIssues', () => {
 describe('run', () => {
   it('moves the named issues when a pull request opens, with a notice and a summary', async () => {
     const jira = fakeJira({ 'NOCUR-57': 'To Do', 'NOCUR-5': 'In Progress' })
-    const result = await run(event('opened', { branch: 'feature/NOCUR-57-jira', body: 'Part of NOCUR-5' }), ENV, jira.fetch)
+    const result = await run(
+      event('opened', { branch: 'feature/NOCUR-57-jira', body: 'Part of NOCUR-5' }),
+      ENV,
+      jira.fetch,
+    )
     expect(result.exitCode).toBe(0)
     expect(result.lines).toEqual(['::notice::NOCUR-57: To Do → In Progress'])
     expect(result.summary).toContain('| NOCUR-57 | To Do | moved | To Do → In Progress |')
@@ -238,7 +303,9 @@ describe('run', () => {
       summary: '',
     })
     const fork = await run(event('opened', { title: 'NOCUR-57 Sync', fork: true }), {}, jira.fetch)
-    expect(fork.lines).toEqual(['::warning::Not moving NOCUR-57: GitHub gives no secrets to a pull request from a fork, so move them by hand'])
+    expect(fork.lines).toEqual([
+      '::warning::Not moving NOCUR-57: GitHub gives no secrets to a pull request from a fork, so move them by hand',
+    ])
     expect(jira.calls).toEqual([])
   })
 
@@ -255,18 +322,29 @@ describe('run', () => {
   it('says so when a pull request names no issue, and when the event is not a pull request', async () => {
     const jira = fakeJira({})
     const none = await run(event('opened', { body: 'Release develop to main.\nIncludes NOCUR-41.' }), ENV, jira.fetch)
-    expect(none.lines).toEqual(['::notice::No NOCUR issue named in the branch, the title, or a "Jira:" line: nothing to move'])
-    expect((await run({ action: 'opened' }, ENV, jira.fetch)).lines).toEqual(['::warning::Not a pull request event: nothing to move'])
+    expect(none.lines).toEqual([
+      '::notice::No NOCUR issue named in the branch, the title, or a "Jira:" line: nothing to move',
+    ])
+    expect((await run({ action: 'opened' }, ENV, jira.fetch)).lines).toEqual([
+      '::warning::Not a pull request event: nothing to move',
+    ])
     expect(jira.calls).toEqual([])
   })
 
   it('fails when Jira refuses, with every issue reported, and warns for an unknown one', async () => {
-    const result = await run(event('opened', { title: 'NOCUR-1 and NOCUR-2' }), ENV, fakeJira({}, { signedOut: true }).fetch)
+    const result = await run(
+      event('opened', { title: 'NOCUR-1 and NOCUR-2' }),
+      ENV,
+      fakeJira({}, { signedOut: true }).fetch,
+    )
     expect(result.exitCode).toBe(1)
     expect(result.lines).toHaveLength(2)
     expect(result.lines.every((line) => line.startsWith('::error::NOCUR-'))).toBe(true)
     const unknown = await run(event('opened', { title: 'NOCUR-9' }), ENV, fakeJira({}).fetch)
-    expect(unknown).toMatchObject({ exitCode: 0, lines: ['::warning::NOCUR-9: no such issue, or the account cannot see it'] })
+    expect(unknown).toMatchObject({
+      exitCode: 0,
+      lines: ['::warning::NOCUR-9: no such issue, or the account cannot see it'],
+    })
   })
 
   it('keeps an annotation on one line and a summary cell in its column', async () => {
@@ -285,12 +363,16 @@ describe('the script, run as the workflow runs it', () => {
     try {
       const path = join(dir, 'event.json')
       writeFileSync(path, JSON.stringify(event('opened', { branch: 'feature/NOCUR-57-jira' })))
-      const child = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', 'scripts/jira-pr-sync.ts'], {
-        cwd: fileURLToPath(new URL('../..', import.meta.url)),
-        env: { PATH: process.env.PATH ?? '', GITHUB_EVENT_PATH: path, ...env },
-        encoding: 'utf8',
-        timeout: 30_000,
-      })
+      const child = spawnSync(
+        process.execPath,
+        ['--experimental-strip-types', '--no-warnings', 'scripts/jira-pr-sync.ts'],
+        {
+          cwd: fileURLToPath(new URL('../..', import.meta.url)),
+          env: { PATH: process.env.PATH ?? '', GITHUB_EVENT_PATH: path, ...env },
+          encoding: 'utf8',
+          timeout: 30_000,
+        },
+      )
       return { status: child.status, stdout: child.stdout.trim().split('\n') }
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -300,12 +382,18 @@ describe('the script, run as the workflow runs it', () => {
   it('warns and passes without the secrets', () => {
     expect(runScript({})).toEqual({
       status: 0,
-      stdout: ['::warning::Not moving NOCUR-57: the repository secrets JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN are not set'],
+      stdout: [
+        '::warning::Not moving NOCUR-57: the repository secrets JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN are not set',
+      ],
     })
   })
 
   it('masks the site name and fails for a base URL that is not https', () => {
-    const result = runScript({ JIRA_BASE_URL: 'http://example.atlassian.net', JIRA_EMAIL: 'me@example.com', JIRA_API_TOKEN: 'token' })
+    const result = runScript({
+      JIRA_BASE_URL: 'http://example.atlassian.net',
+      JIRA_EMAIL: 'me@example.com',
+      JIRA_API_TOKEN: 'token',
+    })
     expect(result.status).toBe(1)
     expect(result.stdout[0]).toBe('::add-mask::example.atlassian.net')
     expect(result.stdout[1]).toMatch(/^::error::JIRA_BASE_URL must be the https address/)

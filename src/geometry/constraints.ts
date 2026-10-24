@@ -4,10 +4,9 @@
 import { simplifyClosed } from './anchors'
 import { ContourLayout, relate } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findSelfCrossings, lazy, ringBox } from './crossings'
-import { signedArea } from './flatten'
+import { ANGLE_STEPS } from './limits'
+import { distanceToSegment, signedArea } from './primitives'
 import type { GridParams, Point, PolygonContour, PolygonGlyph } from './types'
-
-export const ANGLE_STEPS = [90, 45, 30, 15] as const
 
 /** Edges shorter than this after angle lock (font units) make the contour fall back. */
 const MIN_EDGE = 0.5
@@ -61,7 +60,10 @@ export interface ConstraintStats {
   fallbacks: { step: 'snap' | 'angle'; reason: FallbackReason }[]
 }
 
-export function applyConstraints(polygon: PolygonGlyph, params: GridParams): { polygon: PolygonGlyph; stats: ConstraintStats } {
+export function applyConstraints(
+  polygon: PolygonGlyph,
+  params: GridParams,
+): { polygon: PolygonGlyph; stats: ConstraintStats } {
   const stats: ConstraintStats = {
     snapApplied: false,
     snapMerged: 0,
@@ -225,7 +227,8 @@ function withRetries(
   runs: StepRun[],
   tolerances: readonly number[],
   fits: (points: readonly Point[]) => boolean,
-): { points: Point[]; simplified: boolean; reason: null } | { points: null; simplified: false; reason: FallbackReason } {
+):
+  { points: Point[]; simplified: boolean; reason: null } | { points: null; simplified: false; reason: FallbackReason } {
   // The contour's own crossings, counted once for every check against it.
   const crossings = lazy(() => countSelfCrossings(points))
   const check = (after: readonly Point[]) => validate(points, after, crossings) ?? (fits(after) ? null : 'contours')
@@ -238,7 +241,8 @@ function withRetries(
   const variants: (readonly Point[])[] = [points]
   for (const fraction of tolerances) {
     const simplified = simplifyClosed(points, diagonal * fraction, crossings)
-    if (simplified.valid && simplified.points.length < variants[variants.length - 1].length) variants.push(simplified.points)
+    if (simplified.valid && simplified.points.length < variants[variants.length - 1].length)
+      variants.push(simplified.points)
   }
   for (let r = 0; r < runs.length; r++) {
     for (let v = r === 0 ? 1 : 0; v < variants.length; v++) {
@@ -264,14 +268,6 @@ function nearestShift(before: readonly Point[], after: readonly Point[]): number
     max = Math.max(max, best)
   }
   return max
-}
-
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSq = dx * dx + dy * dy
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
 }
 
 /**
@@ -393,7 +389,11 @@ function withPoints(points: Point[]): PolygonContour {
  * A constrained contour is valid when it keeps at least three distinct points, the same winding
  * direction with non-zero area, and no more self-crossings than before the step.
  */
-function validate(before: readonly Point[], after: readonly Point[], beforeCrossings: () => number): FallbackReason | null {
+function validate(
+  before: readonly Point[],
+  after: readonly Point[],
+  beforeCrossings: () => number,
+): FallbackReason | null {
   if (after.length < 3 || new Set(after.map((p) => `${p.x},${p.y}`)).size !== after.length) return 'collapsed'
   const a0 = signedArea(before)
   const a1 = signedArea(after)
@@ -405,7 +405,8 @@ function validate(before: readonly Point[], after: readonly Point[], beforeCross
 
 function maxShift(a: readonly Point[], b: readonly Point[]): number {
   let max = 0
-  for (let i = 0; i < Math.min(a.length, b.length); i++) max = Math.max(max, Math.hypot(a[i].x - b[i].x, a[i].y - b[i].y))
+  for (let i = 0; i < Math.min(a.length, b.length); i++)
+    max = Math.max(max, Math.hypot(a[i].x - b[i].x, a[i].y - b[i].y))
   return max
 }
 
@@ -550,6 +551,7 @@ function lockAngles(
   const cx1 = (after.minX + after.maxX) / 2
   const placed = out.map((p) => ({ x: cx0 + (p.x - cx1) * sx, y: before.minY + (p.y - after.minY) * sy }))
   const growth = signedArea(placed) / signedArea(points) - 1
-  if (maxShift(points, placed) > maxMove || Math.abs(growth) > ANGLE_MAX_AREA_CHANGE) return { points: null, reason: 'moved' }
+  if (maxShift(points, placed) > maxMove || Math.abs(growth) > ANGLE_MAX_AREA_CHANGE)
+    return { points: null, reason: 'moved' }
   return { points: placed, reason: null }
 }

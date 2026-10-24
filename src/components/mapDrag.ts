@@ -12,7 +12,7 @@
 import { useSyncExternalStore } from 'react'
 import { axisTargets, featureById, targetById, TARGETS, type FeatureId, type TargetSpec } from '../sound/mapping'
 
-export const MAP_DRAG_LIMITS = {
+const MAP_DRAG_LIMITS = {
   /** How far (px) the pointer moves on a meter before a press becomes a drag (a click only focuses the meter). */
   threshold: 4,
   /** How long (ms) the pointer rests on a tab while dragging before the tab opens. */
@@ -134,7 +134,16 @@ export interface MapDragState {
   announcement: string
 }
 
-const IDLE: MapDragState = { feature: null, mode: null, x: 0, y: 0, over: null, status: null, marked: null, announcement: '' }
+const IDLE: MapDragState = {
+  feature: null,
+  mode: null,
+  x: 0,
+  y: 0,
+  over: null,
+  status: null,
+  marked: null,
+  announcement: '',
+}
 
 let state: MapDragState = IDLE
 const listeners = new Set<() => void>()
@@ -145,11 +154,11 @@ function set(patch: Partial<MapDragState>) {
   for (const listener of listeners) listener()
 }
 
-export function getMapDragState(): MapDragState {
+function getMapDragState(): MapDragState {
   return state
 }
 
-export function subscribeMapDrag(listener: () => void): () => void {
+function subscribeMapDrag(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
@@ -396,7 +405,7 @@ function swallow(e: Event) {
 // ---- Keyboard ----
 
 /** Every target the keyboard can pick, in the order of the target select: the Geometry tab first, axes last. */
-export function pickList(): string[] {
+function pickList(): string[] {
   return [...TARGETS, ...axisTargets()].map((t) => t.id)
 }
 
@@ -466,7 +475,9 @@ export function startPick(feature: FeatureId, origin: HTMLElement) {
       // A colour's Hue or Lightness zone is shown only while dragging: its field, which is on view, holds the inputs.
       const zone = mapped ? zoneOf(id) : null
       const field = zone?.closest<HTMLElement>(ZONE_SELECTOR) ?? null
-      const control = visible(field) ? field.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled)') : null
+      const control = visible(field)
+        ? field.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled)')
+        : null
       if (control) {
         control.focus()
         return

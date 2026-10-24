@@ -1,10 +1,8 @@
 import { memo, type Dispatch } from 'react'
 import type { SquaringFailure, SquaringParams, SquaringScope, SquaringStats } from '../geometry/squaring'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface SquaringControlsProps {
@@ -53,32 +51,16 @@ function SquaringControls({ params, stats, pending, disabled, dispatch }: Squari
           become squares. This changes the letterform on purpose. Runs right after flattening.
         </HintText>
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="squaring-amount">Amount</label>
-
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['squaring.amount']}
-              value={params.amount}
-              scale={100}
-              unit="%"
-              label="Amount"
-              onCommit={(amount) => update({ amount })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="squaring-amount"
-              type="range"
-              {...SLIDER_RANGES['squaring.amount']}
-              value={params.amount}
-              aria-valuetext={percent > 0 ? `${percent} percent` : 'Off'}
-              onChange={(e) => update({ amount: Number(e.target.value) })}
-            />
-            <LiveMarker target="squaring.amount" />
-          </span>
+        <SliderField
+          id="squaring-amount"
+          target="squaring.amount"
+          label="Amount"
+          value={params.amount}
+          scale={100}
+          unit="%"
+          valueText={percent > 0 ? `${percent} percent` : 'Off'}
+          onChange={(amount) => update({ amount })}
+        >
           <div className="preset-row" role="group" aria-label="Squaring presets">
             {presets.map(([label, value]) => (
               <button
@@ -92,7 +74,7 @@ function SquaringControls({ params, stats, pending, disabled, dispatch }: Squari
               </button>
             ))}
           </div>
-        </div>
+        </SliderField>
 
         <div className="field">
           <span className="field-title">
@@ -129,14 +111,15 @@ function SquaringControls({ params, stats, pending, disabled, dispatch }: Squari
         )}
         {stats && stats.reduced > 0 && (
           <p className="field-hint">
-            {stats.reduced} contour{stats.reduced === 1 ? ' is' : 's are'} squared less than asked: the full amount would
-            make {stats.reduced === 1 ? 'it' : 'them'} cross or collapse, so the largest safe amount is used instead.
+            {stats.reduced} contour{stats.reduced === 1 ? ' is' : 's are'} squared less than asked: the full amount
+            would make {stats.reduced === 1 ? 'it' : 'them'} cross or collapse, so the largest safe amount is used
+            instead.
           </p>
         )}
         {stats && stats.fallbacks.length > 0 && (
           <p className="font-warning">
-            {stats.fallbacks.length} contour{stats.fallbacks.length === 1 ? '' : 's'} kept the previous shape: even a small amount
-            of squaring made {stats.fallbacks.length === 1 ? 'it' : 'them'}{' '}
+            {stats.fallbacks.length} contour{stats.fallbacks.length === 1 ? '' : 's'} kept the previous shape: even a
+            small amount of squaring made {stats.fallbacks.length === 1 ? 'it' : 'them'}{' '}
             {[...new Set(stats.fallbacks.map((f) => reasonText(f.reason, stats.fallbacks.length === 1)))].join(' or ')}.
           </p>
         )}

@@ -174,7 +174,10 @@ export const SOUND_LIMITS = {
  * feature a mapping can follow, under the same name (mapping.ts).
  */
 export interface FeatureFrame {
-  /** When the frame was measured (ms, performance.now()). */
+  /**
+   * When the frame was measured (ms, performance.now()); for a playing file, when it is heard: measured plus the output
+   * latency (FrameDelay in engine.ts).
+   */
   time: number
   /** Unsmoothed short-time RMS level in dBFS (-Infinity for digital silence), before Sensitivity. */
   levelDb: number
@@ -364,7 +367,10 @@ const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody', 'glide
  * `current` with `patch` applied: each patched value clamped to RESPONSE_LIMITS and snapped to its step; one that is
  * not a finite number keeps the current value.
  */
-export function clampResponse(patch: Partial<ResponseSettings>, current: ResponseSettings = DEFAULT_RESPONSE): ResponseSettings {
+export function clampResponse(
+  patch: Partial<ResponseSettings>,
+  current: ResponseSettings = DEFAULT_RESPONSE,
+): ResponseSettings {
   const next = { ...current }
   for (const key of RESPONSE_KEYS) {
     const value = patch[key]

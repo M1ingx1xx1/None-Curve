@@ -18,12 +18,12 @@
 
 import { rdpChain } from './anchors'
 import { countSelfCrossings, lazy } from './crossings'
-import { signedArea } from './flatten'
 import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
+import { signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { breakRuns, WARP_LIMITS } from './warp'
 
-export const BUDGET_LIMITS = {
+const BUDGET_LIMITS = {
   /**
    * A warp may make at most this many times the vertex limit, before it is simplified back. Beyond that (a long tangle
    * through a fine mesh), the warp is left out of the glyph (see applyWarp).
@@ -48,7 +48,7 @@ export interface BudgetStats {
   before: number
 }
 
-export const emptyBudgetStats = (): BudgetStats => ({ applied: false, tolerance: 0, before: 0 })
+const emptyBudgetStats = (): BudgetStats => ({ applied: false, tolerance: 0, before: 0 })
 
 const countVertices = (contours: readonly PolygonContour[]) => contours.reduce((n, c) => n + c.points.length, 0)
 
@@ -127,14 +127,20 @@ export class GlyphBudget {
  * drift limit until the glyph fits (see BUDGET_LIMITS.maxDoublings), and contours no larger than the tolerance left
  * out, but never all of them. Unchecked: the outlines may cross afterwards.
  */
-export function reduceToLimit(polygon: PolygonGlyph, limit: number, unitsPerEm: number): { polygon: PolygonGlyph; tolerance: number } {
+function reduceToLimit(
+  polygon: PolygonGlyph,
+  limit: number,
+  unitsPerEm: number,
+): { polygon: PolygonGlyph; tolerance: number } {
   if (countVertices(polygon.contours) <= limit) return { polygon, tolerance: 0 }
   let last: Reduction | null = null
   for (const reduction of reductions(polygon, unitsPerEm)) {
     last = reduction
     if (countVertices(reduction.contours) <= limit) break
   }
-  return last ? { polygon: finish(polygon, last.contours, unitsPerEm), tolerance: last.tolerance } : { polygon, tolerance: 0 }
+  return last
+    ? { polygon: finish(polygon, last.contours, unitsPerEm), tolerance: last.tolerance }
+    : { polygon, tolerance: 0 }
 }
 
 /** The glyph's contours simplified with one tolerance (see simplifyContours). */
@@ -169,7 +175,16 @@ function* reductions(polygon: PolygonGlyph, unitsPerEm: number): Generator<Reduc
  */
 function finish(polygon: PolygonGlyph, contours: readonly PolygonContour[], unitsPerEm: number): PolygonGlyph {
   const shortEdge = WARP_LIMITS.shortEdge * unitsPerEm
-  return { ...polygon, contours: contours.map((c) => breakRuns(c, c.points.map(() => true), shortEdge)) }
+  return {
+    ...polygon,
+    contours: contours.map((c) =>
+      breakRuns(
+        c,
+        c.points.map(() => true),
+        shortEdge,
+      ),
+    ),
+  }
 }
 
 /** A contour with what decides whether it is left out (see simplifyContours). */

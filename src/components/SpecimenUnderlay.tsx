@@ -109,7 +109,14 @@ export default function SpecimenUnderlay({
           <path className="view-grid-line" d={`M ${24 * u} 0 H 0 V ${24 * u}`} strokeWidth={u} />
         </pattern>
         {transparent && (
-          <pattern id={checkerId} patternUnits="userSpaceOnUse" x={layout.x} y={layout.y} width={16 * u} height={16 * u}>
+          <pattern
+            id={checkerId}
+            patternUnits="userSpaceOnUse"
+            x={layout.x}
+            y={layout.y}
+            width={16 * u}
+            height={16 * u}
+          >
             <rect width={16 * u} height={16 * u} fill={paper} />
             <rect className="checker-tint" width={8 * u} height={8 * u} />
             <rect className="checker-tint" x={8 * u} y={8 * u} width={8 * u} height={8 * u} />
@@ -148,13 +155,7 @@ export default function SpecimenUnderlay({
       <g ref={movingRef}>
         {freeMove && (
           // Free position: the whole text block (gaps between words included) is the drag handle.
-          <rect
-            className="text-block-hit"
-            x={block.minX}
-            y={block.minY}
-            width={block.width}
-            height={block.height}
-          />
+          <rect className="text-block-hit" x={block.minX} y={block.minY} width={block.width} height={block.height} />
         )}
         {view.showMetrics &&
           scene.lines.map((line, l) => {
@@ -165,7 +166,13 @@ export default function SpecimenUnderlay({
               <g key={l} className="metric-lines">
                 {guides.map(([name, y]) => (
                   <g key={name} className={y === 0 ? 'metric-baseline' : undefined}>
-                    <line x1={guideLeft} x2={guideRight} y1={line.baseline - y} y2={line.baseline - y} vectorEffect="non-scaling-stroke" />
+                    <line
+                      x1={guideLeft}
+                      x2={guideRight}
+                      y1={line.baseline - y}
+                      y2={line.baseline - y}
+                      vectorEffect="non-scaling-stroke"
+                    />
                     {labelled && pxPerEm >= LABEL_MIN_PX_PER_EM && (
                       <text x={guideLeft + 8 * u} y={line.baseline - y - 4 * u} fontSize={10 * u}>
                         {name}

@@ -4,7 +4,7 @@
 // letter frame handed to the canvas, and the letters of shaped text in the order placePolygons numbers them.
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import {
   assignLevels,
@@ -94,7 +94,8 @@ describe('Motion contrast and Pitch reactive weights', () => {
     const r = response({ contrast: 1 })
     const levels = letterLevels(r)!
     const counts = [0, 0, 0]
-    for (const time of [0, 1500, 3000, 4500]) for (const level of assignLevels(slots, r, { ...SILENT_FRAME, time }, levels, null)) counts[level]++
+    for (const time of [0, 1500, 3000, 4500])
+      for (const level of assignLevels(slots, r, { ...SILENT_FRAME, time }, levels, null)) counts[level]++
     const [quiet, shared, strong] = counts.map((k) => k / (4 * n))
     expect(Math.abs(quiet - strong)).toBeLessThan(0.05)
     expect(quiet).toBeGreaterThan(0.1)
@@ -114,10 +115,13 @@ describe('Motion contrast and Pitch reactive weights', () => {
     }
     // Far from the pitch the letters calm down; low confidence weighs less.
     expect(pitchWeight(2, 1, 0, 1)).toBeCloseTo(LETTER_LIMITS.pitchFar, 3)
-    expect(pitchWeight(2, 0.4, 0.4, 0.5)).toBeCloseTo(1 + 0.5 * (LETTER_LIMITS.pitchFar + LETTER_LIMITS.pitchPeak - 1), 12)
+    expect(pitchWeight(2, 0.4, 0.4, 0.5)).toBeCloseTo(
+      1 + 0.5 * (LETTER_LIMITS.pitchFar + LETTER_LIMITS.pitchPeak - 1),
+      12,
+    )
   })
 
-  it('Pitch reactive places the pitch in the recent melody\'s range: the whole of Pitch without one, clamped at its ends', () => {
+  it("Pitch reactive places the pitch in the recent melody's range: the whole of Pitch without one, clamped at its ends", () => {
     for (const pitch of [0, 0.3, 0.55, 1]) expect(pitchPlace({ ...SILENT_FRAME, pitch })).toBe(pitch)
     const octave = (pitch: number): FeatureFrame => ({ ...SILENT_FRAME, pitch, pitchLow: 0.45, pitchHigh: 0.65 })
     expect(pitchPlace(octave(0.45))).toBe(0)
@@ -129,9 +133,13 @@ describe('Motion contrast and Pitch reactive weights', () => {
     expect(pitchPlace({ ...SILENT_FRAME, pitch: 0.3, pitchLow: 0.5, pitchHigh: 0.5 })).toBe(0.3)
   })
 
-  it('a melody\'s low and high notes put the strong letters at either end of the text, quiet ones at the other', () => {
+  it("a melody's low and high notes put the strong letters at either end of the text, quiet ones at the other", () => {
     const n = 41
-    const slots = slotsOf([...Array(n)].map((_, j) => j), [...Array(n)].map((_, j) => j / (n - 1)), Array(n).fill(1))
+    const slots = slotsOf(
+      [...Array(n)].map((_, j) => j),
+      [...Array(n)].map((_, j) => j / (n - 1)),
+      Array(n).fill(1),
+    )
     const r = response({ pitchReactive: 1 })
     const levels = letterLevels(r)!
     const where = (pitch: number, pitchLow = 0.45, pitchHigh = 0.65) => {
@@ -180,7 +188,12 @@ describe('levels', () => {
     const levels = letterLevels(r)!
     const slots = slotsOf([1, 1, 1], [0.5, 0.5, 0.5], [1, 1, 0])
     const peak = pitchWeight(2, 0.5, 0.5, 1)
-    const frameFor = (weight: number): FeatureFrame => ({ ...SILENT_FRAME, time: 1000, pitch: 0.5, pitchConfidence: (weight - 1) / (peak - 1) })
+    const frameFor = (weight: number): FeatureFrame => ({
+      ...SILENT_FRAME,
+      time: 1000,
+      pitch: 0.5,
+      pitchConfidence: (weight - 1) / (peak - 1),
+    })
     const boundary = Math.exp(levels.edges[1])
     expect(pitchWeight(2, 0.5, 0.5, frameFor(boundary).pitchConfidence)).toBeCloseTo(boundary, 12)
 
@@ -199,7 +212,12 @@ describe('levels', () => {
 
     // The quiet boundary: letters far from the pitch.
     const far = pitchWeight(2, 0, 1, 1)
-    const quietFrame = (weight: number): FeatureFrame => ({ ...SILENT_FRAME, time: 1000, pitch: 1, pitchConfidence: (weight - 1) / (far - 1) })
+    const quietFrame = (weight: number): FeatureFrame => ({
+      ...SILENT_FRAME,
+      time: 1000,
+      pitch: 1,
+      pitchConfidence: (weight - 1) / (far - 1),
+    })
     const low = Math.exp(levels.edges[0])
     let quiet = assignLevels(slotsOf([1], [0], [1]), r, quietFrame(low * 0.95), levels, null)
     expect(quiet[0]).toBe(QUIET)
@@ -213,7 +231,11 @@ describe('levels', () => {
     const out = new Uint8Array(3)
     expect(assignLevels(slots, r, frameFor(peak), levels, null, out)).toBe(out)
     expect([...out]).toEqual([STRONG, STRONG, SHARED])
-    expect([...assignLevels(slots, r, frameFor(boundary * 1.05), levels, Uint8Array.of(SHARED, SHARED))]).toEqual([STRONG, STRONG, SHARED])
+    expect([...assignLevels(slots, r, frameFor(boundary * 1.05), levels, Uint8Array.of(SHARED, SHARED))]).toEqual([
+      STRONG,
+      STRONG,
+      SHARED,
+    ])
   })
 })
 
@@ -251,7 +273,12 @@ describe('level values', () => {
       { id: 'b', enabled: true, feature: 'level', target: 'squaring.amount', depth: 0.4 },
       { id: 'c', enabled: true, feature: 'beat', target: 'distortion.seed', depth: 1 },
     ]
-    const shared = modulate(BASE, { ...SILENT_FRAME, time: 100, level: 0.5, silent: false, levelDb: -20 }, mappings, new Map([['distortion.seed', 2]]))
+    const shared = modulate(
+      BASE,
+      { ...SILENT_FRAME, time: 100, level: 0.5, silent: false, levelDb: -20 },
+      mappings,
+      new Map([['distortion.seed', 2]]),
+    )
     const levels = letterLevels(response({ contrast: 1 }))!
     const keys: GeometryParams[] = []
     const keyOf = (p: GeometryParams) => {
@@ -268,7 +295,9 @@ describe('level values', () => {
       expect(level.params.experimental).toBe(shared.params.experimental)
       for (const [id, position] of shared.positions) {
         const spec = targetById(id)!
-        expect(level.positions.get(id)).toBe(levelPosition(spec, BASE, position, level === quiet ? levels.gains[0] : levels.gains[2]))
+        expect(level.positions.get(id)).toBe(
+          levelPosition(spec, BASE, position, level === quiet ? levels.gains[0] : levels.gains[2]),
+        )
         expect(spec.toSlider(spec.get(level.params))).toBeCloseTo(level.positions.get(id)!, 12)
       }
     }
@@ -351,30 +380,33 @@ describe('switches between levels', () => {
 describe('letterSlots', async () => {
   const font = await loadFixture('Roboto')
 
-  it.each(['left', 'center', 'right'] as const)('%s: t runs from 0 to 1 across the block, in reading order', (align) => {
-    const shaped = shapeSpecimen(font, DEFAULT_TEXT, { tracking: 0, lineHeight: 1, align, slant: 0 })
-    const slots = letterSlots(shaped)
-    expect(letterSlots(shaped)).toBe(slots)
-    expect(slots.count).toBe(shaped.glyphCount)
-    let j = 0
-    const lines = shaped.lines.map((line) => {
-      const ts = line.glyphs.map(() => slots.t[j++])
-      for (let k = 1; k < ts.length; k++) expect(ts[k]).toBeGreaterThanOrEqual(ts[k - 1])
-      return ts
-    })
-    const longest = shaped.lines.reduce((best, line, k) => (line.width > shaped.lines[best].width ? k : best), 0)
-    expect(lines[longest][0]).toBeLessThan(0.03)
-    expect(lines[longest][lines[longest].length - 1]).toBeGreaterThan(0.97)
-    for (const ts of lines) {
-      const first = ts[0]
-      const last = ts[ts.length - 1]
-      if (align === 'left') expect(first).toBeLessThan(0.03)
-      if (align === 'right') expect(last).toBeGreaterThan(0.97)
-      if (align === 'center') expect((first + last) / 2).toBeCloseTo(0.5, 1)
-    }
-  })
+  it.each(['left', 'center', 'right'] as const)(
+    '%s: t runs from 0 to 1 across the block, in reading order',
+    (align) => {
+      const shaped = shapeSpecimen(font, DEFAULT_TEXT, { tracking: 0, lineHeight: 1, align, slant: 0 })
+      const slots = letterSlots(shaped)
+      expect(letterSlots(shaped)).toBe(slots)
+      expect(slots.count).toBe(shaped.glyphCount)
+      let j = 0
+      const lines = shaped.lines.map((line) => {
+        const ts = line.glyphs.map(() => slots.t[j++])
+        for (let k = 1; k < ts.length; k++) expect(ts[k]).toBeGreaterThanOrEqual(ts[k - 1])
+        return ts
+      })
+      const longest = shaped.lines.reduce((best, line, k) => (line.width > shaped.lines[best].width ? k : best), 0)
+      expect(lines[longest][0]).toBeLessThan(0.03)
+      expect(lines[longest][lines[longest].length - 1]).toBeGreaterThan(0.97)
+      for (const ts of lines) {
+        const first = ts[0]
+        const last = ts[ts.length - 1]
+        if (align === 'left') expect(first).toBeLessThan(0.03)
+        if (align === 'right') expect(last).toBeGreaterThan(0.97)
+        if (align === 'center') expect((first + last) / 2).toBeCloseTo(0.5, 1)
+      }
+    },
+  )
 
-  it('shares sum to 1 over the drawn letters; spaces and missing glyphs are inactive; the order is placePolygons\'', () => {
+  it("shares sum to 1 over the drawn letters; spaces and missing glyphs are inactive; the order is placePolygons'", () => {
     const shaped = shapeSpecimen(font, 'Ab c\n\nd\u{1F600}e')
     const slots = letterSlots(shaped)
     const flat = shaped.lines.flatMap((line) => line.glyphs)
@@ -385,7 +417,8 @@ describe('letterSlots', async () => {
     expect(slots.share[5]).toBe(0)
     flat.forEach((g, k) => {
       expect(slots.index[k]).toBe(g.index)
-      if (slots.active[k]) expect(slots.share[k]).toBeCloseTo(g.advance / [0, 1, 3, 4, 6].reduce((s, i) => s + flat[i].advance, 0), 6)
+      if (slots.active[k])
+        expect(slots.share[k]).toBeCloseTo(g.advance / [0, 1, 3, 4, 6].reduce((s, i) => s + flat[i].advance, 0), 6)
     })
     const placed: [number, number][] = []
     placePolygons(shaped, (index, occurrence) => {

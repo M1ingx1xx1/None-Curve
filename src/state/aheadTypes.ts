@@ -78,18 +78,32 @@ export function weightedDistance(first: number, last: number, ph: number): numbe
   return first > ph ? first - ph : PRECOMPUTE_LIMITS.behindWeight * (ph - last)
 }
 
-/** An on-demand plan (live path): from is sent by value with its side tables. */
-export interface PlanRequest { from: PolygonGlyph; to: PolygonGlyph; toRef: { key: string; index: number } | null }
+/** An on-demand plan (live path): both glyphs are sent by value with their side tables. */
+export interface PlanRequest {
+  from: PolygonGlyph
+  to: PolygonGlyph
+}
 
 export interface PlanSource {
   /** The worker's chained plan for this lineage at commit `seq`, decoded onto `from`/`to`, or undefined (not ready / not matching). */
-  chained(lineage: number, seq: number, from: PolygonGlyph, to: PolygonGlyph, fromTag: ChainTag | null, fromComputedKey: string | null): MorphPlan | null | undefined
+  chained(
+    lineage: number,
+    seq: number,
+    from: PolygonGlyph,
+    to: PolygonGlyph,
+    fromTag: ChainTag | null,
+    fromComputedKey: string | null,
+  ): MorphPlan | null | undefined
   /** Asks a worker to plan; `done` gets the plan (null: change at once). Returns a cancel. */
   request(job: PlanRequest, done: (plan: MorphPlan | null) => void): () => void
 }
 
 /** What an in-between glyph on the page was made from (glide.ts tags them). */
-export interface ChainTag { lineage: number; seq: number; q: number }
+export interface ChainTag {
+  lineage: number
+  seq: number
+  q: number
+}
 
 // The registries: state/aheadGeometry.ts registers its implementations at import; null until then (and in tests).
 let aheadGeometry: AheadGeometry | null = null

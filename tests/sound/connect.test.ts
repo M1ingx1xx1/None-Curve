@@ -32,7 +32,9 @@ describe('Drag to map: connect', () => {
   it('adds an enabled row at +50% Depth, Follow left at its default', () => {
     const result = mappingStore.connect('bass', 'distortion.amount')
     expect(result?.created).toBe(true)
-    expect(rows()).toEqual([{ id: result?.id, enabled: true, feature: 'bass', target: 'distortion.amount', depth: 0.5 }])
+    expect(rows()).toEqual([
+      { id: result?.id, enabled: true, feature: 'bass', target: 'distortion.amount', depth: 0.5 },
+    ])
   })
 
   it('puts a switch in Toggle', () => {

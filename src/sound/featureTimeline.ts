@@ -21,7 +21,8 @@ export interface FeatureWorkerLike {
 /** Decodes a file's bytes at the context's rate (BaseAudioContext.decodeAudioData). */
 export type AudioDecoder = (bytes: ArrayBuffer) => Promise<AudioBuffer>
 
-const startFeatureWorker = (): FeatureWorkerLike => new Worker(new URL('./features.worker.ts', import.meta.url), { type: 'module' }) as unknown as FeatureWorkerLike
+const startFeatureWorker = (): FeatureWorkerLike =>
+  new Worker(new URL('./features.worker.ts', import.meta.url), { type: 'module' }) as unknown as FeatureWorkerLike
 
 export class FeatureTimeline implements FeatureSource {
   readonly hz = PRECOMPUTE_LIMITS.gridHz
@@ -64,7 +65,10 @@ export class FeatureTimeline implements FeatureSource {
     this.generation++
     const worker = this.ensureWorker()
     const transfer: Transferable[] = right ? [left.buffer, right.buffer] : [left.buffer]
-    worker.postMessage({ type: 'load', generation: this.generation, sampleRate: buffer.sampleRate, left, right, settings, fromMs }, transfer)
+    worker.postMessage(
+      { type: 'load', generation: this.generation, sampleRate: buffer.sampleRate, left, right, settings, fromMs },
+      transfer,
+    )
     this.notify()
     return true
   }

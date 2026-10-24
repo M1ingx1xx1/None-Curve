@@ -13,7 +13,11 @@ export const PNG_LIMITS = {
 /**
  * The PNG's size in pixels: the canvas at its export scale, scaled down to fit PNG_LIMITS. `capped` when scaled down.
  */
-export function pngSize(width: number, height: number, scale: number): { width: number; height: number; capped: boolean } {
+export function pngSize(
+  width: number,
+  height: number,
+  scale: number,
+): { width: number; height: number; capped: boolean } {
   const w0 = width * scale
   const h0 = height * scale
   const f = Math.min(1, PNG_LIMITS.maxSide / Math.max(w0, h0), Math.sqrt(PNG_LIMITS.maxPixels / (w0 * h0)))
@@ -40,7 +44,10 @@ export async function svgToPng(svg: string, svgWidth: number, svgHeight: number,
     if (!context) throw new Error('This browser cannot draw the PNG image.')
     context.drawImage(image, 0, 0, width, height)
     return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('The PNG image could not be encoded.'))), 'image/png'),
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('The PNG image could not be encoded.'))),
+        'image/png',
+      ),
     )
   } finally {
     URL.revokeObjectURL(url)

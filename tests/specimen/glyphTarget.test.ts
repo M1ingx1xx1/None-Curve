@@ -68,7 +68,9 @@ function render(char: string, params: GeometryParams | null, advance: number, ou
     ),
   )
   const group = /<g class="([^"]*)"/.exec(markup)![1].split(' ')
-  const rects = [...markup.matchAll(/<rect class="glyph-box" x="([^"]*)" y="([^"]*)" width="([^"]*)" height="([^"]*)"/g)].map((m) => m.slice(1).map(Number))
+  const rects = [
+    ...markup.matchAll(/<rect class="glyph-box" x="([^"]*)" y="([^"]*)" width="([^"]*)" height="([^"]*)"/g),
+  ].map((m) => m.slice(1).map(Number))
   const paths = [...markup.matchAll(/<path class="glyph-box" d="([^"]*)"/g)].map((m) => m[1])
   return { source, polygon, group, rects, paths, column: [0, descender, advance, ascender - descender] }
 }
@@ -118,7 +120,7 @@ describe('glyph click targets without thorns', () => {
 describe('glyph click targets with thorns', () => {
   const thorns = () => paramsWith({}, THORN_FARTHEST)
 
-  it('are the advance by the line and the font\'s own outline, flattened, never the thorns', () => {
+  it("are the advance by the line and the font's own outline, flattened, never the thorns", () => {
     const glyph = render('l', thorns(), advanceOf('l'))
     expect(glyph.polygon!.layoutBox).toBeDefined()
     expect(width(glyph.polygon!)).toBeGreaterThan(advanceOf('l') * 4)
@@ -157,7 +159,7 @@ describe('glyph click targets with thorns', () => {
     expect(glyph.paths).toEqual([contoursToPath(glyph.polygon!.clickOutline!)])
   })
 
-  it('are the same in the Original view, where the polygon is not drawn and the outline drawn is the font\'s own', () => {
+  it("are the same in the Original view, where the polygon is not drawn and the outline drawn is the font's own", () => {
     const glyph = render('l', thorns(), advanceOf('l'), 'source')
     expect(glyph.rects).toEqual([glyph.column])
     expect(glyph.paths).toEqual([flattenedPath(glyph.source)])
@@ -167,7 +169,9 @@ describe('glyph click targets with thorns', () => {
 describe('the outlines ignore the pointer only on glyphs with thorns', () => {
   it('in styles.css', () => {
     const css = readFileSync(new URL('../../src/styles.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
-    const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, selector, body]) => selector.includes('specimen-glyph') && /pointer-events:\s*none/.test(body))
+    const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(
+      ([, selector, body]) => selector.includes('specimen-glyph') && /pointer-events:\s*none/.test(body),
+    )
     expect(rules.length).toBeGreaterThan(0)
     for (const [, selector] of rules) {
       for (const part of selector.split(',')) expect(part).toContain('.specimen-glyph-thorned')

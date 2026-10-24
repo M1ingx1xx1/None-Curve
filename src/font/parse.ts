@@ -48,7 +48,10 @@ export async function parseFont(bytes: Uint8Array, source: FontSource, signal: A
   } catch (error) {
     if (error instanceof FontLoadError) throw error
     const detail = error instanceof Error ? error.message : String(error)
-    throw new FontLoadError('parse', `The ${format.toUpperCase()} data could not be read (${detail}). The file may be damaged.`)
+    throw new FontLoadError(
+      'parse',
+      `The ${format.toUpperCase()} data could not be read (${detail}). The file may be damaged.`,
+    )
   }
 
   if (!font.numGlyphs) throw new FontLoadError('no-glyphs', 'The font contains no glyphs.')
@@ -84,13 +87,17 @@ function openCollection(fonts: Font[], requested: number | undefined): Collectio
     return { faces, face: requested }
   }
   // Upright first, then weight, then width; the earlier face wins a tie.
-  const score = (f: (typeof all)[number]) => (f.italic ? 1e6 : 0) + Math.abs(f.weight - 400) * 10 + Math.abs(f.width - 5)
+  const score = (f: (typeof all)[number]) =>
+    (f.italic ? 1e6 : 0) + Math.abs(f.weight - 400) * 10 + Math.abs(f.width - 5)
   const best = faces.reduce((a, b) => (score(b) < score(a) ? b : a))
   return { faces, face: best.index }
 }
 
-function describeFace(font: Font, index: number): CollectionFace & { hidden: boolean; italic: boolean; weight: number; width: number } {
-  const read = <T,>(get: () => T, fallback: T): T => {
+function describeFace(
+  font: Font,
+  index: number,
+): CollectionFace & { hidden: boolean; italic: boolean; weight: number; width: number } {
+  const read = <T>(get: () => T, fallback: T): T => {
     try {
       return get() ?? fallback
     } catch {
@@ -106,7 +113,9 @@ function describeFace(font: Font, index: number): CollectionFace & { hidden: boo
     family,
     style,
     hidden: read(() => font.postscriptName, '').startsWith('.'),
-    italic: Boolean(fsSelection?.italic || fsSelection?.oblique || read(() => font.italicAngle, 0) || /italic|oblique/i.test(style)),
+    italic: Boolean(
+      fsSelection?.italic || fsSelection?.oblique || read(() => font.italicAngle, 0) || /italic|oblique/i.test(style),
+    ),
     weight: typeof os2?.usWeightClass === 'number' ? os2.usWeightClass : 400,
     width: typeof os2?.usWidthClass === 'number' ? os2.usWidthClass : 5,
   }
@@ -165,7 +174,7 @@ function buildLoadedFont(
   instance: Record<string, number> | null,
   collection: Collection | null,
 ): LoadedFont {
-  const font = useOutlineGlyphs(colourFont)
+  const font = withOutlineGlyphs(colourFont)
   const metrics: FontMetrics = {
     unitsPerEm: font.unitsPerEm,
     ascender: font.ascent,
@@ -175,17 +184,14 @@ function buildLoadedFont(
     lineGap: font.lineGap || 0,
   }
 
+  // One pass over the character map: every mapped code point (controls too) for hasCharacter, the rest as characters.
   const characters: GlyphRef[] = []
-  for (const unicode of [...font.characterSet].sort((a, b) => a - b)) {
-    if (isControlCharacter(unicode)) continue
-    const glyph = safeGlyph(() => font.glyphForCodePoint(unicode))
-    if (glyph && glyph.id !== 0) characters.push({ index: glyph.id, name: glyphName(glyph), unicode })
-  }
-
   const mappedCodePoints = new Set<number>()
-  for (const cp of font.characterSet) {
-    const glyph = safeGlyph(() => font.glyphForCodePoint(cp))
-    if (glyph && glyph.id !== 0) mappedCodePoints.add(cp)
+  for (const unicode of [...font.characterSet].sort((a, b) => a - b)) {
+    const glyph = safeGlyph(() => font.glyphForCodePoint(unicode))
+    if (!glyph || glyph.id === 0) continue
+    mappedCodePoints.add(unicode)
+    if (!isControlCharacter(unicode)) characters.push({ index: glyph.id, name: glyphName(glyph), unicode })
   }
 
   const firstCodePoint = new Map<number, number>()
@@ -222,7 +228,10 @@ function buildLoadedFont(
   const ownName = typographicName(font, 'preferredSubfamily') || font.subfamilyName || 'Regular'
   const styleName =
     weight !== null && (instance || ownName === 'Regular' || ownName === 'Italic')
-      ? `${WEIGHT_NAMES[Math.round(weight / 100) * 100] ?? `W${weight}`}${italic ? ' Italic' : ''}`.replace('Regular Italic', 'Italic')
+      ? `${WEIGHT_NAMES[Math.round(weight / 100) * 100] ?? `W${weight}`}${italic ? ' Italic' : ''}`.replace(
+          'Regular Italic',
+          'Italic',
+        )
       : ownName
   const info = readFontInfo(font)
   if (instance) {
@@ -285,7 +294,8 @@ function instances(
     for (const axis of axes) {
       const ownValue = own?.[axis.tag] ?? axis.default
       const asked = coords[axis.tag]
-      const value = typeof asked === 'number' && Number.isFinite(asked) ? Math.min(axis.max, Math.max(axis.min, asked)) : ownValue
+      const value =
+        typeof asked === 'number' && Number.isFinite(asked) ? Math.min(axis.max, Math.max(axis.min, asked)) : ownValue
       if (value !== ownValue) differs = true
       settings[axis.tag] = value
     }
@@ -297,7 +307,9 @@ function instances(
     } else {
       if (base === undefined) base = variableBase(fontkit, font, bytes)
       const varied = instanceAt(fontkit, font, bytes, settings, base)
-      instance = varied ? { ...loaded, instance: settings, ...glyphAccess(useOutlineGlyphs(varied), metrics, refFor) } : loaded
+      instance = varied
+        ? { ...loaded, instance: settings, ...glyphAccess(withOutlineGlyphs(varied), metrics, refFor) }
+        : loaded
     }
     made.set(key, instance)
     while (made.size > MAX_INSTANCES) made.delete(made.keys().next().value!)
@@ -306,7 +318,11 @@ function instances(
 }
 
 /** Shaping, outlines and previews read from `font`, each kept once read. */
-function glyphAccess(font: Font, metrics: FontMetrics, refFor: (index: number) => GlyphRef): Pick<LoadedFont, 'shapeLine' | 'getGlyph' | 'getPreviewPath'> {
+function glyphAccess(
+  font: Font,
+  metrics: FontMetrics,
+  refFor: (index: number) => GlyphRef,
+): Pick<LoadedFont, 'shapeLine' | 'getGlyph' | 'getPreviewPath'> {
   const outlineCache = new Map<number, SourceGlyph>()
   const previewCache = new Map<number, string>()
   return {
@@ -372,7 +388,7 @@ function isControlCharacter(cp: number): boolean {
  * glyphs built from layers or bitmaps, which it cannot read for COLR version 1 (Nabla, Honk, the
  * "Ink" families) and which have no outline to edit; the outline glyph underneath is what this app uses.
  */
-function useOutlineGlyphs(font: Font): Font {
+function withOutlineGlyphs(font: Font): Font {
   const internals = font as unknown as {
     directory: { tables: Record<string, unknown> }
     _glyphs: Record<number, Glyph | undefined>
@@ -384,7 +400,8 @@ function useOutlineGlyphs(font: Font): Font {
     // Colour glyphs made so far would be handed out from the cache.
     internals._glyphs = {}
     // fontkit's WOFF2 version returns nothing for a glyph it has already made, so read the cache too.
-    font.getGlyph = ((id: number, characters?: number[]) => base(id, characters) ?? internals._glyphs[id] ?? null) as Font['getGlyph']
+    font.getGlyph = ((id: number, characters?: number[]) =>
+      base(id, characters) ?? internals._glyphs[id] ?? null) as Font['getGlyph']
   }
   return font
 }
@@ -406,21 +423,46 @@ const NO_LIGATURES = { liga: false, clig: false, dlig: false, hlig: false, calt:
 
 /** fontkit decodes bit fields as objects of named flags; these are the names in bit order. */
 const FS_TYPE_BITS = [null, 'noEmbedding', 'viewOnly', 'editable', null, null, null, null, 'noSubsetting', 'bitmapOnly']
-const FS_SELECTION_BITS = ['italic', 'underscore', 'negative', 'outlined', 'strikeout', 'bold', 'regular', 'useTypoMetrics', 'wws', 'oblique']
+const FS_SELECTION_BITS = [
+  'italic',
+  'underscore',
+  'negative',
+  'outlined',
+  'strikeout',
+  'bold',
+  'regular',
+  'useTypoMetrics',
+  'wws',
+  'oblique',
+]
 const MAC_STYLE_BITS = ['bold', 'italic', 'underline', 'outline', 'shadow', 'condensed', 'extended']
-const NAME_KEYS: FontNameKey[] = ['copyright', 'version', 'trademark', 'manufacturer', 'designer', 'description', 'vendorURL', 'designerURL', 'license', 'licenseURL']
+const NAME_KEYS: FontNameKey[] = [
+  'copyright',
+  'version',
+  'trademark',
+  'manufacturer',
+  'designer',
+  'description',
+  'vendorURL',
+  'designerURL',
+  'license',
+  'licenseURL',
+]
 
 function bits(flags: unknown, names: readonly (string | null)[]): number {
   if (typeof flags === 'number') return flags
   if (!flags || typeof flags !== 'object') return 0
-  return names.reduce((value, name, bit) => (name && (flags as Record<string, unknown>)[name] ? value | (1 << bit) : value), 0)
+  return names.reduce(
+    (value, name, bit) => (name && (flags as Record<string, unknown>)[name] ? value | (1 << bit) : value),
+    0,
+  )
 }
 
 /** Reads the tables an exported font copies. Any table that cannot be read just falls back to defaults. */
 function readFontInfo(font: Font): FontInfo {
   // OS/2, hhea, post, head, and name are part of fontkit's runtime API but not all are typed.
   const tables = font as unknown as Record<string, Record<string, unknown> | undefined>
-  const read = <T,>(get: () => T, fallback: T): T => {
+  const read = <T>(get: () => T, fallback: T): T => {
     try {
       return get() ?? fallback
     } catch {
@@ -440,8 +482,18 @@ function readFontInfo(font: Font): FontInfo {
       fsSelection: bits(t.fsSelection, FS_SELECTION_BITS),
       familyClass: num(t.sFamilyClass),
       panose: Array.isArray(t.panose) ? t.panose.slice(0, 10).map((v) => num(v)) : [],
-      subscript: [num(t.ySubscriptXSize), num(t.ySubscriptYSize), num(t.ySubscriptXOffset), num(t.ySubscriptYOffset)] as [number, number, number, number],
-      superscript: [num(t.ySuperscriptXSize), num(t.ySuperscriptYSize), num(t.ySuperscriptXOffset), num(t.ySuperscriptYOffset)] as [number, number, number, number],
+      subscript: [
+        num(t.ySubscriptXSize),
+        num(t.ySubscriptYSize),
+        num(t.ySubscriptXOffset),
+        num(t.ySubscriptYOffset),
+      ] as [number, number, number, number],
+      superscript: [
+        num(t.ySuperscriptXSize),
+        num(t.ySuperscriptYSize),
+        num(t.ySuperscriptXOffset),
+        num(t.ySuperscriptYOffset),
+      ] as [number, number, number, number],
       strikeoutSize: num(t.yStrikeoutSize),
       strikeoutPosition: num(t.yStrikeoutPosition),
       typoAscender: optional(t.typoAscender),

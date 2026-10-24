@@ -26,9 +26,20 @@ const VERTEX_SCALE = 0.4
  * The outline layers of one glyph in its own font units (y up). The caller positions it and flips y.
  * Shared by the single-glyph inspector and the text specimen so both show the same layers.
  */
-function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, polygonHref, sourceHref }: GlyphLayersProps) {
+function GlyphLayers({
+  source,
+  polygon,
+  view,
+  markerRadius: r,
+  showMarkers,
+  polygonHref,
+  sourceHref,
+}: GlyphLayersProps) {
   const path = useMemo(() => (sourceHref ? '' : sourceGlyphToPath(source)), [source, sourceHref])
-  const polygonPath = useMemo(() => (polygon && polygonHref === undefined ? polygonGlyphToPath(polygon) : ''), [polygon, polygonHref])
+  const polygonPath = useMemo(
+    () => (polygon && polygonHref === undefined ? polygonGlyphToPath(polygon) : ''),
+    [polygon, polygonHref],
+  )
   const hasPolygon = polygonHref === undefined ? polygon !== null : polygonHref !== null
   // An outline layer: the shared path when there is one, else this glyph's own path data.
   const sourceLayer = (className: string, stroke: boolean) =>
@@ -43,7 +54,10 @@ function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, poly
     ) : (
       <path className={className} d={polygonPath} vectorEffect={stroke ? 'non-scaling-stroke' : undefined} />
     )
-  const skeleton = useMemo(() => (view.showSkeleton && showMarkers ? sourceGlyphSkeleton(source) : null), [source, view.showSkeleton, showMarkers])
+  const skeleton = useMemo(
+    () => (view.showSkeleton && showMarkers ? sourceGlyphSkeleton(source) : null),
+    [source, view.showSkeleton, showMarkers],
+  )
   const vertices = useMemo(
     () => (view.showVertices && showMarkers ? (polygon?.contours.flatMap((c) => c.points) ?? []) : []),
     [polygon, view.showVertices, showMarkers],
@@ -53,7 +67,9 @@ function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, poly
   return (
     <>
       {outline === 'source' && (view.showFill ? sourceLayer('glyph-fill', false) : sourceLayer('outline-stroke', true))}
-      {outline === 'flattened' && hasPolygon && (view.showFill ? polygonLayer('glyph-fill', false) : polygonLayer('outline-stroke', true))}
+      {outline === 'flattened' &&
+        hasPolygon &&
+        (view.showFill ? polygonLayer('glyph-fill', false) : polygonLayer('outline-stroke', true))}
       {outline === 'compare' && (
         <g className="compare">
           {view.showFill && hasPolygon && polygonLayer('glyph-fill compare-fill', false)}
@@ -65,13 +81,29 @@ function GlyphLayers({ source, polygon, view, markerRadius: r, showMarkers, poly
         <g className="skeleton">
           {sourceLayer('skeleton-outline', true)}
           {skeleton?.handles.map(([a, b], i) => (
-            <line key={i} className="skeleton-handle" x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke" />
+            <line
+              key={i}
+              className="skeleton-handle"
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
           {skeleton?.controls.map((p, i) => (
             <circle key={i} className="skeleton-control" cx={p.x} cy={p.y} r={r} vectorEffect="non-scaling-stroke" />
           ))}
           {skeleton?.anchors.map((p, i) => (
-            <rect key={i} className="skeleton-anchor" x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} vectorEffect="non-scaling-stroke" />
+            <rect
+              key={i}
+              className="skeleton-anchor"
+              x={p.x - r}
+              y={p.y - r}
+              width={r * 2}
+              height={r * 2}
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
         </g>
       )}
