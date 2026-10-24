@@ -319,11 +319,6 @@ function CanvasViewport(props: CanvasViewportProps) {
                 {(shown) => specimen(shown ?? scene)}
               </Glided>
             )}
-            <p className="canvas-badge" aria-hidden="true">
-              {scene.glyphCount} glyphs · {outlineDescription}
-              {/* Glyphs still being computed in the background keep their previous shape meanwhile. */}
-              {scene.pendingGlyphs > 0 && <span className="canvas-updating"> · Updating {scene.pendingGlyphs}…</span>}
-            </p>
             <Legend view={view} />
             {overflows && (
               <p className="canvas-overflow" role="status">

@@ -1666,11 +1666,30 @@ input.number-field {
 
 .statusbar > .statusbar-view {
   flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--subtle);
+}
+
+/* The View line's parts keep their full text (and their spaces); only the method gives way, with an
+   ellipsis. The whole line is in the tooltip. */
+.statusbar-view-part {
+  flex: none;
+  white-space: pre;
+}
+
+.statusbar-view-method {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: right;
-  color: var(--subtle);
+}
+
+/* Glyphs still being computed in the background. */
+.statusbar-updating {
+  color: var(--primary-strong);
 }
 
 /* Reset all settings, then light / dark interface: the last items of the status bar (bottom right), close
@@ -2333,22 +2352,6 @@ input.number-field {
 
 .legend-source {
   border-top: 2px dashed var(--accent);
-}
-
-.canvas-updating {
-  color: var(--primary-strong);
-}
-
-.canvas-badge {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  font-size: 0.75rem;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 2px 8px;
-  pointer-events: none;
 }
 
 /* Above the bottom row, where a regular note (left) and the legend (right) may show: a one-line note
