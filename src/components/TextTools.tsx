@@ -125,7 +125,7 @@ export default function TextTools({
         <button
           type="button"
           className="text-tools-fold"
-          aria-label="Show the text tools"
+          aria-label="Text tools"
           aria-expanded={!collapsed}
           aria-controls={`${ids}-${tab}-panel`}
           title={collapsed ? 'Show the text tools' : 'Fold the text tools down to their tabs'}
