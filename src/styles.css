@@ -38,8 +38,8 @@
     -apple-system,
     'Segoe UI',
     sans-serif;
-  /* Every other text size is in rem, so this one value scales the whole interface (was 14px). */
-  font-size: 12px;
+  /* Every other text size is in rem, so this one value scales the whole interface (75% of the browser's size, 12px by default; was 14px). */
+  font-size: 75%;
   line-height: 1.5;
 }
 
@@ -49,6 +49,75 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+}
+
+/* Browsers without light-dark() get the same tokens as plain values (a custom property accepts the function and fails
+   only where it is used). */
+@supports not (color: light-dark(red, blue)) {
+  :root {
+    --bg: #f4f4f2;
+    --surface: #ffffff;
+    --canvas: #fbfbfa;
+    --text: #111110;
+    --muted: #5f5e5a;
+    --subtle: #6f6e69;
+    --faint: #9a9994;
+    --border: #d6d5d0;
+    --border-strong: #111110;
+    --accent: #1f4fd1;
+    --guide: #c9c8c2;
+    --grid: rgba(17, 17, 16, 0.05);
+    --danger: #b42318;
+    --control: #c2410c;
+    --vertex: #0f8a5f;
+    --primary-edge: #3fae8f;
+    --primary-strong: #0f7a5c;
+    --primary-glow: rgba(63, 174, 143, 0.55);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0e0e0d;
+      --surface: #171716;
+      --canvas: #121211;
+      --text: #f2f1ed;
+      --muted: #a8a7a1;
+      --subtle: #868580;
+      --faint: #6e6d68;
+      --border: #2e2d2a;
+      --border-strong: #f2f1ed;
+      --accent: #7ea2ff;
+      --guide: #3a3936;
+      --grid: rgba(242, 241, 237, 0.05);
+      --danger: #ff8a7a;
+      --control: #ff9a5c;
+      --vertex: #3ddc97;
+      --primary-edge: #adfce7;
+      --primary-strong: #adfce7;
+      --primary-glow: rgba(173, 252, 231, 0.6);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --bg: #0e0e0d;
+    --surface: #171716;
+    --canvas: #121211;
+    --text: #f2f1ed;
+    --muted: #a8a7a1;
+    --subtle: #868580;
+    --faint: #6e6d68;
+    --border: #2e2d2a;
+    --border-strong: #f2f1ed;
+    --accent: #7ea2ff;
+    --guide: #3a3936;
+    --grid: rgba(242, 241, 237, 0.05);
+    --danger: #ff8a7a;
+    --control: #ff9a5c;
+    --vertex: #3ddc97;
+    --primary-edge: #adfce7;
+    --primary-strong: #adfce7;
+    --primary-glow: rgba(173, 252, 231, 0.6);
+  }
 }
 
 * {
@@ -1960,11 +2029,6 @@ input.number-field {
 .metric-lines .metric-baseline line {
   stroke-opacity: 0.5;
   stroke-dasharray: none;
-}
-
-.metric-lines .metric-advance {
-  stroke: var(--faint);
-  stroke-dasharray: 2 4;
 }
 
 .metric-lines text {
