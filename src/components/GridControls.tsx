@@ -76,7 +76,12 @@ function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) 
         </HintText>
 
         <div className="field field-toggle">
-          <input id="grid-snap" type="checkbox" checked={params.snap} onChange={(e) => update({ snap: e.target.checked })} />
+          <input
+            id="grid-snap"
+            type="checkbox"
+            checked={params.snap}
+            onChange={(e) => update({ snap: e.target.checked })}
+          />
           <label htmlFor="grid-snap">Snap to grid</label>
         </div>
         <SliderField
@@ -101,7 +106,11 @@ function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) 
             without collapsing or crossing.
           </p>
         )}
-        {snapFallback && <p className="font-warning">Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.</p>}
+        {snapFallback && (
+          <p className="font-warning">
+            Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.
+          </p>
+        )}
 
         <div className="field field-toggle">
           <input
@@ -131,10 +140,10 @@ function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) 
             ))}
           </select>
           <HintText hint={angleHint}>
-            Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal; an
-            exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their length,
-            so the contour closes again, and it is fitted back to its original size and place. Where that would change
-            the letter too much, its edges become fine stair steps instead.
+            Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal;
+            an exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their
+            length, so the contour closes again, and it is fitted back to its original size and place. Where that would
+            change the letter too much, its edges become fine stair steps instead.
           </HintText>
         </div>
         {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
@@ -145,7 +154,9 @@ function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) 
           </p>
         )}
         {angleFallback && (
-          <p className="font-warning">Angle lock skipped for: {angleFallback}. Those contours keep their previous points.</p>
+          <p className="font-warning">
+            Angle lock skipped for: {angleFallback}. Those contours keep their previous points.
+          </p>
         )}
 
         {snapOn && params.angleLock && (
@@ -154,7 +165,12 @@ function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) 
           </p>
         )}
 
-        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_GRID)}>
+        <button
+          type="button"
+          className="button-small"
+          disabled={disabled || isDefault}
+          onClick={() => update(DEFAULT_GRID)}
+        >
           <Icon name="reset" />
           Reset grid &amp; angles
         </button>

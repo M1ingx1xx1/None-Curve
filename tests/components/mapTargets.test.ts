@@ -34,7 +34,21 @@ const dispatch: Dispatch<unknown> = () => {}
 const params = initialState.params
 const common = { pending: false, disabled: false, dispatch, stats: null }
 
-const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'])
+const VOID = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+])
 
 /**
  * The anchors in a markup string, each with the element MapTarget marks as its zone: the nearest `.field` or `li`
@@ -59,7 +73,8 @@ function zones(html: string): { target: string; zone: number }[] {
       expect(zone, `anchor ${target} has no zone`).toBeDefined()
       found.push({ target, zone: zone! })
     }
-    if (!VOID.has(tag) && !attrs.trimEnd().endsWith('/')) stack.push({ index, tag, isZone: tag === 'li' || classes.includes('field') })
+    if (!VOID.has(tag) && !attrs.trimEnd().endsWith('/'))
+      stack.push({ index, tag, isZone: tag === 'li' || classes.includes('field') })
   }
   return found
 }
@@ -77,9 +92,13 @@ function anchors<P extends object>(component: ComponentType<P>, props: P): strin
 
 describe('Drop zones', () => {
   it('are one per anchor (the markup reader finds a shared field)', () => {
-    const shared = zones('<div class="field"><span data-map-target="a" hidden=""></span><span data-map-target="b" hidden=""></span></div>')
+    const shared = zones(
+      '<div class="field"><span data-map-target="a" hidden=""></span><span data-map-target="b" hidden=""></span></div>',
+    )
     expect(shared[0].zone).toBe(shared[1].zone)
-    const own = zones('<ul><li><input/><span data-map-target="a" hidden=""></span></li><li><span data-map-target="b" hidden=""></span></li></ul>')
+    const own = zones(
+      '<ul><li><input/><span data-map-target="a" hidden=""></span></li><li><span data-map-target="b" hidden=""></span></li></ul>',
+    )
     expect(own[0].zone).not.toBe(own[1].zone)
   })
 
@@ -88,7 +107,12 @@ describe('Drop zones', () => {
     const found = [
       ...(['adaptive', 'segments'] as const).flatMap((mode) =>
         [false, true].flatMap((mergeCurves) =>
-          anchors(FlattenControls, { ...common, params: { ...params.flatten, mode, mergeCurves }, unitsPerEm: 1000, replacedByRandom: false }),
+          anchors(FlattenControls, {
+            ...common,
+            params: { ...params.flatten, mode, mergeCurves },
+            unitsPerEm: 1000,
+            replacedByRandom: false,
+          }),
         ),
       ),
       ...anchors(SquaringControls, { ...common, params: params.squaring }),
@@ -121,10 +145,16 @@ describe('Drop zones', () => {
     expect([...ids].filter((id) => !TARGETS.some((t) => t.id === id))).toEqual([])
   })
 
-  it('cover the loaded font\'s variable axes', async () => {
+  it("cover the loaded font's variable axes", async () => {
     const stix = await loadFixture('STIXTwoText')
     setTargetFont(stix)
-    const found = anchors(FontStatus, { status: { kind: 'ready' }, font: stix, onRetry: () => {}, onCancel: () => {}, onFace: () => {} })
+    const found = anchors(FontStatus, {
+      status: { kind: 'ready' },
+      font: stix,
+      onRetry: () => {},
+      onCancel: () => {},
+      onFace: () => {},
+    })
     expect(axisTargets().length).toBeGreaterThan(0)
     expect(found).toEqual(axisTargets().map((t) => t.id))
     setTargetFont(null)

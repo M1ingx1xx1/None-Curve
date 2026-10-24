@@ -88,7 +88,6 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           />
           <span className="field-title">
             <label htmlFor="random-enabled">Use random anchors</label>
-
           </span>
         </div>
 
@@ -126,7 +125,6 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           />
           <span className="field-title">
             <label htmlFor="random-corners">Keep sharp corners</label>
-
           </span>
         </div>
 
@@ -149,7 +147,12 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
               onCommit={(seed) => update({ seed })}
             />
             <LiveSeed target="random.seed" />
-            <button type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(pickSeed(params.seed))}>
+            <button
+              type="button"
+              className="button-small"
+              disabled={seedOff}
+              onClick={() => setSeed(pickSeed(params.seed))}
+            >
               <Icon name="shuffle" />
               Shuffle
             </button>
@@ -164,14 +167,21 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
             </p>
           ) : (
             <HintText hint={seedHint}>
-              Shuffle picks a new random seed. To reproduce a result, type its seed here with the same settings and font.
+              Shuffle picks a new random seed. To reproduce a result, type its seed here with the same settings and
+              font.
             </HintText>
           )}
           {history.length > 0 && (
             <div className="seed-history" role="group" aria-label="Previous seeds">
               <span className="field-label">Previous</span>
               {history.map((seed) => (
-                <button key={seed} type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(seed)}>
+                <button
+                  key={seed}
+                  type="button"
+                  className="button-small"
+                  disabled={seedOff}
+                  onClick={() => setSeed(seed)}
+                >
                   {seed}
                 </button>
               ))}
@@ -208,7 +218,12 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           </p>
         )}
 
-        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}>
+        <button
+          type="button"
+          className="button-small"
+          disabled={disabled || isDefault}
+          onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}
+        >
           <Icon name="reset" />
           Reset random anchors
         </button>

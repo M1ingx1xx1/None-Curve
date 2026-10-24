@@ -64,13 +64,29 @@ export function crumpleWarp(params: CrumpleParams, seed: number, unitsPerEm: num
       if (rising(i, j)) {
         corners =
           fu >= fv
-            ? [[i, j, 1 - fu], [i + 1, j, fu - fv], [i + 1, j + 1, fv]]
-            : [[i, j, 1 - fv], [i, j + 1, fv - fu], [i + 1, j + 1, fu]]
+            ? [
+                [i, j, 1 - fu],
+                [i + 1, j, fu - fv],
+                [i + 1, j + 1, fv],
+              ]
+            : [
+                [i, j, 1 - fv],
+                [i, j + 1, fv - fu],
+                [i + 1, j + 1, fu],
+              ]
       } else {
         corners =
           fu + fv <= 1
-            ? [[i, j, 1 - fu - fv], [i + 1, j, fu], [i, j + 1, fv]]
-            : [[i + 1, j + 1, fu + fv - 1], [i + 1, j, 1 - fv], [i, j + 1, 1 - fu]]
+            ? [
+                [i, j, 1 - fu - fv],
+                [i + 1, j, fu],
+                [i, j + 1, fv],
+              ]
+            : [
+                [i + 1, j + 1, fu + fv - 1],
+                [i + 1, j, 1 - fv],
+                [i, j + 1, 1 - fu],
+              ]
       }
       let x = p.x
       let y = p.y

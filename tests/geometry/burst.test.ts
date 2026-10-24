@@ -25,7 +25,8 @@ function withoutBurst(params: GeometryParams): GeometryParams {
   return { ...params, experimental: { ...params.experimental, thorn: rest } as ExperimentalParams }
 }
 
-const burst = (patch: Partial<ThornParams> = {}, seed = 1) => paramsWith(GEOMETRY.plain, on('thorn', { burst: true, ...patch }), seed)
+const burst = (patch: Partial<ThornParams> = {}, seed = 1) =>
+  paramsWith(GEOMETRY.plain, on('thorn', { burst: true, ...patch }), seed)
 
 /** The distance from `p` to the nearest edge of `contours`. */
 function distanceToEdges(contours: Point[][], p: Point): number {
@@ -50,7 +51,10 @@ const lostVertices = (plain: Point[][], contours: Point[][], near: number) =>
 
 /** How many vertices sit in runs that read as curves (see curveLikeRuns), over every contour. */
 const curvedVertices = (contours: Point[][], unitsPerEm: number) =>
-  contours.reduce((n, c) => n + curveLikeRuns(c, WARP_LIMITS.shortEdge * unitsPerEm).reduce((m, run) => m + run.length, 0), 0)
+  contours.reduce(
+    (n, c) => n + curveLikeRuns(c, WARP_LIMITS.shortEdge * unitsPerEm).reduce((m, run) => m + run.length, 0),
+    0,
+  )
 
 describe.each(FIXTURE_FONTS)('Burst off: %s', (fontName) => {
   it('gives the same outline as settings without its keys, whatever Anchors and Dent hold for it', async () => {
@@ -61,12 +65,21 @@ describe.each(FIXTURE_FONTS)('Burst off: %s', (fontName) => {
     ]
     for (const [name, params] of cases) {
       expect(params.experimental.thorn.burst).toBe(false)
-      const other = { ...params, experimental: { ...params.experimental, thorn: { ...params.experimental.thorn, spikes: 80, dent: 0.1 } } }
+      const other = {
+        ...params,
+        experimental: { ...params.experimental, thorn: { ...params.experimental.thorn, spikes: 80, dent: 0.1 } },
+      }
       for (const glyph of sampleGlyphs(font, 'AgQ@&o')) {
         const source = font.getGlyph(glyph.index)
         const a = contoursOf(deriveGeometry(source, params).polygon)
-        expect(sameContours(a, contoursOf(deriveGeometry(source, withoutBurst(params)).polygon)), `${name}, "${glyph.char}"`).toBe(true)
-        expect(sameContours(a, contoursOf(deriveGeometry(source, other).polygon)), `${name}, "${glyph.char}", other Burst sliders`).toBe(true)
+        expect(
+          sameContours(a, contoursOf(deriveGeometry(source, withoutBurst(params)).polygon)),
+          `${name}, "${glyph.char}"`,
+        ).toBe(true)
+        expect(
+          sameContours(a, contoursOf(deriveGeometry(source, other).polygon)),
+          `${name}, "${glyph.char}", other Burst sliders`,
+        ).toBe(true)
       }
     }
   })
@@ -84,7 +97,9 @@ describe.each(FIXTURE_FONTS)('Burst on: %s', (fontName) => {
         expect(stats.thorns, `"${glyph.char}" × ${spikes}`).toBe(spikes)
         expect(stats.roots).toBe(0)
         expect(stats.longest).toBeGreaterThan(0)
-        expect(stats.longest).toBeLessThanOrEqual(THORN.canvasReach * THORN_LIMITS.defaultCanvasEm * derived.polygon.metrics.unitsPerEm * BURST_REACH + 1e-6)
+        expect(stats.longest).toBeLessThanOrEqual(
+          THORN.canvasReach * THORN_LIMITS.defaultCanvasEm * derived.polygon.metrics.unitsPerEm * BURST_REACH + 1e-6,
+        )
         expect(sameContours(contoursOf(derived.polygon), plain)).toBe(false)
       }
       // Beyond the slider, clamped to it.
@@ -111,8 +126,18 @@ describe.each(FIXTURE_FONTS)('Burst on: %s', (fontName) => {
         const base = deriveGeometry(source, paramsWith(geometry, {})).polygon
         const upm = base.metrics.unitsPerEm
         const plain = curvedVertices(contoursOf(base), upm)
-        for (const patch of [{ spikes: 4, dent: 1 }, { spikes: 8 }, { spikes: 20 }, { spikes: 80 }, { spikes: 80, dent: 1, width: 0 }, { spikes: 40, reverse: true }, { spikes: 10, dent: 0 }]) {
-          const contours = contoursOf(deriveGeometry(source, paramsWith(geometry, on('thorn', { burst: true, ...patch }))).polygon)
+        for (const patch of [
+          { spikes: 4, dent: 1 },
+          { spikes: 8 },
+          { spikes: 20 },
+          { spikes: 80 },
+          { spikes: 80, dent: 1, width: 0 },
+          { spikes: 40, reverse: true },
+          { spikes: 10, dent: 0 },
+        ]) {
+          const contours = contoursOf(
+            deriveGeometry(source, paramsWith(geometry, on('thorn', { burst: true, ...patch }))).polygon,
+          )
           expect(curvedVertices(contours, upm), `"${glyph.char}" ${JSON.stringify(patch)}`).toBeLessThanOrEqual(plain)
         }
       }
@@ -129,7 +154,10 @@ describe.each(FIXTURE_FONTS)('Burst on: %s', (fontName) => {
       for (const patch of [{ spikes: 4 }, { spikes: 8 }, { spikes: 4, canvasReach: 0.3 }, { spikes: 40 }]) {
         for (const dent of [0, 0.01]) {
           const contours = contoursOf(deriveGeometry(source, burst({ ...patch, dent })).polygon)
-          expect(lostVertices(contoursOf(base), contours, near), `"${glyph.char}" ${JSON.stringify(patch)}, dent ${dent}`).toEqual([])
+          expect(
+            lostVertices(contoursOf(base), contours, near),
+            `"${glyph.char}" ${JSON.stringify(patch)}, dent ${dent}`,
+          ).toEqual([])
         }
       }
     }
@@ -139,13 +167,19 @@ describe.each(FIXTURE_FONTS)('Burst on: %s', (fontName) => {
     const font = await loadFixture(fontName)
     for (const glyph of sampleGlyphs(font, 'aB@')) {
       const source = font.getGlyph(glyph.index)
-      for (const patch of [{ spikes: 80 }, { spikes: 80, reverse: true }, { spikes: 40, reverse: true, canvasReach: 1 }]) {
+      for (const patch of [
+        { spikes: 80 },
+        { spikes: 80, reverse: true },
+        { spikes: 40, reverse: true, canvasReach: 1 },
+      ]) {
         const derived = deriveGeometry(source, burst(patch))
         expect(derived.experimental.folds.applied, `"${glyph.char}" ${JSON.stringify(patch)}`).toBe(true)
         expect(outlineCrossings(contoursOf(derived.polygon)).cross, `"${glyph.char}" ${JSON.stringify(patch)}`).toBe(0)
       }
       const out = contoursOf(deriveGeometry(source, burst({ spikes: 40 })).polygon)
-      expect(sameContours(out, contoursOf(deriveGeometry(source, burst({ spikes: 40, reverse: true })).polygon))).toBe(false)
+      expect(sameContours(out, contoursOf(deriveGeometry(source, burst({ spikes: 40, reverse: true })).polygon))).toBe(
+        false,
+      )
     }
   })
 })
@@ -183,8 +217,12 @@ describe('Burst on a ring', () => {
 
   it('keeps the outline where a spike has no room to grow, and every corner of a long gap', () => {
     // A staircase of 20 corners; spikes so short that some are left out (no longer than a step off the outline).
-    const stairs: Point[] = [{ x: 0, y: 0 }, { x: 1000, y: 0 }]
-    for (let k = 0; k < 10; k++) stairs.push({ x: 1000 - 100 * k, y: 100 * (k + 1) }, { x: 900 - 100 * k, y: 100 * (k + 1) })
+    const stairs: Point[] = [
+      { x: 0, y: 0 },
+      { x: 1000, y: 0 },
+    ]
+    for (let k = 0; k < 10; k++)
+      stairs.push({ x: 1000 - 100 * k, y: 100 * (k + 1) }, { x: 900 - 100 * k, y: 100 * (k + 1) })
     const glyph = polygonOf([stairs])
     for (const spikes of [4, 80]) {
       const { polygon, stats } = applyThorn(glyph, { ...BURST, spikes, canvasReach: 0.0004, dent: 0.01 }, 1, 1000)
@@ -194,7 +232,10 @@ describe('Burst on a ring', () => {
       }
       // Each corner stays, sunk at most 1% of 60% of the stroke (or under a base a few units wide).
       const out = contoursOf(polygon).flat()
-      for (const p of stairs) expect(Math.min(...out.map((q) => Math.hypot(q.x - p.x, q.y - p.y))), `${spikes}: ${p.x},${p.y}`).toBeLessThan(10)
+      for (const p of stairs)
+        expect(Math.min(...out.map((q) => Math.hypot(q.x - p.x, q.y - p.y))), `${spikes}: ${p.x},${p.y}`).toBeLessThan(
+          10,
+        )
     }
   })
 
@@ -208,7 +249,15 @@ describe('Burst on a ring', () => {
     expect(budget.stats.applied).toBe(true)
     expect(budget.stats.before).toBe(all)
     // The same again: the simplification depends only on the glyph and the settings.
-    const again = applyThorn(ring, { ...BURST, spikes: 80 }, 1, 1000, undefined, false, new GlyphBudget(120, 30_000, 1000)).polygon
+    const again = applyThorn(
+      ring,
+      { ...BURST, spikes: 80 },
+      1,
+      1000,
+      undefined,
+      false,
+      new GlyphBudget(120, 30_000, 1000),
+    ).polygon
     expect(sameContours(contoursOf(polygon), contoursOf(again))).toBe(true)
   })
 
@@ -230,7 +279,9 @@ describe('thornBursts and describePipeline', () => {
 
   it('say "thorn burst" with its spikes and Dent, and no root', () => {
     const steps = describePipeline(burst({ spikes: 64, dent: 0.3, canvasEm: 30 })).join(' | ')
-    expect(steps).toMatch(/thorn burst ×64, reach 10% canvas \(longest about 0\.90 em\), dent 30%, spread 50%, width 30%, seed 1/)
+    expect(steps).toMatch(
+      /thorn burst ×64, reach 10% canvas \(longest about 0\.90 em\), dent 30%, spread 50%, width 30%, seed 1/,
+    )
     expect(steps).not.toContain('root')
     expect(describePipeline(burst({ reverse: true })).join(' | ')).toMatch(/thorn burst ×40, reversed, reach/)
     expect(describePipeline(paramsWith(GEOMETRY.plain, on('thorn'))).join(' | ')).toMatch(/thorn ×3, reach/)

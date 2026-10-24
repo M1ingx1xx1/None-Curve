@@ -54,7 +54,10 @@ const REDUCE_MIN = 0.05
  */
 const REDUCE_MARGIN = 0.85
 
-export function applySquaring(polygon: PolygonGlyph, params: SquaringParams): { polygon: PolygonGlyph; stats: SquaringStats } {
+export function applySquaring(
+  polygon: PolygonGlyph,
+  params: SquaringParams,
+): { polygon: PolygonGlyph; stats: SquaringStats } {
   const stats: SquaringStats = { applied: false, squared: 0, partial: 0, notRound: 0, reduced: 0, fallbacks: [] }
   const amount = Number.isFinite(params.amount) ? Math.min(1, Math.max(0, params.amount)) : 0
   if (amount === 0) return { polygon, stats }
@@ -187,7 +190,11 @@ function squareContour(points: readonly Point[], box: Box, k: number): Point[] {
   return out
 }
 
-function validate(before: readonly Point[], after: readonly Point[], beforeCrossings: () => number): SquaringFailure | null {
+function validate(
+  before: readonly Point[],
+  after: readonly Point[],
+  beforeCrossings: () => number,
+): SquaringFailure | null {
   if (after.length < 3) return 'collapsed'
   for (let i = 0; i < after.length; i++) {
     const a = after[i]

@@ -1,4 +1,15 @@
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type Dispatch,
+  type KeyboardEvent,
+} from 'react'
 import { formatCodePoint } from '../font/model'
 import { canvasDiagonalEm, THORN_LIMITS } from '../geometry/limits'
 import type { GlyphRef } from '../geometry/types'
@@ -57,7 +68,13 @@ function readTab(): Tab {
  * their tab is first opened, and every tab stays mounted after that. Their settings live outside them (the
  * editor state, Sound's mapping store and engine), so mounting late loses nothing.
  */
-export default function GeometryPanel({ state, dispatch, derived, showAllHints, onShowAllHintsChange }: GeometryPanelProps) {
+export default function GeometryPanel({
+  state,
+  dispatch,
+  derived,
+  showAllHints,
+  onShowAllHintsChange,
+}: GeometryPanelProps) {
   const { font, selectedGlyph } = state.document
   const geometry = derived.result.kind === 'ready' ? derived.result.geometry : null
   const unitsPerEm = font?.metrics.unitsPerEm ?? null
@@ -131,7 +148,12 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
         ))}
       </div>
       <div className="field-toggle show-explanations">
-        <input id="show-explanations" type="checkbox" checked={showAllHints} onChange={(e) => onShowAllHintsChange(e.target.checked)} />
+        <input
+          id="show-explanations"
+          type="checkbox"
+          checked={showAllHints}
+          onChange={(e) => onShowAllHintsChange(e.target.checked)}
+        />
         <label htmlFor="show-explanations">Show all explanations</label>
       </div>
 
@@ -145,7 +167,12 @@ export default function GeometryPanel({ state, dispatch, derived, showAllHints, 
           {...common}
         />
         <SquaringControls params={state.params.squaring} stats={geometry?.squaring ?? null} {...common} />
-        <AnchorControls params={state.params.anchors} stats={geometry?.anchors ?? null} unitsPerEm={unitsPerEm} {...common} />
+        <AnchorControls
+          params={state.params.anchors}
+          stats={geometry?.anchors ?? null}
+          unitsPerEm={unitsPerEm}
+          {...common}
+        />
         <GridControls params={state.params.grid} stats={geometry?.constraints ?? null} {...common} />
         <DistortionControls
           params={state.params.distortion}
@@ -206,8 +233,8 @@ function PipelineIntro({ glyph }: { glyph: GlyphRef | null | undefined }) {
       {glyph !== undefined && <StatisticsTarget glyph={glyph} />}
       <HintText hint={hint}>
         Applies to the whole text. Statistics below are for the selected glyph (click one in the canvas, or insert one
-        from Glyphs). Random anchors (at the bottom) replace Flatten’s sampling when on. The Experimental tab runs
-        after all of these.
+        from Glyphs). Random anchors (at the bottom) replace Flatten’s sampling when on. The Experimental tab runs after
+        all of these.
       </HintText>
     </div>
   )
@@ -220,8 +247,7 @@ function StatisticsTarget({ glyph }: { glyph: GlyphRef | null }) {
   const code = glyph.unicode !== null ? formatCodePoint(glyph.unicode) : glyph.name || `#${glyph.index}`
   return (
     <p className="statistics-target">
-      Statistics:{' '}
-      {char.trim() && <strong className="statistics-glyph">{char}</strong>}{' '}
+      Statistics: {char.trim() && <strong className="statistics-glyph">{char}</strong>}{' '}
       <span className="statistics-code">{code}</span>
     </p>
   )

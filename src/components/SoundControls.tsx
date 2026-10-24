@@ -1,4 +1,18 @@
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type Dispatch,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { getRecorder } from '../export/recorder'
 import type { VariationAxis } from '../font/model'
 import type { SoundEngine } from '../sound/engine'
@@ -226,7 +240,11 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
       return connected && { ...connected, activation: needs ? activate(connected.id, target) : null }
     })
     if (!result) {
-      return { message: `Up to ${MAPPING_LIMITS.maxMappings} mappings: remove one to map ${pair}.`, mappingId: null, created: false }
+      return {
+        message: `Up to ${MAPPING_LIMITS.maxMappings} mappings: remove one to map ${pair}.`,
+        mappingId: null,
+        created: false,
+      }
     }
     // What the row says while the control still does nothing (a grey has no hue, and nothing can switch that on).
     const after = result.activation ? applyPatches(params, result.activation.patches) : params
@@ -234,11 +252,17 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
     let first: string
     if (result.created) {
       const amount =
-        target?.kind === 'switch' ? 'in Toggle' : target?.kind === 'jump' ? `at Rate ${DEFAULT_DEPTH * 100}%` : `at Depth +${DEFAULT_DEPTH * 100}%`
+        target?.kind === 'switch'
+          ? 'in Toggle'
+          : target?.kind === 'jump'
+            ? `at Rate ${DEFAULT_DEPTH * 100}%`
+            : `at Depth +${DEFAULT_DEPTH * 100}%`
       first = `Mapped ${pair} ${amount}.`
     } else {
       const n = mappingStore.getState().mappings.findIndex((m) => m.id === result.id) + 1
-      first = result.switchedOn ? `${pair} was mapped already (mapping ${n}, off): switched it on.` : `${pair} is mapped already (mapping ${n}).`
+      first = result.switchedOn
+        ? `${pair} was mapped already (mapping ${n}, off): switched it on.`
+        : `${pair} is mapped already (mapping ${n}).`
     }
     const message = [first, result.activation?.notice, still].filter(Boolean).join(' ')
     return { message, mappingId: result.id, created: result.created }
@@ -289,7 +313,10 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
   // An element kept while its props hold, so the Record group (not memoised itself) skips this tab's other renders.
   const { artboard } = params
   const { transparent } = params.palette
-  const record = useMemo(() => <RecordGroup artboard={artboard} transparent={transparent} collapsible />, [artboard, transparent])
+  const record = useMemo(
+    () => <RecordGroup artboard={artboard} transparent={transparent} collapsible />,
+    [artboard, transparent],
+  )
 
   return (
     <>
@@ -299,8 +326,8 @@ function SoundControls({ params, dispatch, axes }: SoundControlsProps) {
           <HintButton hint={introHint} topic="the Sound tab" />
         </p>
         <HintText hint={introHint}>
-          Audio stays in your browser: files are read locally and never uploaded, and the microphone is only used while you
-          listen.
+          Audio stays in your browser: files are read locally and never uploaded, and the microphone is only used while
+          you listen.
         </HintText>
       </div>
 
@@ -325,7 +352,10 @@ const selectSettings = (state: SoundState) => state.settings
 function sameProps(a: SoundControlsProps, b: SoundControlsProps): boolean {
   if (a.dispatch !== b.dispatch || a.axes !== b.axes) return false
   const keys = Object.keys(b.params) as (keyof SettingsParams)[]
-  return keys.length === Object.keys(a.params).length && keys.every((key) => (key as string) === 'view' || a.params[key] === b.params[key])
+  return (
+    keys.length === Object.keys(a.params).length &&
+    keys.every((key) => (key as string) === 'view' || a.params[key] === b.params[key])
+  )
 }
 
 // Its props (all the parameters and dispatch) stay the same while Sound drives the letters.
@@ -387,8 +417,8 @@ function PlainField({ response, hint }: { response: ResponseSettings; hint: Hint
       </div>
       <HintText hint={hint}>
         The letters rest on their plain shapes, every Experimental effect off, and each beat brings back the effects you
-        switched on in the Experimental tab, then they return. Hold sets how long each beat shows them. Your mappings still
-        act on top. Glide smooths the way there and back.
+        switched on in the Experimental tab, then they return. Hold sets how long each beat shows them. Your mappings
+        still act on top. Glide smooths the way there and back.
       </HintText>
     </div>
   )
@@ -407,7 +437,13 @@ interface TransportGroupProps {
  * The transport: the source and its controls (play, the file and its time, or the microphone), Drive letters,
  * the presets, Freeze and the live frame rate.
  */
-const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNotice, onPresetChosen, onLoadPreset }: TransportGroupProps) {
+const TransportGroup = memo(function TransportGroup({
+  engine,
+  dispatch,
+  presetNotice,
+  onPresetChosen,
+  onLoadPreset,
+}: TransportGroupProps) {
   // Not the position: FileTime and FilePosition follow it, so the rest is not rendered again 4 times a second.
   const state = useSteadySoundState()
   const { response, drive, reducedMotion } = useMappingState()
@@ -469,7 +505,9 @@ const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNo
                 type="checkbox"
                 role="switch"
                 checked={drive}
-                aria-describedby={[reducedNote && reducedId, stillNote && stillId, driveHint.id].filter(Boolean).join(' ')}
+                aria-describedby={[reducedNote && reducedId, stillNote && stillId, driveHint.id]
+                  .filter(Boolean)
+                  .join(' ')}
                 onChange={(e) => mappingStore.setDrive(e.target.checked)}
               />
               <span className="switch-track" aria-hidden="true" />
@@ -491,8 +529,8 @@ const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNo
           </p>
         )}
         <HintText hint={driveHint}>
-          Sound moves the letters only while this is on and a file plays or the microphone listens. The sliders keep their
-          own values; a marker on each driven slider shows the live value.
+          Sound moves the letters only while this is on and a file plays or the microphone listens. The sliders keep
+          their own values; a marker on each driven slider shows the live value.
         </HintText>
       </div>
 
@@ -535,7 +573,12 @@ const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNo
             )}
             {loaded && <FileTime duration={state.duration} />}
             <div className="field-toggle sound-loop">
-              <input id="sound-loop" type="checkbox" checked={state.loop} onChange={(e) => engine.setLoop(e.target.checked)} />
+              <input
+                id="sound-loop"
+                type="checkbox"
+                checked={state.loop}
+                onChange={(e) => engine.setLoop(e.target.checked)}
+              />
               <label htmlFor="sound-loop">Loop</label>
             </div>
             <input
@@ -639,8 +682,8 @@ const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNo
         </div>
         <HintText hint={presetHint}>
           Ready-made mappings to start from. Load resets the Geometry and Experimental settings to their defaults (seeds
-          kept), then sets the preset up: its own starting values and its mappings, which replace the current ones. Undo (
-          {UNDO_KEYS.undo}) brings back the settings and mappings from before.
+          kept), then sets the preset up: its own starting values and its mappings, which replace the current ones. Undo
+          ({UNDO_KEYS.undo}) brings back the settings and mappings from before.
           <span className="preset-list">
             {PRESETS.map((p) => (
               <span key={p.id} className="preset-item">
@@ -683,8 +726,8 @@ const TransportGroup = memo(function TransportGroup({ engine, dispatch, presetNo
           </p>
         )}
         <HintText hint={freezeHint}>
-          Copies the live values into the sliders and pauses the sound, so you can keep or export this moment. Letters that
-          react more or less take the shared values.
+          Copies the live values into the sliders and pauses the sound, so you can keep or export this moment. Letters
+          that react more or less take the shared values.
         </HintText>
       </div>
       {/* Always in the document, so screen readers announce it when it fills; visually hidden while empty so it adds no gap. */}
@@ -803,9 +846,12 @@ const InputGroup = memo(function InputGroup({ engine, settings }: { engine: Soun
         </div>
         <MeterStrip hintButton={<HintButton hint={metersHint} topic="the meters" />} hintId={metersHint.id} />
       </div>
-      <HintText hint={sensitivityHint}>Sensitivity boosts or cuts the input before measuring, for quiet or loud sources.</HintText>
+      <HintText hint={sensitivityHint}>
+        Sensitivity boosts or cuts the input before measuring, for quiet or loud sources.
+      </HintText>
       <HintText hint={releaseHint}>
-        Release: how slowly the readings fall back after a sound: short is jumpy, long is calm. They always rise at once.
+        Release: how slowly the readings fall back after a sound: short is jumpy, long is calm. They always rise at
+        once.
       </HintText>
       <HintText hint={metersHint}>
         <span className="preset-list">
@@ -831,7 +877,8 @@ const groupHelp: Record<FeatureGroup, string> = {
     'Energy below 250 Hz (Bass), 250–2000 Hz (Mids), and above 2000 Hz (Treble), each compared with its own loudest moment of the last few seconds.',
   Tone: `Brightness: dull, bass-heavy sound reads low; hiss and cymbals read high. Pitch: the note being played or sung, from ${pitchLowHz} Hz (empty meter) to ${pitchHighHz} Hz (full); it holds between notes. Melody jumps when the note changes and falls back with Release.`,
   Rhythm: `Beat jumps to full on every hit, the bass drum included, and falls back with Release. Activity: how busy the sound is; it jumps on sudden changes and stays up while beats come quickly (${SOUND_LIMITS.paceMaxPerSecond} a second fill the meter).`,
-  Stereo: 'Pan: where the sound sits, from left to right (lit up or down from the middle). Files only; the microphone reads as centred.',
+  Stereo:
+    'Pan: where the sound sits, from left to right (lit up or down from the middle). Files only; the microphone reads as centred.',
 }
 
 /** Each meter's caption under it: short, as on a mixing desk (the full name is its tooltip and accessible name). */
@@ -889,7 +936,9 @@ function spokenReadout(feature: FeatureSpec, frame: FeatureFrame, text: string):
   if (text === '—') return 'No reading'
   if (feature.id !== 'pan') return text
   const value = featureValue(frame, feature.id)
-  return Math.abs(value) < PAN_CENTRE ? 'Centre' : `${Math.round(Math.abs(value) * 100)} percent ${value < 0 ? 'left' : 'right'}`
+  return Math.abs(value) < PAN_CENTRE
+    ? 'Centre'
+    : `${Math.round(Math.abs(value) * 100)} percent ${value < 0 ? 'left' : 'right'}`
 }
 
 /**
@@ -949,10 +998,13 @@ class MeterBoard {
         textDue ? Infinity : TEXT_INTERVAL_MS - (now - this.textAt),
         ariaDue ? Infinity : ARIA_INTERVAL_MS - (now - this.ariaAt),
       )
-      this.trailing = setTimeout(() => {
-        this.trailing = undefined
-        this.updateReadouts()
-      }, Math.max(1, wait))
+      this.trailing = setTimeout(
+        () => {
+          this.trailing = undefined
+          this.updateReadouts()
+        },
+        Math.max(1, wait),
+      )
     }
   }
 }
@@ -976,7 +1028,11 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
    * picks a control to map its feature to (drag to map from the keyboard, mapDrag.ts).
    */
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target instanceof HTMLElement && e.target.getAttribute('role') === 'meter') {
+    if (
+      (e.key === 'Enter' || e.key === ' ') &&
+      e.target instanceof HTMLElement &&
+      e.target.getAttribute('role') === 'meter'
+    ) {
       const meter = board.meters.find((m) => m.bar === e.target)
       if (!meter) return
       e.preventDefault()
@@ -987,7 +1043,12 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
     }
     const meters = board.meters
     const at = meters.findIndex((m) => m.feature.id === stop)
-    const moves: Partial<Record<string, number>> = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: meters.length - 1 }
+    const moves: Partial<Record<string, number>> = {
+      ArrowLeft: at - 1,
+      ArrowRight: at + 1,
+      Home: 0,
+      End: meters.length - 1,
+    }
     const next = moves[e.key]
     if (next === undefined) return
     e.preventDefault()
@@ -1082,7 +1143,10 @@ const MeterStrip = memo(function MeterStrip({ hintButton, hintId }: { hintButton
  * Each response value's knob: its label under the knob, its full name (when longer) and ⓘ explanation, and its unit:
  * percent on the knob for a fraction in the store (scale 100), or milliseconds as they are (Glide).
  */
-const RESPONSE_FIELDS: Record<Exclude<keyof ResponseSettings, 'plain' | 'holdMs'>, { label: string; name?: string; hint: string; unit?: 'ms' }> = {
+const RESPONSE_FIELDS: Record<
+  Exclude<keyof ResponseSettings, 'plain' | 'holdMs'>,
+  { label: string; name?: string; hint: string; unit?: 'ms' }
+> = {
   strength: {
     label: 'Strength',
     hint:
@@ -1116,7 +1180,7 @@ const RESPONSE_FIELDS: Record<Exclude<keyof ResponseSettings, 'plain' | 'holdMs'
     unit: 'ms',
     hint:
       'Glide lets the letters travel to each new shape instead of jumping: every anchor slides from where it is to where the ' +
-      'sound puts it, over this time, along its effect\'s own path (Whorl turns the rings round their centre; the other ' +
+      "sound puts it, over this time, along its effect's own path (Whorl turns the rings round their centre; the other " +
       'effects move straight). 0 ms shows each shape at once. Only the canvas, the preview and videos glide; the shapes, ' +
       'markers and Freeze are the same at any value. Off while your system asks for reduced motion.',
   },
@@ -1129,7 +1193,13 @@ const RESPONSE_KEYS = Object.keys(RESPONSE_FIELDS) as (keyof typeof RESPONSE_FIE
  * row (fewer on a narrow panel), and Reset sound, which also resets Input's Sensitivity and Release. All
  * seven are saved and undone; presets leave them alone.
  */
-const ResponseGroup = memo(function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: FeatureSettings }) {
+const ResponseGroup = memo(function ResponseGroup({
+  engine,
+  settings,
+}: {
+  engine: SoundEngine
+  settings: FeatureSettings
+}) {
   const { response } = useMappingState()
   const hints = {
     strength: useHint(),
@@ -1250,7 +1320,13 @@ interface ModulationGroupProps {
  * behind its expand button (one row open at a time), and Add mapping. The mappings live in their own store
  * (mappingStore), so the sliders keep their values; the live values reach the canvas through useLiveFrame in App.
  */
-const ModulationGroup = memo(function ModulationGroup({ params, axes, notices, onActivate, onRemove }: ModulationGroupProps) {
+const ModulationGroup = memo(function ModulationGroup({
+  params,
+  axes,
+  notices,
+  onActivate,
+  onRemove,
+}: ModulationGroupProps) {
   const { mappings } = useMappingState()
   const limitId = useId()
   // The row whose details are open; null with none.
@@ -1336,7 +1412,7 @@ const shapingHelp =
   'seed there is no Range, Curve and Smooth act only in Follow, and with Beat Gate, Curve and Smooth do nothing; with ' +
   'Beat in Trigger or Toggle every hit fires, so there is no Gate. A switch (a checkbox such as Burst) only flips: ' +
   'Trigger turns it the other way for as long as Smooth, Toggle at one rise and back at the next; it has no Depth, ' +
-  "Range or Curve. Knobs that do nothing are not shown."
+  'Range or Curve. Knobs that do nothing are not shown.'
 
 /** Curve as read under its knob: "Lin", "Log 40", "Exp 40" (percent of the way to the strongest curve). */
 function formatCurve(percent: number): string {
@@ -1375,7 +1451,9 @@ function sameRowProps(a: MappingRowProps, b: MappingRowProps): boolean {
   const keys = Object.keys(b) as (keyof MappingRowProps)[]
   if (keys.length !== Object.keys(a).length) return false
   return keys.every((key) =>
-    key === 'span' ? a.span === b.span || (a.span?.[0] === b.span?.[0] && a.span?.[1] === b.span?.[1]) : Object.is(a[key], b[key]),
+    key === 'span'
+      ? a.span === b.span || (a.span?.[0] === b.span?.[0] && a.span?.[1] === b.span?.[1])
+      : Object.is(a[key], b[key]),
   )
 }
 
@@ -1410,7 +1488,8 @@ const MappingRow = memo(function MappingRow(props: MappingRowProps) {
   // The font's axes as targets; an axis target the font lacks still shows, so the select stays truthful.
   const axisOptions = axes?.length ? axisTargets() : []
   const missingAxis = target?.tab === 'axes' && !axisOptions.some((t) => t.id === target.id)
-  const modes = flip && shapingOf(mapping).mode !== 'follow' ? MAPPING_MODES.filter((mode) => mode !== 'follow') : MAPPING_MODES
+  const modes =
+    flip && shapingOf(mapping).mode !== 'follow' ? MAPPING_MODES.filter((mode) => mode !== 'follow') : MAPPING_MODES
   const amountPercent = Math.round((jump ? Math.abs(mapping.depth) : mapping.depth) * 100)
   const amountLabel = jump ? 'Rate' : 'Depth'
   // The notice fills its status region only once the row is in the document, so a notice from Add
@@ -1431,7 +1510,12 @@ const MappingRow = memo(function MappingRow(props: MappingRowProps) {
   const showCurve = showCurveSmooth && !flip
   // Another mapping on the target widens this row's Range (they share the outer edges): say so under the Range.
   const widened =
-    !jump && !flip && mapping.enabled && mapping.depth !== 0 && span !== undefined && (span[0] < shaping.rangeMin || span[1] > shaping.rangeMax)
+    !jump &&
+    !flip &&
+    mapping.enabled &&
+    mapping.depth !== 0 &&
+    span !== undefined &&
+    (span[0] < shaping.rangeMin || span[1] > shaping.rangeMax)
       ? span
       : undefined
   // Keyboard browsing (arrow keys or typing on a closed select) changes the target at every option it passes, so
@@ -1488,7 +1572,13 @@ const MappingRow = memo(function MappingRow(props: MappingRowProps) {
           className="mapping-target"
           aria-label={`Mapping ${n} target`}
           aria-describedby={inactive ? `${id}-inactive` : undefined}
-          title={target ? (target.section === target.label ? target.label : `${target.section} · ${target.label}`) : undefined}
+          title={
+            target
+              ? target.section === target.label
+                ? target.label
+                : `${target.section} · ${target.label}`
+              : undefined
+          }
           value={mapping.target}
           onPointerDown={() => (keyboard.current = false)}
           onKeyDown={(e) => {
@@ -1573,12 +1663,23 @@ const MappingRow = memo(function MappingRow(props: MappingRowProps) {
         </button>
       </div>
       {/* The rest of the mapping: its shaping, then what Rate means on a seed, then the actions. */}
-      <div id={`${id}-details`} className="mapping-details" role="group" aria-label={`Mapping ${n} details`} hidden={!open}>
+      <div
+        id={`${id}-details`}
+        className="mapping-details"
+        role="group"
+        aria-label={`Mapping ${n} details`}
+        hidden={!open}
+      >
         <span className="field-title">
           <span id={`${id}-mode`}>Mode</span>
           <HintButton hint={shapingHint} topic="Shaping" />
         </span>
-        <div className="segmented segmented-small mapping-mode" role="radiogroup" aria-labelledby={`${id}-mode`} aria-describedby={shapingHint.id}>
+        <div
+          className="segmented segmented-small mapping-mode"
+          role="radiogroup"
+          aria-labelledby={`${id}-mode`}
+          aria-describedby={shapingHint.id}
+        >
           {modes.map((mode) => (
             <label key={mode} className="segment-option">
               <input
@@ -1661,7 +1762,10 @@ const MappingRow = memo(function MappingRow(props: MappingRowProps) {
               valueText={(v) => `${v} percent`}
               describedBy={widened ? `${id}-widened` : undefined}
               onChange={({ low, high }) =>
-                update({ ...(low !== undefined ? { rangeMin: low / 100 } : {}), ...(high !== undefined ? { rangeMax: high / 100 } : {}) })
+                update({
+                  ...(low !== undefined ? { rangeMin: low / 100 } : {}),
+                  ...(high !== undefined ? { rangeMax: high / 100 } : {}),
+                })
               }
             />
             {widened && (
@@ -1687,7 +1791,9 @@ const MappingRow = memo(function MappingRow(props: MappingRowProps) {
               // Hand focus to the next row's expand button, else the previous row's, else Add mapping, before this
               // row unmounts, so keyboard focus does not fall back to the page.
               const row = e.currentTarget.closest('li')
-              const neighbour = (row?.nextElementSibling ?? row?.previousElementSibling)?.querySelector<HTMLButtonElement>('.mapping-expand')
+              const neighbour = (
+                row?.nextElementSibling ?? row?.previousElementSibling
+              )?.querySelector<HTMLButtonElement>('.mapping-expand')
               const next = neighbour ?? row?.closest('.group-body')?.querySelector<HTMLButtonElement>('.mapping-add')
               next?.focus()
               onRemove()

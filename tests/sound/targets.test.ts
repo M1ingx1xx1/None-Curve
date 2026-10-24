@@ -26,9 +26,26 @@ import { readSession, SESSION_VERSION } from '../../src/state/persist'
 import { loadFixture } from '../helpers/fonts'
 import { BASE, on } from '../helpers/params'
 
-const DRIVEN: DrivenParams = { ...BASE, typography: DEFAULT_TYPOGRAPHY, palette: { ink: '#b03a2e', paper: '#f4efe6', transparent: false } }
-const frame = (level: number): FeatureFrame => ({ ...SILENT_FRAME, time: 1, silent: level === 0, level, levelDb: level ? -20 : -Infinity })
-const row = (target: string, depth = 0.5, patch: Partial<Mapping> = {}): Mapping => ({ id: `${target} ${depth}`, enabled: true, feature: 'level', target, depth, ...patch })
+const DRIVEN: DrivenParams = {
+  ...BASE,
+  typography: DEFAULT_TYPOGRAPHY,
+  palette: { ink: '#b03a2e', paper: '#f4efe6', transparent: false },
+}
+const frame = (level: number): FeatureFrame => ({
+  ...SILENT_FRAME,
+  time: 1,
+  silent: level === 0,
+  level,
+  levelDb: level ? -20 : -Infinity,
+})
+const row = (target: string, depth = 0.5, patch: Partial<Mapping> = {}): Mapping => ({
+  id: `${target} ${depth}`,
+  enabled: true,
+  feature: 'level',
+  target,
+  depth,
+  ...patch,
+})
 
 afterEach(() => setTargetFont(null))
 
@@ -124,7 +141,15 @@ describe('Variable axis targets', () => {
     expect(heavy.polygon.contours).not.toEqual(plain.polygon.contours)
     // Without axis values the key is the seven groups, as it always was.
     expect(paramsKey(BASE)).toBe(
-      JSON.stringify([BASE.flatten, BASE.random, BASE.squaring, BASE.anchors, BASE.grid, BASE.distortion, BASE.experimental]),
+      JSON.stringify([
+        BASE.flatten,
+        BASE.random,
+        BASE.squaring,
+        BASE.anchors,
+        BASE.grid,
+        BASE.distortion,
+        BASE.experimental,
+      ]),
     )
   })
 })
@@ -133,7 +158,7 @@ describe('Switch targets', () => {
   const burst = 'experimental.thorn.burst'
   const thornOn: DrivenParams = { ...DRIVEN, experimental: { ...BASE.experimental, ...on('thorn') } }
 
-  it('are the effects\' checkboxes, each a 0/1 switch', () => {
+  it("are the effects' checkboxes, each a 0/1 switch", () => {
     const switches = TARGETS.filter((t) => t.kind === 'switch').map((t) => t.id)
     expect(switches).toEqual([
       'experimental.crumple.enabled',
@@ -146,13 +171,19 @@ describe('Switch targets', () => {
       'experimental.thorn.reverse',
       'experimental.dissolve.enabled',
     ])
-    for (const id of switches) expect([targetById(id)!.min, targetById(id)!.max, targetById(id)!.step]).toEqual([0, 1, 1])
+    for (const id of switches)
+      expect([targetById(id)!.min, targetById(id)!.max, targetById(id)!.step]).toEqual([0, 1, 1])
   })
 
   it('flip in Trigger while the pulse lasts, in Toggle past half way, and in Follow at half the level', () => {
     const trigger = row(burst, 0.5, { mode: 'trigger' })
     const toggle = row(burst, 0.5, { mode: 'toggle' })
-    expect([switchFires(trigger, 0), switchFires(trigger, 0.01), switchFires(toggle, 0.49), switchFires(toggle, 0.5)]).toEqual([false, true, false, true])
+    expect([
+      switchFires(trigger, 0),
+      switchFires(trigger, 0.01),
+      switchFires(toggle, 0.49),
+      switchFires(toggle, 0.5),
+    ]).toEqual([false, true, false, true])
     const flipped = modulate(thornOn, frame(1), [trigger], undefined, undefined, new Map([[trigger.id, 0.2]]))
     expect(flipped.params.experimental.thorn.burst).toBe(!thornOn.experimental.thorn.burst)
     expect(flipped.positions.get(burst)).toBe(1 - Number(thornOn.experimental.thorn.burst))
@@ -160,10 +191,12 @@ describe('Switch targets', () => {
     expect(held.params).toBe(thornOn)
     // Follow (from a file; the Sound tab does not offer it): on at half the level and above.
     expect(modulate(thornOn, frame(0.4), [row(burst)]).params).toBe(thornOn)
-    expect(modulate(thornOn, frame(0.6), [row(burst)]).params.experimental.thorn.burst).toBe(!thornOn.experimental.thorn.burst)
+    expect(modulate(thornOn, frame(0.6), [row(burst)]).params.experimental.thorn.burst).toBe(
+      !thornOn.experimental.thorn.burst,
+    )
   })
 
-  it('ignore Depth\'s size and sign but not 0, and flip once however many mappings fire', () => {
+  it("ignore Depth's size and sign but not 0, and flip once however many mappings fire", () => {
     const flipped = !thornOn.experimental.thorn.burst
     expect(modulate(thornOn, frame(1), [row(burst, -0.1)]).params.experimental.thorn.burst).toBe(flipped)
     expect(modulate(thornOn, frame(1), [row(burst, 0)]).params).toBe(thornOn)
@@ -175,7 +208,10 @@ describe('Switch targets', () => {
     // Thorn is off: Burst does nothing, but switching Thorn on lets Thorn's sliders act in the same frame.
     expect(targetById(burst)!.inactive(DRIVEN)).not.toBeNull()
     expect(modulate(DRIVEN, frame(1), [row(burst)]).params).toBe(DRIVEN)
-    const { params } = modulate(DRIVEN, frame(1), [row('experimental.thorn.enabled'), row('experimental.thorn.width', 0.5)])
+    const { params } = modulate(DRIVEN, frame(1), [
+      row('experimental.thorn.enabled'),
+      row('experimental.thorn.width', 0.5),
+    ])
     expect(params.experimental.thorn.enabled).toBe(true)
     expect(params.experimental.thorn.width).not.toBe(DRIVEN.experimental.thorn.width)
   })
@@ -184,7 +220,10 @@ describe('Switch targets', () => {
     // "Use thorn" (Toggle) and "Burst" (Trigger) together, with Thorn off on the sliders: Burst flips in the same frame.
     const use = row('experimental.thorn.enabled', 0.5, { mode: 'toggle' })
     const trigger = row(burst, 0.5, { mode: 'trigger' })
-    const shaped = new Map([[use.id, 1], [trigger.id, 0.2]])
+    const shaped = new Map([
+      [use.id, 1],
+      [trigger.id, 0.2],
+    ])
     const both = modulate(DRIVEN, frame(1), [trigger, use], undefined, undefined, shaped)
     expect(both.params.experimental.thorn.enabled).toBe(true)
     expect(both.params.experimental.thorn.burst).toBe(!DRIVEN.experimental.thorn.burst)

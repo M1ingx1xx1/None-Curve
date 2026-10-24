@@ -69,7 +69,12 @@ export interface VideoMime {
 const CANDIDATES: Record<VideoFormat, { video: string[]; audio: string[] }> = {
   mp4: {
     video: ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4'],
-    audio: ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4'],
+    audio: [
+      'video/mp4;codecs=avc1.640028,mp4a.40.2',
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4;codecs=avc1,mp4a.40.2',
+      'video/mp4',
+    ],
   },
   webm: {
     video: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'],
@@ -86,7 +91,11 @@ export function videoMimeCandidates(format: VideoFormat, audio: boolean): string
  * The format's candidates the browser supports, best first. MP4 with none supported gives WebM's, marked
  * `fellBack`; nothing supported gives [].
  */
-export function pickVideoMimes(format: VideoFormat, audio: boolean, isTypeSupported: (mime: string) => boolean): VideoMime[] {
+export function pickVideoMimes(
+  format: VideoFormat,
+  audio: boolean,
+  isTypeSupported: (mime: string) => boolean,
+): VideoMime[] {
   const supported = (f: VideoFormat, fellBack: boolean) =>
     videoMimeCandidates(f, audio)
       .filter((mimeType) => isSupported(isTypeSupported, mimeType))
@@ -98,7 +107,9 @@ export function pickVideoMimes(format: VideoFormat, audio: boolean, isTypeSuppor
 /** Which formats this browser can record at all (with or without audio). */
 export function videoSupport(isTypeSupported: (mime: string) => boolean): { mp4: boolean; webm: boolean } {
   const any = (format: VideoFormat) =>
-    [...videoMimeCandidates(format, true), ...videoMimeCandidates(format, false)].some((mime) => isSupported(isTypeSupported, mime))
+    [...videoMimeCandidates(format, true), ...videoMimeCandidates(format, false)].some((mime) =>
+      isSupported(isTypeSupported, mime),
+    )
   return { mp4: any('mp4'), webm: any('webm') }
 }
 
@@ -115,7 +126,11 @@ function isSupported(isTypeSupported: (mime: string) => boolean, mime: string): 
  * The video's size in pixels: the canvas at its export scale (as PNG), scaled down to fit the longest
  * side and the area limits, each side an even number (H.264 needs them even). `capped` when scaled down.
  */
-export function videoSize(width: number, height: number, scale: number): { width: number; height: number; capped: boolean } {
+export function videoSize(
+  width: number,
+  height: number,
+  scale: number,
+): { width: number; height: number; capped: boolean } {
   const w0 = positive(width) * positive(scale)
   const h0 = positive(height) * positive(scale)
   const f = Math.min(1, VIDEO_LIMITS.maxSide / Math.max(w0, h0), Math.sqrt(VIDEO_LIMITS.maxPixels / (w0 * h0)))
@@ -132,7 +147,9 @@ function positive(value: number): number {
  * follows the rate only below the max, which large sizes reach already at 30 fps.
  */
 export function videoBitrate(width: number, height: number, fps: number = VIDEO_LIMITS.referenceFps): number {
-  const bits = Math.round(positive(width) * positive(height) * VIDEO_LIMITS.bitsPerPixel * (positive(fps) / VIDEO_LIMITS.referenceFps))
+  const bits = Math.round(
+    positive(width) * positive(height) * VIDEO_LIMITS.bitsPerPixel * (positive(fps) / VIDEO_LIMITS.referenceFps),
+  )
   return Math.min(VIDEO_LIMITS.maxBitrate, Math.max(VIDEO_LIMITS.minBitrate, bits))
 }
 
@@ -143,8 +160,12 @@ export function videoBitrate(width: number, height: number, fps: number = VIDEO_
  */
 export function recordDelayMs(latencyMs: number | null, fps?: number): number {
   const frame = fps !== undefined && Number.isFinite(fps) && fps > 0 ? 500 / fps : 0
-  const base = latencyMs === null || !Number.isFinite(latencyMs) ? VIDEO_LIMITS.defaultDelayMs - VIDEO_LIMITS.lagMs : latencyMs
-  return Math.min(VIDEO_LIMITS.maxDelayMs, Math.max(VIDEO_LIMITS.minDelayMs, Math.round(base + VIDEO_LIMITS.lagMs + frame)))
+  const base =
+    latencyMs === null || !Number.isFinite(latencyMs) ? VIDEO_LIMITS.defaultDelayMs - VIDEO_LIMITS.lagMs : latencyMs
+  return Math.min(
+    VIDEO_LIMITS.maxDelayMs,
+    Math.max(VIDEO_LIMITS.minDelayMs, Math.round(base + VIDEO_LIMITS.lagMs + frame)),
+  )
 }
 
 /** "Family-Style-video.mp4", or "-video-preview" with the preview's look. */

@@ -34,7 +34,14 @@ export type WorkerRequest =
    * `live` marks parameters Sound is driving: their results go to the worker's live cache. `stats`: the one glyph
    * (under one key) whose result carries the pipeline's statistics (the selected glyph); the others go without.
    */
-  | { type: 'compute'; requestId: number; fontId: string; jobs: GeometryJob[]; live?: boolean; stats?: { key: string; index: number } }
+  | {
+      type: 'compute'
+      requestId: number
+      fontId: string
+      jobs: GeometryJob[]
+      live?: boolean
+      stats?: { key: string; index: number }
+    }
   /** Stops this request between glyphs: the page has everything it needs. */
   | { type: 'cancel'; requestId: number }
   /**
@@ -42,7 +49,15 @@ export type WorkerRequest =
    * newer 'ahead' request replaces this one between items. `playheadMs`: where playback is (media ms), for what the
    * worker's store keeps.
    */
-  | { type: 'ahead'; requestId: number; fontId: string; generation: number; glideMs: number; playheadMs: number; items: AheadItem[] }
+  | {
+      type: 'ahead'
+      requestId: number
+      fontId: string
+      generation: number
+      glideMs: number
+      playheadMs: number
+      items: AheadItem[]
+    }
   /** Plans one glide on demand (live path), both glyphs by value. */
   | { type: 'plan'; requestId: number; fontId: string; from: EncodedGlyph; to: EncodedGlyph }
   /** Forget ahead glyphs and chain states before this commit. */
@@ -54,8 +69,19 @@ export type AheadItem =
   | { kind: 'step'; seq: number; mediaMs: number; lineage: number; parent: number; index: number; key: string }
 
 /** An in-between glyph by value: the glyph, plus its kept flags and mesh pose (morph.ts side tables). */
-export interface EncodedGlyph { glyph: PolygonGlyph; kept: Uint8Array[] | null; pose: EncodedPose | null }
-export interface EncodedPose { meshKey: string; turns: Float64Array; cornerX: Float64Array; cornerY: Float64Array; outerX: Float64Array; outerY: Float64Array }
+export interface EncodedGlyph {
+  glyph: PolygonGlyph
+  kept: Uint8Array[] | null
+  pose: EncodedPose | null
+}
+export interface EncodedPose {
+  meshKey: string
+  turns: Float64Array
+  cornerX: Float64Array
+  cornerY: Float64Array
+  outerX: Float64Array
+  outerY: Float64Array
+}
 
 /** A glyph's result in either lane: packed (packed.ts; its arrays are transferred), or why it failed. */
 export type GlyphResult = { index: number; packed: PackedGlyph } | { index: number; error: string }
@@ -69,7 +95,15 @@ export type WorkerResponse =
    * apart too. `times`: how long each result took (ms, in the same order), so the page can share the next request
    * out evenly among its workers; null for a result the worker's cache already held (it says nothing of the glyph's cost).
    */
-  | { type: 'results'; requestId: number; fontId: string; key: string; results: GlyphResult[]; live?: boolean; times?: (number | null)[] }
+  | {
+      type: 'results'
+      requestId: number
+      fontId: string
+      key: string
+      results: GlyphResult[]
+      live?: boolean
+      times?: (number | null)[]
+    }
   /**
    * Sent before each glyph: the page's watchdog hears the worker is alive, and knows which glyph (under
    * which settings) to blame if it falls silent.
@@ -80,9 +114,23 @@ export type WorkerResponse =
   | { type: 'failed'; requestId: number; reason: FailureReason; message: string }
   | { type: 'font-error'; fontId: string; message: string }
   /** One ahead job's glyphs for commit `seq` (as 'results', packed, into the page's ahead store). */
-  | { type: 'ahead-results'; requestId: number; generation: number; seq: number; key: string; results: GlyphResult[]; times: (number | null)[] }
+  | {
+      type: 'ahead-results'
+      requestId: number
+      generation: number
+      seq: number
+      key: string
+      results: GlyphResult[]
+      times: (number | null)[]
+    }
   /** Commit `seq`'s glide steps: per lineage the plan's `from`, its data (null: change at once), and `unchanged` when not reshaped. */
-  | { type: 'ahead-plans'; requestId: number; generation: number; seq: number; plans: { lineage: number; from: PlanFrom; data: PlanData | null; unchanged?: true }[] }
+  | {
+      type: 'ahead-plans'
+      requestId: number
+      generation: number
+      seq: number
+      plans: { lineage: number; from: PlanFrom; data: PlanData | null; unchanged?: true }[]
+    }
   /**
    * Every ahead request ends with one 'ahead-done' (all items done, or `stopped` by a newer one). `stored`: what the
    * worker's ahead store holds now (the probe).

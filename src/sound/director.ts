@@ -29,7 +29,13 @@ import { edgesFit, FLASH_LIMITS } from './flash'
 import { LIVE_LIMITS, PLANNER_CLOCK_OFFSET, type LiveCommit, type LiveInputs } from './live'
 import { mappingStore } from './mappingStore'
 import { PlaybackPlanner } from './planner'
-import { PRECOMPUTE_LIMITS, type AdoptedState, type CommitTiming, type PlannedCommit, type Playhead } from './timelineTypes'
+import {
+  PRECOMPUTE_LIMITS,
+  type AdoptedState,
+  type CommitTiming,
+  type PlannedCommit,
+  type Playhead,
+} from './timelineTypes'
 import type { FeatureSettings, ResponseSettings } from './types'
 
 /** What the director needs of the page's scheduler (LiveScheduler). */
@@ -120,8 +126,17 @@ function sameInputs(a: LiveInputs | null, b: LiveInputs): boolean {
   if (!a) return false
   const r = a.response
   const s = b.response
-  const sameResponse = (Object.keys(r) as (keyof ResponseSettings)[]).every((key) => key === 'glideMs' || r[key] === s[key])
-  return a.base === b.base && a.hasFont === b.hasFont && a.mappings === b.mappings && a.drive === b.drive && a.slots === b.slots && sameResponse
+  const sameResponse = (Object.keys(r) as (keyof ResponseSettings)[]).every(
+    (key) => key === 'glideMs' || r[key] === s[key],
+  )
+  return (
+    a.base === b.base &&
+    a.hasFont === b.hasFont &&
+    a.mappings === b.mappings &&
+    a.drive === b.drive &&
+    a.slots === b.slots &&
+    sameResponse
+  )
 }
 
 export class PlaybackDirector {
@@ -219,7 +234,11 @@ export class PlaybackDirector {
     const planStarted = deps.now()
     const planLeft = () => PRECOMPUTE_LIMITS.planTickMs - (deps.now() - planStarted)
     const horizon = ph.mediaMs + PRECOMPUTE_LIMITS.planAheadMs
-    if (!planner.ensure(horizon, Math.min(PRECOMPUTE_LIMITS.planSliceMs, planLeft())) && planner.plannedUntil() < ph.mediaMs + PRECOMPUTE_LIMITS.enterReadyMs && planLeft() > 0) {
+    if (
+      !planner.ensure(horizon, Math.min(PRECOMPUTE_LIMITS.planSliceMs, planLeft())) &&
+      planner.plannedUntil() < ph.mediaMs + PRECOMPUTE_LIMITS.enterReadyMs &&
+      planLeft() > 0
+    ) {
       planner.ensure(horizon, Math.min(PRECOMPUTE_LIMITS.planSliceMs, planLeft()))
     }
     const planSpent = deps.now() - planStarted
@@ -243,7 +262,8 @@ export class PlaybackDirector {
         }
       }
       // A new generation (or a seek) did not count the edges the screen showed: it waits until they fit.
-      if (pick >= 0 && selected[pick].generation !== this.shownGeneration && !this.flashFits(selected, pick, ph, now)) pick = -1
+      if (pick >= 0 && selected[pick].generation !== this.shownGeneration && !this.flashFits(selected, pick, ph, now))
+        pick = -1
       if (pick >= 0) {
         this.show(selected, pick, ph)
         // The screen moved on: a commit still late waits from now (geometry slower than 30 Hz still shows each).
@@ -296,7 +316,16 @@ export class PlaybackDirector {
     if (!planner.isDone()) {
       const behind = planner.plannedUntil() < ph.mediaMs
       const fast = frameMs < FAST_FRAME_MS
-      const slice = Math.min(behind ? (fast ? PRECOMPUTE_LIMITS.boostSliceMs : PRECOMPUTE_LIMITS.bgSliceMs) : fast ? PRECOMPUTE_LIMITS.bgSliceMs : 0, PRECOMPUTE_LIMITS.planTickMs - planSpent)
+      const slice = Math.min(
+        behind
+          ? fast
+            ? PRECOMPUTE_LIMITS.boostSliceMs
+            : PRECOMPUTE_LIMITS.bgSliceMs
+          : fast
+            ? PRECOMPUTE_LIMITS.bgSliceMs
+            : 0,
+        PRECOMPUTE_LIMITS.planTickMs - planSpent,
+      )
       if (slice > 0) planner.ensure(Infinity, slice)
     }
     this.paused = null
@@ -380,7 +409,10 @@ export class PlaybackDirector {
   private syncInputs(now: number): boolean {
     const { deps } = this
     const settings = deps.settings()
-    if (this.settings && (settings.sensitivity !== this.settings.sensitivity || settings.releaseMs !== this.settings.releaseMs)) {
+    if (
+      this.settings &&
+      (settings.sensitivity !== this.settings.sensitivity || settings.releaseMs !== this.settings.releaseMs)
+    ) {
       deps.timeline.setSettings(settings)
       this.edited(now)
     } else if (!this.settings) {
@@ -566,7 +598,12 @@ export class PlaybackDirector {
    * Takes over when the commit due is ready and the plan covers the next enterReadyMs; with an ahead lane, every
    * selected commit in it must be ready too (without one, commits are fetched one at a time on the canvas lane).
    */
-  private canEnter(ahead: AheadGeometry | null, selected: readonly PlannedCommit[], due: number, ph: Playhead): boolean {
+  private canEnter(
+    ahead: AheadGeometry | null,
+    selected: readonly PlannedCommit[],
+    due: number,
+    ph: Playhead,
+  ): boolean {
     const until = ph.mediaMs + PRECOMPUTE_LIMITS.enterReadyMs
     if (!this.deps.planner.isDone() && this.deps.planner.plannedUntil() < until) return false
     if (!ahead) {
@@ -578,7 +615,8 @@ export class PlaybackDirector {
     // The commit due glides in from what the screen shows (the resting letters or the live path), not from its
     // predecessor in the plan: its shapes are enough, and its chained steps are not waited for.
     if (!this.ready(ahead, selected[due]) && !ahead.shapesReady(selected[due].seq)) return false
-    for (let i = due + 1; i < selected.length && selected[i].mediaMs <= until; i++) if (!ahead.ready(selected[i].seq)) return false
+    for (let i = due + 1; i < selected.length && selected[i].mediaMs <= until; i++)
+      if (!ahead.ready(selected[i].seq)) return false
     return true
   }
 
@@ -611,7 +649,8 @@ export class PlaybackDirector {
     const commit = selected[i]
     const toWall = (plannerTime: number) => ph.wallMs - (ph.mediaMs - (plannerTime - PLANNER_CLOCK_OFFSET))
     let edges: number[] | undefined
-    if (this.shownMs > -Infinity && commit.generation === this.shownGeneration) edges = this.deps.planner.edgesIn(this.shownMs, commit.mediaMs)
+    if (this.shownMs > -Infinity && commit.generation === this.shownGeneration)
+      edges = this.deps.planner.edgesIn(this.shownMs, commit.mediaMs)
     const seq = this.deps.scheduler.adopt(commit.adopted, toWall, edges)
     this.shownSeq = commit.seq
     this.shownMs = commit.mediaMs
@@ -691,7 +730,11 @@ export class PlaybackDirector {
           prevSeq: lineage ? lineage.prevSeq : prevSeq,
           mediaMs: commit.mediaMs,
           endMs,
-          jobs: commit.jobs.map(({ params, key, indices, within }) => ({ params, key, indices: indices ?? shownGlyphs(shown.indices, within) })),
+          jobs: commit.jobs.map(({ params, key, indices, within }) => ({
+            params,
+            key,
+            indices: indices ?? shownGlyphs(shown.indices, within),
+          })),
           steps: lineage ? stepsOf(commit, lineage.lineage, this.book.parentsAt(commit.seq)) : [],
         }
         this.aheadCommits.set(commit.seq, made)
@@ -702,7 +745,15 @@ export class PlaybackDirector {
       commits.push(made)
     }
     for (const seq of this.aheadCommits.keys()) if (seq < this.windowFirst) this.aheadCommits.delete(seq)
-    ahead.want({ generation, level: this.level, fontId: shown.fontId, glideMs, playheadMs: ph.mediaMs, dueSeq, commits })
+    ahead.want({
+      generation,
+      level: this.level,
+      fontId: shown.fontId,
+      glideMs,
+      playheadMs: ph.mediaMs,
+      dueSeq,
+      commits,
+    })
   }
 
   /**
@@ -720,7 +771,10 @@ export class PlaybackDirector {
     }
     const perSecond = this.deps.planner.glyphRate(ph.mediaMs, ph.mediaMs + PRECOMPUTE_LIMITS.nearMs)
     if (perSecond <= 0) return
-    this.setLevel(DECIMATION_LEVELS.find((l) => perSecond / l <= AHEAD_SHARE * rate) ?? DECIMATION_LEVELS[DECIMATION_LEVELS.length - 1])
+    this.setLevel(
+      DECIMATION_LEVELS.find((l) => perSecond / l <= AHEAD_SHARE * rate) ??
+        DECIMATION_LEVELS[DECIMATION_LEVELS.length - 1],
+    )
   }
 
   private setLevel(level: number) {
@@ -816,7 +870,12 @@ function idleLater(run: (budgetMs: number) => void, delayMs: number): () => void
   const timer = setTimeout(() => {
     if (typeof requestIdleCallback === 'function') {
       idle = requestIdleCallback(
-        (deadline) => run(deadline.didTimeout ? PRECOMPUTE_LIMITS.planSliceMs : Math.min(PRECOMPUTE_LIMITS.idleSliceMs, Math.max(1, deadline.timeRemaining()))),
+        (deadline) =>
+          run(
+            deadline.didTimeout
+              ? PRECOMPUTE_LIMITS.planSliceMs
+              : Math.min(PRECOMPUTE_LIMITS.idleSliceMs, Math.max(1, deadline.timeRemaining())),
+          ),
         { timeout: 100 },
       )
     } else {
@@ -856,7 +915,9 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
     has: (jobs) => {
       const shown = geometryClient.shownGlyphSet()
       if (!shown) return true
-      return jobs.every(({ key, indices, within }) => (indices ?? shownGlyphs(shown.indices, within)).every((i) => geometryClient.lookup(key, i)?.stale === false))
+      return jobs.every(({ key, indices, within }) =>
+        (indices ?? shownGlyphs(shown.indices, within)).every((i) => geometryClient.lookup(key, i)?.stale === false),
+      )
     },
     busy: () => geometryClient.isComputing(),
     shown: () => geometryClient.shownGlyphSet(),
@@ -939,7 +1000,8 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
   }
   const hasWindow = typeof window !== 'undefined'
   if (hasWindow) {
-    for (const type of ['pointerdown', 'pointerup', 'pointercancel'] as const) window.addEventListener(type, onPointer, true)
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel'] as const)
+      window.addEventListener(type, onPointer, true)
   }
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', sync)
   let loading = 0
@@ -969,7 +1031,8 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
   return () => {
     for (const unsubscribe of off) unsubscribe()
     if (hasWindow) {
-      for (const type of ['pointerdown', 'pointerup', 'pointercancel'] as const) window.removeEventListener(type, onPointer, true)
+      for (const type of ['pointerdown', 'pointerup', 'pointercancel'] as const)
+        window.removeEventListener(type, onPointer, true)
     }
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', sync)
     if (frame !== null) cancelAnimationFrame(frame)

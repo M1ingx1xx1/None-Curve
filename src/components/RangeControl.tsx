@@ -24,7 +24,19 @@ export interface RangeControlProps {
   onChange: (change: { low?: number; high?: number }) => void
 }
 
-export default function RangeControl({ name, low, high, min, max, step, minGap, format, valueText, describedBy, onChange }: RangeControlProps) {
+export default function RangeControl({
+  name,
+  low,
+  high,
+  min,
+  max,
+  step,
+  minGap,
+  format,
+  valueText,
+  describedBy,
+  onChange,
+}: RangeControlProps) {
   const share = (value: number) => (max > min ? (value - min) / (max - min) : 0)
   return (
     <div className="range-control">

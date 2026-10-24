@@ -34,7 +34,15 @@
 import { analyserFftSize, FeatureExtractor } from './features'
 import { HIGHPASS_Q_DB } from './offline'
 import type { Playhead } from './timelineTypes'
-import type { FeatureFrame, FeatureSettings, SoundError, SoundErrorKind, SoundSource, SoundState, StereoSamples } from './types'
+import type {
+  FeatureFrame,
+  FeatureSettings,
+  SoundError,
+  SoundErrorKind,
+  SoundSource,
+  SoundState,
+  StereoSamples,
+} from './types'
 import { INITIAL_SOUND_STATE, SILENT_FRAME, SOUND_LIMITS } from './types'
 
 /** Position updates while playing are at least this far apart (ms): about 4 per second. */
@@ -116,7 +124,11 @@ export interface SoundStateSource {
  * Calls `listener` when one of `keys` of the state changes, not on every change: while a file plays its position alone
  * changes about 4 times a second. Returns the unsubscribe function.
  */
-export function subscribeStateKeys(source: SoundStateSource, keys: readonly (keyof SoundState)[], listener: () => void): () => void {
+export function subscribeStateKeys(
+  source: SoundStateSource,
+  keys: readonly (keyof SoundState)[],
+  listener: () => void,
+): () => void {
   let last = source.getState()
   return source.subscribeState(() => {
     const next = source.getState()
@@ -371,7 +383,16 @@ export class SoundEngine {
     const previousUrl = this.objectUrl
     this.objectUrl = url
     this.extractor?.reset()
-    this.setState({ source: 'file', fileName: null, duration: 0, position: 0, playing: false, listening: false, busy: true, error: null })
+    this.setState({
+      source: 'file',
+      fileName: null,
+      duration: 0,
+      position: 0,
+      playing: false,
+      listening: false,
+      busy: true,
+      error: null,
+    })
     audio.src = url
     // Revoked only after the element has let go of it (Safari reads from the URL while it plays).
     if (previousUrl) URL.revokeObjectURL(previousUrl)
@@ -461,7 +482,13 @@ export class SoundEngine {
     }
     this.pauseFile()
     const fail = (kind: SoundErrorKind, detail: string) =>
-      this.setState({ source: 'microphone', playing: false, listening: false, busy: this.loading, error: soundError(kind, detail) })
+      this.setState({
+        source: 'microphone',
+        playing: false,
+        listening: false,
+        busy: this.loading,
+        error: soundError(kind, detail),
+      })
     if (typeof window === 'undefined' || !window.isSecureContext) {
       fail('insecure', 'This page is not a secure context.')
       return
@@ -580,8 +607,18 @@ export class SoundEngine {
   }
   setSettings(patch: Partial<FeatureSettings>): void {
     const current = this.state.settings
-    const sensitivity = clampSetting(patch.sensitivity, SOUND_LIMITS.minSensitivity, SOUND_LIMITS.maxSensitivity, current.sensitivity)
-    const releaseMs = clampSetting(patch.releaseMs, SOUND_LIMITS.minReleaseMs, SOUND_LIMITS.maxReleaseMs, current.releaseMs)
+    const sensitivity = clampSetting(
+      patch.sensitivity,
+      SOUND_LIMITS.minSensitivity,
+      SOUND_LIMITS.maxSensitivity,
+      current.sensitivity,
+    )
+    const releaseMs = clampSetting(
+      patch.releaseMs,
+      SOUND_LIMITS.minReleaseMs,
+      SOUND_LIMITS.maxReleaseMs,
+      current.releaseMs,
+    )
     if (sensitivity === current.sensitivity && releaseMs === current.releaseMs) return
     this.setState({ settings: { sensitivity, releaseMs } })
   }
@@ -812,7 +849,10 @@ export class SoundEngine {
       }
       const cancel = () => finish(() => resolve(null))
       this.cancelLoad = cancel
-      timer = setTimeout(() => finish(() => reject(new SoundFailure('decode', 'The file took too long to open.'))), METADATA_TIMEOUT_MS)
+      timer = setTimeout(
+        () => finish(() => reject(new SoundFailure('decode', 'The file took too long to open.'))),
+        METADATA_TIMEOUT_MS,
+      )
       const options = { signal: events.signal }
       audio.addEventListener('error', () => finish(() => reject(mediaFailure(audio.error))), options)
       audio.addEventListener(
@@ -898,7 +938,8 @@ export class SoundEngine {
     const running = this.state.playing || this.state.listening
     if (running) {
       this.cancelIdleSuspend()
-      if (this.rafId === null && this.analyser && typeof requestAnimationFrame === 'function') this.rafId = requestAnimationFrame(this.tick)
+      if (this.rafId === null && this.analyser && typeof requestAnimationFrame === 'function')
+        this.rafId = requestAnimationFrame(this.tick)
     } else {
       this.stopLoop()
       this.scheduleIdleSuspend()
@@ -917,7 +958,8 @@ export class SoundEngine {
   private tick = (): void => {
     this.rafId = null
     const { analyser, leftAnalyser, rightAnalyser, extractor } = this
-    if (!(this.state.playing || this.state.listening) || !analyser || !leftAnalyser || !rightAnalyser || !extractor) return
+    if (!(this.state.playing || this.state.listening) || !analyser || !leftAnalyser || !rightAnalyser || !extractor)
+      return
     // Scheduled first, so nothing below can stop the loop.
     this.rafId = requestAnimationFrame(this.tick)
     analyser.getFloatFrequencyData(this.spectrum)
@@ -1024,7 +1066,9 @@ function soundError(kind: SoundErrorKind, detail = ''): SoundError {
 }
 
 function toSoundError(error: unknown): SoundError {
-  return error instanceof SoundFailure ? soundError(error.kind, error.detail) : soundError('unsupported', describe(error))
+  return error instanceof SoundFailure
+    ? soundError(error.kind, error.detail)
+    : soundError('unsupported', describe(error))
 }
 
 /** getUserMedia's DOMException names → what the Sound tab says. */

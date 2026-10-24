@@ -51,7 +51,14 @@ export default function ThemeToggle() {
   return (
     <div className="theme-toggle segmented" role="group" aria-label="Interface theme">
       {themes.map(({ value, label, icon }) => (
-        <button key={value} type="button" aria-pressed={theme === value} aria-label={label} title={label} onClick={() => setTheme(value)}>
+        <button
+          key={value}
+          type="button"
+          aria-pressed={theme === value}
+          aria-label={label}
+          title={label}
+          onClick={() => setTheme(value)}
+        >
           {icon}
         </button>
       ))}

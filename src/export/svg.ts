@@ -60,16 +60,18 @@ export function outlineStrokeWidth(unitsPerPx: number): number {
 
 /** Removes characters that are not allowed in XML 1.0, then escapes markup characters. */
 function escapeXml(text: string): string {
-  return text
-    // The control characters XML 1.0 does not allow.
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
-    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
+  return (
+    text
+      // The control characters XML 1.0 does not allow.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+  )
 }
 
 /** Comments must not contain "--". */
@@ -130,7 +132,13 @@ export type SvgPathCache = WeakMap<PolygonGlyph, { decimals: number; checked: bo
  * With `checked` false (the preview while Sound moves the letters, whose shapes no export uses) the points are only
  * rounded: no repair and no check, and so no ExportError. The export always checks.
  */
-export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, decimals: number, cache?: SvgPathCache, checked = true): SpecimenPaths {
+export function specimenPaths(
+  scene: SpecimenScene,
+  layout: ArtboardLayout,
+  decimals: number,
+  cache?: SvgPathCache,
+  checked = true,
+): SpecimenPaths {
   const scale = Number((1 / layout.unitsPerPx).toPrecision(8))
   const skew = scene.slant ? ` skewX(${num(-scene.slant, 4)})` : ''
   // By polygon, not glyph id: a letter that reacts to Sound by its own amount has a shape of its own.
@@ -151,7 +159,12 @@ export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, deci
           const contours = checked
             ? quantizePolygon(polygon, decimals, `Glyph “${glyph.text}”`, 'Use a higher precision.')
             : polygon.contours.map((c) => c.points)
-          const entry = { decimals, checked, d: pathData(contours, decimals), vertices: contours.reduce((n, c) => n + c.length, 0) }
+          const entry = {
+            decimals,
+            checked,
+            d: pathData(contours, decimals),
+            vertices: contours.reduce((n, c) => n + c.length, 0),
+          }
           cache?.set(polygon, entry)
           shape = entry
         }
@@ -159,7 +172,11 @@ export function specimenPaths(scene: SpecimenScene, layout: ArtboardLayout, deci
       }
       let n = shapeOf.get(shape.d)
       if (n === undefined) shapeOf.set(shape.d, (n = shapeOf.size))
-      paths.push({ transform: `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`, d: shape.d, shape: n })
+      paths.push({
+        transform: `translate(${num(glyph.x, decimals)} ${num(glyph.y, decimals)})${skew} scale(1 -1)`,
+        d: shape.d,
+        shape: n,
+      })
       vertices += shape.vertices
     }
   }
@@ -191,7 +208,8 @@ export function specimenToSvg(
   if (scene.missingCharacters.length) {
     lines.push(comment(`Missing from the font, left as blank advances: ${scene.missingCharacters.join(' ')}`))
   }
-  if (look.outlineOnly) lines.push(comment(`Outlines only (Fill off): ${OUTLINE_STROKE_PX} px strokes in the text colour, no fill.`))
+  if (look.outlineOnly)
+    lines.push(comment(`Outlines only (Fill off): ${OUTLINE_STROKE_PX} px strokes in the text colour, no fill.`))
   if (look.background) lines.push(`  <rect width="${width}" height="${height}" fill="${paper}"/>`)
   if (blur > 0) {
     lines.push(

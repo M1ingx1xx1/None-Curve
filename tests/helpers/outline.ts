@@ -9,7 +9,10 @@ export const contoursOf = (polygon: PolygonGlyph): Contours => polygon.contours.
 export const vertexCount = (contours: Contours) => contours.reduce((n, c) => n + c.length, 0)
 
 export function sameContours(a: Contours, b: Contours): boolean {
-  return a.length === b.length && a.every((c, k) => c.length === b[k].length && c.every((p, i) => p.x === b[k][i].x && p.y === b[k][i].y))
+  return (
+    a.length === b.length &&
+    a.every((c, k) => c.length === b[k].length && c.every((p, i) => p.x === b[k][i].x && p.y === b[k][i].y))
+  )
 }
 
 export function allFinite(contours: Contours): boolean {
@@ -21,7 +24,12 @@ export function boundsOf(contours: Contours): { minX: number; minY: number; maxX
   let box: { minX: number; minY: number; maxX: number; maxY: number } | null = null
   for (const p of contours.flat()) {
     box = box
-      ? { minX: Math.min(box.minX, p.x), minY: Math.min(box.minY, p.y), maxX: Math.max(box.maxX, p.x), maxY: Math.max(box.maxY, p.y) }
+      ? {
+          minX: Math.min(box.minX, p.x),
+          minY: Math.min(box.minY, p.y),
+          maxX: Math.max(box.maxX, p.x),
+          maxY: Math.max(box.maxY, p.y),
+        }
       : { minX: p.x, minY: p.y, maxX: p.x, maxY: p.y }
   }
   return box
@@ -44,12 +52,32 @@ const side = (a: Point, b: Point, q: Point) => (b.x - a.x) * (q.y - a.y) - (b.y 
  * `eps` that do not cross, counted apart from pinches (two parts of an outline meeting at one shared vertex).
  */
 export function outlineCrossings(contours: Contours, eps = 1e-6): { cross: number; touch: number; pinch: number } {
-  const edges: { a: Point; b: Point; c: number; i: number; n: number; x0: number; x1: number; y0: number; y1: number }[] = []
+  const edges: {
+    a: Point
+    b: Point
+    c: number
+    i: number
+    n: number
+    x0: number
+    x1: number
+    y0: number
+    y1: number
+  }[] = []
   contours.forEach((ring, c) => {
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i]
       const b = ring[(i + 1) % ring.length]
-      edges.push({ a, b, c, i, n: ring.length, x0: Math.min(a.x, b.x) - eps, x1: Math.max(a.x, b.x) + eps, y0: Math.min(a.y, b.y) - eps, y1: Math.max(a.y, b.y) + eps })
+      edges.push({
+        a,
+        b,
+        c,
+        i,
+        n: ring.length,
+        x0: Math.min(a.x, b.x) - eps,
+        x1: Math.max(a.x, b.x) + eps,
+        y0: Math.min(a.y, b.y) - eps,
+        y1: Math.max(a.y, b.y) + eps,
+      })
     }
   })
   edges.sort((p, q) => p.x0 - q.x0)
@@ -72,7 +100,12 @@ export function outlineCrossings(contours: Contours, eps = 1e-6): { cross: numbe
       }
       if (segDist2(a, b, p) <= e2 || segDist2(a, b, q) <= e2 || segDist2(p, q, a) <= e2 || segDist2(p, q, b) <= e2) {
         const shared = eq(a, p) || eq(a, q) || eq(b, p) || eq(b, q)
-        if (shared && segDist2(a, b, eq(a, p) || eq(b, p) ? q : p) > e2 && segDist2(p, q, eq(a, p) || eq(a, q) ? b : a) > e2) pinch++
+        if (
+          shared &&
+          segDist2(a, b, eq(a, p) || eq(b, p) ? q : p) > e2 &&
+          segDist2(p, q, eq(a, p) || eq(a, q) ? b : a) > e2
+        )
+          pinch++
         else touch++
       }
     }
@@ -144,7 +177,14 @@ export function inkArea(contours: Contours, lines = 1500): number {
 export function polygonOf(contours: Contours, unitsPerEm = 1000): PolygonGlyph {
   return {
     ref: { index: 1, name: 'test', unicode: 0x41 },
-    metrics: { unitsPerEm, advanceWidth: unitsPerEm, leftSideBearing: 0, rightSideBearing: 0, ascender: 0.8 * unitsPerEm, descender: -0.2 * unitsPerEm },
+    metrics: {
+      unitsPerEm,
+      advanceWidth: unitsPerEm,
+      leftSideBearing: 0,
+      rightSideBearing: 0,
+      ascender: 0.8 * unitsPerEm,
+      descender: -0.2 * unitsPerEm,
+    },
     contours: contours.map((points) => ({ points, clockwise: signedArea2(points) < 0 })),
   }
 }

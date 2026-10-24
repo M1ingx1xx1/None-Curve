@@ -59,16 +59,25 @@ const SIZE_OPEN_KEY = 'none-curve:canvas-size-open'
 
 const outlineViews: { value: OutlineView; label: string; description: string }[] = [
   { value: 'source', label: 'Original', description: 'Original font curves' },
-  { value: 'flattened', label: 'Flattened', description: 'Final polygon after the whole pipeline (straight edges only)' },
+  {
+    value: 'flattened',
+    label: 'Flattened',
+    description: 'Final polygon after the whole pipeline (straight edges only)',
+  },
   { value: 'compare', label: 'Compare', description: 'Final polygon with the original curves overlaid' },
 ]
 
-const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'; label: string; title?: string }[] = [
-  { key: 'showFill', label: 'Fill', title: 'Off: outlines only, here, in the preview, and in SVG, PNG and video exports' },
-  { key: 'showSkeleton', label: 'Skeleton' },
-  { key: 'showVertices', label: 'Vertices' },
-  { key: 'showMetrics', label: 'Metrics' },
-]
+const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'; label: string; title?: string }[] =
+  [
+    {
+      key: 'showFill',
+      label: 'Fill',
+      title: 'Off: outlines only, here, in the preview, and in SVG, PNG and video exports',
+    },
+    { key: 'showSkeleton', label: 'Skeleton' },
+    { key: 'showVertices', label: 'Vertices' },
+    { key: 'showMetrics', label: 'Metrics' },
+  ]
 
 function Legend({ view }: { view: ViewToggles }) {
   if (!(view.showSkeleton || view.showVertices || view.outline === 'compare')) return null
@@ -318,8 +327,8 @@ function CanvasViewport(props: CanvasViewportProps) {
             <Legend view={view} />
             {overflows && (
               <p className="canvas-overflow" role="status">
-                The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography → Fit
-                text.
+                The text runs past the canvas edge and will be cut off in the preview and in exports. Try Typography →
+                Fit text.
               </p>
             )}
           </ErrorBoundary>

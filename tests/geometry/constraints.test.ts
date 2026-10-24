@@ -152,7 +152,14 @@ describe('applyConstraints: grid snapping', () => {
   })
 
   it('merges neighbours that land on the same grid point', () => {
-    const notched: Point[] = [{ x: 0, y: 0 }, { x: 98, y: 0 }, { x: 102, y: 1 }, { x: 200, y: 0 }, { x: 200, y: 200 }, { x: 0, y: 200 }]
+    const notched: Point[] = [
+      { x: 0, y: 0 },
+      { x: 98, y: 0 },
+      { x: 102, y: 1 },
+      { x: 200, y: 0 },
+      { x: 200, y: 200 },
+      { x: 0, y: 200 },
+    ]
     const { polygon, stats } = run([notched], snap(100))
     expect(polygon.contours[0].points).toHaveLength(5)
     expect(stats.snapMerged).toBe(1)
@@ -166,8 +173,15 @@ describe('applyConstraints: grid snapping', () => {
   })
 
   it('keeps a degenerate contour of two points, or of three in a line', () => {
-    const two: Point[] = [{ x: 0, y: 0 }, { x: 100, y: 100 }]
-    const flat: Point[] = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }]
+    const two: Point[] = [
+      { x: 0, y: 0 },
+      { x: 100, y: 100 },
+    ]
+    const flat: Point[] = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 200, y: 0 },
+    ]
     for (const contour of [two, flat]) {
       const { polygon, stats } = run([contour], snap(10))
       expect(contoursOf(polygon)).toEqual([contour])
@@ -201,13 +215,15 @@ describe('applyConstraints: angle lock', () => {
       const { polygon, stats } = run([HEXAGON], lock(step))
       expect(stats.angleApplied).toBe(true)
       expect(stats.fallbacks, `step ${step}`).toEqual([])
-      for (const angle of edgeAngles(polygon.contours[0].points)) expect(offStep(angle, step), `step ${step}`).toBeLessThan(1e-6)
+      for (const angle of edgeAngles(polygon.contours[0].points))
+        expect(offStep(angle, step), `step ${step}`).toBeLessThan(1e-6)
     }
   })
 
   it('uses 45° for a step that is not allowed', () => {
     const expected = contoursOf(run([HEXAGON], lock(45)).polygon)
-    for (const step of [0, 7, 60, -45, NaN]) expect(contoursOf(run([HEXAGON], lock(step)).polygon), `step ${step}`).toEqual(expected)
+    for (const step of [0, 7, 60, -45, NaN])
+      expect(contoursOf(run([HEXAGON], lock(step)).polygon), `step ${step}`).toEqual(expected)
   })
 
   it('keeps an outline whose edges are already on allowed directions', () => {
@@ -237,8 +253,15 @@ describe('applyConstraints: angle lock', () => {
   })
 
   it('keeps a degenerate contour of two points, or of three in a line', () => {
-    const two: Point[] = [{ x: 0, y: 0 }, { x: 100, y: 37 }]
-    const flat: Point[] = [{ x: 0, y: 0 }, { x: 100, y: 37 }, { x: 200, y: 74 }]
+    const two: Point[] = [
+      { x: 0, y: 0 },
+      { x: 100, y: 37 },
+    ]
+    const flat: Point[] = [
+      { x: 0, y: 0 },
+      { x: 100, y: 37 },
+      { x: 200, y: 74 },
+    ]
     for (const contour of [two, flat]) {
       const { polygon, stats } = run([contour], lock(90))
       expect(contoursOf(polygon)).toEqual([contour])
@@ -249,7 +272,12 @@ describe('applyConstraints: angle lock', () => {
 
   it('gives a long diagonal fine stair steps at 90° instead of moving it', () => {
     // A thin slanted bar: locking it would move its ends too far, so it becomes a staircase.
-    const bar: Point[] = [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 560, y: 700 }, { x: 500, y: 700 }]
+    const bar: Point[] = [
+      { x: 0, y: 0 },
+      { x: 60, y: 0 },
+      { x: 560, y: 700 },
+      { x: 500, y: 700 },
+    ]
     const { polygon, stats } = run([bar], lock(90))
     const [out] = contoursOf(polygon)
     expect(stats.fallbacks).toEqual([])

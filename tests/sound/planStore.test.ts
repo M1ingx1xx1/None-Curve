@@ -23,8 +23,20 @@ function commitsOf(seconds: number): PlannedCommit[] {
     const level = Math.floor(k / 9) % 2 ? 0.9 : 0.2
     return { ...SILENT_FRAME, time: (k * 1000) / HZ, level, silent: false, levelDb: -20 }
   })
-  const planner = new PlaybackPlanner({ hz: HZ, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
-  const inputs: LiveInputs = { base: BASE, hasFont: true, mappings: [mapping], drive: true, response: NEUTRAL_RESPONSE, slots: NO_SLOTS }
+  const planner = new PlaybackPlanner({
+    hz: HZ,
+    frameCount: () => frames.length,
+    isCovered: () => true,
+    frameAt: (i) => frames[i] ?? null,
+  })
+  const inputs: LiveInputs = {
+    base: BASE,
+    hasFont: true,
+    mappings: [mapping],
+    drive: true,
+    response: NEUTRAL_RESPONSE,
+    slots: NO_SLOTS,
+  }
   planner.setInputs(inputs)
   planner.ensure(Infinity, Infinity)
   return planner.range(-Infinity, Infinity).slice()

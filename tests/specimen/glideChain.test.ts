@@ -41,7 +41,10 @@ describe('Glide chains', async () => {
     times: number[]
     params: GeometryParams[]
   }
-  const steady: Run = { times: [0, 33, 66, 99, 132, 165], params: [burst(1), burst(2), burst(3), burst(4), burst(5), burst(6)] }
+  const steady: Run = {
+    times: [0, 33, 66, 99, 132, 165],
+    params: [burst(1), burst(2), burst(3), burst(4), burst(5), burst(6)],
+  }
   // A gap long enough to arrive (q ≥ 0.99), the same key again on the way (glides on to it), then again once arrived (unchanged).
   const gaps: Run = {
     times: [0, 33, 66, 196, 229, 400, 433],
@@ -61,14 +64,22 @@ describe('Glide chains', async () => {
       const key = paramsKey(run.params[seq])
       for (const index of shaped.indices) {
         const { source: _source, ...geometry } = deriveGeometry(font.getGlyph(index), run.params[seq])
-        core.put(key, index, { packed: packGeometry({ ...geometry, polygon: polygon(run.params[seq], index) }).packed }, seq)
+        core.put(
+          key,
+          index,
+          { packed: packGeometry({ ...geometry, polygon: polygon(run.params[seq], index) }).packed },
+          seq,
+        )
       }
-      return occurrences().map(({ index }, k) => core.step(seq, mediaMs, lineageOf(seq, k), seq > 0 ? lineageOf(seq - 1, k) : -1, index, key, GLIDE))
+      return occurrences().map(({ index }, k) =>
+        core.step(seq, mediaMs, lineageOf(seq, k), seq > 0 ? lineageOf(seq - 1, k) : -1, index, key, GLIDE),
+      )
     })
   }
 
   const occurrences = () => shaped.lines.flatMap((l) => l.glyphs)
-  const sceneFor = (polygon: ReturnType<typeof side>, params: GeometryParams): SpecimenScene => placePolygons(shaped, (index) => ({ polygon: polygon(params, index) }))
+  const sceneFor = (polygon: ReturnType<typeof side>, params: GeometryParams): SpecimenScene =>
+    placePolygons(shaped, (index) => ({ polygon: polygon(params, index) }))
   /** The plan each occurrence glides by just after `now` (null when it does not glide). */
   const plansAt = (glide: SceneGlide, now: number): (MorphPlan | null)[] => {
     // The frame at `now` pairs (the page's store draws one as soon as a scene comes); the next shows the morphs.
@@ -110,7 +121,15 @@ describe('Glide chains', async () => {
   it('says where each glide starts from: computed when arrived (q ≥ 0.99), in between otherwise; unchanged for the same glyph', () => {
     const records = workerChain(gaps)
     const kinds = records.map((r) => r[0].from.kind + (r[0].unchanged ? ' unchanged' : ''))
-    expect(kinds).toEqual(['computed unchanged', 'computed', 'between', 'computed', 'between', 'computed unchanged', 'computed'])
+    expect(kinds).toEqual([
+      'computed unchanged',
+      'computed',
+      'between',
+      'computed',
+      'between',
+      'computed unchanged',
+      'computed',
+    ])
     const q = easeOut((196 - 66) / GLIDE)
     expect(q).toBeGreaterThanOrEqual(GLIDE_LIMITS.arrived)
     expect(records[2][0].from).toEqual({ kind: 'between', lineage: lineageOf(1, 0), seq: 1, q: easeOut(33 / GLIDE) })
@@ -122,16 +141,24 @@ describe('Glide chains', async () => {
       const records = workerChain(run)
       const polygon = side()
       const keys = new Map<PolygonGlyph, string>()
-      for (const params of run.params) for (const index of shaped.indices) keys.set(polygon(params, index), paramsKey(params))
+      for (const params of run.params)
+        for (const index of shaped.indices) keys.set(polygon(params, index), paramsKey(params))
       // A client that holds every glyph and hands the steps' records straight back.
       let listener: AheadListener | null = null
       const client = {
         setAheadListener: (l: AheadListener) => (listener = l),
         has: () => true,
-        sendAhead: (_font: string, generation: number, _glide: number, _playhead: number, items: readonly AheadItem[]) => {
+        sendAhead: (
+          _font: string,
+          generation: number,
+          _glide: number,
+          _playhead: number,
+          items: readonly AheadItem[],
+        ) => {
           const seqs = [...new Set(items.filter((i) => i.kind === 'step').map((i) => i.seq))]
           queueMicrotask(() => {
-            for (const seq of seqs) listener!.plans({ type: 'ahead-plans', requestId: 1, generation, seq, plans: records[seq] })
+            for (const seq of seqs)
+              listener!.plans({ type: 'ahead-plans', requestId: 1, generation, seq, plans: records[seq] })
           })
           return true
         },
@@ -147,7 +174,12 @@ describe('Glide chains', async () => {
         mediaMs,
         endMs: mediaMs + 33,
         jobs: [],
-        steps: occurrences().map(({ index }, k) => ({ lineage: lineageOf(seq, k), parent: seq > 0 ? lineageOf(seq - 1, k) : -1, index, key: paramsKey(run.params[seq]) })),
+        steps: occurrences().map(({ index }, k) => ({
+          lineage: lineageOf(seq, k),
+          parent: seq > 0 ? lineageOf(seq - 1, k) : -1,
+          index,
+          key: paramsKey(run.params[seq]),
+        })),
       }))
       ahead.want({ generation: 1, level: 1, fontId: 'roboto', glideMs: GLIDE, playheadMs: 0, dueSeq: 0, commits })
       await Promise.resolve()
@@ -166,10 +198,19 @@ describe('Glide chains', async () => {
         },
       }
       // A glyph paired on the page (by a request, with worker plans on) would throw: every one is chained.
-      const glide = new SceneGlide(() => 0, { plans: () => source, workerPlans: true, keyOf: (p) => keys.get(p) ?? null })
+      const glide = new SceneGlide(() => 0, {
+        plans: () => source,
+        workerPlans: true,
+        keyOf: (p) => keys.get(p) ?? null,
+      })
       run.times.forEach((now, seq) => {
         const lineage = Int32Array.from(occurrences().map((_, k) => lineageOf(seq, k)))
-        glide.retarget(sceneFor(polygon, run.params[seq]), now, { durationMs: GLIDE, glide: seq > 0, key: 'k', chain: { lineage, seq, prevSeq: seq - 1 } })
+        glide.retarget(sceneFor(polygon, run.params[seq]), now, {
+          durationMs: GLIDE,
+          glide: seq > 0,
+          key: 'k',
+          chain: { lineage, seq, prevSeq: seq - 1 },
+        })
         const plans = plansAt(glide, now)
         records[seq].forEach((record, k) => {
           if (record.unchanged || !record.data) expect(plans[k]).toBeNull()
@@ -177,7 +218,12 @@ describe('Glide chains', async () => {
         })
       })
       expect(misses).toBe(0)
-      expect(hits).toBe(records.slice(1).flat().filter((r) => !r.unchanged).length)
+      expect(hits).toBe(
+        records
+          .slice(1)
+          .flat()
+          .filter((r) => !r.unchanged).length,
+      )
     }
   })
 
@@ -202,8 +248,12 @@ describe('Glide chains', async () => {
     expect(record.from.kind).toBe('between')
     const tag = record.from.kind === 'between' ? record.from : null
     // Another lineage, another commit, or another progress: no.
-    expect(ahead.chained(lineageOf(2, 0), 2, from, to, { lineage: tag!.lineage + 1, seq: tag!.seq, q: tag!.q }, null)).toBeUndefined()
-    expect(ahead.chained(lineageOf(2, 0), 2, from, to, { lineage: tag!.lineage, seq: tag!.seq, q: tag!.q + 0.01 }, null)).toBeUndefined()
+    expect(
+      ahead.chained(lineageOf(2, 0), 2, from, to, { lineage: tag!.lineage + 1, seq: tag!.seq, q: tag!.q }, null),
+    ).toBeUndefined()
+    expect(
+      ahead.chained(lineageOf(2, 0), 2, from, to, { lineage: tag!.lineage, seq: tag!.seq, q: tag!.q + 0.01 }, null),
+    ).toBeUndefined()
     expect(ahead.chained(lineageOf(2, 0), 2, from, to, null, 'some key')).toBeUndefined()
     expect(ahead.chained(lineageOf(2, 0), 3, from, to, tag, null)).toBeUndefined()
     expect(ahead.chained(lineageOf(2, 0), 2, from, to, { ...tag! }, null)).toBeTruthy()

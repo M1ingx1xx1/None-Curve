@@ -29,16 +29,31 @@ async function openWithFontkit(bytes: Uint8Array): Promise<Font> {
 const builds = new Map<string, Promise<FontExportResult>>()
 
 /** The fixture exported with these settings (built once per test file), with `known` glyphs used as they are. */
-function exported(name: FixtureFont, params: GeometryParams, label: string, text = TEXT, known?: (index: number) => KnownGlyph | undefined): Promise<FontExportResult> {
+function exported(
+  name: FixtureFont,
+  params: GeometryParams,
+  label: string,
+  text = TEXT,
+  known?: (index: number) => KnownGlyph | undefined,
+): Promise<FontExportResult> {
   const key = `${name} ${label}`
   let build = builds.get(key)
   if (!build) {
     build = loadFixture(name).then((font) =>
-      buildFontFile(font, planFontExport(font, 'specimen', null, text), params, label, { familyName: 'Test Straight', styleName: 'Regular' }, new AbortController().signal, () => {}, {
-        known,
-        cache: false,
-        sliceMs: Infinity,
-      }),
+      buildFontFile(
+        font,
+        planFontExport(font, 'specimen', null, text),
+        params,
+        label,
+        { familyName: 'Test Straight', styleName: 'Regular' },
+        new AbortController().signal,
+        () => {},
+        {
+          known,
+          cache: false,
+          sliceMs: Infinity,
+        },
+      ),
     )
     builds.set(key, build)
   }
@@ -169,12 +184,20 @@ describe('font export: outlines beyond what a font stores', () => {
     const font = await loadFixture('Roboto')
     const index = (char: string) => font.characters.find((c) => c.unicode === char.codePointAt(0))!.index
     const base = (char: string) => deriveGeometry(font.getGlyph(index(char)), BASE).polygon
-    const spike: Point[] = [{ x: 500, y: -10 }, { x: 245000, y: -245000 }, { x: 700, y: -10 }]
+    const spike: Point[] = [
+      { x: 500, y: -10 },
+      { x: 245000, y: -245000 },
+      { x: 700, y: -10 },
+    ]
     const a = base('A')
-    const withSpike: PolygonGlyph = { ...a, contours: [...a.contours, { points: spike, clockwise: signedArea(spike) < 0 }] }
+    const withSpike: PolygonGlyph = {
+      ...a,
+      contours: [...a.contours, { points: spike, clockwise: signedArea(spike) < 0 }],
+    }
     const b = base('B')
     const wide: PolygonGlyph = { ...b, metrics: { ...b.metrics, advanceWidth: 40000 } }
-    const known = (i: number): KnownGlyph | undefined => (i === index('A') ? { polygon: withSpike } : i === index('B') ? { polygon: wide } : undefined)
+    const known = (i: number): KnownGlyph | undefined =>
+      i === index('A') ? { polygon: withSpike } : i === index('B') ? { polygon: wide } : undefined
     const result = await exported('Roboto', BASE, 'far-reaching outlines', 'ABC', known)
     return { result, withSpike }
   }
@@ -198,11 +221,15 @@ describe('font export: outlines beyond what a font stores', () => {
     expect(result.characterCount).toBe(2)
   })
 
-  it.each(FIXTURE_FONTS)('exports every glyph of %s with Thorn reaching across a 120 em canvas', async (name) => {
-    const params = paramsWith(GEOMETRY.plain, on('thorn', { canvasReach: 1, canvasEm: 120 }))
-    const result = await exported(name, params, 'Thorn across the canvas')
-    expect(result.excluded).toEqual([])
-    expect(result.trimmed.length).toBeGreaterThan(0)
-    await expectStorable(result)
-  }, 120_000)
+  it.each(FIXTURE_FONTS)(
+    'exports every glyph of %s with Thorn reaching across a 120 em canvas',
+    async (name) => {
+      const params = paramsWith(GEOMETRY.plain, on('thorn', { canvasReach: 1, canvasEm: 120 }))
+      const result = await exported(name, params, 'Thorn across the canvas')
+      expect(result.excluded).toEqual([])
+      expect(result.trimmed.length).toBeGreaterThan(0)
+      await expectStorable(result)
+    },
+    120_000,
+  )
 })

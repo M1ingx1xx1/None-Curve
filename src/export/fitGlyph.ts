@@ -60,7 +60,8 @@ const SIDES: Side[] = [
   { axis: 'y', max: true },
 ]
 
-const edgeOf = (side: Side, box: FontBox) => (side.axis === 'x' ? (side.max ? box.maxX : box.minX) : side.max ? box.maxY : box.minY)
+const edgeOf = (side: Side, box: FontBox) =>
+  side.axis === 'x' ? (side.max ? box.maxX : box.minX) : side.max ? box.maxY : box.minY
 const inside = (p: Point, side: Side, at: number) => (side.max ? p[side.axis] <= at : p[side.axis] >= at)
 
 /**
@@ -92,12 +93,19 @@ export function fitToFontBox(polygon: PolygonGlyph, box: FontBox): { polygon: Po
   // The merge may move a point to a whole unit; the edges it was cut at are whole units already.
   const [x0, x1, y0, y1] = [Math.floor(box.minX), Math.ceil(box.maxX), Math.floor(box.minY), Math.ceil(box.maxY)]
   const within = (p: Point) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1
-  if (merged.stats.failed || !merged.polygon.contours.length || !merged.polygon.contours.every((c) => c.points.every(within))) {
+  if (
+    merged.stats.failed ||
+    !merged.polygon.contours.length ||
+    !merged.polygon.contours.every((c) => c.points.every(within))
+  ) {
     return { polygon: clipped, trimmed: true }
   }
   if (largestTurn(merged.polygon.contours) === largestTurn(contours)) return { polygon: merged.polygon, trimmed: true }
   // Keep each contour's first point, so the outline starts where it did; holes stay holes.
-  const reversed = merged.polygon.contours.map((c) => ({ points: [c.points[0], ...c.points.slice(1).reverse()], clockwise: !c.clockwise }))
+  const reversed = merged.polygon.contours.map((c) => ({
+    points: [c.points[0], ...c.points.slice(1).reverse()],
+    clockwise: !c.clockwise,
+  }))
   return { polygon: { ...merged.polygon, contours: reversed }, trimmed: true }
 }
 

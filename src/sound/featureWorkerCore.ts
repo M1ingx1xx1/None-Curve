@@ -15,7 +15,15 @@ import type { FeatureSettings } from './types'
 
 export type FeatureWorkerRequest =
   /** A new file: its samples at the context's rate (mono: `right` null), transferred. Measuring starts at once. */
-  | { type: 'load'; generation: number; sampleRate: number; left: Float32Array; right: Float32Array | null; settings: FeatureSettings; fromMs: number }
+  | {
+      type: 'load'
+      generation: number
+      sampleRate: number
+      left: Float32Array
+      right: Float32Array | null
+      settings: FeatureSettings
+      fromMs: number
+    }
   /** The playhead jumped to `ms`: measure there first, unless it is covered or about to be. */
   | { type: 'seek'; generation: number; ms: number }
   /** Sensitivity or Release changed: everything is measured again, from `fromMs` first. */
@@ -87,14 +95,28 @@ export class FeatureWorkerCore {
     const to = Math.min(segment.end, from + CHUNK_FRAMES)
     try {
       const right = channels.right ?? channels.left
-      const measured = measureFrames({ left: channels.left, right }, this.sampleRate, this.settings, this.grid, from, to, segment.extractor)
+      const measured = measureFrames(
+        { left: channels.left, right },
+        this.sampleRate,
+        this.settings,
+        this.grid,
+        from,
+        to,
+        segment.extractor,
+      )
       const values = new Float64Array(measured.length * FEATURE_STRIDE)
       measured.forEach((frame, row) => packFrame(frame, values, row))
       segment.next = to
-      this.post({ type: 'columns', generation: this.generation, start: from, count: measured.length, values }, [values.buffer])
+      this.post({ type: 'columns', generation: this.generation, start: from, count: measured.length, values }, [
+        values.buffer,
+      ])
     } catch (error) {
       this.order = []
-      this.post({ type: 'error', generation: this.generation, message: error instanceof Error ? error.message : String(error) })
+      this.post({
+        type: 'error',
+        generation: this.generation,
+        message: error instanceof Error ? error.message : String(error),
+      })
       return false
     }
     if (segment.next >= segment.end) this.order.shift()
@@ -117,7 +139,12 @@ export class FeatureWorkerCore {
   }
 
   private segment(start: number, end: number): Segment {
-    return { start, end, next: start, extractor: new FeatureExtractor(this.sampleRate, analyserFftSize(this.sampleRate)) }
+    return {
+      start,
+      end,
+      next: start,
+      extractor: new FeatureExtractor(this.sampleRate, analyserFftSize(this.sampleRate)),
+    }
   }
 
   /**

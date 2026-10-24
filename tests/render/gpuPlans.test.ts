@@ -4,7 +4,22 @@
 // the plan slots a frame hands out (a progress evaluated once, and not again in a frame drawn again at it).
 
 import { describe, expect, it } from 'vitest'
-import { ANCHOR_STRIDE, anchorRows, claimSlot, fanIndices, GPU_LIMITS, GpuLru, KIND, PATH_STRIDE, pathRows, planBounds, planContours, segmentIndices, slotBytes, texRows } from '../../src/render/gpuPlans'
+import {
+  ANCHOR_STRIDE,
+  anchorRows,
+  claimSlot,
+  fanIndices,
+  GPU_LIMITS,
+  GpuLru,
+  KIND,
+  PATH_STRIDE,
+  pathRows,
+  planBounds,
+  planContours,
+  segmentIndices,
+  slotBytes,
+  texRows,
+} from '../../src/render/gpuPlans'
 import { allFixtures, meshFixture, straightFixture, whorlFixture } from './plans'
 
 describe('anchor rows', () => {
@@ -132,7 +147,11 @@ describe('the GPU memory LRU', () => {
 
 describe('plan slots', () => {
   /** A frame: the progress of each glyph drawn with the plan; returns how many evaluations it took. */
-  function frame(plan: { slots: { id: number; p: number }[]; used: number }, ps: number[], made: { n: number }): number {
+  function frame(
+    plan: { slots: { id: number; p: number }[]; used: number },
+    ps: number[],
+    made: { n: number },
+  ): number {
     plan.used = 0
     let evaluated = 0
     for (const p of ps) {

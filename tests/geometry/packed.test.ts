@@ -43,7 +43,10 @@ describe('packed glyphs', async () => {
     const { packed } = packGeometry(geometry)
     expect(packed.click).not.toBe('same')
     expect(packed.hull).not.toBeNull()
-    const same: WorkerGeometry = { ...geometry, polygon: { ...geometry.polygon, clickOutline: geometry.polygon.contours } }
+    const same: WorkerGeometry = {
+      ...geometry,
+      polygon: { ...geometry.polygon, clickOutline: geometry.polygon.contours },
+    }
     const packedSame = packGeometry(same).packed
     expect(packedSame.click).toBe('same')
     const back = unpackGeometry(packedSame)
@@ -61,7 +64,8 @@ describe('packed glyphs', async () => {
   it('counts its bytes: 16 a point, plus its statistics', () => {
     const small = packGeometry(geometryOf(glyphs[3])).packed
     const large = packGeometry(geometryOf(glyphs[2])).packed
-    for (const packed of [small, large]) expect(packedBytes(packed)).toBeGreaterThanOrEqual(16 * packedPoints(packed) + 2000)
+    for (const packed of [small, large])
+      expect(packedBytes(packed)).toBeGreaterThanOrEqual(16 * packedPoints(packed) + 2000)
     expect(packedPoints(large)).toBeGreaterThan(packedPoints(small))
     expect(packedBytes(large)).toBeGreaterThan(packedBytes(small))
   })

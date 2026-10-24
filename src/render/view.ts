@@ -58,7 +58,10 @@ export interface ViewCull {
 export const NO_CULL: ViewCull = { band: () => true, ink: () => true, glyph: () => true }
 
 /** SpecimenView's culling for the canvas view. The Free drag is left out, as there. */
-export function canvasCull(view: CanvasView, style: Pick<RenderStyle, 'unitsPerEm' | 'ascender' | 'descender'>): ViewCull {
+export function canvasCull(
+  view: CanvasView,
+  style: Pick<RenderStyle, 'unitsPerEm' | 'ascender' | 'descender'>,
+): ViewCull {
   const left = view.left
   const right = left + view.cssWidth * view.u
   const top = -view.top
@@ -79,7 +82,13 @@ export function scenePoint(view: CanvasView, x: number, y: number): [number, num
 }
 
 /** What the style draws, as hitScene tests it (the block is the surface's: freeMove is false). */
-export function hitOptions(view: CanvasView, style: RenderStyle, offsetX: number, offsetY: number, source: SourceLookup | null): HitOptions {
+export function hitOptions(
+  view: CanvasView,
+  style: RenderStyle,
+  offsetX: number,
+  offsetY: number,
+  source: SourceLookup | null,
+): HitOptions {
   return {
     outline: style.outline,
     fill: style.fill,

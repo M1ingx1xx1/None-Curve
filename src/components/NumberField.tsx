@@ -30,7 +30,18 @@ export function widestChars(min: number, max: number, step: number): number {
  * A number box that lets the user type freely (no clamping in the middle of typing) and commits on
  * Enter or blur, clamped to [min, max] and rounded to the step. Escape restores the current value.
  */
-export default function NumberField({ id, value, min, max, step, onCommit, disabled, autoFocus, plain, ...aria }: NumberFieldProps) {
+export default function NumberField({
+  id,
+  value,
+  min,
+  max,
+  step,
+  onCommit,
+  disabled,
+  autoFocus,
+  plain,
+  ...aria
+}: NumberFieldProps) {
   const [draft, setDraft] = useState(String(value))
   const [editing, setEditing] = useState(false)
   useEffect(() => {

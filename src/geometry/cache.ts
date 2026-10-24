@@ -75,7 +75,10 @@ export function glyphGeometry(
   const cacheKey = `${index}|${key}`
   let entry: Entry | undefined
   if (tier === 'ahead') {
-    entry = caches.get(font)?.entries.get(cacheKey) ?? liveCaches.get(font)?.entries.get(cacheKey) ?? derive(font, index, params)
+    entry =
+      caches.get(font)?.entries.get(cacheKey) ??
+      liveCaches.get(font)?.entries.get(cacheKey) ??
+      derive(font, index, params)
   } else if (live) {
     entry = caches.get(font)?.entries.get(cacheKey)
     if (!entry) {
@@ -144,7 +147,8 @@ function derive(font: LoadedFont, index: number, params: GeometryParams): Entry 
     const geometry = deriveGeometry(source.getGlyph(index), params)
     // With Thorn, the result also keeps the letter's click outline; with Whorl, the letter as Whorl received it.
     const click = geometry.polygon.clickOutline
-    const clickPoints = click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
+    const clickPoints =
+      click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
     const outline = geometry.polygon.motion?.whorl?.outline
     const outlinePoints = outline ? outline.reduce((n, points) => n + points.length, 0) : 0
     return { geometry, points: geometry.vertexCount + clickPoints + outlinePoints }

@@ -52,9 +52,13 @@ class MemoryStorage {
 }
 
 const DEFAULT_SETTINGS: SettingsParams = (({ view: _view, ...settings }) => settings)(initialState.params)
-const DEFAULT_VIEW = (({ outline, showFill, showSkeleton, showVertices, showMetrics }) => ({ outline, showFill, showSkeleton, showVertices, showMetrics }))(
-  initialState.params.view,
-)
+const DEFAULT_VIEW = (({ outline, showFill, showSkeleton, showVertices, showMetrics }) => ({
+  outline,
+  showFill,
+  showSkeleton,
+  showVertices,
+  showMetrics,
+}))(initialState.params.view)
 const DEFAULT_PRECISION = initialState.document.export.precision
 
 /** A session unlike the defaults in every part. */
@@ -64,7 +68,11 @@ function changedSession(): Session {
     params: {
       ...d,
       anchors: { ...d.anchors, spacing: 12 },
-      experimental: { ...d.experimental, seed: 42, crumple: { ...d.experimental.crumple, enabled: true, amount: SLIDER_RANGES['experimental.crumple.amount'].max } },
+      experimental: {
+        ...d.experimental,
+        seed: 42,
+        crumple: { ...d.experimental.crumple, enabled: true, amount: SLIDER_RANGES['experimental.crumple.amount'].max },
+      },
       typography: { ...d.typography, align: 'right', tracking: 25 },
       palette: { ...d.palette, ink: '#112233' },
     },
@@ -77,13 +85,24 @@ function changedSession(): Session {
       { id: 'm2', enabled: false, feature: 'beat', target: 'experimental.seed', depth: 0.25 },
       { id: 'm3', enabled: true, feature: 'melody', target: 'distortion.amount', depth: -0.4 },
     ],
-    sound: { sensitivity: -6, releaseMs: 400, strength: 2.5, contrast: 0.6, pitchReactive: 1.25, melody: 0.15, glideMs: 320, plain: 1, holdMs: 350 },
+    sound: {
+      sensitivity: -6,
+      releaseMs: 400,
+      strength: 2.5,
+      contrast: 0.6,
+      pitchReactive: 1.25,
+      melody: 0.15,
+      glideMs: 320,
+      plain: 1,
+      holdMs: 350,
+    },
     font: { kind: 'google', family: 'Roboto', weight: 400, italic: false, subset: 'latin' },
     glyph: { family: 'Roboto', style: 'Regular', index: 37, unicode: 0x41 },
   }
 }
 
-const stored = (storage: MemoryStorage, value: unknown) => storage.items.set(SESSION_KEY, typeof value === 'string' ? value : JSON.stringify(value))
+const stored = (storage: MemoryStorage, value: unknown) =>
+  storage.items.set(SESSION_KEY, typeof value === 'string' ? value : JSON.stringify(value))
 
 describe('saved session', () => {
   afterEach(() => {
@@ -126,8 +145,11 @@ describe('saved session', () => {
     // A version 2 session saved before the Response group existed: neutral Sound, as it was (Glide at its default, which
     // changes only how the shapes are shown).
     expect(read(undefined)).toEqual(DEFAULT_SOUND_SETTINGS)
-    for (const garbage of [null, 'loud', 7, [], { strength: '2' }]) expect(read(garbage), JSON.stringify(garbage)).toEqual(DEFAULT_SOUND_SETTINGS)
-    expect(read({ sensitivity: 99, releaseMs: 1, strength: -3, contrast: 7, pitchReactive: Infinity, melody: Number.NaN })).toEqual({
+    for (const garbage of [null, 'loud', 7, [], { strength: '2' }])
+      expect(read(garbage), JSON.stringify(garbage)).toEqual(DEFAULT_SOUND_SETTINGS)
+    expect(
+      read({ sensitivity: 99, releaseMs: 1, strength: -3, contrast: 7, pitchReactive: Infinity, melody: Number.NaN }),
+    ).toEqual({
       ...DEFAULT_SOUND_SETTINGS,
       sensitivity: SOUND_LIMITS.maxSensitivity,
       releaseMs: SOUND_LIMITS.minReleaseMs,
@@ -135,7 +157,17 @@ describe('saved session', () => {
       contrast: 1,
     })
     // Steps of 1 dB, 1 ms and 0.01 (Release and the Response sliders went from 10 ms and 0.05 to these in NOCUR-63).
-    expect(read({ sensitivity: -3.4, releaseMs: 237.4, strength: 1.234, contrast: 0.456, pitchReactive: 0.333, melody: 1.967, extra: 1 })).toEqual({
+    expect(
+      read({
+        sensitivity: -3.4,
+        releaseMs: 237.4,
+        strength: 1.234,
+        contrast: 0.456,
+        pitchReactive: 0.333,
+        melody: 1.967,
+        extra: 1,
+      }),
+    ).toEqual({
       sensitivity: -3,
       releaseMs: 237,
       strength: 1.23,
@@ -153,7 +185,17 @@ describe('saved session', () => {
     // Glide: 0–1000 ms in steps of 10.
     expect([1234, 147, -5, 0].map((glideMs) => read({ glideMs })?.glideMs)).toEqual([1000, 150, 0, 0])
     // Values saved on the coarser steps are still on the finer ones, so they come back as they were.
-    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95, glideMs: 150, plain: 0, holdMs: 200 }
+    const coarse = {
+      sensitivity: -3,
+      releaseMs: 240,
+      strength: 1.25,
+      contrast: 0.46,
+      pitchReactive: 0.35,
+      melody: 1.95,
+      glideMs: 150,
+      plain: 0,
+      holdMs: 200,
+    }
     expect(read(coarse)).toEqual(coarse)
     // Saved as JSON, the values come back exactly.
     const storage = new MemoryStorage()
@@ -162,7 +204,12 @@ describe('saved session', () => {
   })
 
   it('drops unknown keys and keeps the known ones', () => {
-    const session = readSession({ version: 1, params: { anchors: { spacing: 9, wobble: 3 }, gizmo: { on: true } }, extra: 'x', view: { zoom: 4, outline: 'source' } })!
+    const session = readSession({
+      version: 1,
+      params: { anchors: { spacing: 9, wobble: 3 }, gizmo: { on: true } },
+      extra: 'x',
+      view: { zoom: 4, outline: 'source' },
+    })!
     expect(session.params.anchors).toEqual({ ...DEFAULT_SETTINGS.anchors, spacing: 9 })
     expect('gizmo' in session.params).toBe(false)
     expect('extra' in session).toBe(false)
@@ -180,7 +227,11 @@ describe('saved session', () => {
 
     const saved = readSession({
       version: SESSION_VERSION,
-      params: { experimental: { dissolve: { enabled: true, amount: 3, grain: 0.01, spread: 'wide', specks: -1, curl: 0.25, facets: 0.7 } } },
+      params: {
+        experimental: {
+          dissolve: { enabled: true, amount: 3, grain: 0.01, spread: 'wide', specks: -1, curl: 0.25, facets: 0.7 },
+        },
+      },
     })!
     expect(saved.params.experimental.dissolve).toEqual({
       enabled: true,
@@ -195,7 +246,14 @@ describe('saved session', () => {
 
   it('reads a session from before versions, with the old effect and feature names', () => {
     const session = readSession({
-      params: { experimental: { noise: { enabled: true, amount: 1.5 }, curl: { enabled: true }, wind: { enabled: true }, spikes: { enabled: true } } },
+      params: {
+        experimental: {
+          noise: { enabled: true, amount: 1.5 },
+          curl: { enabled: true },
+          wind: { enabled: true },
+          spikes: { enabled: true },
+        },
+      },
       mappings: [
         { feature: 'low', target: 'experimental.noise.amount', depth: 0.4 },
         { feature: 'kickPulse', target: 'experimental.spikes.count', depth: 0.2 },
@@ -203,7 +261,12 @@ describe('saved session', () => {
       ],
     })!
     const x = session.params.experimental
-    expect([x.crumple.enabled, x.whorl.enabled, x.slipstream.enabled, x.thorn.enabled]).toEqual([true, true, true, true])
+    expect([x.crumple.enabled, x.whorl.enabled, x.slipstream.enabled, x.thorn.enabled]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ])
     expect(x.crumple.amount).toBe(1.5)
     expect('noise' in x).toBe(false)
     // The dropped feature "sub" has no new name: its row is left out. Anchors now runs from 0 (version 3), so its
@@ -238,10 +301,12 @@ describe('saved session', () => {
     ])
     // The saved text size and canvas, read as the session reads them (missing ones at their defaults, out of range clamped).
     expect(v1(0.6).params.experimental.thorn.canvasReach).toBe(thorn.canvasReach)
-    expect(v1(1, { typography: { size: 96 }, artboard: { width: 600, height: 400 } }).params.experimental.thorn.canvasReach).toBe(
-      roundReach(96 / Math.hypot(600, 400)),
-    )
-    expect(v1(2, { typography: { size: 1e9 }, artboard: { width: 1, height: 1 } }).params.experimental.thorn.canvasReach).toBe(1)
+    expect(
+      v1(1, { typography: { size: 96 }, artboard: { width: 600, height: 400 } }).params.experimental.thorn.canvasReach,
+    ).toBe(roundReach(96 / Math.hypot(600, 400)))
+    expect(
+      v1(2, { typography: { size: 1e9 }, artboard: { width: 1, height: 1 } }).params.experimental.thorn.canvasReach,
+    ).toBe(1)
     // Thorn caps the canvas diagonal at THORN_LIMITS.maxReachEm, so on small text or a large canvas the reach is a share
     // of the cap (the same length again), and a reach that was on never rounds to off.
     const small = (reach: number, size: number, width: number, height: number) =>
@@ -263,7 +328,10 @@ describe('saved session', () => {
       // Within the rounding to a hundredth of a percent.
       expect(Math.abs(thorn.canvasReach * em - reach), `${reach} em`).toBeLessThanOrEqual(0.00005 * em + 1e-9)
     }
-    expect(v1(0.001, { typography: { size: 4 }, artboard: { width: 4000, height: 4000 } }).params.experimental.thorn.canvasReach).toBe(0.0001)
+    expect(
+      v1(0.001, { typography: { size: 4 }, artboard: { width: 4000, height: 4000 } }).params.experimental.thorn
+        .canvasReach,
+    ).toBe(0.0001)
     expect(v1(0).params.experimental.thorn.canvasReach).toBe(0)
     // No usable reach: the default.
     expect(v1('far').params.experimental.thorn.canvasReach).toBe(DEFAULT_SETTINGS.experimental.thorn.canvasReach)
@@ -296,41 +364,73 @@ describe('saved session', () => {
     expect(spikes).toMatchObject({ depth: 0.095, rangeMin: 0.53 })
     expect(other).toMatchObject({ depth: 0.4, rangeMin: 0.2, rangeMax: 0.6 })
     // A version 3 row is read as it is.
-    expect(readSession({ version: 3, mappings: [{ feature: 'level', target: 'experimental.crumple.facet', depth: 0.46, rangeMax: 0.5 }] })!.mappings[0]).toMatchObject({
+    expect(
+      readSession({
+        version: 3,
+        mappings: [{ feature: 'level', target: 'experimental.crumple.facet', depth: 0.46, rangeMax: 0.5 }],
+      })!.mappings[0],
+    ).toMatchObject({
       depth: 0.46,
       rangeMax: 0.5,
     })
   })
 
-  it('round-trips a version 2 Reach, and never saves Thorn\'s derived canvasEm', () => {
+  it("round-trips a version 2 Reach, and never saves Thorn's derived canvasEm", () => {
     const storage = new MemoryStorage()
     const session = changedSession()
     const thorn = { ...session.params.experimental.thorn, enabled: true, canvasReach: 0.4321 }
     session.params = { ...session.params, experimental: { ...session.params.experimental, thorn } }
-    session.mappings = [{ id: 'm1', enabled: true, feature: 'level', target: 'experimental.thorn.canvasReach', depth: -0.5 }]
-    saveSession({ ...session, params: { ...session.params, experimental: { ...session.params.experimental, thorn: { ...thorn, canvasEm: 30.04 } } } }, storage)
+    session.mappings = [
+      { id: 'm1', enabled: true, feature: 'level', target: 'experimental.thorn.canvasReach', depth: -0.5 },
+    ]
+    saveSession(
+      {
+        ...session,
+        params: {
+          ...session.params,
+          experimental: { ...session.params.experimental, thorn: { ...thorn, canvasEm: 30.04 } },
+        },
+      },
+      storage,
+    )
     const raw = JSON.parse(storage.items.get(SESSION_KEY)!)
     expect(raw.version).toBe(SESSION_VERSION)
     expect('canvasEm' in raw.params.experimental.thorn).toBe(false)
     expect(loadSession(storage)).toEqual({ session, crashed: false })
     // Nor is one read back from storage.
-    expect('canvasEm' in readSession({ version: 2, params: { experimental: { thorn: { canvasEm: 12 } } } })!.params.experimental.thorn).toBe(false)
+    expect(
+      'canvasEm' in
+        readSession({ version: 2, params: { experimental: { thorn: { canvasEm: 12 } } } })!.params.experimental.thorn,
+    ).toBe(false)
   })
 
   it('round-trips Ripple and Thorn Reverse, and reads it as off where it is missing or not a boolean', () => {
     const storage = new MemoryStorage()
     const session = changedSession()
     const { ripple, thorn } = session.params.experimental
-    session.params = { ...session.params, experimental: { ...session.params.experimental, ripple: { ...ripple, reverse: true }, thorn: { ...thorn, reverse: true } } }
+    session.params = {
+      ...session.params,
+      experimental: {
+        ...session.params.experimental,
+        ripple: { ...ripple, reverse: true },
+        thorn: { ...thorn, reverse: true },
+      },
+    }
     saveSession(session, storage)
     expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.ripple.reverse).toBe(true)
     expect(loadSession(storage)).toEqual({ session, crashed: false })
     // Saved before Reverse existed (same session version), or damaged: off, the other settings kept.
     const { reverse: _ripple, ...oldRipple } = { ...ripple, amount: 0.8 }
     const { reverse: _thorn, ...oldThorn } = { ...thorn, count: 5 }
-    const old = readSession({ version: SESSION_VERSION, params: { experimental: { ripple: oldRipple, thorn: oldThorn } } })!.params.experimental
+    const old = readSession({
+      version: SESSION_VERSION,
+      params: { experimental: { ripple: oldRipple, thorn: oldThorn } },
+    })!.params.experimental
     expect([old.ripple.reverse, old.ripple.amount, old.thorn.reverse, old.thorn.count]).toEqual([false, 0.8, false, 5])
-    const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { ripple: { reverse: 'yes' }, thorn: { reverse: 1 } } } })!.params.experimental
+    const damaged = readSession({
+      version: SESSION_VERSION,
+      params: { experimental: { ripple: { reverse: 'yes' }, thorn: { reverse: 1 } } },
+    })!.params.experimental
     expect([damaged.ripple.reverse, damaged.thorn.reverse]).toEqual([false, false])
   })
 
@@ -338,21 +438,45 @@ describe('saved session', () => {
     const storage = new MemoryStorage()
     const session = changedSession()
     const { thorn } = session.params.experimental
-    session.params = { ...session.params, experimental: { ...session.params.experimental, thorn: { ...thorn, burst: true, spikes: 72, dent: 0.35, count: 12 } } }
+    session.params = {
+      ...session.params,
+      experimental: {
+        ...session.params.experimental,
+        thorn: { ...thorn, burst: true, spikes: 72, dent: 0.35, count: 12 },
+      },
+    }
     saveSession(session, storage)
-    expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.thorn).toMatchObject({ burst: true, spikes: 72, dent: 0.35, count: 12 })
+    expect(JSON.parse(storage.items.get(SESSION_KEY)!).params.experimental.thorn).toMatchObject({
+      burst: true,
+      spikes: 72,
+      dent: 0.35,
+      count: 12,
+    })
     expect(loadSession(storage)).toEqual({ session, crashed: false })
     // Saved before Burst existed (same session version): off, at 40 spikes and Dent 80%, the other settings kept.
     const { burst: _burst, spikes: _spikes, dent: _dent, ...oldThorn } = { ...thorn, count: 5, reverse: true }
-    const old = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: oldThorn } } })!.params.experimental.thorn
+    const old = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: oldThorn } } })!.params
+      .experimental.thorn
     expect([old.burst, old.spikes, old.dent, old.count, old.reverse]).toEqual([false, 40, 0.8, 5, true])
-    const damaged = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { burst: 'yes', spikes: '9', dent: null } } } })!.params.experimental.thorn
+    const damaged = readSession({
+      version: SESSION_VERSION,
+      params: { experimental: { thorn: { burst: 'yes', spikes: '9', dent: null } } },
+    })!.params.experimental.thorn
     expect([damaged.burst, damaged.spikes, damaged.dent]).toEqual([false, 40, 0.8])
     // Out of range: Burst's Anchors to 0–80 in whole spikes, Dent to 0–1, and Anchors without Burst to 0–12, apart.
-    const wild = readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 500, dent: -2, count: 80 } } } })!.params.experimental.thorn
+    const wild = readSession({
+      version: SESSION_VERSION,
+      params: { experimental: { thorn: { spikes: 500, dent: -2, count: 80 } } },
+    })!.params.experimental.thorn
     expect([wild.spikes, wild.dent, wild.count]).toEqual([80, 0, 12])
-    expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 2.4 } } } })!.params.experimental.thorn.spikes).toBe(2)
-    expect(readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 33.6 } } } })!.params.experimental.thorn.spikes).toBe(34)
+    expect(
+      readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 2.4 } } } })!.params
+        .experimental.thorn.spikes,
+    ).toBe(2)
+    expect(
+      readSession({ version: SESSION_VERSION, params: { experimental: { thorn: { spikes: 33.6 } } } })!.params
+        .experimental.thorn.spikes,
+    ).toBe(34)
   })
 
   it('clamps numbers to their sliders and drops wrong types, enums and choices', () => {
@@ -388,26 +512,57 @@ describe('saved session', () => {
     expect(session.previewLook).toEqual({ blur: 12, inverted: false })
     expect(session.precision).toBe(DEFAULT_PRECISION)
     // The Blur slider's 0.1 px step; a blur saved on the old 0.5 px step stays as it was.
-    for (const [blur, expected] of [[2.34, 2.3], [2.5, 2.5]]) expect(readSession({ version: SESSION_VERSION, previewLook: { blur } })!.previewLook.blur).toBe(expected)
+    for (const [blur, expected] of [
+      [2.34, 2.3],
+      [2.5, 2.5],
+    ])
+      expect(readSession({ version: SESSION_VERSION, previewLook: { blur } })!.previewLook.blur).toBe(expected)
   })
 
   it('checks the mappings: at most 8, known features and targets, depth clamped, Rates never negative', () => {
-    const rows = Array.from({ length: 12 }, (_, k) => ({ feature: 'level', target: 'distortion.amount', depth: k % 2 ? 5 : -5 }))
-    const session = readSession({ version: 1, mappings: [{ feature: 'nope', target: 'distortion.amount', depth: 1 }, { feature: 'level', target: 'experimental.seed', depth: -0.5 }, ...rows] })!
+    const rows = Array.from({ length: 12 }, (_, k) => ({
+      feature: 'level',
+      target: 'distortion.amount',
+      depth: k % 2 ? 5 : -5,
+    }))
+    const session = readSession({
+      version: 1,
+      mappings: [
+        { feature: 'nope', target: 'distortion.amount', depth: 1 },
+        { feature: 'level', target: 'experimental.seed', depth: -0.5 },
+        ...rows,
+      ],
+    })!
     expect(session.mappings).toHaveLength(8)
-    expect(session.mappings[0]).toEqual({ id: 'm1', enabled: true, feature: 'level', target: 'experimental.seed', depth: 0.5 })
+    expect(session.mappings[0]).toEqual({
+      id: 'm1',
+      enabled: true,
+      feature: 'level',
+      target: 'experimental.seed',
+      depth: 0.5,
+    })
     expect(session.mappings.slice(1).map((m) => m.depth)).toEqual([-1, 1, -1, 1, -1, 1, -1])
     expect(session.mappings.map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8'])
   })
 
   it('checks the font and glyph to reopen', () => {
     const read = (font: unknown, glyph: unknown) => readSession({ version: 1, font, glyph })!
-    expect(read({ kind: 'local', fileName: 'My Font.otf' }, null).font).toEqual({ kind: 'local', fileName: 'My Font.otf' })
-    expect(read({ kind: 'google', family: 'Roboto', weight: 4000, italic: false, subset: 'latin' }, null).font).toBeNull()
+    expect(read({ kind: 'local', fileName: 'My Font.otf' }, null).font).toEqual({
+      kind: 'local',
+      fileName: 'My Font.otf',
+    })
+    expect(
+      read({ kind: 'google', family: 'Roboto', weight: 4000, italic: false, subset: 'latin' }, null).font,
+    ).toBeNull()
     expect(read({ kind: 'ftp' }, null).font).toBeNull()
     expect(read(null, { family: 'A', style: 'B', index: -1, unicode: 65 }).glyph).toBeNull()
     expect(read(null, { family: 'A', style: 'B', index: 3, unicode: 0x110000 }).glyph).toBeNull()
-    expect(read(null, { family: 'A', style: 'B', index: 3, unicode: null }).glyph).toEqual({ family: 'A', style: 'B', index: 3, unicode: null })
+    expect(read(null, { family: 'A', style: 'B', index: 3, unicode: null }).glyph).toEqual({
+      family: 'A',
+      style: 'B',
+      index: 3,
+      unicode: null,
+    })
   })
 
   it('caps the text without splitting a surrogate pair', () => {
@@ -436,7 +591,10 @@ describe('saved session', () => {
     const session = changedSession()
     saveSession(session, storage)
     markRestoring(storage)
-    expect(loadSession(storage)).toEqual({ session: { ...session, params: DEFAULT_SETTINGS, view: DEFAULT_VIEW }, crashed: true })
+    expect(loadSession(storage)).toEqual({
+      session: { ...session, params: DEFAULT_SETTINGS, view: DEFAULT_VIEW },
+      crashed: true,
+    })
     // The mark is gone once read: the next start restores everything again.
     expect(storage.items.has(RESTORING_KEY)).toBe(false)
     expect(loadSession(storage)).toEqual({ session, crashed: false })
@@ -497,11 +655,17 @@ describe('config file', () => {
     expect(parseSession(serializeSession(session))).toEqual(session)
   })
 
-  it('never writes Thorn\'s derived canvasEm, and caps the text', () => {
+  it("never writes Thorn's derived canvasEm, and caps the text", () => {
     const session = changedSession()
     const thorn = { ...session.params.experimental.thorn, canvasEm: 30.04 }
     const long = 'x'.repeat(MAX_SAVED_TEXT + 5)
-    const raw = JSON.parse(serializeConfig({ ...session, text: long, params: { ...session.params, experimental: { ...session.params.experimental, thorn } } }))
+    const raw = JSON.parse(
+      serializeConfig({
+        ...session,
+        text: long,
+        params: { ...session.params, experimental: { ...session.params.experimental, thorn } },
+      }),
+    )
     expect('canvasEm' in raw.params.experimental.thorn).toBe(false)
     expect(raw.text).toHaveLength(MAX_SAVED_TEXT)
   })
@@ -520,12 +684,20 @@ describe('config file', () => {
       { app: CONFIG_MARKER.app, kind: 'preset', version: SESSION_VERSION },
       { kind: CONFIG_MARKER.kind, params: {} },
     ]
-    for (const value of foreign) expect(parseConfig(JSON.stringify(value)), JSON.stringify(value)).toEqual({ ok: false, error: NOT_CONFIG })
+    for (const value of foreign)
+      expect(parseConfig(JSON.stringify(value)), JSON.stringify(value)).toEqual({ ok: false, error: NOT_CONFIG })
   })
 
   it('reads a damaged config leaf by leaf: wrong values are the defaults, unknown keys dropped', () => {
     const parsed = parseConfig(
-      JSON.stringify({ ...CONFIG_MARKER, version: SESSION_VERSION, params: { anchors: { spacing: 'wide' }, palette: { ink: '#abc' } }, text: 7, mappings: 'all', extra: true }),
+      JSON.stringify({
+        ...CONFIG_MARKER,
+        version: SESSION_VERSION,
+        params: { anchors: { spacing: 'wide' }, palette: { ink: '#abc' } },
+        text: 7,
+        mappings: 'all',
+        extra: true,
+      }),
     )
     if (!parsed.ok) throw new Error(parsed.error)
     expect(parsed.session.params.anchors.spacing).toBe(DEFAULT_SETTINGS.anchors.spacing)
@@ -538,7 +710,11 @@ describe('config file', () => {
   it('migrates an older config as it migrates an older saved session', () => {
     const v1 = {
       version: 1,
-      params: { experimental: { thorn: { enabled: true, reach: 0.6 } }, typography: { size: 48 }, artboard: { width: 1200, height: 800 } },
+      params: {
+        experimental: { thorn: { enabled: true, reach: 0.6 } },
+        typography: { size: 48 },
+        artboard: { width: 1200, height: 800 },
+      },
       mappings: [{ feature: 'level', target: 'experimental.thorn.reach', depth: 0.3 }],
     }
     const parsed = parseConfig(JSON.stringify({ ...CONFIG_MARKER, ...v1 }))
@@ -548,11 +724,17 @@ describe('config file', () => {
     expect(parsed.session.mappings[0].target).toBe('experimental.thorn.canvasReach')
     // Without a version: the oldest names (Noise became Crumple, Low became Bass).
     const unversioned = parseConfig(
-      JSON.stringify({ ...CONFIG_MARKER, params: { experimental: { noise: { enabled: true } } }, mappings: [{ feature: 'low', target: 'experimental.noise.amount', depth: 0.4 }] }),
+      JSON.stringify({
+        ...CONFIG_MARKER,
+        params: { experimental: { noise: { enabled: true } } },
+        mappings: [{ feature: 'low', target: 'experimental.noise.amount', depth: 0.4 }],
+      }),
     )
     if (!unversioned.ok) throw new Error(unversioned.error)
     expect(unversioned.session.params.experimental.crumple.enabled).toBe(true)
-    expect(unversioned.session.mappings.map((m) => [m.feature, m.target])).toEqual([['bass', 'experimental.crumple.amount']])
+    expect(unversioned.session.mappings.map((m) => [m.feature, m.target])).toEqual([
+      ['bass', 'experimental.crumple.amount'],
+    ])
   })
 
   it('reads a newer config as far as it fits, and says so', () => {

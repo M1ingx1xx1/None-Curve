@@ -35,15 +35,18 @@ export type SliderFieldProps = {
   /** More controls under the slider, above the explanation (Squaring's presets). */
   children?: ReactNode
   onChange: (value: number) => void
-} & (
+} &
   /** A linear slider, by its Sound target id: its range (SLIDER_RANGES, TYPOGRAPHY_RANGES) and its live marker. */
-  | { target: SliderId | TypographySliderId; curve?: undefined }
-  /** A curved slider (Tolerance, Reach): its Sound target, for the live marker, and its curve. */
-  | { target: string; curve: SliderCurve }
-)
+  (
+    | { target: SliderId | TypographySliderId; curve?: undefined }
+    /** A curved slider (Tolerance, Reach): its Sound target, for the live marker, and its curve. */
+    | { target: string; curve: SliderCurve }
+  )
 
 const linearRange = (target: SliderId | TypographySliderId): SliderRange =>
-  Object.hasOwn(TYPOGRAPHY_RANGES, target) ? TYPOGRAPHY_RANGES[target as TypographySliderId] : SLIDER_RANGES[target as SliderId]
+  Object.hasOwn(TYPOGRAPHY_RANGES, target)
+    ? TYPOGRAPHY_RANGES[target as TypographySliderId]
+    : SLIDER_RANGES[target as SliderId]
 
 /**
  * Every slider in the panels: a label (with an ⓘ button when there is an explanation), the range input with its
@@ -52,7 +55,21 @@ const linearRange = (target: SliderId | TypographySliderId): SliderRange =>
  * a position on the range input and back, while its number box takes the value itself.
  */
 export default function SliderField(props: SliderFieldProps) {
-  const { id, target, curve, label, value, scale, unit, valueText, hint, disabled, layout = 'head', children, onChange } = props
+  const {
+    id,
+    target,
+    curve,
+    label,
+    value,
+    scale,
+    unit,
+    valueText,
+    hint,
+    disabled,
+    layout = 'head',
+    children,
+    onChange,
+  } = props
   const ownHint = useHint()
   const help = props.hintState ?? ownHint
   const slider = curve ? curve.slider : linearRange(target as SliderId | TypographySliderId)
@@ -86,7 +103,11 @@ export default function SliderField(props: SliderFieldProps) {
         {title}
         <div className="slider-row">
           {range}
-          <NumberField {...scaledBox(value, box, scale, onChange)} disabled={disabled} aria-label={boxLabel(label, unit)} />
+          <NumberField
+            {...scaledBox(value, box, scale, onChange)}
+            disabled={disabled}
+            aria-label={boxLabel(label, unit)}
+          />
           {unit && <span className="unit slider-unit">{unit}</span>}
         </div>
         {children}
@@ -98,7 +119,15 @@ export default function SliderField(props: SliderFieldProps) {
     <div className="field">
       <div className="field-head">
         {title}
-        <SliderNumber {...box} value={value} scale={scale} unit={unit} label={label} disabled={disabled} onCommit={onChange} />
+        <SliderNumber
+          {...box}
+          value={value}
+          scale={scale}
+          unit={unit}
+          label={label}
+          disabled={disabled}
+          onCommit={onChange}
+        />
       </div>
       {range}
       {children}

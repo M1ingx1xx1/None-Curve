@@ -119,7 +119,15 @@ export interface ThornStats {
   tooComplex: boolean
 }
 
-export const emptyThornStats = (): ThornStats => ({ applied: false, thorns: 0, longest: 0, roots: 0, reducedContours: 0, fallbackContours: 0, tooComplex: false })
+export const emptyThornStats = (): ThornStats => ({
+  applied: false,
+  thorns: 0,
+  longest: 0,
+  roots: 0,
+  reducedContours: 0,
+  fallbackContours: 0,
+  tooComplex: false,
+})
 
 /** Channel numbers keep Thorn's random numbers apart from the other effects' for the same seed. */
 const CHANNEL = {
@@ -232,7 +240,11 @@ export class ThornAnchors {
     contours.forEach((points, contour) => {
       if (points.length < 3) return
       points.forEach((p, index) => {
-        candidates.push({ contour, index, rank: hashInts(seed, CHANNEL.pick, contour, Math.round(p.x), Math.round(p.y)) })
+        candidates.push({
+          contour,
+          index,
+          rank: hashInts(seed, CHANNEL.pick, contour, Math.round(p.x), Math.round(p.y)),
+        })
       })
     })
     candidates.sort((a, b) => a.rank - b.rank || a.contour - b.contour || a.index - b.index)
@@ -241,7 +253,8 @@ export class ThornAnchors {
     for (const outside of [outsideTest(contours, THORN_CLEARANCE * unitsPerEm), outsideTest(contours)]) {
       for (const candidate of candidates) {
         if (chosen.length >= count) break
-        if (!chosen.includes(candidate) && outside(candidate.contour, contours[candidate.contour][candidate.index])) chosen.push(candidate)
+        if (!chosen.includes(candidate) && outside(candidate.contour, contours[candidate.contour][candidate.index]))
+          chosen.push(candidate)
       }
     }
     for (const { contour, index } of chosen) {
@@ -268,7 +281,14 @@ export class ThornAnchors {
    * pick moves to the vertex at its place among the unmarked vertices, which a warp keeps in order (failing that, to the
    * vertex nearest to where the warp took it).
    */
-  warped(before: PolygonGlyph, beforeMarks: CreaseMarks | undefined, after: PolygonGlyph, afterMarks: CreaseMarks, warp: Warp, ends: Warp = warp): void {
+  warped(
+    before: PolygonGlyph,
+    beforeMarks: CreaseMarks | undefined,
+    after: PolygonGlyph,
+    afterMarks: CreaseMarks,
+    warp: Warp,
+    ends: Warp = warp,
+  ): void {
     const unmarked = (marks: readonly boolean[] | undefined, n: number) => {
       const out: number[] = []
       for (let i = 0; i < n; i++) if (!marks?.[i]) out.push(i)
@@ -286,7 +306,12 @@ export class ThornAnchors {
       const place = inputs.indexOf(site.index)
       if (place >= 0 && inputs.length === outputs.length) return { contour: site.contour, index: outputs[place] }
       // The warp left out a spike's tip: the vertex nearest to where the warp took the pick.
-      const index = nearest(to, warp.map(from[site.index]), Infinity, place >= 0 ? (i) => !afterMarks[site.contour]?.[i] : undefined)
+      const index = nearest(
+        to,
+        warp.map(from[site.index]),
+        Infinity,
+        place >= 0 ? (i) => !afterMarks[site.contour]?.[i] : undefined,
+      )
       return index < 0 ? null : { contour: site.contour, index }
     })
   }
@@ -326,7 +351,13 @@ export class ThornAnchors {
       let drawnSide = sides.get(site.contour)
       if (drawnSide === undefined) sides.set(site.contour, (drawnSide = signedArea(points) > 0 ? 1 : -1))
       const grown = along ? { x: side * along.y, y: -side * along.x } : normal
-      out.push({ ...site, normal: outOfInk(grown, windowEnds(points, site.index, this.window), drawnSide), turn, share, lean })
+      out.push({
+        ...site,
+        normal: outOfInk(grown, windowEnds(points, site.index, this.window), drawnSide),
+        turn,
+        share,
+        lean,
+      })
     })
     return out
   }
@@ -423,7 +454,11 @@ function nearestSite(polygon: PolygonGlyph, p: Point): Site | null {
 }
 
 /** The vertex nearest to `p` that `outside` passes (see outsideTest), or the nearest of all when none does. */
-function nearestOutside(contours: readonly (readonly Point[])[], p: Point, outside: (contour: number, p: Point) => boolean): Site | null {
+function nearestOutside(
+  contours: readonly (readonly Point[])[],
+  p: Point,
+  outside: (contour: number, p: Point) => boolean,
+): Site | null {
   const all: { contour: number; index: number; distance: number }[] = []
   let best = -1
   for (let contour = 0; contour < contours.length; contour++) {
@@ -438,7 +473,12 @@ function nearestOutside(contours: readonly (readonly Point[])[], p: Point, outsi
   if (best < 0) return null
   const pass = ({ contour, index }: Site) => outside(contour, contours[contour][index])
   // Usually the pick's own vertex, kept where it was.
-  const found = pass(all[best]) ? all[best] : (all.slice().sort((a, b) => a.distance - b.distance).find(pass) ?? all[best])
+  const found = pass(all[best])
+    ? all[best]
+    : (all
+        .slice()
+        .sort((a, b) => a.distance - b.distance)
+        .find(pass) ?? all[best])
   return { contour: found.contour, index: found.index }
 }
 
@@ -490,7 +530,10 @@ export function applyThorn(
   // Older saved settings have no Burst either; off, nothing below changes.
   const burst = params.burst === true
   const thorns: Thorn[] = []
-  const picks = maxLength > 0 && !burst ? (anchors ?? new ThornAnchors(polygon, polygon, params, seed, unitsPerEm)).located(polygon) : []
+  const picks =
+    maxLength > 0 && !burst
+      ? (anchors ?? new ThornAnchors(polygon, polygon, params, seed, unitsPerEm)).located(polygon)
+      : []
   for (const { contour, index, normal, turn: bend, share, lean } of picks) {
     const turn = bend * spread * Math.PI
     const cos = Math.cos(turn)
@@ -531,7 +574,9 @@ export function applyThorn(
         return warp
       }
       const anchors = new Set(thorns.map((thorn) => `${thorn.contour}:${thorn.index}`))
-      const kept = contours.map((points, k) => points.map((_, i) => (marks?.[k]?.[i] ?? false) && !anchors.has(`${k}:${i}`)))
+      const kept = contours.map((points, k) =>
+        points.map((_, i) => (marks?.[k]?.[i] ?? false) && !anchors.has(`${k}:${i}`)),
+      )
       const warped = applyWarp(result, warpAt, unitsPerEm, kept, folds, maxPoints)
       warpStats(warped.stats)
       result = warped.polygon
@@ -561,15 +606,21 @@ export function applyThorn(
       // thorn's length out.
       const moved = (p.x - thorn.anchor.x) * thorn.direction.x + (p.y - thorn.anchor.y) * thorn.direction.y
       const rest = Math.max(0, thorn.length - moved)
-      const base = width * Math.max(radius > 0 ? ROOT.inner * radius : 0, shorterEdge(contours[thorn.contour], thorn.index))
-      tips[thorn.contour].set(index, { at: { x: p.x + rest * thorn.direction.x, y: p.y + rest * thorn.direction.y }, base })
+      const base =
+        width * Math.max(radius > 0 ? ROOT.inner * radius : 0, shorterEdge(contours[thorn.contour], thorn.index))
+      tips[thorn.contour].set(index, {
+        at: { x: p.x + rest * thorn.direction.x, y: p.y + rest * thorn.direction.y },
+        base,
+      })
       stats.thorns++
       stats.longest = Math.max(stats.longest, thorn.length)
     })
     if (stats.thorns > 0) {
       stats.applied = true
       const grown = result.contours.map((c, k) =>
-        tips[k].size ? withThorns(c.points, tips[k], resultMarks?.[k]) : { points: c.points, marks: resultMarks?.[k] ?? c.points.map(() => false) },
+        tips[k].size
+          ? withThorns(c.points, tips[k], resultMarks?.[k])
+          : { points: c.points, marks: resultMarks?.[k] ?? c.points.map(() => false) },
       )
       result = { ...result, contours: grown.map(({ points }) => ({ points, clockwise: signedArea(points) < 0 })) }
       resultMarks = grown.map(({ marks }) => marks)
@@ -579,7 +630,17 @@ export function applyThorn(
   // Burst: spikes all round every contour instead of the picked thorns (which are none), no roots.
   if (burst && maxLength > 0) {
     if (refraction > 0) letter = inkBox(result)
-    const grown = burstOutline(result, params, seed, unitsPerEm, maxLength * BURST.reach, spread, width, reverse, resultMarks)
+    const grown = burstOutline(
+      result,
+      params,
+      seed,
+      unitsPerEm,
+      maxLength * BURST.reach,
+      spread,
+      width,
+      reverse,
+      resultMarks,
+    )
     if (grown.spikes > 0) {
       stats.applied = true
       stats.thorns = grown.spikes
@@ -598,7 +659,14 @@ export function applyThorn(
   // 3. Refraction. Once a thorn is added, the outlines may cross, so nothing is checked: they are merged next.
   const glass = refraction > 0 ? (letter ?? inkBox(result)) : null
   if (glass) {
-    const refracted = applyWarp(result, (scale) => fluteWarp(refraction * scale, flute, seed, glass), unitsPerEm, resultMarks, folds || stats.applied, maxPoints)
+    const refracted = applyWarp(
+      result,
+      (scale) => fluteWarp(refraction * scale, flute, seed, glass),
+      unitsPerEm,
+      resultMarks,
+      folds || stats.applied,
+      maxPoints,
+    )
     warpStats(refracted.stats)
     result = refracted.polygon
     resultMarks = refracted.marks
@@ -612,7 +680,10 @@ export function applyThorn(
   // The bases leave out anchors, which can leave a run of creases looking like a curve after all: break it up.
   if (stats.applied) {
     const marks = resultMarks
-    result = { ...result, contours: result.contours.map((c, k) => breakRuns(c, marks?.[k], WARP_LIMITS.shortEdge * unitsPerEm)) }
+    result = {
+      ...result,
+      contours: result.contours.map((c, k) => breakRuns(c, marks?.[k], WARP_LIMITS.shortEdge * unitsPerEm)),
+    }
   }
   return { polygon: result, stats }
 }
@@ -629,7 +700,11 @@ interface Tip {
  * thorn keeps half of the outline between them; where a base would reach past that, the two share one base there.
  * `marks` flags crease vertices (see applyWarp); the tips and bases are not creases.
  */
-function withThorns(points: readonly Point[], tips: ReadonlyMap<number, Tip>, marks?: readonly boolean[]): { points: Point[]; marks: boolean[] } {
+function withThorns(
+  points: readonly Point[],
+  tips: ReadonlyMap<number, Tip>,
+  marks?: readonly boolean[],
+): { points: Point[]; marks: boolean[] } {
   const n = points.length
   const length = (i: number, j: number) => Math.hypot(points[j].x - points[i].x, points[j].y - points[i].y)
   let perimeter = 0
@@ -850,7 +925,10 @@ class EdgeGrid {
   /** The rightmost column any edge reaches. */
   private right = -Infinity
 
-  constructor(contours: readonly (readonly Point[])[], private readonly cell: number) {
+  constructor(
+    contours: readonly (readonly Point[])[],
+    private readonly cell: number,
+  ) {
     for (const points of contours) {
       for (let i = 0; i < points.length; i++) {
         const a = points[i]
@@ -1038,7 +1116,9 @@ function burstOutline(
   reverse: boolean,
   marks: CreaseMarks | undefined,
 ): { polygon: PolygonGlyph; marks: CreaseMarks; spikes: number; longest: number } {
-  const total = Math.round(clamp(finite(params.spikes, THORN_FALLBACK.spikes), THORN_LIMITS.minSpikes, THORN_LIMITS.maxSpikes))
+  const total = Math.round(
+    clamp(finite(params.spikes, THORN_FALLBACK.spikes), THORN_LIMITS.minSpikes, THORN_LIMITS.maxSpikes),
+  )
   const dent = clamp(finite(params.dent, THORN_FALLBACK.dent), 0, 1)
   const contours = polygon.contours.map((c) => c.points)
   const arcs = contours.map((points) => (points.length >= 3 ? new Arc(points) : null))
@@ -1046,7 +1126,11 @@ function burstOutline(
   const step = 1e-3 * unitsPerEm
   const thickness = BURST.maxThickness * unitsPerEm
   const grid = new EdgeGrid(contours, thickness / 2)
-  const shown = arcs.map((arc) => (arc && arc.perimeter > 0 && Number.isFinite(arc.perimeter) ? showing(arc, grid, step, BURST.piece * unitsPerEm) : null))
+  const shown = arcs.map((arc) =>
+    arc && arc.perimeter > 0 && Number.isFinite(arc.perimeter)
+      ? showing(arc, grid, step, BURST.piece * unitsPerEm)
+      : null,
+  )
   const counts = shareOut(
     total,
     shown.map((s) => s?.length ?? 0),
@@ -1108,7 +1192,12 @@ function burstOutline(
       // Length: mostly medium, a few long ones, and a slow wave along the contour that gathers the long ones.
       const wave = 1 - BURST.wave * 0.5 * (1 - Math.sin((s / perimeter) * 2 * Math.PI * BURST.waves + phase))
       const long = random(CHANNEL.burstLong, k, i) < BURST.longChance ? BURST.long : 1
-      let length = (maxLength * (BURST.short + (1 - BURST.short) * Math.pow(random(CHANNEL.burstLength, k, i), 1.5)) * wave * long) / BURST.long
+      let length =
+        (maxLength *
+          (BURST.short + (1 - BURST.short) * Math.pow(random(CHANNEL.burstLength, k, i), 1.5)) *
+          wave *
+          long) /
+        BURST.long
       // Into a counter: only part of the way across it, so the spike stays inside.
       if (counter) {
         const across = grid.ray(p, dir, step, beyond)
@@ -1161,7 +1250,8 @@ function burstOutline(
       // The outline's vertices on the way, and how far the outline turns at each (degrees).
       const places: { v: number; turn: number }[] = []
       for (let j = 0; j < points.length; j++) {
-        for (const v of [arc.cum[j] - perimeter, arc.cum[j], arc.cum[j] + perimeter]) if (v > from && v < to) places.push({ v, turn: turnAt(points, j) })
+        for (const v of [arc.cum[j] - perimeter, arc.cum[j], arc.cum[j] + perimeter])
+          if (v > from && v < to) places.push({ v, turn: turnAt(points, j) })
       }
       places.sort((a, b) => a.v - b.v)
       if (dent === 0) {
@@ -1179,7 +1269,8 @@ function burstOutline(
             ? shares[0] + ((shares[1] - shares[0]) * (v - knots[0])) / (knots[1] - knots[0])
             : (shares[1] * (to - v)) / (to - knots[1])
       // A knot right by a vertex of the outline would only add a short edge: the vertex bends there already.
-      for (const knot of knots) if (!places.some(({ v }) => Math.abs(v - knot) < BURST.snap * span)) places.push({ v: knot, turn: 0 })
+      for (const knot of knots)
+        if (!places.some(({ v }) => Math.abs(v - knot) < BURST.snap * span)) places.push({ v: knot, turn: 0 })
       places.sort((a, b) => a.v - b.v)
       const into = inkRight ? 1 : -1
       const deepest = BURST.steep * span
@@ -1201,7 +1292,11 @@ function burstOutline(
       const loose = BURST.bends * Math.max(...sunk.map((x) => x.depth))
       const firm = Math.max(loose, BURST.minCorner * unitsPerEm)
       const chain = [b1, ...sunk.map((x) => x.point), arc.at(to).p]
-      const tolerance = [0, ...sunk.map((x) => (x.turn > WARP_LIMITS.curveTurn ? -1 : x.turn >= WARP_LIMITS.straightTurn ? loose : firm)), 0]
+      const tolerance = [
+        0,
+        ...sunk.map((x) => (x.turn > WARP_LIMITS.curveTurn ? -1 : x.turn >= WARP_LIMITS.straightTurn ? loose : firm)),
+        0,
+      ]
       for (const j of corners(chain, tolerance)) push(chain[j], sunk[j - 1].turn <= WARP_LIMITS.curveTurn)
     })
     return { points: out, marks: outMarks }
@@ -1291,8 +1386,18 @@ const MESH = (() => {
   const edges: [number, number][] = []
   for (let k = 0; k < ROOT.sides; k++) {
     // Per sector: the fan triangle, then the cell between the rings, split along its diagonal. All counter-clockwise.
-    triangles.push([0, inner(k), inner(k1(k))], [inner(k), outer(k), outer(k1(k))], [inner(k), outer(k1(k)), inner(k1(k))])
-    edges.push([0, inner(k)], [inner(k), inner(k1(k))], [inner(k), outer(k)], [inner(k), outer(k1(k))], [outer(k), outer(k1(k))])
+    triangles.push(
+      [0, inner(k), inner(k1(k))],
+      [inner(k), outer(k), outer(k1(k))],
+      [inner(k), outer(k1(k)), inner(k1(k))],
+    )
+    edges.push(
+      [0, inner(k)],
+      [inner(k), inner(k1(k))],
+      [inner(k), outer(k)],
+      [inner(k), outer(k1(k))],
+      [outer(k), outer(k1(k))],
+    )
   }
   return { triangles, edges }
 })()
@@ -1317,7 +1422,11 @@ function rootPull(centre: Point, thorn: Thorn, radius: number, scale: number): P
   const sides = ROOT.sides
   // Corner k of each ring sits at angle (2k + 1)·180°/sides from the thorn, so a flat side faces it.
   const angles = Array.from({ length: sides }, (_, k) => ((2 * k + 1) * Math.PI) / sides)
-  const ring = (r: number) => angles.map((a) => ({ x: centre.x + r * (Math.cos(a) * n.x + Math.sin(a) * t.x), y: centre.y + r * (Math.cos(a) * n.y + Math.sin(a) * t.y) }))
+  const ring = (r: number) =>
+    angles.map((a) => ({
+      x: centre.x + r * (Math.cos(a) * n.x + Math.sin(a) * t.x),
+      y: centre.y + r * (Math.cos(a) * n.y + Math.sin(a) * t.y),
+    }))
   const from = [centre, ...ring(ROOT.inner * radius), ...ring(radius)]
   const area = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
 
@@ -1332,7 +1441,9 @@ function rootPull(centre: Point, thorn: Thorn, radius: number, scale: number): P
       moves[1 + k] = { x: forward * n.x + across * t.x, y: forward * n.y + across * t.y }
     })
     const to = from.map((p, i) => ({ x: p.x + moves[i].x, y: p.y + moves[i].y }))
-    if (MESH.triangles.every(([i, j, k]) => area(to[i], to[j], to[k]) >= ROOT.minArea * area(from[i], from[j], from[k]))) {
+    if (
+      MESH.triangles.every(([i, j, k]) => area(to[i], to[j], to[k]) >= ROOT.minArea * area(from[i], from[j], from[k]))
+    ) {
       return meshWarp(from, moves, centre, n, radius, shift)
     }
   }
@@ -1340,7 +1451,14 @@ function rootPull(centre: Point, thorn: Thorn, radius: number, scale: number): P
 }
 
 /** The warp that moves each mesh vertex by its move, linearly inside each triangle, and leaves everything beyond the mesh. */
-function meshWarp(from: readonly Point[], moves: readonly Point[], centre: Point, n: Point, radius: number, shift: number): Pull {
+function meshWarp(
+  from: readonly Point[],
+  moves: readonly Point[],
+  centre: Point,
+  n: Point,
+  radius: number,
+  shift: number,
+): Pull {
   const sides = ROOT.sides
   const radius2 = radius * radius
   return {
@@ -1351,7 +1469,7 @@ function meshWarp(from: readonly Point[], moves: readonly Point[], centre: Point
       if (dx * dx + dy * dy >= radius2) return p
       // The sector: corner k sits at angle (2k + 1)·180°/sides from the thorn (see rootPull).
       const angle = Math.atan2(n.x * dy - n.y * dx, n.x * dx + n.y * dy)
-      const sector = (((Math.floor((angle * sides) / (2 * Math.PI) - 0.5) % sides) + sides) % sides)
+      const sector = ((Math.floor((angle * sides) / (2 * Math.PI) - 0.5) % sides) + sides) % sides
       let best: [number, number, number] | null = null
       let bestWeights: [number, number, number] = [0, 0, 0]
       let bestMin = -Infinity
@@ -1542,7 +1660,8 @@ function outsideTest(contours: readonly (readonly Point[])[], clearance = 0): (c
     }
     return box
   })
-  const near = (box: Box, p: Point, by: number) => p.x >= box.minX - by && p.x <= box.maxX + by && p.y >= box.minY - by && p.y <= box.maxY + by
+  const near = (box: Box, p: Point, by: number) =>
+    p.x >= box.minX - by && p.x <= box.maxX + by && p.y >= box.minY - by && p.y <= box.maxY + by
   const crossing = new Map<number, boolean>()
   const crosses = (a: number, b: number) => {
     const pair = Math.min(a, b) * contours.length + Math.max(a, b)

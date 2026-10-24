@@ -2,4 +2,8 @@
 
 import { auditPart, CONFIGS, geometryInvariants } from '../helpers/invariants'
 
-geometryInvariants('Roboto', CONFIGS.filter((c) => auditPart(c) === 'dissolve-geometry'), { glyphs: 'all', recheckScale: 10 })
+geometryInvariants(
+  'Roboto',
+  CONFIGS.filter((c) => auditPart(c) === 'dissolve-geometry'),
+  { glyphs: 'all', recheckScale: 10 },
+)

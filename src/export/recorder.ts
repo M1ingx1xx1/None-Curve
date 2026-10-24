@@ -226,7 +226,14 @@ export class RecordingController {
 
   constructor(deps: RecorderDeps) {
     this.deps = deps
-    this.state = { phase: 'idle', options: DEFAULT_RECORD_OPTIONS, take: null, elapsedMs: 0, message: null, support: this.readSupport() }
+    this.state = {
+      phase: 'idle',
+      options: DEFAULT_RECORD_OPTIONS,
+      take: null,
+      elapsedMs: 0,
+      message: null,
+      support: this.readSupport(),
+    }
     this.blocked = this.blocker()
     subscribeStateKeys(deps.engine, SOURCE_KEYS, () => this.sourceChanged())
     deps.onVisibilityChange(() => {
@@ -282,7 +289,11 @@ export class RecordingController {
     if (take && (this.state.phase !== 'stopping' || take.ending)) {
       const before = take.context.artboard
       if (!context) this.stop('font')
-      else if (context.artboard.width !== before.width || context.artboard.height !== before.height || context.artboard.scale !== before.scale) {
+      else if (
+        context.artboard.width !== before.width ||
+        context.artboard.height !== before.height ||
+        context.artboard.scale !== before.scale
+      ) {
         this.stop('size')
       }
     }
@@ -330,7 +341,8 @@ export class RecordingController {
     }
     const size = videoSize(context.artboard.width, context.artboard.height, context.artboard.scale)
     const wholeFile = options.length === 'whole-file' && sound.source === 'file' && sound.duration > 0
-    const lengthMs = typeof options.length === 'number' ? options.length * 1000 : wholeFile ? sound.duration * 1000 : null
+    const lengthMs =
+      typeof options.length === 'number' ? options.length * 1000 : wholeFile ? sound.duration * 1000 : null
     const spec: TakeSpec = {
       ...size,
       fps: options.fps,
@@ -374,7 +386,9 @@ export class RecordingController {
       const running = this.isRunning(take)
       this.abort(take, {
         tone: 'error',
-        text: running ? 'The video did not start, so nothing was recorded.' : 'The sound did not start, so nothing was recorded.',
+        text: running
+          ? 'The video did not start, so nothing was recorded.'
+          : 'The sound did not start, so nothing was recorded.',
       })
     })
 
@@ -521,7 +535,9 @@ export class RecordingController {
     }
     const mimes = take.audioMissing ? pickVideoMimes(take.options.format, false, deps.isTypeSupported) : take.spec.mimes
     const tracks = take.audio ? [video, take.audio] : [video]
-    const settings: MediaRecorderOptions = { videoBitsPerSecond: videoBitrate(take.spec.width, take.spec.height, take.options.fps) }
+    const settings: MediaRecorderOptions = {
+      videoBitsPerSecond: videoBitrate(take.spec.width, take.spec.height, take.options.fps),
+    }
     if (take.audio) settings.audioBitsPerSecond = VIDEO_LIMITS.audioBitrate
 
     let failure: unknown = null
@@ -621,7 +637,9 @@ export class RecordingController {
   private tailMs(take: Take, reason: StopReason): number {
     if (reason === 'hidden' || reason === 'error' || reason === 'size' || reason === 'font') return 0
     // A microphone that stopped has left the tap; a file paused or ended has not.
-    const tapped = reason === 'length' || (reason === 'source' && take.source === 'file' && this.deps.engine.getState().source === 'file')
+    const tapped =
+      reason === 'length' ||
+      (reason === 'source' && take.source === 'file' && this.deps.engine.getState().source === 'file')
     return tapped ? Math.max(VIDEO_LIMITS.finalFrameMs, take.delayMs + VIDEO_LIMITS.drainMs) : VIDEO_LIMITS.finalFrameMs
   }
 
@@ -671,7 +689,8 @@ export class RecordingController {
       const reason = REASON_TEXT[take.reason ?? 'user']
       if (reason) lines.push(reason)
       if (take.reason === 'hidden' || take.reason === 'size' || take.reason === 'font') tone = 'warning'
-      if (saved) lines.push(`Saved ${fileName}: ${formatClock(take.elapsedMs)}, ${take.spec.width} × ${take.spec.height} px.`)
+      if (saved)
+        lines.push(`Saved ${fileName}: ${formatClock(take.elapsedMs)}, ${take.spec.width} × ${take.spec.height} px.`)
       else {
         lines.push('Nothing was recorded.')
         tone = 'warning'
@@ -680,7 +699,8 @@ export class RecordingController {
     if (saved) {
       if (mime.fellBack) lines.push("MP4 isn't supported in this browser: saved as WebM.")
       if (take.audioMissing) lines.push('The sound could not be recorded: the video is silent.')
-      if (take.spec.previewLook && !take.blurWorks) lines.push("Blur isn't available for video in this browser: recorded without it.")
+      if (take.spec.previewLook && !take.blurWorks)
+        lines.push("Blur isn't available for video in this browser: recorded without it.")
       if (take.context.transparent) lines.push('Videos have no transparency: the background colour is painted.')
     }
     this.setState({ phase: 'idle', take: null, elapsedMs: 0, message: { tone, text: lines.join(' ') } })
@@ -761,7 +781,9 @@ function startFailure(take: Take, reason: StopReason): RecordingState['message']
     case 'source':
       return {
         tone: 'error',
-        text: take.ran ? 'The sound stopped before recording began, so nothing was recorded.' : 'The sound did not start, so nothing was recorded.',
+        text: take.ran
+          ? 'The sound stopped before recording began, so nothing was recorded.'
+          : 'The sound did not start, so nothing was recorded.',
       }
     case 'error':
       return { tone: 'error', text: failureText(take.error ?? 'unknown error', false, '') }
@@ -834,7 +856,10 @@ function browserDeps(): RecorderDeps {
       typeof MediaStream === 'function' &&
       typeof HTMLCanvasElement === 'function' &&
       typeof HTMLCanvasElement.prototype.captureStream === 'function',
-    isTypeSupported: (mime) => typeof MediaRecorder === 'function' && typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(mime),
+    isTypeSupported: (mime) =>
+      typeof MediaRecorder === 'function' &&
+      typeof MediaRecorder.isTypeSupported === 'function' &&
+      MediaRecorder.isTypeSupported(mime),
     createRecorder: mediaRecorder,
     engine: getSoundEngine(),
     latencyMs: () => liveLatencyMs(),
@@ -891,7 +916,13 @@ export function useRecordingContext(context: RecordingContext | null): void {
     controller.setContext(
       family === null
         ? null
-        : { family, style, artboard: { width, height, scale }, transparent, onSaved: (fileName) => onSaved.current?.(fileName) },
+        : {
+            family,
+            style,
+            artboard: { width, height, scale },
+            transparent,
+            onSaved: (fileName) => onSaved.current?.(fileName),
+          },
     )
   }, [controller, family, style, width, height, scale, transparent])
   useEffect(() => () => controller.setContext(null), [controller])

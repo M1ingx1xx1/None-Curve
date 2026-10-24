@@ -6,7 +6,16 @@
 import { describe, expect, it } from 'vitest'
 import { mergeOverlaps } from '../../src/geometry/overlaps'
 import type { Point, PolygonGlyph } from '../../src/geometry/types'
-import { contoursOf, inkArea, outlineCrossings, polygonOf, rect, signedArea2, vertexCount, type Contours } from '../helpers/outline'
+import {
+  contoursOf,
+  inkArea,
+  outlineCrossings,
+  polygonOf,
+  rect,
+  signedArea2,
+  vertexCount,
+  type Contours,
+} from '../helpers/outline'
 
 /** Proper crossings the merged outline still has, and its ink as a share of the input's. */
 function check(input: PolygonGlyph, output: PolygonGlyph, lines = 1500) {
@@ -52,7 +61,8 @@ function floatPixel(s: readonly number[], t: readonly number[]) {
 function exactPixel(s: readonly number[], t: readonly number[]) {
   const [ax, ay, bx, by] = s.map(BigInt)
   const [cx, cy, dx, dy] = t.map(BigInt)
-  const cr = (x0: bigint, y0: bigint, x1: bigint, y1: bigint, x2: bigint, y2: bigint) => (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
+  const cr = (x0: bigint, y0: bigint, x1: bigint, y1: bigint, x2: bigint, y2: bigint) =>
+    (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)
   const d1 = cr(ax, ay, bx, by, cx, cy)
   const d2 = cr(ax, ay, bx, by, dx, dy)
   let den = d1 - d2
@@ -89,7 +99,12 @@ function cornerCases(
   const int = (a: number, b: number) => a + Math.floor(random() * (b - a + 1))
   const odd = (m: number) => 2 * int(-m, m - 1) + 1
   // The segment through (cx2 / 2, cy2 / 2) along (p, q), u half-steps back and w forward.
-  const through = (cx2: number, cy2: number, p: number, q: number, u: number, w: number) => [(cx2 - u * p) / 2, (cy2 - u * q) / 2, (cx2 + w * p) / 2, (cy2 + w * q) / 2]
+  const through = (cx2: number, cy2: number, p: number, q: number, u: number, w: number) => [
+    (cx2 - u * p) / 2,
+    (cy2 - u * q) / 2,
+    (cx2 + w * p) / 2,
+    (cy2 + w * q) / 2,
+  ]
   const cases: { s: number[]; t: number[]; hard: boolean; kind: string }[] = []
   for (const [size, spread] of areas) {
     for (const kind of ['corner', 'side']) {
@@ -134,7 +149,9 @@ describe('mergeOverlaps: crossings on grid-cell corners and sides (#1)', () => {
   it('merges generated corner and side cases correctly or reports them failed', () => {
     const cases = cornerCases(60, 10)
     expect(cases.filter((c) => c.hard).length).toBeGreaterThanOrEqual(200)
-    const outcomes = cases.map(({ s, t, kind, hard }) => expectMergedOrFailed(polygonOf([triangle(s), triangle(t)]), `${kind}${hard ? ' hard' : ''} ${s} x ${t}`))
+    const outcomes = cases.map(({ s, t, kind, hard }) =>
+      expectMergedOrFailed(polygonOf([triangle(s), triangle(t)]), `${kind}${hard ? ' hard' : ''} ${s} x ${t}`),
+    )
     // Giving up is the last resort: nearly all of them merge.
     expect(outcomes.filter((o) => o === 'failed').length).toBeLessThanOrEqual(cases.length / 20)
   })
@@ -252,7 +269,9 @@ describe('mergeOverlaps: far out', () => {
   it('merges corner and side cases 2^21 grid cells out correctly or reports them failed', () => {
     const cases = cornerCases(20, 5, [[8000, 2 ** 21 - 40000]])
     expect(cases.filter((c) => c.hard).length).toBeGreaterThanOrEqual(30)
-    const outcomes = cases.map(({ s, t, kind, hard }) => expectMergedOrFailed(polygonOf([triangle(s), triangle(t)]), `${kind}${hard ? ' hard' : ''} ${s} x ${t}`))
+    const outcomes = cases.map(({ s, t, kind, hard }) =>
+      expectMergedOrFailed(polygonOf([triangle(s), triangle(t)]), `${kind}${hard ? ' hard' : ''} ${s} x ${t}`),
+    )
     expect(outcomes.filter((o) => o === 'failed').length).toBeLessThanOrEqual(cases.length / 20)
   })
 
@@ -269,7 +288,10 @@ describe('mergeOverlaps: far out', () => {
 describe('mergeOverlaps: thin contours', () => {
   it('leaves out hair-thin slivers, however long', () => {
     // Half a unit wide on average, 4 em and 30 em long (0.015 em² of area), beside a letter-sized square.
-    const slivers = [thorn({ x: 0, y: 0 }, { x: 4000, y: 0 }, { x: 4000, y: 1 }), thorn({ x: 0, y: -100 }, { x: 30_000, y: -100 }, { x: 30_000, y: -99 })]
+    const slivers = [
+      thorn({ x: 0, y: 0 }, { x: 4000, y: 0 }, { x: 4000, y: 1 }),
+      thorn({ x: 0, y: -100 }, { x: 30_000, y: -100 }, { x: 30_000, y: -99 }),
+    ]
     const input = polygonOf([rect(0, 100, 500, 600), ...slivers])
     const { polygon, stats } = mergeOverlaps(input)
     expect(stats.removed).toBe(2)

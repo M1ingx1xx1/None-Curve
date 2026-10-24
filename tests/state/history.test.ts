@@ -13,7 +13,16 @@ import { editorReducer, initialState, type Action } from '../../src/state/editor
 import { changedSettings, HISTORY_LIMITS, undoHistory, UndoHistory, type Snapshot } from '../../src/state/history'
 import { parseConfig, readSession, serializeConfig } from '../../src/state/persist'
 import { DEFAULT_TEXT } from '../../src/specimen/samples'
-import { DEFAULT_RESET_EXTRAS, DEFAULT_SETTINGS, isAtStart, isDefaultExtras, isDefaultSnapshot, resetHistory, START_SNAPSHOT, type StartCheck } from '../../src/state/reset'
+import {
+  DEFAULT_RESET_EXTRAS,
+  DEFAULT_SETTINGS,
+  isAtStart,
+  isDefaultExtras,
+  isDefaultSnapshot,
+  resetHistory,
+  START_SNAPSHOT,
+  type StartCheck,
+} from '../../src/state/reset'
 import type { LoadedFont } from '../../src/font/model'
 import type { AppState, SettingsParams } from '../../src/state/types'
 
@@ -205,7 +214,15 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     expect(undoHistory.getState().canUndo).toBe(false)
     // Melody snaps to its 0.01 step (0.05 before NOCUR-63, when 0.52 snapped to 0.5).
     mappingStore.setResponse({ strength: 9, contrast: 0.333, pitchReactive: -1, melody: 0.523 })
-    expect(mappingStore.getState().response).toEqual({ strength: 4, contrast: 0.33, pitchReactive: 0, melody: 0.52, glideMs: 150, plain: 0, holdMs: 200 })
+    expect(mappingStore.getState().response).toEqual({
+      strength: 4,
+      contrast: 0.33,
+      pitchReactive: 0,
+      melody: 0.52,
+      glideMs: 150,
+      plain: 0,
+      holdMs: 200,
+    })
     // Glide: 0–1000 ms in steps of 10.
     mappingStore.setResponse({ glideMs: 1234 })
     expect(mappingStore.getState().response.glideMs).toBe(1000)
@@ -255,7 +272,11 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
 
   it('undoes a preset Load in one step: the settings and the mappings from before', () => {
     a.setSpacing(17)
-    a.edit({ type: 'updateParams', group: 'experimental', patch: { crumple: { ...a.params.experimental.crumple, enabled: true } } })
+    a.edit({
+      type: 'updateParams',
+      group: 'experimental',
+      patch: { crumple: { ...a.params.experimental.crumple, enabled: true } },
+    })
     mappingStore.add('treble', 'anchors.spacing', -0.3)
     undoHistory.endStep()
     const before = { params: settingsOf(a.params), mappings: mappingStore.getState().mappings }
@@ -282,7 +303,12 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
     mappingStore.add('treble', 'anchors.spacing', -0.3)
     a.setSetting('sensitivity', 4)
     undoHistory.endStep()
-    const before = { params: settingsOf(a.params), text: a.text, mappings: mappingStore.getState().mappings, settings: a.engine.settings }
+    const before = {
+      params: settingsOf(a.params),
+      text: a.text,
+      mappings: mappingStore.getState().mappings,
+      settings: a.engine.settings,
+    }
     const saved = readSession({})!
     const file = serializeConfig({
       ...saved,
@@ -298,7 +324,12 @@ describe('undo history with the Sound mappings (the app-wide history)', () => {
       undoHistory.record(null)
       a.apply(parsed.session)
     })
-    expect([a.params.anchors.spacing, a.text, a.engine.settings.sensitivity, mappingStore.getState().response.strength]).toEqual([30, 'From the file', -6, 2])
+    expect([
+      a.params.anchors.spacing,
+      a.text,
+      a.engine.settings.sensitivity,
+      mappingStore.getState().response.strength,
+    ]).toEqual([30, 'From the file', -6, 2])
     expect(mappingStore.getState().mappings.map((m) => m.feature)).toEqual(['bass'])
     expect(undoHistory.undo()).toBe(true)
     expect(settingsOf(a.params)).toEqual(before.params)
@@ -366,7 +397,11 @@ describe('Reset all', () => {
   /** Every kind of setting changed, each as its own step, with the text typed. */
   function changeEverything() {
     a.setSpacing(17)
-    a.edit({ type: 'updateParams', group: 'experimental', patch: { seed: 7, crumple: { ...a.params.experimental.crumple, enabled: true } } })
+    a.edit({
+      type: 'updateParams',
+      group: 'experimental',
+      patch: { seed: 7, crumple: { ...a.params.experimental.crumple, enabled: true } },
+    })
     a.edit({ type: 'updateParams', group: 'typography', patch: { size: 96, tracking: 40 } })
     a.edit({ type: 'updateParams', group: 'palette', patch: { ink: '#123456', transparent: true } })
     a.edit({ type: 'updateParams', group: 'artboard', patch: { width: 640 } })
@@ -430,45 +465,92 @@ describe('Reset all', () => {
     const font = { familyName: 'Test', styleName: 'Regular' } as LoadedFont
     let state: AppState = { ...initialState, document: { ...initialState.document, status: { kind: 'ready' }, font } }
     state = editorReducer(state, { type: 'selectGlyph', glyph: { index: 5, name: 'b', unicode: 98 } })
-    state = editorReducer(state, { type: 'updateParams', group: 'view', patch: { outline: 'compare', showFill: false } })
+    state = editorReducer(state, {
+      type: 'updateParams',
+      group: 'view',
+      patch: { outline: 'compare', showFill: false },
+    })
     state = editorReducer(state, { type: 'updateExport', patch: { precision: 4 } })
     expect(editorReducer(state, { type: 'resetAll' })).toBe(initialState)
   })
 
   it('drops an import that was in flight when it reset', () => {
-    let state = editorReducer(initialState, { type: 'importStarted', requestId: 3, origin: 'google', label: 'Loading Inter' })
+    let state = editorReducer(initialState, {
+      type: 'importStarted',
+      requestId: 3,
+      origin: 'google',
+      label: 'Loading Inter',
+    })
     state = editorReducer(state, { type: 'resetAll' })
     const font = { familyName: 'Inter', styleName: 'Regular' } as LoadedFont
     expect(editorReducer(state, { type: 'importSucceeded', requestId: 3, font })).toBe(initialState)
   })
 
   it('knows when there is nothing to reset: no font, the sample text, and every default', () => {
-    const start: StartCheck = { document: initialState.document, view: initialState.params.view, viewMoved: false, extras: DEFAULT_RESET_EXTRAS, drive: true, defaultDrive: true }
+    const start: StartCheck = {
+      document: initialState.document,
+      view: initialState.params.view,
+      viewMoved: false,
+      extras: DEFAULT_RESET_EXTRAS,
+      drive: true,
+      defaultDrive: true,
+    }
     const font = { familyName: 'Test', styleName: 'Regular' } as LoadedFont
     expect(isAtStart(START_SNAPSHOT, start)).toBe(true)
     expect(isAtStart(START_SNAPSHOT, { ...start, drive: false, defaultDrive: false })).toBe(true)
-    expect(isAtStart(START_SNAPSHOT, { ...start, document: { ...start.document, status: { kind: 'ready' }, font } })).toBe(false)
-    expect(isAtStart(START_SNAPSHOT, { ...start, document: { ...start.document, status: { kind: 'error', origin: 'google', errorKind: 'network', message: '' } } })).toBe(false)
+    expect(
+      isAtStart(START_SNAPSHOT, { ...start, document: { ...start.document, status: { kind: 'ready' }, font } }),
+    ).toBe(false)
+    expect(
+      isAtStart(START_SNAPSHOT, {
+        ...start,
+        document: { ...start.document, status: { kind: 'error', origin: 'google', errorKind: 'network', message: '' } },
+      }),
+    ).toBe(false)
     expect(isAtStart({ ...START_SNAPSHOT, text: 'Other' }, start)).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, viewMoved: true })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, view: { ...start.view, showVertices: true } })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, drive: false })).toBe(false)
     expect(isAtStart(START_SNAPSHOT, { ...start, extras: { ...start.extras, precision: 3 } })).toBe(false)
-    expect(isAtStart({ ...START_SNAPSHOT, params: { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, snap: true } } }, start)).toBe(false)
+    expect(
+      isAtStart(
+        { ...START_SNAPSHOT, params: { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, snap: true } } },
+        start,
+      ),
+    ).toBe(false)
   })
 
   it('looks at every setting, mapping and Sound value', () => {
-    const defaults = { params: DEFAULT_SETTINGS, mappings: [], sound: { ...DEFAULT_FEATURE_SETTINGS, ...DEFAULT_RESPONSE } }
+    const defaults = {
+      params: DEFAULT_SETTINGS,
+      mappings: [],
+      sound: { ...DEFAULT_FEATURE_SETTINGS, ...DEFAULT_RESPONSE },
+    }
     expect(isDefaultSnapshot(defaults)).toBe(true)
-    expect(isDefaultSnapshot({ ...defaults, params: { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, snap: true } } })).toBe(false)
-    expect(isDefaultSnapshot({ ...defaults, mappings: [{ id: 'm1', enabled: true, feature: 'level', target: 'distortion.amount', depth: 0.5 }] })).toBe(false)
-    expect(isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, releaseMs: defaults.sound.releaseMs + 50 } })).toBe(false)
+    expect(
+      isDefaultSnapshot({
+        ...defaults,
+        params: { ...DEFAULT_SETTINGS, grid: { ...DEFAULT_SETTINGS.grid, snap: true } },
+      }),
+    ).toBe(false)
+    expect(
+      isDefaultSnapshot({
+        ...defaults,
+        mappings: [{ id: 'm1', enabled: true, feature: 'level', target: 'distortion.amount', depth: 0.5 }],
+      }),
+    ).toBe(false)
+    expect(
+      isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, releaseMs: defaults.sound.releaseMs + 50 } }),
+    ).toBe(false)
     expect(isDefaultSnapshot({ ...defaults, sound: { ...defaults.sound, contrast: 0.5 } })).toBe(false)
   })
 
   it('also looks at the preview look and the export precision: Blur, Invert and precision count', () => {
     const extras = DEFAULT_RESET_EXTRAS
-    expect(extras).toEqual({ previewLook: { blur: 0, inverted: false }, precision: initialState.document.export.precision })
+    expect(extras).toEqual({
+      previewLook: { blur: 0, inverted: false },
+      precision: initialState.document.export.precision,
+    })
     expect(isDefaultExtras(extras)).toBe(true)
     expect(isDefaultExtras({ ...extras, previewLook: { ...extras.previewLook, blur: 0.1 } })).toBe(false)
     expect(isDefaultExtras({ ...extras, previewLook: { ...extras.previewLook, inverted: true } })).toBe(false)

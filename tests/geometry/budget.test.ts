@@ -12,11 +12,27 @@ import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { SILENT_FRAME, type FeatureFrame } from '../../src/sound/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { allFinite, contoursOf, outlineCrossings } from '../helpers/outline'
-import { ALL_DEFAULT, ALL_MAX, BASE, EFFECTS, GEOMETRY, paramsWith, SLIDER_MAX, THORN_FARTHEST, withoutEffects } from '../helpers/params'
+import {
+  ALL_DEFAULT,
+  ALL_MAX,
+  BASE,
+  EFFECTS,
+  GEOMETRY,
+  paramsWith,
+  SLIDER_MAX,
+  THORN_FARTHEST,
+  withoutEffects,
+} from '../helpers/params'
 
 /** The glyphs under the budget, by index, where it fired, with each one's label. */
-function budgetFired(font: Awaited<ReturnType<typeof loadFixture>>, glyphs: { index: number; char: string }[], params: GeometryParams) {
-  return glyphs.filter((g) => deriveGeometry(font.getGlyph(g.index), params).experimental.budget.applied).map((g) => g.char)
+function budgetFired(
+  font: Awaited<ReturnType<typeof loadFixture>>,
+  glyphs: { index: number; char: string }[],
+  params: GeometryParams,
+) {
+  return glyphs
+    .filter((g) => deriveGeometry(font.getGlyph(g.index), params).experimental.budget.applied)
+    .map((g) => g.char)
 }
 
 /** Sound at its loudest: every feature at 1, on a beat; with pan to one side or the other. */
@@ -56,18 +72,21 @@ describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
       if (budget.applied) fired++
       const contours = contoursOf(derived.polygon)
       const label = `"${g.char}"`
-      if (derived.vertexCount > before + EXPERIMENTAL_LIMITS.maxMergePoints) problems.push(`${label}: ${derived.vertexCount} vertices from ${before}`)
+      if (derived.vertexCount > before + EXPERIMENTAL_LIMITS.maxMergePoints)
+        problems.push(`${label}: ${derived.vertexCount} vertices from ${before}`)
       if (!allFinite(contours)) problems.push(`${label}: non-finite coordinate`)
       if (folds.failed) problems.push(`${label}: the merge failed ${JSON.stringify(folds)}`)
       else if (folds.tooComplex) {
         // The documented last resort (budget.ts): even the coarsest simplification has too many crossings to merge,
         // so it is left unmerged, its outlines crossing, but with few vertices.
         unmerged.push(g.char)
-        if (derived.vertexCount > before + EXPERIMENTAL_LIMITS.maxAddedVertices) problems.push(`${label}: left unmerged with ${derived.vertexCount} vertices`)
+        if (derived.vertexCount > before + EXPERIMENTAL_LIMITS.maxAddedVertices)
+          problems.push(`${label}: left unmerged with ${derived.vertexCount} vertices`)
       } else if (outlineCrossings(contours).cross > 0) problems.push(`${label}: crossings after the merge`)
       for (const decimals of [0, 2]) {
         try {
-          if (quantizePolygon(derived.polygon, decimals, label).length < contours.length) problems.push(`${label}: precision ${decimals} left out contours`)
+          if (quantizePolygon(derived.polygon, decimals, label).length < contours.length)
+            problems.push(`${label}: precision ${decimals} left out contours`)
         } catch (error) {
           problems.push(`${label}: precision ${decimals} threw ${String(error)}`)
         }
@@ -83,9 +102,16 @@ describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
     const font = await loadFixture(fontName)
     const glyphs = sampleGlyphs(font)
     expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, ALL_DEFAULT)), 'all six default').toEqual([])
-    for (const effect of EFFECTS) expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, SLIDER_MAX[effect])), `${effect} at slider max`).toEqual([])
+    for (const effect of EFFECTS)
+      expect(
+        budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, SLIDER_MAX[effect])),
+        `${effect} at slider max`,
+      ).toEqual([])
     // Thorn's refraction covers only the letter, so however far the thorns reach, they add only a few points.
-    expect(budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, THORN_FARTHEST)), 'thorn at slider max, reaching 256 em').toEqual([])
+    expect(
+      budgetFired(font, glyphs, paramsWith(GEOMETRY.plain, THORN_FARTHEST)),
+      'thorn at slider max, reaching 256 em',
+    ).toEqual([])
   })
 
   it('does not fire on any Sound preset, quiet or at its loudest', async () => {
@@ -96,8 +122,13 @@ describe.each(FIXTURE_FONTS)('vertex budget: %s', (fontName) => {
       const mappings: Mapping[] = preset.mappings.map((m, k) => ({ ...m, id: `m${k}` }))
       // Every seed the preset drives moved on by a few jumps.
       const jumps = new Map(mappings.filter((m) => targetById(m.target)?.kind === 'jump').map((m) => [m.target, 3]))
-      const frames = [params, modulate(params, LOUD(1), mappings, jumps).params, modulate(params, LOUD(-1), mappings, jumps).params]
-      for (const [k, live] of frames.entries()) expect(budgetFired(font, glyphs, live), `${preset.name}, frame ${k}`).toEqual([])
+      const frames = [
+        params,
+        modulate(params, LOUD(1), mappings, jumps).params,
+        modulate(params, LOUD(-1), mappings, jumps).params,
+      ]
+      for (const [k, live] of frames.entries())
+        expect(budgetFired(font, glyphs, live), `${preset.name}, frame ${k}`).toEqual([])
     }
   })
 })

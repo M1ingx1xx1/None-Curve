@@ -33,7 +33,11 @@
   --primary-glow: light-dark(rgba(63, 174, 143, 0.55), rgba(173, 252, 231, 0.6));
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   /* Every other text size is in rem, so this one value scales the whole interface (was 14px). */
   font-size: 12px;
   line-height: 1.5;
@@ -824,8 +828,7 @@ input[type='range']:disabled {
   overflow: hidden;
   background-color: var(--canvas);
   background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -1196,7 +1199,6 @@ input[type='range']:disabled {
   gap: 8px;
   min-width: 0;
 }
-
 
 .canvas-size-row {
   display: grid;

@@ -11,7 +11,20 @@ import { AheadStore } from '../../src/state/aheadStore'
 /** A small glyph: one triangle. */
 const glyph = (x: number) =>
   packGeometry({
-    polygon: { ref: { index: x }, metrics: {}, contours: [{ points: [{ x, y: 0 }, { x: x + 1, y: 0 }, { x, y: 1 }], clockwise: true }] },
+    polygon: {
+      ref: { index: x },
+      metrics: {},
+      contours: [
+        {
+          points: [
+            { x, y: 0 },
+            { x: x + 1, y: 0 },
+            { x, y: 1 },
+          ],
+          clockwise: true,
+        },
+      ],
+    },
     vertexCount: 3,
   } as unknown as WorkerGeometry).packed
 

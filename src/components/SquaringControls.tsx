@@ -111,14 +111,15 @@ function SquaringControls({ params, stats, pending, disabled, dispatch }: Squari
         )}
         {stats && stats.reduced > 0 && (
           <p className="field-hint">
-            {stats.reduced} contour{stats.reduced === 1 ? ' is' : 's are'} squared less than asked: the full amount would
-            make {stats.reduced === 1 ? 'it' : 'them'} cross or collapse, so the largest safe amount is used instead.
+            {stats.reduced} contour{stats.reduced === 1 ? ' is' : 's are'} squared less than asked: the full amount
+            would make {stats.reduced === 1 ? 'it' : 'them'} cross or collapse, so the largest safe amount is used
+            instead.
           </p>
         )}
         {stats && stats.fallbacks.length > 0 && (
           <p className="font-warning">
-            {stats.fallbacks.length} contour{stats.fallbacks.length === 1 ? '' : 's'} kept the previous shape: even a small amount
-            of squaring made {stats.fallbacks.length === 1 ? 'it' : 'them'}{' '}
+            {stats.fallbacks.length} contour{stats.fallbacks.length === 1 ? '' : 's'} kept the previous shape: even a
+            small amount of squaring made {stats.fallbacks.length === 1 ? 'it' : 'them'}{' '}
             {[...new Set(stats.fallbacks.map((f) => reasonText(f.reason, stats.fallbacks.length === 1)))].join(' or ')}.
           </p>
         )}

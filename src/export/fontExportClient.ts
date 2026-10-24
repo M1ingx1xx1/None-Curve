@@ -94,5 +94,7 @@ export function runFontExport(job: FontExportJob, signal: AbortSignal): Promise<
 async function buildOnPage(job: FontExportJob, signal: AbortSignal): Promise<FontExportResult> {
   const { buildFontFile } = await import('./fontFile')
   signal.throwIfAborted()
-  return buildFontFile(job.font, job.plan, job.params, job.key, job.naming, signal, job.onProgress, { known: (index) => job.known.get(index) })
+  return buildFontFile(job.font, job.plan, job.params, job.key, job.naming, signal, job.onProgress, {
+    known: (index) => job.known.get(index),
+  })
 }

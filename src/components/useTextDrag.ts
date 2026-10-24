@@ -110,7 +110,8 @@ export function useTextDrag(options: TextDragOptions) {
       // Screen pixels to font units (both axes point down in the scene), stopped at the artboard edges.
       // Along an axis where the text is larger than the artboard it does not move (see moveFreeText).
       const block = textBox(scene)
-      const along = (delta: number, low: number, high: number) => (low <= high ? Math.min(high, Math.max(low, delta)) : 0)
+      const along = (delta: number, low: number, high: number) =>
+        low <= high ? Math.min(high, Math.max(low, delta)) : 0
       d.dx = along((e.clientX - d.x) * u, layout.x - block.minX, layout.x + layout.width - block.minX - block.width)
       d.dy = along((e.clientY - d.y) * u, layout.y - block.minY, layout.y + layout.height - block.minY - block.height)
       setOffset(d.dx, d.dy)

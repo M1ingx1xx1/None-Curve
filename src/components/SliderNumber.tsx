@@ -25,7 +25,12 @@ const clean = (n: number) => Number(n.toPrecision(12))
  * A number box for a value shown `scale` times larger (a share in percent): the box's value, range and step in the
  * shown unit, and `commit`, which turns a typed number back into the value, on the value's own step.
  */
-export function scaledBox(value: number, { min, max, step }: SliderRange, scale = 1, onCommit: (value: number) => void) {
+export function scaledBox(
+  value: number,
+  { min, max, step }: SliderRange,
+  scale = 1,
+  onCommit: (value: number) => void,
+) {
   const shownStep = clean(step * scale)
   return {
     value: Number((value * scale).toFixed(decimals(shownStep))),
@@ -43,10 +48,24 @@ export const boxLabel = (label: string, unit?: string) => (unit ? `${label} (${u
  * The number box in a slider's head, where its readout was: the value in the readout's unit, typed exactly and
  * committed on Enter or blur (see NumberField). The slider beside it keeps its own range, curve and live marker.
  */
-export default function SliderNumber({ value, min, max, step, scale, unit, label, disabled, onCommit }: SliderNumberProps) {
+export default function SliderNumber({
+  value,
+  min,
+  max,
+  step,
+  scale,
+  unit,
+  label,
+  disabled,
+  onCommit,
+}: SliderNumberProps) {
   return (
     <span className="slider-number">
-      <NumberField {...scaledBox(value, { min, max, step }, scale, onCommit)} disabled={disabled} aria-label={boxLabel(label, unit)} />
+      <NumberField
+        {...scaledBox(value, { min, max, step }, scale, onCommit)}
+        disabled={disabled}
+        aria-label={boxLabel(label, unit)}
+      />
       {unit && <span className="unit">{unit}</span>}
     </span>
   )

@@ -29,7 +29,8 @@ describe('the GPU evaluation (its JS mirror)', () => {
         const gpu = gpuPositions(fixture, p)
         const cpu = fixture.cpu(p)
         expect(gpu.length).toBe(cpu.length)
-        for (let i = 0; i < cpu.length; i++) expect(Math.abs(gpu[i] - cpu[i]), `${fixture.name} p ${p} [${i}]`).toBeLessThan(1e-4)
+        for (let i = 0; i < cpu.length; i++)
+          expect(Math.abs(gpu[i] - cpu[i]), `${fixture.name} p ${p} [${i}]`).toBeLessThan(1e-4)
       }
     })
   }

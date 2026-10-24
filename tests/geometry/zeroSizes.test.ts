@@ -5,13 +5,33 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { describePipeline } from '../../src/geometry/describe'
-import { CRUMPLE_LIMITS, crumpleFolds, crumpleIsOn, RIPPLE_LIMITS, rippleFolds, rippleIsOn, SLIPSTREAM_LIMITS, slipstreamFolds, slipstreamIsOn, THORN_LIMITS, thornIsOn } from '../../src/geometry/limits'
+import {
+  CRUMPLE_LIMITS,
+  crumpleFolds,
+  crumpleIsOn,
+  RIPPLE_LIMITS,
+  rippleFolds,
+  rippleIsOn,
+  SLIPSTREAM_LIMITS,
+  slipstreamFolds,
+  slipstreamIsOn,
+  THORN_LIMITS,
+  thornIsOn,
+} from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams } from '../../src/geometry/types'
 import type { LoadedFont } from '../../src/font/model'
 import { SLIDER_RANGES } from '../../src/state/sliderScales'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { allFinite, boundsOf, contoursOf, inkArea, outlineCrossings, sameContours, vertexCount } from '../helpers/outline'
+import {
+  allFinite,
+  boundsOf,
+  contoursOf,
+  inkArea,
+  outlineCrossings,
+  sameContours,
+  vertexCount,
+} from '../helpers/outline'
 import { BASE, GEOMETRY, on, paramsWith } from '../helpers/params'
 
 const TEXT = 'aBg8&'
@@ -28,7 +48,12 @@ describe('sliders that reach 0', () => {
     ] as const) {
       expect(SLIDER_RANGES[id].min, id).toBe(0)
     }
-    expect([CRUMPLE_LIMITS.finestFacet, RIPPLE_LIMITS.shortestWavelength, SLIPSTREAM_LIMITS.smallestGust, THORN_LIMITS.finestFlute]).toEqual([0.08, 0.08, 0.06, 0.04])
+    expect([
+      CRUMPLE_LIMITS.finestFacet,
+      RIPPLE_LIMITS.shortestWavelength,
+      SLIPSTREAM_LIMITS.smallestGust,
+      THORN_LIMITS.finestFlute,
+    ]).toEqual([0.08, 0.08, 0.06, 0.04])
     // No "nothing" at 0 for these: they keep their minimum.
     expect(SLIDER_RANGES['experimental.ripple.sides'].min).toBe(3)
     expect(SLIDER_RANGES['experimental.whorl.rings'].min).toBe(2)
@@ -45,7 +70,9 @@ describe('sliders that reach 0', () => {
     const petals = { ...ripple, petals: 1 }
     expect([rippleIsOn(petals), rippleFolds(petals)]).toEqual([true, false])
     // Only Slip: nothing slips without gusts.
-    expect(slipstreamIsOn(on('slipstream', { strength: 0, slip: 0.5, gust: 0, cuts: 0, trails: 0 }).slipstream!)).toBe(false)
+    expect(slipstreamIsOn(on('slipstream', { strength: 0, slip: 0.5, gust: 0, cuts: 0, trails: 0 }).slipstream!)).toBe(
+      false,
+    )
     // A steady stream never blows backwards, whatever Gustiness says.
     const steady = on('slipstream', { strength: 1, gustiness: 2, gust: 0 }).slipstream!
     expect([slipstreamIsOn(steady), slipstreamFolds(steady)]).toEqual([true, false])
@@ -64,7 +91,9 @@ describe('sliders that reach 0', () => {
     expect(status(on('crumple', { amount: 0.7, facet: 0.04 }))).toContain('crumple 35%, facets 8% em')
     expect(status(on('ripple', { amount: 0.5, wavelength: 0.04 }))).toContain('ripple 25%, wavelength 8% em')
     expect(status(on('ripple', { amount: 0.5, wavelength: 0, petals: 0.3 }))).toContain('ripple no waves, 8 sides')
-    expect(status(on('slipstream', { strength: 0.5, gustiness: 1, slip: 0.5, gust: 0.03 }))).toContain('slip 25% em, gusts 6% em, gustiness 50%')
+    expect(status(on('slipstream', { strength: 0.5, gustiness: 1, slip: 0.5, gust: 0.03 }))).toContain(
+      'slip 25% em, gusts 6% em, gustiness 50%',
+    )
     const steadyStatus = status(on('slipstream', { strength: 0.5, gustiness: 1, slip: 0.5, gust: 0 }))
     expect(steadyStatus).toContain('steady, no gusts')
     expect(steadyStatus).not.toMatch(/slip \d|gustiness/)
@@ -79,27 +108,45 @@ describe.each(FIXTURE_FONTS)('sizes at and below the old minimums: %s', (fontNam
     glyphs = sampleGlyphs(font, TEXT)
   })
 
-  const outline = (index: number, params: GeometryParams) => contoursOf(deriveGeometry(font.getGlyph(index), params).polygon)
+  const outline = (index: number, params: GeometryParams) =>
+    contoursOf(deriveGeometry(font.getGlyph(index), params).polygon)
   const plain = paramsWith(GEOMETRY.plain, {})
 
   /** Settings whose outline must be exactly the one without the part (or without the effect). */
   const NO_OPS: [string, GeometryParams, GeometryParams][] = [
     ['Crumple, Facet size 0', paramsWith({}, on('crumple', { amount: 3, facet: 0 })), plain],
     ['Ripple, Wavelength 0', paramsWith({}, on('ripple', { amount: 3, wavelength: 0, fade: 0.5 })), plain],
-    ['Slipstream, Gust size 0, only Slip', paramsWith({}, on('slipstream', { strength: 0, slip: 0.6, gust: 0, cuts: 0, trails: 0 })), plain],
+    [
+      'Slipstream, Gust size 0, only Slip',
+      paramsWith({}, on('slipstream', { strength: 0, slip: 0.6, gust: 0, cuts: 0, trails: 0 })),
+      plain,
+    ],
     [
       'Slipstream, Gust size 0',
       paramsWith({}, on('slipstream', { strength: 0.8, gustiness: 2, slip: 0.6, gust: 0, cuts: 2, trails: 2 })),
       paramsWith({}, on('slipstream', { strength: 0.8, gustiness: 0, slip: 0, gust: 0.06, cuts: 2, trails: 2 })),
     ],
     ['Thorn, Anchors 0', paramsWith({}, on('thorn', { count: 0, refraction: 1, canvasReach: 0.2 })), plain],
-    ['Burst, Anchors 0', paramsWith({}, on('thorn', { count: 3, burst: true, spikes: 0, refraction: 1, canvasReach: 0.2 })), plain],
-    ['Thorn, Flute width 0', paramsWith({}, on('thorn', { refraction: 1, flute: 0 })), paramsWith({}, on('thorn', { refraction: 0, flute: 0.1 }))],
-    ['Burst, Flute width 0', paramsWith({}, on('thorn', { burst: true, refraction: 1, flute: 0 })), paramsWith({}, on('thorn', { burst: true, refraction: 0, flute: 0.1 }))],
+    [
+      'Burst, Anchors 0',
+      paramsWith({}, on('thorn', { count: 3, burst: true, spikes: 0, refraction: 1, canvasReach: 0.2 })),
+      plain,
+    ],
+    [
+      'Thorn, Flute width 0',
+      paramsWith({}, on('thorn', { refraction: 1, flute: 0 })),
+      paramsWith({}, on('thorn', { refraction: 0, flute: 0.1 })),
+    ],
+    [
+      'Burst, Flute width 0',
+      paramsWith({}, on('thorn', { burst: true, refraction: 1, flute: 0 })),
+      paramsWith({}, on('thorn', { burst: true, refraction: 0, flute: 0.1 })),
+    ],
   ]
 
   it.each(NO_OPS)('%s: exactly the outline without it', (_name, params, without) => {
-    for (const g of glyphs) expect(sameContours(outline(g.index, params), outline(g.index, without)), `"${g.char}"`).toBe(true)
+    for (const g of glyphs)
+      expect(sameContours(outline(g.index, params), outline(g.index, without)), `"${g.char}"`).toBe(true)
   })
 
   it('Ripple, Wavelength 0 with Petals: the same letter as still rings, without their creases', () => {
@@ -111,24 +158,38 @@ describe.each(FIXTURE_FONTS)('sizes at and below the old minimums: %s', (fontNam
       expect(vertexCount(a), `"${g.char}"`).toBeLessThanOrEqual(vertexCount(b))
       expect(Math.abs(inkArea(a) - inkArea(b)) / inkArea(b), `"${g.char}"`).toBeLessThan(0.005)
       const [ba, bb] = [boundsOf(a)!, boundsOf(b)!]
-      for (const k of ['minX', 'minY', 'maxX', 'maxY'] as const) expect(Math.abs(ba[k] - bb[k]), `"${g.char}" ${k}`).toBeLessThan(1)
+      for (const k of ['minX', 'minY', 'maxX', 'maxY'] as const)
+        expect(Math.abs(ba[k] - bb[k]), `"${g.char}" ${k}`).toBeLessThan(1)
     }
   })
 
   /** Halfway below the old minimum: the finest size, its part at half strength (each half is exact in binary). */
   const HALVES: [string, GeometryParams, GeometryParams][] = [
-    ['Crumple, Facet size 4%', paramsWith({}, on('crumple', { amount: 0.7, facet: 0.04 })), paramsWith({}, on('crumple', { amount: 0.35, facet: 0.08 }))],
-    ['Ripple, Wavelength 4%', paramsWith({}, on('ripple', { amount: 0.5, wavelength: 0.04 })), paramsWith({}, on('ripple', { amount: 0.25, wavelength: 0.08 }))],
+    [
+      'Crumple, Facet size 4%',
+      paramsWith({}, on('crumple', { amount: 0.7, facet: 0.04 })),
+      paramsWith({}, on('crumple', { amount: 0.35, facet: 0.08 })),
+    ],
+    [
+      'Ripple, Wavelength 4%',
+      paramsWith({}, on('ripple', { amount: 0.5, wavelength: 0.04 })),
+      paramsWith({}, on('ripple', { amount: 0.25, wavelength: 0.08 })),
+    ],
     [
       'Slipstream, Gust size 3%',
       paramsWith({}, on('slipstream', { strength: 0.5, gustiness: 1, slip: 0.5, gust: 0.03 })),
       paramsWith({}, on('slipstream', { strength: 0.5, gustiness: 0.5, slip: 0.25, gust: 0.06 })),
     ],
-    ['Thorn, Flute width 2%', paramsWith({}, on('thorn', { refraction: 1, flute: 0.02 })), paramsWith({}, on('thorn', { refraction: 0.5, flute: 0.04 }))],
+    [
+      'Thorn, Flute width 2%',
+      paramsWith({}, on('thorn', { refraction: 1, flute: 0.02 })),
+      paramsWith({}, on('thorn', { refraction: 0.5, flute: 0.04 })),
+    ],
   ]
 
   it.each(HALVES)('%s: the finest size at half strength', (_name, params, same) => {
-    for (const g of glyphs) expect(sameContours(outline(g.index, params), outline(g.index, same)), `"${g.char}"`).toBe(true)
+    for (const g of glyphs)
+      expect(sameContours(outline(g.index, params), outline(g.index, same)), `"${g.char}"`).toBe(true)
   })
 
   /** Every new low value on its own and all at once, at full strength: finite, closed, merged where they cross. */
@@ -142,9 +203,26 @@ describe.each(FIXTURE_FONTS)('sizes at and below the old minimums: %s', (fontNam
         ...on('thorn', { count: 1, refraction: 1, flute: v }),
       }),
     ]),
-    ['one burst spike, fine flutes', paramsWith(GEOMETRY.plain, on('thorn', { burst: true, spikes: 1, refraction: 1, flute: 0.01, canvasReach: 0.3 }))],
+    [
+      'one burst spike, fine flutes',
+      paramsWith(GEOMETRY.plain, on('thorn', { burst: true, spikes: 1, refraction: 1, flute: 0.01, canvasReach: 0.3 })),
+    ],
     ['two burst spikes', paramsWith(GEOMETRY.plain, on('thorn', { burst: true, spikes: 2 }))],
-    ['every effect on at 0', { ...BASE, experimental: { ...BASE.experimental, ...on('crumple', { facet: 0 }), ...on('ripple', { wavelength: 0 }), ...on('slipstream', { gust: 0 }), ...on('thorn', { count: 0, flute: 0 }), ...on('whorl'), ...on('dissolve') } }],
+    [
+      'every effect on at 0',
+      {
+        ...BASE,
+        experimental: {
+          ...BASE.experimental,
+          ...on('crumple', { facet: 0 }),
+          ...on('ripple', { wavelength: 0 }),
+          ...on('slipstream', { gust: 0 }),
+          ...on('thorn', { count: 0, flute: 0 }),
+          ...on('whorl'),
+          ...on('dissolve'),
+        },
+      },
+    ],
   ]
 
   it.each(LOW)('%s: valid outlines', (_name, params) => {
@@ -158,7 +236,8 @@ describe.each(FIXTURE_FONTS)('sizes at and below the old minimums: %s', (fontNam
       if (contours.some((c) => c.length < 3)) problems.push(`${label}: degenerate contour`)
       const folds = derived.experimental.folds
       const { cross } = outlineCrossings(contours)
-      if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex) problems.push(`${label}: ${cross} crossings after a merge`)
+      if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex)
+        problems.push(`${label}: ${cross} crossings after a merge`)
     }
     expect(problems).toEqual([])
   })

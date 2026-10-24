@@ -75,9 +75,15 @@ export function quantizePolygon(polygon: PolygonGlyph, decimals: number, label: 
   const first = roundInOrder(polygon, forward, decimals, step)
   const result = Array.isArray(first) ? first : roundInOrder(polygon, forward.slice().reverse(), decimals, step)
   if (Array.isArray(result)) return result.filter((c): c is Point[] => c !== null)
-  const what = { collapse: 'a contour collapses or flips', cross: 'a contour crosses itself', contours: 'a contour crosses another' }
+  const what = {
+    collapse: 'a contour collapses or flips',
+    cross: 'a contour crosses itself',
+    contours: 'a contour crosses another',
+  }
   const failure = Array.isArray(first) ? result : first
-  throw new ExportError(`${label}: ${what[failure]} when its points are rounded to ${places}.${advice ? ` ${advice}` : ''}`)
+  throw new ExportError(
+    `${label}: ${what[failure]} when its points are rounded to ${places}.${advice ? ` ${advice}` : ''}`,
+  )
 }
 
 /** Rounds the contours in the given order; the rounded contours by index (null: left out), or why it failed. */
@@ -227,10 +233,12 @@ class Original {
     for (let i = 0; i < n; i++) {
       if (distanceToSegment(at, this.points[i], this.points[(i + 1) % n]) <= radius) near.push(i)
     }
-    return near.some((a) => near.some((b) => {
-      const gap = Math.abs(a - b)
-      return Math.min(gap, n - gap) >= 2
-    }))
+    return near.some((a) =>
+      near.some((b) => {
+        const gap = Math.abs(a - b)
+        return Math.min(gap, n - gap) >= 2
+      }),
+    )
   }
 
   /**
@@ -307,7 +315,7 @@ const healthy = (points: readonly Point[], direction: number) => {
  */
 function clean(points: Point[]): Point[] {
   let out = points
-  for (let changed = true; changed && out.length >= 3; ) {
+  for (let changed = true; changed && out.length >= 3;) {
     changed = false
     const next: Point[] = []
     for (let i = 0; i < out.length; i++) {
@@ -343,7 +351,11 @@ function repair(
     const added = addedCrossings(trial, original, false)
     if (added.length >= currentCount) continue
     const areaChange = Math.abs(signedArea(trial) - area)
-    if (!best || added.length < best.added.length || (added.length === best.added.length && areaChange < best.areaChange)) {
+    if (
+      !best ||
+      added.length < best.added.length ||
+      (added.length === best.added.length && areaChange < best.areaChange)
+    ) {
       best = { points: trial, added, areaChange }
     }
   }
@@ -355,7 +367,12 @@ function repair(
  * `allowNearTouch`, crossings where the original ran within two rounding steps of itself are accepted
  * as rounding noise.
  */
-function addedCrossings(points: readonly Point[], original: Original, allowNearTouch: boolean, found = findSelfCrossings(points)): Crossing[] {
+function addedCrossings(
+  points: readonly Point[],
+  original: Original,
+  allowNearTouch: boolean,
+  found = findSelfCrossings(points),
+): Crossing[] {
   if (!found.length) return found
   return found.filter((c) => (allowNearTouch ? !original.explains(c.at) : !original.hasCrossingNear(c.at)))
 }

@@ -101,7 +101,12 @@ export function issueKeys(pr: PullRequestText, project: string): string[] {
 }
 
 /** Moves each issue by `step` where its status allows, one after another; never throws. */
-export async function moveIssues(keys: readonly string[], step: Step, config: JiraConfig, fetchImpl: Fetch): Promise<IssueResult[]> {
+export async function moveIssues(
+  keys: readonly string[],
+  step: Step,
+  config: JiraConfig,
+  fetchImpl: Fetch,
+): Promise<IssueResult[]> {
   const base = config.baseUrl.replace(/\/+$/, '')
   // The site's name stays out of messages: they reach the public log and the job summary.
   const host = hostOf(base)
@@ -141,7 +146,9 @@ export async function moveIssues(keys: readonly string[], step: Step, config: Ji
         continue
       }
       if (!issue.ok) throw new Error(await refusal(issue, 'reading the issue'))
-      const status = (await issue.json()) as { fields?: { status?: { name?: string; statusCategory?: { key?: string } } } }
+      const status = (await issue.json()) as {
+        fields?: { status?: { name?: string; statusCategory?: { key?: string } } }
+      }
       const name = status.fields?.status?.name ?? '?'
       const category = status.fields?.status?.statusCategory?.key ?? ''
       if (!step.from.includes(category)) {
@@ -154,12 +161,18 @@ export async function moveIssues(keys: readonly string[], step: Step, config: Ji
         transitions?: { id: string; isAvailable?: boolean; to?: { name?: string } }[]
       }
       // Jira lists none at all for an account without the Transition issues permission.
-      if (transitions.length === 0) throw new Error('Jira lists no transitions for it: the account may lack the Transition issues permission')
+      if (transitions.length === 0)
+        throw new Error('Jira lists no transitions for it: the account may lack the Transition issues permission')
       // Matched by the status it leads to, not by its own name, which may differ.
       const target = step.to.toLowerCase()
       const transition = transitions.find((t) => t.isAvailable !== false && t.to?.name?.toLowerCase() === target)
       if (!transition) {
-        results.push({ key, outcome: 'stuck', status: name, message: `${key}: no transition from ${name} to ${step.to}` })
+        results.push({
+          key,
+          outcome: 'stuck',
+          status: name,
+          message: `${key}: no transition from ${name} to ${step.to}`,
+        })
         continue
       }
       const moved = await call(`/issue/${key}/transitions`, 'POST', { transition: { id: transition.id } })
@@ -205,7 +218,11 @@ async function refusal(response: JiraResponse, doing: string): Promise<string> {
 
 /** Handles one pull request event: which issues to move, and how each went. Fails only when Jira did not accept the
     account, refused a call, or did not answer, or when JIRA_BASE_URL is not an https address. */
-export async function run(event: unknown, env: Record<string, string | undefined>, fetchImpl: Fetch): Promise<RunResult> {
+export async function run(
+  event: unknown,
+  env: Record<string, string | undefined>,
+  fetchImpl: Fetch,
+): Promise<RunResult> {
   const lines: string[] = []
   const done = (exitCode: number, summary = ''): RunResult => ({ exitCode, lines, summary })
   const payload = event as {
@@ -227,13 +244,15 @@ export async function run(event: unknown, env: Record<string, string | undefined
   const action = payload.action ?? '?'
   const step = stepFor(action, { open: pr.state === 'open', merged: pr.merged === true })
   if (!step) {
-    lines.push(`Pull request ${action} (${pr.merged ? 'merged' : pr.state ?? '?'}): nothing to move`)
+    lines.push(`Pull request ${action} (${pr.merged ? 'merged' : (pr.state ?? '?')}): nothing to move`)
     return done(0)
   }
   const project = env.JIRA_PROJECT || 'NOCUR'
   const keys = issueKeys({ branch: pr.head?.ref ?? '', title: pr.title ?? '', body: pr.body ?? '' }, project)
   if (keys.length === 0) {
-    lines.push(command('notice', `No ${project} issue named in the branch, the title, or a "Jira:" line: nothing to move`))
+    lines.push(
+      command('notice', `No ${project} issue named in the branch, the title, or a "Jira:" line: nothing to move`),
+    )
     return done(0)
   }
   const { JIRA_BASE_URL: baseUrl, JIRA_EMAIL: email, JIRA_API_TOKEN: token } = env
@@ -250,7 +269,12 @@ export async function run(event: unknown, env: Record<string, string | undefined
     return done(0)
   }
   if (!/^https:\/\/[^/]/i.test(baseUrl) || !hostOf(baseUrl)) {
-    lines.push(command('error', 'JIRA_BASE_URL must be the https address of the Jira site, such as https://<site>.atlassian.net'))
+    lines.push(
+      command(
+        'error',
+        'JIRA_BASE_URL must be the https address of the Jira site, such as https://<site>.atlassian.net',
+      ),
+    )
     return done(1)
   }
   const results = await moveIssues(keys, step, { baseUrl, email, token }, fetchImpl)
@@ -260,8 +284,17 @@ export async function run(event: unknown, env: Record<string, string | undefined
     lines.push(kind ? command(kind, result.message) : result.message)
   }
   const cell = (text: string) => text.replace(/\|/g, '\\|').replace(/\s*\r?\n\s*/g, ' ')
-  const rows = results.map((r) => `| ${r.key} | ${cell(r.status ?? '')} | ${r.outcome} | ${cell(r.message.slice(r.key.length + 2))} |`)
-  const summary = [`### Jira: ${step.to}`, '', '| Issue | Before | Outcome | Detail |', '| --- | --- | --- | --- |', ...rows, ''].join('\n')
+  const rows = results.map(
+    (r) => `| ${r.key} | ${cell(r.status ?? '')} | ${r.outcome} | ${cell(r.message.slice(r.key.length + 2))} |`,
+  )
+  const summary = [
+    `### Jira: ${step.to}`,
+    '',
+    '| Issue | Before | Outcome | Detail |',
+    '| --- | --- | --- | --- |',
+    ...rows,
+    '',
+  ].join('\n')
   return done(results.some((r) => r.outcome === 'failed') ? 1 : 0, summary)
 }
 

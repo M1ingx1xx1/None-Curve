@@ -21,7 +21,18 @@ function ExportDialog(props: ExportDialogProps) {
   const [glyphSet, setGlyphSet] = useState<GlyphSet>('specimen')
   const [naming, setNaming] = useState<FontNaming>({ familyName: '', styleName: '' })
   const [built, setBuilt] = useState<BuiltFont | null>(null)
-  const kept: Kept = { chosen, setFormat, usePreviewLook, setUsePreviewLook, glyphSet, setGlyphSet, naming, setNaming, built, setBuilt }
+  const kept: Kept = {
+    chosen,
+    setFormat,
+    usePreviewLook,
+    setUsePreviewLook,
+    glyphSet,
+    setGlyphSet,
+    naming,
+    setNaming,
+    built,
+    setBuilt,
+  }
 
   // After the body's own effects: the first radio is in the document when it is focused.
   useEffect(() => {
@@ -37,12 +48,34 @@ function ExportDialog(props: ExportDialogProps) {
   // New font: suggest a derived name (many licenses require renaming modified fonts).
   useEffect(() => {
     // A leading dot (Apple's hidden system fonts) would hide the exported font from font menus too.
-    if (font) setNaming({ familyName: `${font.familyName} Poly`.replace(/[^\x20-\x7E]/g, '').replace(/^\.+/, '').slice(0, 63).trim() || 'None Curve Poly', styleName: (font.styleName || 'Regular').replace(/[^\x20-\x7E]/g, '').slice(0, 63).trim() || 'Regular' })
+    if (font)
+      setNaming({
+        familyName:
+          `${font.familyName} Poly`
+            .replace(/[^\x20-\x7E]/g, '')
+            .replace(/^\.+/, '')
+            .slice(0, 63)
+            .trim() || 'None Curve Poly',
+        styleName:
+          (font.styleName || 'Regular')
+            .replace(/[^\x20-\x7E]/g, '')
+            .slice(0, 63)
+            .trim() || 'Regular',
+      })
   }, [font])
 
   // Closing unmounts the body, which aborts a running build.
   return (
-    <dialog ref={dialogRef} className="gf-dialog export-dialog" aria-labelledby="export-title" onClose={onClose} onCancel={(e) => { e.preventDefault(); onClose() }}>
+    <dialog
+      ref={dialogRef}
+      className="gf-dialog export-dialog"
+      aria-labelledby="export-title"
+      onClose={onClose}
+      onCancel={(e) => {
+        e.preventDefault()
+        onClose()
+      }}
+    >
       <div className="gf-body">
         <header className="gf-head">
           <h2 id="export-title">Export</h2>

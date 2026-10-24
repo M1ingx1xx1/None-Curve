@@ -3,7 +3,16 @@
 // can produce and the two cannot drift apart. Keyed by each slider's Sound target id ("group.key",
 // "experimental.effect.key"). Pure: no React, no DOM.
 
-import { CRUMPLE_LIMITS, DISSOLVE_LIMITS, DISTORTION_LIMITS, RANDOM_ANCHOR_LIMITS, RIPPLE_LIMITS, SLIPSTREAM_LIMITS, THORN_LIMITS, WHORL_LIMITS } from '../geometry/limits'
+import {
+  CRUMPLE_LIMITS,
+  DISSOLVE_LIMITS,
+  DISTORTION_LIMITS,
+  RANDOM_ANCHOR_LIMITS,
+  RIPPLE_LIMITS,
+  SLIPSTREAM_LIMITS,
+  THORN_LIMITS,
+  WHORL_LIMITS,
+} from '../geometry/limits'
 import { TYPOGRAPHY_LIMITS } from '../specimen/artboard'
 
 export interface SliderRange {
@@ -48,7 +57,8 @@ export function roundTolerance(tol: number): number {
 }
 
 /** Where a tolerance sits on the Tolerance range input (0–100). */
-const toleranceToSlider = (tol: number) => (TOLERANCE.slider.max * Math.log(tol / TOLERANCE.min)) / Math.log(TOLERANCE.max / TOLERANCE.min)
+const toleranceToSlider = (tol: number) =>
+  (TOLERANCE.slider.max * Math.log(tol / TOLERANCE.min)) / Math.log(TOLERANCE.max / TOLERANCE.min)
 
 /** The tolerance at a position of the Tolerance range input (0–100), rounded by roundTolerance. */
 export const toleranceFromSlider = (pos: number) =>
@@ -93,10 +103,12 @@ export function reachReadout(v: number): string {
 export const reachPercent = (reach: number) => (reach > 0 ? reachReadout(reach * 100) : '0.0')
 
 /** Where a reach sits on the Reach range input (0–1). */
-export const reachToSlider = (reach: number) => Math.min(Math.cbrt(reach / THORN_REACH.max), reach * 10_000 * THORN_REACH.slider.step)
+export const reachToSlider = (reach: number) =>
+  Math.min(Math.cbrt(reach / THORN_REACH.max), reach * 10_000 * THORN_REACH.slider.step)
 
 /** The reach at a position of the Reach range input (0–1), rounded by roundReach: the cube, or a hundredth of a percent per step near 0. */
-export const reachFromSlider = (pos: number) => roundReach(Math.max(THORN_REACH.max * pos ** 3, pos / THORN_REACH.slider.step / 10_000))
+export const reachFromSlider = (pos: number) =>
+  roundReach(Math.max(THORN_REACH.max * pos ** 3, pos / THORN_REACH.slider.step / 10_000))
 
 /** The Reach slider's curve; its number box takes the reach itself, to roundReach's unit. */
 export const REACH_CURVE: SliderCurve = {

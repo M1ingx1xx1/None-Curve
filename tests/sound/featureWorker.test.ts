@@ -6,7 +6,12 @@
 import { describe, expect, it } from 'vitest'
 import { analyserFftSize, FeatureExtractor } from '../../src/sound/features'
 import { FeatureTimeline, type FeatureWorkerLike } from '../../src/sound/featureTimeline'
-import { CHUNK_FRAMES, FeatureWorkerCore, type FeatureWorkerRequest, type FeatureWorkerResponse } from '../../src/sound/featureWorkerCore'
+import {
+  CHUNK_FRAMES,
+  FeatureWorkerCore,
+  type FeatureWorkerRequest,
+  type FeatureWorkerResponse,
+} from '../../src/sound/featureWorkerCore'
 import { gridFrameCount, highpassInPlace, measureFrames } from '../../src/sound/offline'
 import { FEATURE_STRIDE, packFrame, PRECOMPUTE_LIMITS, unpackFrame } from '../../src/sound/timelineTypes'
 import { DEFAULT_FEATURE_SETTINGS, type FeatureSettings } from '../../src/sound/types'
@@ -20,7 +25,15 @@ const GRID = { hz: PRECOMPUTE_LIMITS.gridHz }
 function expected(from: number, to: number, settings: FeatureSettings = DEFAULT_FEATURE_SETTINGS): Float64Array {
   const left = signal()
   highpassInPlace(left, SR)
-  const frames = measureFrames({ left, right: left }, SR, settings, GRID, from, to, new FeatureExtractor(SR, analyserFftSize(SR)))
+  const frames = measureFrames(
+    { left, right: left },
+    SR,
+    settings,
+    GRID,
+    from,
+    to,
+    new FeatureExtractor(SR, analyserFftSize(SR)),
+  )
   const values = new Float64Array(frames.length * FEATURE_STRIDE)
   frames.forEach((frame, row) => packFrame(frame, values, row))
   return values
@@ -29,7 +42,8 @@ function expected(from: number, to: number, settings: FeatureSettings = DEFAULT_
 function worker() {
   const posted: FeatureWorkerResponse[] = []
   const core = new FeatureWorkerCore((message) => posted.push(message))
-  const columns = () => posted.filter((m): m is Extract<FeatureWorkerResponse, { type: 'columns' }> => m.type === 'columns')
+  const columns = () =>
+    posted.filter((m): m is Extract<FeatureWorkerResponse, { type: 'columns' }> => m.type === 'columns')
   const runAll = () => {
     while (core.step());
   }
@@ -41,7 +55,15 @@ const FRAMES = gridFrameCount(SR * SECONDS, SR, GRID)
 describe('feature worker core', () => {
   it('posts the chunks in order, and together they are one offline pass', () => {
     const { core, posted, columns, runAll } = worker()
-    core.handle({ type: 'load', generation: 1, sampleRate: SR, left: signal(), right: null, settings: DEFAULT_FEATURE_SETTINGS, fromMs: 0 })
+    core.handle({
+      type: 'load',
+      generation: 1,
+      sampleRate: SR,
+      left: signal(),
+      right: null,
+      settings: DEFAULT_FEATURE_SETTINGS,
+      fromMs: 0,
+    })
     runAll()
     const chunks = columns()
     expect(chunks.length).toBe(Math.ceil(FRAMES / CHUNK_FRAMES))
@@ -60,7 +82,15 @@ describe('feature worker core', () => {
 
   it('measures a seek beyond the covered frames first, from a warm-up before it with a fresh extractor', () => {
     const { core, columns, runAll } = worker()
-    core.handle({ type: 'load', generation: 1, sampleRate: SR, left: signal(), right: null, settings: DEFAULT_FEATURE_SETTINGS, fromMs: 0 })
+    core.handle({
+      type: 'load',
+      generation: 1,
+      sampleRate: SR,
+      left: signal(),
+      right: null,
+      settings: DEFAULT_FEATURE_SETTINGS,
+      fromMs: 0,
+    })
     core.step()
     const seekMs = 6500
     core.handle({ type: 'seek', generation: 1, ms: seekMs })
@@ -81,7 +111,15 @@ describe('feature worker core', () => {
 
   it('ignores a seek into frames already measured or about to be', () => {
     const { core, columns } = worker()
-    core.handle({ type: 'load', generation: 1, sampleRate: SR, left: signal(), right: null, settings: DEFAULT_FEATURE_SETTINGS, fromMs: 0 })
+    core.handle({
+      type: 'load',
+      generation: 1,
+      sampleRate: SR,
+      left: signal(),
+      right: null,
+      settings: DEFAULT_FEATURE_SETTINGS,
+      fromMs: 0,
+    })
     core.step()
     core.step()
     core.handle({ type: 'seek', generation: 1, ms: 500 })
@@ -92,7 +130,15 @@ describe('feature worker core', () => {
 
   it('drops the old generation on new settings and measures from the playhead first', () => {
     const { core, columns, runAll } = worker()
-    core.handle({ type: 'load', generation: 1, sampleRate: SR, left: signal(), right: null, settings: DEFAULT_FEATURE_SETTINGS, fromMs: 0 })
+    core.handle({
+      type: 'load',
+      generation: 1,
+      sampleRate: SR,
+      left: signal(),
+      right: null,
+      settings: DEFAULT_FEATURE_SETTINGS,
+      fromMs: 0,
+    })
     core.step()
     const louder = { ...DEFAULT_FEATURE_SETTINGS, sensitivity: 12 }
     core.handle({ type: 'settings', generation: 2, settings: louder, fromMs: 7000 })
@@ -101,7 +147,9 @@ describe('feature worker core', () => {
     runAll()
     const later = columns().slice(1)
     expect(later.every((c) => c.generation === 2)).toBe(true)
-    expect(later[0].start).toBe(Math.floor((7000 * GRID.hz) / 1000) - Math.round((PRECOMPUTE_LIMITS.warmupMs * GRID.hz) / 1000))
+    expect(later[0].start).toBe(
+      Math.floor((7000 * GRID.hz) / 1000) - Math.round((PRECOMPUTE_LIMITS.warmupMs * GRID.hz) / 1000),
+    )
     const linear = later.filter((c) => c.start < later[0].start)
     const values = new Float64Array(later[0].start * FEATURE_STRIDE)
     for (const chunk of linear) values.set(chunk.values, chunk.start * FEATURE_STRIDE)
@@ -135,7 +183,14 @@ describe('feature timeline', () => {
   /** A decoded AudioBuffer stand-in. */
   const decoded = (seconds: number) => {
     const data = signal().subarray(0, SR * seconds)
-    return async () => ({ duration: data.length / SR, length: data.length, sampleRate: SR, numberOfChannels: 1, getChannelData: () => data }) as unknown as AudioBuffer
+    return async () =>
+      ({
+        duration: data.length / SR,
+        length: data.length,
+        sampleRate: SR,
+        numberOfChannels: 1,
+        getChannelData: () => data,
+      }) as unknown as AudioBuffer
   }
   const blob = new Blob([new Uint8Array(4)])
 
@@ -147,7 +202,8 @@ describe('feature timeline', () => {
     expect(timeline.covered(1000)).toBe(false)
     worker.pump()
     const want = expected(0, FRAMES)
-    for (const index of [0, 1, 60, FRAMES - 1]) expect(timeline.frameAt(index)).toEqual(unpackFrame(want, index, (index * 1000) / GRID.hz))
+    for (const index of [0, 1, 60, FRAMES - 1])
+      expect(timeline.frameAt(index)).toEqual(unpackFrame(want, index, (index * 1000) / GRID.hz))
     expect(timeline.covered(SECONDS * 1000 - 10)).toBe(true)
     // Between two grid frames: interpolated, events from the earlier one.
     const a = timeline.frameAt(60)!
@@ -168,12 +224,21 @@ describe('feature timeline', () => {
     expect(timeline.currentGeneration()).toBe(generation + 1)
     expect(timeline.covered(2000)).toBe(false)
     // A stale chunk of the old generation is ignored.
-    worker.onmessage?.({ data: { type: 'columns', generation, start: 0, count: 1, values: new Float64Array(FEATURE_STRIDE) } } as MessageEvent<FeatureWorkerResponse>)
+    worker.onmessage?.({
+      data: { type: 'columns', generation, start: 0, count: 1, values: new Float64Array(FEATURE_STRIDE) },
+    } as MessageEvent<FeatureWorkerResponse>)
     expect(timeline.covered(0)).toBe(false)
     worker.pump()
     expect(timeline.frameAt(10)).toEqual(unpackFrame(expected(0, 11, louder), 10, (10 * 1000) / GRID.hz))
     // Too long a file stays live.
-    const long = async () => ({ duration: PRECOMPUTE_LIMITS.maxSeconds + 1, length: 10, sampleRate: SR, numberOfChannels: 1, getChannelData: () => new Float32Array(10) }) as unknown as AudioBuffer
+    const long = async () =>
+      ({
+        duration: PRECOMPUTE_LIMITS.maxSeconds + 1,
+        length: 10,
+        sampleRate: SR,
+        numberOfChannels: 1,
+        getChannelData: () => new Float32Array(10),
+      }) as unknown as AudioBuffer
     expect(await timeline.load(blob, long, DEFAULT_FEATURE_SETTINGS)).toBe(false)
     expect(timeline.isLoaded()).toBe(false)
   })
@@ -186,7 +251,9 @@ describe('feature timeline', () => {
     expect(timeline.measuredUntil()).toBe(0)
     const generation = timeline.currentGeneration()
     const chunk = (start: number, count: number) =>
-      worker.onmessage?.({ data: { type: 'columns', generation, start, count, values: new Float64Array(count * FEATURE_STRIDE) } } as MessageEvent<FeatureWorkerResponse>)
+      worker.onmessage?.({
+        data: { type: 'columns', generation, start, count, values: new Float64Array(count * FEATURE_STRIDE) },
+      } as MessageEvent<FeatureWorkerResponse>)
     chunk(60, 30)
     expect(timeline.measuredUntil()).toBe(0)
     chunk(0, 60)

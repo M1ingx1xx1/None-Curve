@@ -10,9 +10,15 @@ import Icon from './Icon'
  */
 export default function RecordingIndicator() {
   const { phase, elapsedMs, message } = useRecording()
-  const label = phase === 'starting' ? 'Starting to record…' : phase === 'stopping' ? 'Saving the video…' : `Recording ${formatClock(elapsedMs)}`
+  const label =
+    phase === 'starting'
+      ? 'Starting to record…'
+      : phase === 'stopping'
+        ? 'Saving the video…'
+        : `Recording ${formatClock(elapsedMs)}`
   // Only the start and the end: the time itself changes every second.
-  const announcement = phase === 'recording' || phase === 'stopping' ? 'Recording started.' : phase === 'idle' ? message?.text ?? '' : ''
+  const announcement =
+    phase === 'recording' || phase === 'stopping' ? 'Recording started.' : phase === 'idle' ? (message?.text ?? '') : ''
 
   return (
     <>
@@ -40,7 +46,13 @@ export default function RecordingIndicator() {
           <p className={message.tone === 'info' ? 'panel-notice' : 'font-warning'} data-tone={message.tone}>
             {message.text}
           </p>
-          <button type="button" className="icon-button" aria-label="Dismiss" title="Dismiss" onClick={() => getRecorder().clearMessage()}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={() => getRecorder().clearMessage()}
+          >
             <Icon name="close" />
           </button>
         </div>

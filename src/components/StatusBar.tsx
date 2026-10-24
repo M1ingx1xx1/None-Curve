@@ -48,7 +48,16 @@ const micStatus = (): MicStatus => {
 // Sensitivity and Release, for whether Reset has anything to do: the same object until they change.
 const soundSettings = () => getSoundEngine().getState().settings
 
-export default function StatusBar({ state, glyphGeometry, shownParams, scene, text, extras, onReset, saveFailed = false }: StatusBarProps) {
+export default function StatusBar({
+  state,
+  glyphGeometry,
+  shownParams,
+  scene,
+  text,
+  extras,
+  onReset,
+  saveFailed = false,
+}: StatusBarProps) {
   const { font, selectedGlyph, status } = state.document
   const { view } = state.params
   const mic = useSyncExternalStore(subscribeSound, micStatus)
@@ -76,10 +85,13 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene, te
     const method = steps.join(' → ')
     const geometry = glyphGeometry.geometry
     // Marked when the Experimental effects' vertex budget simplified the glyph.
-    const vertices = geometry ? `${geometry.vertexCount} vertices${geometry.experimental.budget.applied ? ' (simplified)' : ''}` : 'flattening failed'
+    const vertices = geometry
+      ? `${geometry.vertexCount} vertices${geometry.experimental.budget.applied ? ' (simplified)' : ''}`
+      : 'flattening failed'
     const target = `text (${scene?.glyphCount ?? 0} glyphs)`
     if (view.outline === 'source') viewing = `Original curves · ${target}`
-    else if (view.outline === 'flattened') viewing = `Final polygon (${method}) · ${target} · selected glyph ${vertices}`
+    else if (view.outline === 'flattened')
+      viewing = `Final polygon (${method}) · ${target} · selected glyph ${vertices}`
     else viewing = `Compare: final polygon (${method}) over original · ${target} · selected glyph ${vertices}`
   }
 
@@ -102,11 +114,23 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene, te
       </span>
       {/* Visible from every tab, so the microphone is never on unnoticed.
           Always in the document and polite, so it is also announced from every tab when the microphone stops. */}
-      <span role="status" className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'} data-lost={mic === 'lost' || undefined}>
+      <span
+        role="status"
+        className={mic === 'off' ? 'visually-hidden' : 'statusbar-mic'}
+        data-lost={mic === 'lost' || undefined}
+      >
         {mic === 'on' ? 'Microphone on' : mic === 'lost' ? 'No microphone' : ''}
       </span>
       {/* Shown from the first save the browser refuses, and announced once. */}
-      <span role="status" className={saveFailed ? undefined : 'visually-hidden'} title={saveFailed ? 'The browser’s storage is full or blocked, so the settings will not be kept for the next visit.' : undefined}>
+      <span
+        role="status"
+        className={saveFailed ? undefined : 'visually-hidden'}
+        title={
+          saveFailed
+            ? 'The browser’s storage is full or blocked, so the settings will not be kept for the next visit.'
+            : undefined
+        }
+      >
         {saveFailed ? 'Settings not saved' : ''}
       </span>
       {/* Back to how the editor first opens: the font closes, the text and every setting return to the start,
@@ -116,7 +140,11 @@ export default function StatusBar({ state, glyphGeometry, shownParams, scene, te
         type="button"
         className="statusbar-reset"
         aria-label="Reset all"
-        title={atStart ? 'Everything is as the editor first opens' : 'Reset all: closes the font and puts the text and every setting back to the start. Cannot be undone.'}
+        title={
+          atStart
+            ? 'Everything is as the editor first opens'
+            : 'Reset all: closes the font and puts the text and every setting back to the start. Cannot be undone.'
+        }
         aria-disabled={atStart || undefined}
         onClick={() => {
           if (!atStart) onReset()

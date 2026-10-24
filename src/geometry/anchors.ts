@@ -39,7 +39,10 @@ export interface AnchorStats {
 }
 
 /** Runs spacing, then reduction, on a flattened polygon. Order is fixed. */
-export function applyAnchorControls(polygon: PolygonGlyph, params: AnchorParams): { polygon: PolygonGlyph; stats: AnchorStats } {
+export function applyAnchorControls(
+  polygon: PolygonGlyph,
+  params: AnchorParams,
+): { polygon: PolygonGlyph; stats: AnchorStats } {
   const flattenedVertices = countVertices(polygon)
   const stats: AnchorStats = {
     flattenedVertices,
@@ -201,7 +204,13 @@ export function simplifyClosed(
  * Iterative RDP over points[from..to] (to may equal points.length, meaning index 0): marks in `keep` the points that lie
  * further than `tolerance` from the simplified chain, and returns the largest distance of a point left out.
  */
-export function rdpChain(points: readonly Point[], from: number, to: number, tolerance: number, keep: Uint8Array): number {
+export function rdpChain(
+  points: readonly Point[],
+  from: number,
+  to: number,
+  tolerance: number,
+  keep: Uint8Array,
+): number {
   const at = (i: number) => points[i % points.length]
   let accepted = 0
   const stack: [number, number][] = [[from, to]]
@@ -230,4 +239,3 @@ export function rdpChain(points: readonly Point[], from: number, to: number, tol
 function distinctCount(points: readonly Point[]): number {
   return new Set(points.map((p) => `${p.x},${p.y}`)).size
 }
-

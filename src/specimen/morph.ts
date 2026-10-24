@@ -353,7 +353,8 @@ class Pairs {
 function sameContour(a: PolygonContour, b: PolygonContour): boolean {
   if (a === b) return true
   if (a.points.length !== b.points.length || a.clockwise !== b.clockwise) return false
-  for (let i = 0; i < a.points.length; i++) if (a.points[i].x !== b.points[i].x || a.points[i].y !== b.points[i].y) return false
+  for (let i = 0; i < a.points.length; i++)
+    if (a.points[i].x !== b.points[i].x || a.points[i].y !== b.points[i].y) return false
   return true
 }
 
@@ -494,7 +495,9 @@ function pairContours(a: Ring[], b: Ring[]): [number, number][] {
     const scale = p.size + q.size
     const d = Math.hypot(p.cx - q.cx, p.cy - q.cy)
     if (d > MORPH_LIMITS.reach * scale) return null
-    const ratio = Math.log((Math.abs(p.area) + 1e-9 * scale * scale + 1e-12) / (Math.abs(q.area) + 1e-9 * scale * scale + 1e-12))
+    const ratio = Math.log(
+      (Math.abs(p.area) + 1e-9 * scale * scale + 1e-12) / (Math.abs(q.area) + 1e-9 * scale * scale + 1e-12),
+    )
     if (Math.abs(ratio) > Math.log(MORPH_LIMITS.areaRatio)) return null
     return (d * d) / (scale * scale || 1) + 0.25 * ratio * ratio
   }
@@ -631,7 +634,16 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
     const mesh = planWhorlMesh(from, to, poseOf(from) ?? undefined, keptAnchors.has(from))
     if (mesh) {
       if (mesh.points > MORPH_LIMITS.maxPoints) return null
-      const data: PlanData = { version: PLAN_DATA_VERSION, trajectory: 'whorl-mesh', points: mesh.points, longest: mesh.points, whorl: null, mesh: mesh.data, tracks: [], settled: null }
+      const data: PlanData = {
+        version: PLAN_DATA_VERSION,
+        trajectory: 'whorl-mesh',
+        points: mesh.points,
+        longest: mesh.points,
+        whorl: null,
+        mesh: mesh.data,
+        tracks: [],
+        settled: null,
+      }
       return runPlan(data, from, to, mesh)
     }
   }
@@ -719,7 +731,16 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
     if (isPoint(t) || !trajectory.whorl) return { kind: 'straight', ...t }
     return { kind: 'whorl', ...t, ...trajectory.whorl.arrays(t.sx, t.sy, t.tx, t.ty, t.base) }
   })
-  const data: PlanData = { version: PLAN_DATA_VERSION, trajectory: trajectory.id, points, longest, whorl: trajectory.whorl?.params ?? null, mesh: null, tracks, settled: null }
+  const data: PlanData = {
+    version: PLAN_DATA_VERSION,
+    trajectory: trajectory.id,
+    points,
+    longest,
+    whorl: trajectory.whorl?.params ?? null,
+    mesh: null,
+    tracks,
+    settled: null,
+  }
   return runPlan(data, from, to)
 }
 
@@ -753,9 +774,22 @@ function runPlan(data: PlanData, from: PolygonGlyph, to: PolygonGlyph, mesh?: Me
   const tracks = data.tracks.map((track): Track => {
     if (track.kind === 'still') {
       const none = new Float64Array(0)
-      return { clockwise: track.clockwise, sx: none, sy: none, tx: none, ty: none, kept: track.kept, base: new Uint8Array(0), path: null, still: to.contours[track.contour] }
+      return {
+        clockwise: track.clockwise,
+        sx: none,
+        sy: none,
+        tx: none,
+        ty: none,
+        kept: track.kept,
+        base: new Uint8Array(0),
+        path: null,
+        still: to.contours[track.contour],
+      }
     }
-    const path = track.kind === 'whorl' ? whorlTrackPath(track, data.whorl!) : STRAIGHT.path(track.sx, track.sy, track.tx, track.ty)
+    const path =
+      track.kind === 'whorl'
+        ? whorlTrackPath(track, data.whorl!)
+        : STRAIGHT.path(track.sx, track.sy, track.tx, track.ty)
     const { clockwise, sx, sy, tx, ty, kept, base } = track
     return { clockwise, sx, sy, tx, ty, kept, base, path, still: null }
   })
@@ -768,7 +802,16 @@ function runPlan(data: PlanData, from: PolygonGlyph, to: PolygonGlyph, mesh?: Me
       return prepared
     })
   }
-  const plan: MorphPlan = { from, to, trajectory: data.trajectory, tracks, points: data.points, xs: new Float64Array(data.longest), ys: new Float64Array(data.longest), data }
+  const plan: MorphPlan = {
+    from,
+    to,
+    trajectory: data.trajectory,
+    tracks,
+    points: data.points,
+    xs: new Float64Array(data.longest),
+    ys: new Float64Array(data.longest),
+    data,
+  }
   if (mesh) plan.mesh = mesh
   return plan
 }
@@ -874,7 +917,17 @@ function motionAt(from: GlyphMotion | undefined, to: GlyphMotion | undefined, p:
   const b = to?.whorl
   if (!a || !b) return to
   const turns = a.turns.length === b.turns.length ? b.turns.map((t, k) => lerp(a.turns[k], t, p)) : b.turns
-  return { ...to, whorl: { ...b, x: lerp(a.x, b.x, p), y: lerp(a.y, b.y, p), amount: lerp(a.amount, b.amount, p), radius: lerp(a.radius, b.radius, p), turns } }
+  return {
+    ...to,
+    whorl: {
+      ...b,
+      x: lerp(a.x, b.x, p),
+      y: lerp(a.y, b.y, p),
+      amount: lerp(a.amount, b.amount, p),
+      radius: lerp(a.radius, b.radius, p),
+      turns,
+    },
+  }
 }
 
 const lerp = (x: number, y: number, p: number) => x + (y - x) * p
@@ -901,7 +954,11 @@ export function settleInBetween(glyph: PolygonGlyph, next?: PolygonGlyph): Polyg
 }
 
 /** settleInBetween at one tolerance; `leaving`: the anchors only the old outline brought that are left. */
-function settleWithin(glyph: PolygonGlyph, kept: Uint8Array[], tolerance: number): { glyph: PolygonGlyph; leaving: number } {
+function settleWithin(
+  glyph: PolygonGlyph,
+  kept: Uint8Array[],
+  tolerance: number,
+): { glyph: PolygonGlyph; leaving: number } {
   const contours: PolygonContour[] = []
   let changed = false
   let leaving = 0

@@ -29,7 +29,9 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 const idle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 /** The worker's message handler; `post` sends a message to the page (with the buffers to transfer, if any). */
-export function createGeometryWorker(post: (message: WorkerResponse, transfer?: Transferable[]) => void): (message: WorkerRequest) => void {
+export function createGeometryWorker(
+  post: (message: WorkerResponse, transfer?: Transferable[]) => void,
+): (message: WorkerRequest) => void {
   const fonts = new Map<string, Promise<LoadedFont>>()
   /** Each lane's latest request (0: none, or cancelled). Plans run each to its end unless cancelled. */
   const latest: Record<Exclude<Lane, 'plan'>, number> = { canvas: 0, ahead: 0 }
@@ -43,7 +45,13 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
   async function compute(request: Extract<WorkerRequest, { type: 'compute' }>) {
     const { requestId, fontId } = request
     const loading = fonts.get(fontId)
-    if (!loading) return post({ type: 'failed', requestId, reason: 'no-font', message: 'The geometry worker does not have this font.' })
+    if (!loading)
+      return post({
+        type: 'failed',
+        requestId,
+        reason: 'no-font',
+        message: 'The geometry worker does not have this font.',
+      })
     let font: LoadedFont
     try {
       font = await loading
@@ -57,7 +65,8 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
     let transfer: ArrayBuffer[] = []
     let started = performance.now()
     const flush = (key: string) => {
-      if (batch.length) post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}), times }, transfer)
+      if (batch.length)
+        post({ type: 'results', requestId, fontId, key, results: batch, ...(live ? { live } : {}), times }, transfer)
       batch = []
       times = []
       transfer = []
@@ -76,7 +85,10 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
         try {
           const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, live)
           // Packed (the cache keeps its objects; the arrays move to the page), with statistics only for the glyph asked.
-          const { packed, transfer: buffers } = packGeometry(geometry, request.stats?.key === key && request.stats.index === index)
+          const { packed, transfer: buffers } = packGeometry(
+            geometry,
+            request.stats?.key === key && request.stats.index === index,
+          )
           batch.push({ index, packed })
           transfer.push(...buffers)
         } catch (error) {
@@ -101,7 +113,12 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
     const { requestId, fontId, generation, glideMs, playheadMs, items } = request
     const stopped = () => latest.ahead !== requestId
     const done = (stoppedEarly: boolean) =>
-      post({ type: 'ahead-done', requestId, ...(stoppedEarly ? { stopped: true } : {}), stored: { bytes: core.size.bytes } })
+      post({
+        type: 'ahead-done',
+        requestId,
+        ...(stoppedEarly ? { stopped: true } : {}),
+        stored: { bytes: core.size.bytes },
+      })
     let font: LoadedFont
     try {
       const loading = fonts.get(fontId)
@@ -112,11 +129,18 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
       return post({ type: 'ahead-done', requestId, stopped: true })
     }
     core.begin(fontId, generation, glideMs, playheadMs)
-    core.reserve(items.flatMap((item) => (item.kind === 'step' ? [item] : item.indices.map((index) => ({ seq: item.seq, key: item.key, index, mediaMs: item.mediaMs })))))
+    core.reserve(
+      items.flatMap((item) =>
+        item.kind === 'step'
+          ? [item]
+          : item.indices.map((index) => ({ seq: item.seq, key: item.key, index, mediaMs: item.mediaMs })),
+      ),
+    )
     let started = performance.now()
     let plansOf: { seq: number; plans: StepRecord[] } | null = null
     const flushPlans = () => {
-      if (plansOf && plansOf.plans.length) post({ type: 'ahead-plans', requestId, generation, seq: plansOf.seq, plans: plansOf.plans })
+      if (plansOf && plansOf.plans.length)
+        post({ type: 'ahead-plans', requestId, generation, seq: plansOf.seq, plans: plansOf.plans })
       plansOf = null
     }
     /** Waits while a higher lane works, and between batches; false once a newer ahead request replaced this one. */
@@ -204,7 +228,11 @@ export function createGeometryWorker(post: (message: WorkerResponse, transfer?: 
       const settled = settleInBetween(from, to)
       const planned = planMorph(settled, to)
       const data = planned ? encodePlan(planned).data : null
-      post({ type: 'plan-result', requestId, data: data && settled !== from ? { ...data, settled: encodeSettled(settled) } : data })
+      post({
+        type: 'plan-result',
+        requestId,
+        data: data && settled !== from ? { ...data, settled: encodeSettled(settled) } : data,
+      })
     } finally {
       plans.delete(requestId)
       cancelledPlans.delete(requestId)

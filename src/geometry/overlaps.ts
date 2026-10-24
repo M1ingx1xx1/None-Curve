@@ -63,7 +63,15 @@ export interface OverlapStats {
   tooComplex: boolean
 }
 
-export const emptyOverlapStats = (): OverlapStats => ({ applied: false, crossings: 0, contoursIn: 0, contoursOut: 0, removed: 0, failed: false, tooComplex: false })
+export const emptyOverlapStats = (): OverlapStats => ({
+  applied: false,
+  crossings: 0,
+  contoursIn: 0,
+  contoursOut: 0,
+  removed: 0,
+  failed: false,
+  tooComplex: false,
+})
 
 export interface MergeOptions {
   /** At most this many grid points (vertices and crossings) are merged; beyond that the glyph is left as it is. */
@@ -101,7 +109,12 @@ export function mergeOverlaps(
 }
 
 /** The merge on a grid of `scale` cells per font unit; null when it breaks down or a coordinate lies beyond the grid. */
-function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHot: number): { polygon: PolygonGlyph; stats: OverlapStats } | null {
+function mergeOnGrid(
+  polygon: PolygonGlyph,
+  rule: FillRule,
+  scale: number,
+  maxHot: number,
+): { polygon: PolygonGlyph; stats: OverlapStats } | null {
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const stats: OverlapStats = { ...emptyOverlapStats(), applied: true, contoursIn: polygon.contours.length }
   const nothing = () => ({ polygon: { ...polygon, contours: [] }, stats: { ...stats, contoursOut: 0 } })
@@ -118,7 +131,12 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
   if (!faces) return null
   const loops = traceLoops(polygon, rule, scale, segments, hot, graph, faces, stats)
 
-  const exact = exactContours(loops, OVERLAP_LIMITS.minArea / 2 / (scale * scale), 1 / scale, WARP_LIMITS.shortEdge * unitsPerEm)
+  const exact = exactContours(
+    loops,
+    OVERLAP_LIMITS.minArea / 2 / (scale * scale),
+    1 / scale,
+    WARP_LIMITS.shortEdge * unitsPerEm,
+  )
   const contours: PolygonContour[] = exact.map((points) => ({ points, clockwise: signedArea(points) < 0 }))
   stats.contoursOut = contours.length
   return { polygon: { ...polygon, contours }, stats }
@@ -236,7 +254,10 @@ function hotPixels(segments: GridSegments, maxHot: number): HotPixels | null {
   }
   let crossings = 0
   // In the order a sweep along x finds them, which numbers the grid points (and so orders the result) as ever.
-  for (const k of sweep.inXOrder(Array.from({ length: pairs.length / 2 }, (_, k) => k), pairs)) {
+  for (const k of sweep.inXOrder(
+    Array.from({ length: pairs.length / 2 }, (_, k) => k),
+    pairs,
+  )) {
     const s = pairs[2 * k]
     const t = pairs[2 * k + 1]
     const d1 = cross(ax[s], ay[s], bx[s], by[s], ax[t], ay[t])
@@ -339,7 +360,9 @@ function planarGraph({ net, owner }: GridEdges, { hx, hy }: HotPixels): PlanarGr
   for (let h = 0; h < halves; h++) outgoing[from[h]].push(h)
   const position = new Int32Array(halves)
   for (const list of outgoing) {
-    list.sort((g, h) => compareAngle(hx[to[g]] - hx[from[g]], hy[to[g]] - hy[from[g]], hx[to[h]] - hx[from[h]], hy[to[h]] - hy[from[h]]))
+    list.sort((g, h) =>
+      compareAngle(hx[to[g]] - hx[from[g]], hy[to[g]] - hy[from[g]], hx[to[h]] - hx[from[h]], hy[to[h]] - hy[from[h]]),
+    )
     list.forEach((h, k) => (position[h] = k))
   }
   return { from, to, wind, segment, outgoing, position }
@@ -486,7 +509,8 @@ function traceLoops(
   const { from, segment } = graph
   const halves = from.length
   const next = (h: number) => nextHalf(graph, h)
-  const ink = rule === 'positive' ? (f: number) => (faceWinding[f] ?? 0) > 0 : (f: number) => (faceWinding[f] ?? 0) !== 0
+  const ink =
+    rule === 'positive' ? (f: number) => (faceWinding[f] ?? 0) > 0 : (f: number) => (faceWinding[f] ?? 0) !== 0
   const kept = new Uint8Array(halves)
   for (let h = 0; h < halves; h++) if (ink(face[h]) && !ink(face[twin(h)])) kept[h] = 1
   const used = new Uint8Array(halves)
@@ -533,8 +557,10 @@ function traceLoops(
     const b = startPixel[t] === v ? starts[t] : endPixel[t] === v ? ends[t] : null
     if (a && b) {
       // Consecutive segments of a contour, run forwards or backwards: the input vertices between them.
-      if (endPixel[s] === v && startPixel[t] === v && following[s] === t) return { grid, exact: between(s, t), own: true, detour: false }
-      if (startPixel[s] === v && endPixel[t] === v && following[t] === s) return { grid, exact: between(t, s).reverse(), own: true, detour: false }
+      if (endPixel[s] === v && startPixel[t] === v && following[s] === t)
+        return { grid, exact: between(s, t), own: true, detour: false }
+      if (startPixel[s] === v && endPixel[t] === v && following[t] === s)
+        return { grid, exact: between(t, s).reverse(), own: true, detour: false }
       const same = a.x === b.x && a.y === b.y
       return { grid, exact: same ? [a] : [], own: same, detour: false }
     }
@@ -598,7 +624,8 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
   const gridBoxes = loops.map((loop) => ringBox(loop.grid))
   /** Indexes of long contours on the grid, made on first use. */
   const gridIndexes: (RingIndex | undefined)[] = []
-  const gridIndex = (k: number) => (loops[k].grid.length < OVERLAP_LIMITS.indexed ? undefined : (gridIndexes[k] ??= new RingIndex(loops[k].grid)))
+  const gridIndex = (k: number) =>
+    loops[k].grid.length < OVERLAP_LIMITS.indexed ? undefined : (gridIndexes[k] ??= new RingIndex(loops[k].grid))
   let valid: Point[][] | null = null
   for (let round = 0; round < OVERLAP_LIMITS.exactRounds; round++) {
     // Each contour as it stands, and for each of its points the corner it comes from.
@@ -677,10 +704,19 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
     // contours whole, so the order of pairs does not matter.)
     const ringIndexes: (RingIndex | undefined)[] = []
     const ringIndex = (k: number) =>
-      rings[k] === loops[k].grid ? gridIndex(k) : rings[k].length < OVERLAP_LIMITS.indexed ? undefined : (ringIndexes[k] ??= new RingIndex(rings[k]))
+      rings[k] === loops[k].grid
+        ? gridIndex(k)
+        : rings[k].length < OVERLAP_LIMITS.indexed
+          ? undefined
+          : (ringIndexes[k] ??= new RingIndex(rings[k]))
     const boxes = rings.map((ring, k) => {
       const [box, grid] = [ringBox(ring), gridBoxes[k]]
-      return { minX: Math.min(box.minX, grid.minX), minY: Math.min(box.minY, grid.minY), maxX: Math.max(box.maxX, grid.maxX), maxY: Math.max(box.maxY, grid.maxY) }
+      return {
+        minX: Math.min(box.minX, grid.minX),
+        minY: Math.min(box.minY, grid.minY),
+        maxX: Math.max(box.maxX, grid.maxX),
+        maxY: Math.max(box.maxY, grid.maxY),
+      }
     })
     const byLeft = boxes.map((_, k) => k).sort((k, m) => boxes[k].minX - boxes[m].minX)
     for (let u = 0; u < byLeft.length; u++) {
@@ -700,8 +736,17 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
         }
         if (crossings.length > 0) continue
         // Apart, or one inside the other, as on the grid (where they may touch at a point instead).
-        const before = (onGrid[k * loops.length + m] ??= relate(loops[k].grid, loops[m].grid, gridIndex(k), gridIndex(m)))
-        if (!before.meet && (inside(rings[k], rings[m], ringIndex(m)) !== before.aInB || inside(rings[m], rings[k], ringIndex(k)) !== before.bInA)) {
+        const before = (onGrid[k * loops.length + m] ??= relate(
+          loops[k].grid,
+          loops[m].grid,
+          gridIndex(k),
+          gridIndex(m),
+        ))
+        if (
+          !before.meet &&
+          (inside(rings[k], rings[m], ringIndex(m)) !== before.aInB ||
+            inside(rings[m], rings[k], ringIndex(k)) !== before.bInA)
+        ) {
           whole[k] = whole[m] = 1
           changed = true
         }
@@ -727,7 +772,12 @@ function exactContours(loops: readonly Loop[], minArea: number, cell: number, sh
         if (run.filter(own).length >= WARP_LIMITS.curveRun) continue
         let weakest = -1
         for (const j of run) {
-          if (own(j) || needed[k][source[j]] || distanceToSegment(ring[j], ring[(j - 1 + n) % n], ring[(j + 1) % n]) > cell) continue
+          if (
+            own(j) ||
+            needed[k][source[j]] ||
+            distanceToSegment(ring[j], ring[(j - 1 + n) % n], ring[(j + 1) % n]) > cell
+          )
+            continue
           if (weakest < 0 || run.turn(j) < run.turn(weakest)) weakest = j
         }
         // Never two neighbours at once: each is measured against the other's place.
@@ -754,7 +804,7 @@ function inside(a: readonly Point[], b: readonly Point[], index?: RingIndex): bo
  * `own` says the input has them, with their sources.
  */
 function dropStraightNear(points: Point[], sources: number[], own: (source: number) => boolean) {
-  for (let changed = true; changed && points.length >= 3; ) {
+  for (let changed = true; changed && points.length >= 3;) {
     changed = false
     let kept = 0
     const n = points.length
@@ -929,7 +979,7 @@ function pointKey(x: number, y: number): number {
 /** Leaves out vertices on the straight line between their neighbours. */
 function dropStraight(points: Point[]): Point[] {
   let out = points
-  for (let changed = true; changed && out.length >= 3; ) {
+  for (let changed = true; changed && out.length >= 3;) {
     changed = false
     const kept: Point[] = []
     for (let i = 0; i < out.length; i++) {
@@ -964,9 +1014,13 @@ function hasRoom(points: readonly Point[], radius: number): boolean {
     const length = Math.hypot(b.x - a.x, b.y - a.y)
     // A zero-length edge has no inward direction (it would divide by zero); the edges beside it are tried instead.
     if (length === 0) continue
-    const centre = { x: (a.x + b.x) / 2 - (inward * (b.y - a.y)) / length, y: (a.y + b.y) / 2 + (inward * (b.x - a.x)) / length }
+    const centre = {
+      x: (a.x + b.x) / 2 - (inward * (b.y - a.y)) / length,
+      y: (a.y + b.y) / 2 + (inward * (b.x - a.x)) / length,
+    }
     let clear = true
-    for (let j = 0; j < n && clear; j++) if (j !== i) clear = distanceToSegment(centre, points[j], points[(j + 1) % n]) >= clearance
+    for (let j = 0; j < n && clear; j++)
+      if (j !== i) clear = distanceToSegment(centre, points[j], points[(j + 1) % n]) >= clearance
     if (clear && insideRing(centre, points)) return true
   }
   return false

@@ -15,7 +15,16 @@
 import { GlyphBudget, type BudgetStats } from './budget'
 import { crumpleWarp } from './crumple'
 import { applyDissolve, emptyDissolveStats, type DissolveStats } from './dissolve'
-import { crumpleIsOn, dissolveIsOn, EXPERIMENTAL_LIMITS, experimentalFolds, rippleIsOn, slipstreamIsOn, thornIsOn, whorlIsOn } from './limits'
+import {
+  crumpleIsOn,
+  dissolveIsOn,
+  EXPERIMENTAL_LIMITS,
+  experimentalFolds,
+  rippleIsOn,
+  slipstreamIsOn,
+  thornIsOn,
+  whorlIsOn,
+} from './limits'
 import { emptyOverlapStats, type OverlapStats } from './overlaps'
 import { inkBox, rippleWarp, type Box } from './ripple'
 import { emptySlipstreamStats, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
@@ -49,7 +58,11 @@ export function applyExperimental(
   const seed = Math.trunc(Number.isFinite(params.seed) ? params.seed : 1) | 0
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const vertices = polygon.contours.reduce((n, c) => n + c.points.length, 0)
-  const budget = new GlyphBudget(vertices + EXPERIMENTAL_LIMITS.maxAddedVertices, vertices + EXPERIMENTAL_LIMITS.maxMergePoints, unitsPerEm)
+  const budget = new GlyphBudget(
+    vertices + EXPERIMENTAL_LIMITS.maxAddedVertices,
+    vertices + EXPERIMENTAL_LIMITS.maxMergePoints,
+    unitsPerEm,
+  )
   const stats: ExperimentalStats = {
     crumple: emptyWarpStats(),
     ripple: emptyWarpStats(),
@@ -69,7 +82,10 @@ export function applyExperimental(
   let marks: CreaseMarks | undefined
   // Thorn's anchors, picked on the reference and followed through every step below to the vertices they became.
   // Burst picks none: its spikes are spread round the outline as Thorn finds it.
-  const anchors = thornIsOn(params.thorn) && !thornBursts(params.thorn) ? new ThornAnchors(reference, polygon, params.thorn, seed, unitsPerEm) : undefined
+  const anchors =
+    thornIsOn(params.thorn) && !thornBursts(params.thorn)
+      ? new ThornAnchors(reference, polygon, params.thorn, seed, unitsPerEm)
+      : undefined
   // Keeps the glyph within its vertex budget. A simplified glyph may cross itself, so from then on it is merged at the end.
   const withinBudget = () => {
     const fitted = budget.fit(result)
@@ -84,13 +100,28 @@ export function applyExperimental(
   // Distortion change would shift where the warps fall for them and turn the thorns.
   const moved = anchors ? boxMove(inkBox(reference), inkBox(polygon)) : null
   const undistorted = (box: Box): Box =>
-    moved ? { minX: box.minX - moved.minX, minY: box.minY - moved.minY, maxX: box.maxX - moved.maxX, maxY: box.maxY - moved.maxY } : box
+    moved
+      ? {
+          minX: box.minX - moved.minX,
+          minY: box.minY - moved.minY,
+          maxX: box.maxX - moved.maxX,
+          maxY: box.maxY - moved.maxY,
+        }
+      : box
   // Warps the glyph (makeWarp gives the warp at a share of its strength, placed by `box`) and keeps it within its budget.
   const warp = (box: Box | null, makeWarp: (scale: number, box: Box | null) => Warp): WarpStats => {
     let full: Warp | undefined
     const warpAt = (scale: number) => (scale === 1 ? (full ??= makeWarp(1, box)) : makeWarp(scale, box))
     const warped = applyWarp(result, warpAt, unitsPerEm, marks, tangled, budget.maxWarpPoints)
-    if (anchors) anchors.warped(result, marks, warped.polygon, warped.marks, warpAt(1), moved && box ? makeWarp(1, undistorted(box)) : warpAt(1))
+    if (anchors)
+      anchors.warped(
+        result,
+        marks,
+        warped.polygon,
+        warped.marks,
+        warpAt(1),
+        moved && box ? makeWarp(1, undistorted(box)) : warpAt(1),
+      )
     ;({ polygon: result, marks } = warped)
     withinBudget()
     return warped.stats
@@ -102,17 +133,21 @@ export function applyExperimental(
   // Ripple, Whorl, and Slipstream place themselves by the ink box of what they receive, so the same letter
   // always looks alike.
   const rippleBox = rippleIsOn(params.ripple) ? inkBox(result) : null
-  if (rippleBox) stats.ripple = warp(rippleBox, (scale, box) => rippleWarp(params.ripple, box ?? rippleBox, unitsPerEm, scale))
+  if (rippleBox)
+    stats.ripple = warp(rippleBox, (scale, box) => rippleWarp(params.ripple, box ?? rippleBox, unitsPerEm, scale))
   const whorlBox = whorlIsOn(params.whorl) ? inkBox(result) : null
   const beforeWhorl = result
-  if (whorlBox) stats.whorl = warp(whorlBox, (scale, box) => whorlWarp(params.whorl, box ?? whorlBox, unitsPerEm, scale))
+  if (whorlBox)
+    stats.whorl = warp(whorlBox, (scale, box) => whorlWarp(params.whorl, box ?? whorlBox, unitsPerEm, scale))
   const slipstreamBox = slipstreamIsOn(params.slipstream) ? inkBox(result) : null
   // True once Slipstream's cuts have redrawn the outline, which merges any folds so far.
   let streamMerged = false
   // The outline Slipstream could not merge (it broke down or was too complex), so the final merge need not try it again.
   let unmergeable: PolygonGlyph | null = null
   if (slipstreamBox) {
-    const streamed = warp(slipstreamBox, (scale, box) => slipstreamWarp(params.slipstream, seed, box ?? slipstreamBox, unitsPerEm, scale))
+    const streamed = warp(slipstreamBox, (scale, box) =>
+      slipstreamWarp(params.slipstream, seed, box ?? slipstreamBox, unitsPerEm, scale),
+    )
     const marked = slipstreamTrailsAndCuts(result, params.slipstream, seed, unitsPerEm, budget)
     stats.slipstream = { ...streamed, trails: marked.trails, cuts: marked.cuts }
     if (marked.trails > 0 || marked.merge?.applied || marked.merge?.tooComplex) {
@@ -138,7 +173,16 @@ export function applyExperimental(
     if (layoutBox) layout = { layoutBox, layoutHull: convexHull(result) }
     const reductions = budget.reductions
     // Once Slipstream has merged the folds, the outlines no longer cross, so Thorn's warps are checked again.
-    ;({ polygon: result, stats: stats.thorn } = applyThorn(result, params.thorn, seed, unitsPerEm, marks, tangled, budget, anchors))
+    ;({ polygon: result, stats: stats.thorn } = applyThorn(
+      result,
+      params.thorn,
+      seed,
+      unitsPerEm,
+      marks,
+      tangled,
+      budget,
+      anchors,
+    ))
     if (budget.reductions > reductions) tangled = true
   }
   if ((tangled || stats.thorn.applied) && result !== unmergeable) {
@@ -159,16 +203,30 @@ export function applyExperimental(
     if (stats.thorn.applied && thornBursts(params.thorn) && merged.stats.applied) {
       const cleaned = withoutSpecks(result, unitsPerEm)
       result = cleaned.polygon
-      stats.folds = { ...stats.folds, removed: stats.folds.removed + cleaned.removed, contoursOut: stats.folds.contoursOut - cleaned.removed }
+      stats.folds = {
+        ...stats.folds,
+        removed: stats.folds.removed + cleaned.removed,
+        contoursOut: stats.folds.contoursOut - cleaned.removed,
+      }
     }
   }
   if (dissolveIsOn(params.dissolve)) {
-    ;({ polygon: result, stats: stats.dissolve } = applyDissolve(result, params.dissolve, seed, unitsPerEm, budget.maxVertices))
+    ;({ polygon: result, stats: stats.dissolve } = applyDissolve(
+      result,
+      params.dissolve,
+      seed,
+      unitsPerEm,
+      budget.maxVertices,
+    ))
   }
   // Whorl's centre and settings ride along for Glide (display only; PolygonGlyph.motion).
   const motion = whorlBox ? { whorl: whorlMotion(params.whorl, whorlBox, unitsPerEm, beforeWhorl) } : null
   if (motion) {
-    const last = !stats.whorl.tooComplex && !slipstreamIsOn(params.slipstream) && !thornIsOn(params.thorn) && !dissolveIsOn(params.dissolve)
+    const last =
+      !stats.whorl.tooComplex &&
+      !slipstreamIsOn(params.slipstream) &&
+      !thornIsOn(params.thorn) &&
+      !dissolveIsOn(params.dissolve)
     if (last) motion.whorl.last = true
   }
   return { polygon: layout || motion ? { ...result, ...layout, ...(motion ? { motion } : {}) } : result, stats }
@@ -179,7 +237,9 @@ export function applyExperimental(
  * Slanting is linear, so the slanted letter reaches exactly as far as its hull (see PolygonGlyph.layoutHull).
  */
 function convexHull(polygon: PolygonGlyph): Point[] {
-  const points = polygon.contours.flatMap((c) => c.points.map(({ x, y }) => ({ x, y }))).sort((a, b) => a.x - b.x || a.y - b.y)
+  const points = polygon.contours
+    .flatMap((c) => c.points.map(({ x, y }) => ({ x, y })))
+    .sort((a, b) => a.x - b.x || a.y - b.y)
   if (points.length < 3) return points
   const turn = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
   const half = (from: Point[]) => {
@@ -198,6 +258,11 @@ function convexHull(polygon: PolygonGlyph): Point[] {
 /** How far Distortion moved each side of the ink box (from `before` to `after`), or null when it moved none. */
 function boxMove(before: Box | null, after: Box | null): Box | null {
   if (!before || !after) return null
-  const move = { minX: after.minX - before.minX, minY: after.minY - before.minY, maxX: after.maxX - before.maxX, maxY: after.maxY - before.maxY }
+  const move = {
+    minX: after.minX - before.minX,
+    minY: after.minY - before.minY,
+    maxX: after.maxX - before.maxX,
+    maxY: after.maxY - before.maxY,
+  }
   return move.minX || move.minY || move.maxX || move.maxY ? move : null
 }

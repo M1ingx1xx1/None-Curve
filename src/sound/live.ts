@@ -129,7 +129,17 @@ const STUCK_MS = 1000
 const NOT_DRIVING: LiveStatus = { driving: false, fps: 0, slow: false, differs: false }
 
 /** The parameter groups sound can drive (GeometryParams, then the canvas's typography and colours), in the order Freeze writes them. */
-const GROUPS = ['flatten', 'random', 'squaring', 'anchors', 'grid', 'distortion', 'experimental', 'typography', 'palette'] as const
+const GROUPS = [
+  'flatten',
+  'random',
+  'squaring',
+  'anchors',
+  'grid',
+  'distortion',
+  'experimental',
+  'typography',
+  'palette',
+] as const
 
 /** What Freeze writes: whole groups, as the editor's updateParams action takes them. */
 export type FrozenGroups = Partial<Pick<Required<DrivenParams>, ParamPatch['group']>>
@@ -146,9 +156,23 @@ const NO_JUMPS: Jumps = new Map()
  * A frame as shown: its key, the frame, shaping, jumps and held values it came from, whether it is the sliders' own,
  * and whether its shared live values differ from the sliders (Freeze would change something).
  */
-type Shown = { key: string; frame: FeatureFrame; shaped: ShapedFrame; jumps: Jumps; holds: Holds | null; isBase: boolean; differs: boolean }
+type Shown = {
+  key: string
+  frame: FeatureFrame
+  shaped: ShapedFrame
+  jumps: Jumps
+  holds: Holds | null
+  isBase: boolean
+  differs: boolean
+}
 /** A frame waiting to be committed to React: its glyphs are being computed. `turn`: the Thorn turns it shows. */
-type Next = { shown: Shown; params: DrivenParams | null; letters: LetterFrame | null; look: LookChanges | null; turn: number }
+type Next = {
+  shown: Shown
+  params: DrivenParams | null
+  letters: LetterFrame | null
+  look: LookChanges | null
+  turn: number
+}
 
 /**
  * The planner's flash budget (planner.ts): also notes the time of every edge it lets through, so each planned commit
@@ -212,7 +236,11 @@ const NO_EDGES: readonly number[] = []
  * (the shown frame's key) interned through `intern`, no edges as one shared empty list, and each shown frame copied
  * once (`shownCopies` remembers the copy, so consecutive commits that show one frame keep sharing it).
  */
-export function compactPlanned(adopted: AdoptedState, intern: (text: string) => string, shownCopies: WeakMap<object, object>): AdoptedState {
+export function compactPlanned(
+  adopted: AdoptedState,
+  intern: (text: string) => string,
+  shownCopies: WeakMap<object, object>,
+): AdoptedState {
   const state = adopted as PlannedState
   let shown = state.shown
   if (shown) {
@@ -380,7 +408,6 @@ interface LimiterTarget {
 
 /** FlashLimiter's swings, copied (snapshot, restore). */
 type LimiterSnapshot = ReadonlyMap<string, Readonly<LimiterTarget>>
-
 
 /** Applies held values to modulated parameters (Freeze, from the frame on screen). */
 function applyHolds(params: DrivenParams, holds: Holds | null): DrivenParams {
@@ -749,7 +776,10 @@ export class LiveScheduler {
   freezeChanges(): FrozenGroups | null {
     const { base, committed } = this
     if (!this.driving || !base || !committed || !committed.differs) return null
-    const params = applyHolds(modulate(base, committed.frame, this.mappings, committed.jumps, this.response, committed.shaped.values).params, committed.holds)
+    const params = applyHolds(
+      modulate(base, committed.frame, this.mappings, committed.jumps, this.response, committed.shaped.values).params,
+      committed.holds,
+    )
     if (params === base) return null
     const changes: FrozenGroups = {}
     let any = false
@@ -775,7 +805,14 @@ export class LiveScheduler {
 
   /** What the scheduler is fed besides the frames, for the planner. */
   inputs(): LiveInputs {
-    return { base: this.base, hasFont: this.hasFont, mappings: this.mappings, drive: this.drive, response: this.response, slots: this.slots }
+    return {
+      base: this.base,
+      hasFont: this.hasFont,
+      mappings: this.mappings,
+      drive: this.drive,
+      response: this.response,
+      slots: this.slots,
+    }
   }
 
   /** Whether the scheduler follows planned commits (follow). */
@@ -834,7 +871,8 @@ export class LiveScheduler {
       this.budget.spend(at)
       this.lastImported = at
     }
-    if (this.lastAdoptAt !== null) this.period += SMOOTHING * (Math.max(MIN_COMMIT_MS, now - this.lastAdoptAt) - this.period)
+    if (this.lastAdoptAt !== null)
+      this.period += SMOOTHING * (Math.max(MIN_COMMIT_MS, now - this.lastAdoptAt) - this.period)
     this.lastAdoptAt = now
     this.driving = state.driving
     this.committed = state.shown
@@ -887,11 +925,20 @@ export class LiveScheduler {
       this.period = MIN_COMMIT_MS
       this.slowSince = null
       // The canvas shows the sliders' own parameters until the first live commit.
-      this.committed = { key: this.baseFrameKey, frame: SILENT_FRAME, shaped: NO_SHAPING, jumps: NO_JUMPS, holds: null, isBase: true, differs: false }
+      this.committed = {
+        key: this.baseFrameKey,
+        frame: SILENT_FRAME,
+        shaped: NO_SHAPING,
+        jumps: NO_JUMPS,
+        holds: null,
+        isBase: true,
+        differs: false,
+      }
     }
     // Where each letter would go this frame, and the levels letters show or are about to (for the flash limit).
     const { levels, slots } = this
-    const wanted = levels && slots.activeCount > 0 ? assignLevels(slots, this.response, this.frame, levels, this.validShown()) : null
+    const wanted =
+      levels && slots.activeCount > 0 ? assignLevels(slots, this.response, this.frame, levels, this.validShown()) : null
     const spread = levels && wanted ? { base, gains: this.presentGains(levels, wanted) } : undefined
     // On the frame's time, as the jumps: one frame's turns and jumps are one edge of the flash budget.
     const limited = this.flash.limit(unlimited, this.frame.time, spread)
@@ -1033,7 +1080,8 @@ export class LiveScheduler {
     let swing = switchSwing(ref, wanted, slots, sets)
     const trail = this.trimTrail(this.deps.now())
     for (let i = 0; i < trail.length - 1 && swing < FLASH_LIMITS.swing - 1e-9; i++) {
-      if (trail[i].assign.length === slots.count) swing = Math.max(swing, switchSwing(trail[i].assign, wanted, slots, sets))
+      if (trail[i].assign.length === slots.count)
+        swing = Math.max(swing, switchSwing(trail[i].assign, wanted, slots, sets))
     }
     return swing
   }
@@ -1057,7 +1105,14 @@ export class LiveScheduler {
       // The same frame on screen. With Thorn turns the shared values can move while it does not (a turn waits): Freeze
       // and the status follow them, as the markers do.
       if (latest.frame !== committed.frame) {
-        this.committed = { ...committed, frame: latest.frame, shaped: latest.shaped, jumps: latest.jumps, holds: latest.holds, differs: latest.differs }
+        this.committed = {
+          ...committed,
+          frame: latest.frame,
+          shaped: latest.shaped,
+          jumps: latest.jumps,
+          holds: latest.holds,
+          differs: latest.differs,
+        }
       }
       return this.showTurns(latest.turn)
     }
@@ -1089,7 +1144,13 @@ export class LiveScheduler {
     const params = isBase ? null : latest.modulated.params
     const letters = isBase ? null : latest.letters
     const look = isBase ? null : latest.look
-    this.awaiting = { seq: ++this.seq, at: now, next: { shown, params, letters, look, turn: latest.turn }, committedAt: now, rendered: false }
+    this.awaiting = {
+      seq: ++this.seq,
+      at: now,
+      next: { shown, params, letters, look, turn: latest.turn },
+      committedAt: now,
+      rendered: false,
+    }
     this.lastStartAt = now
     this.showLevels(latest.assign)
     // The sliders' own results are kept from normal editing; a live frame's glyphs are computed first, so

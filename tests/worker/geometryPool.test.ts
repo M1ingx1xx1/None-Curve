@@ -14,14 +14,24 @@ import { GeometryClient, poolSize } from '../../src/state/geometryClient'
 import { FakeWorker } from '../helpers/fakeWorker'
 import { BASE } from '../helpers/params'
 
-const font = (id: string) => ({ id, bytes: new Uint8Array(4), source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 } }) as unknown as LoadedFont
-const geometry = (index: number) => ({ polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] }, vertexCount: index }) as unknown as WorkerGeometry
+const font = (id: string) =>
+  ({
+    id,
+    bytes: new Uint8Array(4),
+    source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 },
+  }) as unknown as LoadedFont
+const geometry = (index: number) =>
+  ({
+    polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] },
+    vertexCount: index,
+  }) as unknown as WorkerGeometry
 const packed = (index: number) => packGeometry(geometry(index)).packed
 const job = (key: string, indices: number[]): GeometryJob => ({ params: BASE, key, indices })
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => from + k)
 
 /** The glyphs of each set in a worker's newest request, as "key|index", in its order. */
-const pairsOf = (w: FakeWorker) => (w.computes ? w.lastRequest.jobs.flatMap(({ key, indices }) => indices.map((i) => `${key}|${i}`)) : [])
+const pairsOf = (w: FakeWorker) =>
+  w.computes ? w.lastRequest.jobs.flatMap(({ key, indices }) => indices.map((i) => `${key}|${i}`)) : []
 
 /** The worker answers its newest request in full (each glyph taking `ms`), then says it is done. */
 function answer(w: FakeWorker, ms: (index: number) => number = () => 1) {
@@ -58,7 +68,13 @@ describe('geometry worker pool', () => {
     })
   }
   /** The workers that got a part of the newest request, in pool order. */
-  const busy = () => workers.filter((w) => !w.terminated && w.computes && w.lastRequest.requestId === Math.max(...workers.filter((v) => v.computes).map((v) => v.lastRequest.requestId)))
+  const busy = () =>
+    workers.filter(
+      (w) =>
+        !w.terminated &&
+        w.computes &&
+        w.lastRequest.requestId === Math.max(...workers.filter((v) => v.computes).map((v) => v.lastRequest.requestId)),
+    )
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'] })
@@ -90,7 +106,8 @@ describe('geometry worker pool', () => {
       expect(part).toEqual(order.filter((pair) => part.includes(pair)))
     }
     // A glyph's sets all go to one worker, and the request is one id.
-    for (const w of workers) for (const i of [7, 3, 11]) expect(pairsOf(w).includes(`a|${i}`)).toBe(pairsOf(w).includes(`b|${i}`))
+    for (const w of workers)
+      for (const i of [7, 3, 11]) expect(pairsOf(w).includes(`a|${i}`)).toBe(pairsOf(w).includes(`b|${i}`))
     expect(new Set(workers.map((w) => w.lastRequest.requestId)).size).toBe(1)
     // An even share when nothing is known of the glyphs' times.
     expect(workers.map((w) => w.lastRequest.jobs[0].indices.length)).toEqual([4, 4, 4])
@@ -205,7 +222,12 @@ describe('geometry worker pool', () => {
     expect(idle).toHaveBeenCalledTimes(1)
     // Asking again sends only the stuck worker's other glyphs.
     client.compute(font('f'), BASE, 'a', range(1, 6))
-    expect([...pairsOf(workers[2]), ...(fine.computes > 1 ? pairsOf(fine) : [])].sort()).toEqual(stuckGlyphs.slice(1).map((i) => `a|${i}`).sort())
+    expect([...pairsOf(workers[2]), ...(fine.computes > 1 ? pairsOf(fine) : [])].sort()).toEqual(
+      stuckGlyphs
+        .slice(1)
+        .map((i) => `a|${i}`)
+        .sort(),
+    )
   })
 
   it('restarts a failing worker on its own while the request goes on, then asks again for its glyphs', () => {
@@ -257,7 +279,8 @@ describe('geometry worker pool', () => {
   it('forgets restarts older than a minute', async () => {
     pool(2)
     client.compute(font('f'), BASE, 'a', range(1, 4))
-    for (let k = 0; k < 3; k++) workers.filter((w) => !w.terminated)[0].onerror?.({ preventDefault: () => {} } as ErrorEvent)
+    for (let k = 0; k < 3; k++)
+      workers.filter((w) => !w.terminated)[0].onerror?.({ preventDefault: () => {} } as ErrorEvent)
     await vi.advanceTimersByTimeAsync(60_001)
     workers.filter((w) => !w.terminated)[0].onerror?.({ preventDefault: () => {} } as ErrorEvent)
     expect(client.getProblem()).toBeNull()
@@ -290,9 +313,19 @@ describe('geometry worker pool', () => {
     pool(2)
     client.compute(font('f'), BASE, 'a', range(1, 4))
     const [first, second] = workers
-    first.reply({ type: 'glyph', requestId: first.lastRequest.requestId, key: 'a', index: first.lastRequest.jobs[0].indices[0] })
+    first.reply({
+      type: 'glyph',
+      requestId: first.lastRequest.requestId,
+      key: 'a',
+      index: first.lastRequest.jobs[0].indices[0],
+    })
     vi.advanceTimersByTime(100)
-    second.reply({ type: 'glyph', requestId: second.lastRequest.requestId, key: 'a', index: second.lastRequest.jobs[0].indices[0] })
+    second.reply({
+      type: 'glyph',
+      requestId: second.lastRequest.requestId,
+      key: 'a',
+      index: second.lastRequest.jobs[0].indices[0],
+    })
     // Not yet: neither has been on its glyph for 750 ms.
     vi.advanceTimersByTime(600)
     client.compute(font('f'), BASE, 'b', range(1, 4))
@@ -317,7 +350,12 @@ describe('geometry worker pool', () => {
     pool(2)
     client.compute(font('f'), BASE, 'a', range(1, 4))
     const [first] = workers
-    first.reply({ type: 'glyph', requestId: first.lastRequest.requestId, key: 'a', index: first.lastRequest.jobs[0].indices[0] })
+    first.reply({
+      type: 'glyph',
+      requestId: first.lastRequest.requestId,
+      key: 'a',
+      index: first.lastRequest.jobs[0].indices[0],
+    })
     vi.advanceTimersByTime(5000)
     client.computeJobs(font('f'), [job('L', range(1, 4))], true)
     expect(first.terminated).toBe(false)
@@ -347,12 +385,14 @@ describe('geometry worker pool', () => {
     client.compute(font('f'), BASE, 'a', range(1, 9))
     const [s1, s2, fine] = workers
     const stuckGlyphs = [s1, s2].map((w) => w.lastRequest.jobs[0].indices[0])
-    for (const w of [s1, s2]) w.reply({ type: 'glyph', requestId: w.lastRequest.requestId, key: 'a', index: w.lastRequest.jobs[0].indices[0] })
+    for (const w of [s1, s2])
+      w.reply({ type: 'glyph', requestId: w.lastRequest.requestId, key: 'a', index: w.lastRequest.jobs[0].indices[0] })
     answer(fine)
     await vi.advanceTimersByTimeAsync(5_001)
     expect([s1.terminated, s2.terminated, fine.terminated]).toEqual([true, true, false])
     expect(workers).toHaveLength(5)
-    for (const i of stuckGlyphs) expect(client.lookup('a', i)?.entry).toEqual({ error: 'Took longer than 5 s; try lighter settings' })
+    for (const i of stuckGlyphs)
+      expect(client.lookup('a', i)?.entry).toEqual({ error: 'Took longer than 5 s; try lighter settings' })
     expect(client.getProblem()).toBeNull()
     expect(client.isComputing()).toBe(false)
     expect(idle).toHaveBeenCalledTimes(1)
@@ -375,7 +415,13 @@ describe('geometry worker pool', () => {
     await Promise.resolve()
     expect(idle).toHaveBeenCalledTimes(1)
     // The old font's results and dones, arriving late, change nothing.
-    workers[0].reply({ type: 'results', requestId: old[0].requestId, fontId: 'f', key: 'a', results: [{ index: 1, packed: packed(1) }] })
+    workers[0].reply({
+      type: 'results',
+      requestId: old[0].requestId,
+      fontId: 'f',
+      key: 'a',
+      results: [{ index: 1, packed: packed(1) }],
+    })
     for (const [n, w] of workers.entries()) w.reply({ type: 'done', requestId: old[n].requestId, stopped: true })
     expect(client.lookup('a', 1)).toBeNull()
     expect(client.isComputing()).toBe(true)
@@ -400,7 +446,11 @@ describe('geometry worker pool', () => {
     client.compute(font('f'), BASE, 'a', range(1, 6))
     expect(workers).toHaveLength(2)
     expect(client.getProblem()).toBeNull()
-    expect(workers.flatMap(pairsOf).sort()).toEqual(range(1, 6).map((i) => `a|${i}`).sort())
+    expect(workers.flatMap(pairsOf).sort()).toEqual(
+      range(1, 6)
+        .map((i) => `a|${i}`)
+        .sort(),
+    )
     pool(3, { failAt: [0, 1, 2] })
     client.compute(font('f'), BASE, 'a', [1])
     expect(client.getProblem()).toBe('The geometry worker could not start. Reload the page to try again.')
@@ -426,7 +476,14 @@ describe('geometry worker pool', () => {
     const jobs = [job('a', [5, 1, 3]), job('b', [3])]
     client.computeJobs(font('f'), jobs, true)
     expect(workers).toHaveLength(1)
-    expect(workers[0].lastRequest).toEqual({ type: 'compute', requestId: expect.any(Number), fontId: 'f', jobs, live: true, stats: { key: 'a', index: 5 } })
+    expect(workers[0].lastRequest).toEqual({
+      type: 'compute',
+      requestId: expect.any(Number),
+      fontId: 'f',
+      jobs,
+      live: true,
+      stats: { key: 'a', index: 5 },
+    })
     expect(workers[0].received.filter((m) => m.type === 'cancel')).toEqual([])
   })
 })

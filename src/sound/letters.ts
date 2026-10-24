@@ -199,7 +199,9 @@ export function assignLevels(
       assign[j] = SHARED
       continue
     }
-    const x = Math.log(contrastGain(r.contrast, j, frame.time) * pitchWeight(r.pitchReactive, slots.t[j], pitch, frame.pitchConfidence))
+    const x = Math.log(
+      contrastGain(r.contrast, j, frame.time) * pitchWeight(r.pitchReactive, slots.t[j], pitch, frame.pitchConfidence),
+    )
     const was = before ? before[j] : SHARED
     if (was === STRONG && x > hi - mHi) assign[j] = STRONG
     else if (was === QUIET && x < lo + mLo) assign[j] = QUIET
@@ -216,7 +218,11 @@ export const isThornTarget = (id: string): boolean => id.startsWith('experimenta
  * Reach, which sets how long the thorns are, not where they sit or which way they point. They stay with the shared
  * values, so a beat on Reach grows and sinks every letter's thorns together.
  */
-const KEPT_THROUGH = new Set(['experimental.crumple.amount', 'experimental.ripple.amount', 'experimental.thorn.canvasReach'])
+const KEPT_THROUGH = new Set([
+  'experimental.crumple.amount',
+  'experimental.ripple.amount',
+  'experimental.thorn.canvasReach',
+])
 
 /** Dissolve runs after Thorn (experimental.ts), so its sliders never move a thorn. */
 const AFTER_THORN = 'experimental.dissolve.'
@@ -240,7 +246,11 @@ const isAxisTarget = (id: string): boolean => id.startsWith('axis.')
  * canvas targets (isCanvasTarget) or the font's axes.
  */
 export const isTurnTarget = (id: string): boolean =>
-  !id.startsWith('distortion.') && !KEPT_THROUGH.has(id) && !id.startsWith(AFTER_THORN) && !isCanvasTarget(id) && !isAxisTarget(id)
+  !id.startsWith('distortion.') &&
+  !KEPT_THROUGH.has(id) &&
+  !id.startsWith(AFTER_THORN) &&
+  !isCanvasTarget(id) &&
+  !isAxisTarget(id)
 
 /** Whether Thorn is on, so the turn targets come from the letters' turn groups (with Thorn off, levels scale them). */
 const turnsOn = (params: GeometryParams): boolean => params.experimental.thorn?.enabled === true
@@ -266,7 +276,9 @@ function scaled(
   // Kept to the mappings' Range (withinBounds), clamped and snapped to the slider's step (fromSlider).
   const live = spec.fromSlider(withinBounds(bp + gain * (position - bp), bp, bounds))
   // Still within the base value's own step: the slider's exact value, as modulate keeps it.
-  return live === value || live === spec.fromSlider(bp) ? { value, position: bp } : { value: live, position: spec.toSlider(live) }
+  return live === value || live === spec.fromSlider(bp)
+    ? { value, position: bp }
+    : { value: live, position: spec.toSlider(live) }
 }
 
 /**
@@ -295,7 +307,13 @@ export interface LevelSet {
   positions: ReadonlyMap<string, number>
 }
 
-function levelSet(base: GeometryParams, shared: Modulated, gain: number, middle: LevelSet, keyOf: (p: GeometryParams) => string): LevelSet {
+function levelSet(
+  base: GeometryParams,
+  shared: Modulated,
+  gain: number,
+  middle: LevelSet,
+  keyOf: (p: GeometryParams) => string,
+): LevelSet {
   if (gain === 1) return middle
   let params = shared.params
   let positions: Map<string, number> | null = null
@@ -309,7 +327,11 @@ function levelSet(base: GeometryParams, shared: Modulated, gain: number, middle:
     if (spec.get(params) !== at.value) params = spec.set(params, at.value)
   }
   if (params === shared.params && !positions) return middle
-  return { params, key: params === shared.params ? middle.key : keyOf(params), positions: positions ?? shared.positions }
+  return {
+    params,
+    key: params === shared.params ? middle.key : keyOf(params),
+    positions: positions ?? shared.positions,
+  }
 }
 
 /**
@@ -427,7 +449,7 @@ export function turnGroups(slots: LetterSlots): TurnGroups {
     }
     // The groups have room for every letter (count × capacity ≥ drawn letters), so this ends.
     const order = occurrences.slice().sort((a, b) => hash01(a) - hash01(b) || a - b)
-    for (let k = 0; k < order.length; ) {
+    for (let k = 0; k < order.length;) {
       const h = roomiest()
       const take = Math.min(room[h], order.length - k)
       for (const end = k + take; k < end; k++) of[order[k]] = h
@@ -489,7 +511,9 @@ export function withThornState(params: GeometryParams, state: ThornState): Geome
  * together and the letters return to the sliders' own values between hits. Seeds keep their turns.
  */
 export function pulsedTargets(mappings: readonly Mapping[], also: readonly string[] = []): readonly number[] {
-  const ids = new Set(mappings.filter((m) => m.enabled && (m.mode === 'trigger' || m.mode === 'toggle')).map((m) => m.target))
+  const ids = new Set(
+    mappings.filter((m) => m.enabled && (m.mode === 'trigger' || m.mode === 'toggle')).map((m) => m.target),
+  )
   for (const id of also) ids.add(id)
   const out: number[] = []
   STATE_TARGETS.forEach((spec, i) => {
@@ -569,7 +593,13 @@ export class ThornTurns {
    * The letters the groups are for, the groups, the state each shows, and the sliders' own state at the last update;
    * null after a clear.
    */
-  private current: { slots: LetterSlots; groups: TurnGroups; states: ThornState[]; takenAt: number[]; own: ThornState } | null = null
+  private current: {
+    slots: LetterSlots
+    groups: TurnGroups
+    states: ThornState[]
+    takenAt: number[]
+    own: ThornState
+  } | null = null
   private next = 0
   /** Turns made, and the newest on screen: the next turn waits for the last to reach the screen. */
   private made = 0
@@ -668,14 +698,17 @@ export class ThornTurns {
  */
 function moveByHand(states: ThornState[], was: ThornState, own: ThornState, live: ThornState): void {
   const moved: number[] = []
-  for (let i = 0; i < own.values.length; i++) if (own.values[i] !== was.values[i] && live.values[i] === own.values[i]) moved.push(i)
+  for (let i = 0; i < own.values.length; i++)
+    if (own.values[i] !== was.values[i] && live.values[i] === own.values[i]) moved.push(i)
   if (!moved.length) return
   const made = new Map<ThornState, ThornState>()
   for (let g = 0; g < states.length; g++) {
     const state = states[g]
     let next = made.get(state)
     if (!next) {
-      next = moved.some((i) => state.values[i] !== own.values[i]) ? { enabled: state.enabled, values: state.values.slice() } : state
+      next = moved.some((i) => state.values[i] !== own.values[i])
+        ? { enabled: state.enabled, values: state.values.slice() }
+        : state
       if (next !== state) for (const i of moved) (next.values as number[])[i] = own.values[i]
       made.set(state, next)
     }

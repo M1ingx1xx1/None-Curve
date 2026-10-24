@@ -28,7 +28,10 @@ function steadyState(): SteadySoundState {
   const state = getState()
   const last = lastSteady
   if (last === state) return state
-  if (!last || (Object.keys(state) as (keyof SoundState)[]).some((key) => key !== 'position' && state[key] !== last[key])) {
+  if (
+    !last ||
+    (Object.keys(state) as (keyof SoundState)[]).some((key) => key !== 'position' && state[key] !== last[key])
+  ) {
     lastSteady = state
   }
   return lastSteady ?? state

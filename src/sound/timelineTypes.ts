@@ -59,8 +59,23 @@ export const PRECOMPUTE_LIMITS = {
 
 /** FeatureFrame's numeric fields in pack order (time is the grid's; onset and silent as 0/1). */
 export const FEATURE_FIELDS = [
-  'levelDb', 'level', 'swell', 'bass', 'mids', 'treble', 'brightness', 'pitch', 'melody', 'pitchConfidence',
-  'pitchLow', 'pitchHigh', 'beat', 'activity', 'pan', 'onset', 'silent',
+  'levelDb',
+  'level',
+  'swell',
+  'bass',
+  'mids',
+  'treble',
+  'brightness',
+  'pitch',
+  'melody',
+  'pitchConfidence',
+  'pitchLow',
+  'pitchHigh',
+  'beat',
+  'activity',
+  'pan',
+  'onset',
+  'silent',
 ] as const satisfies readonly Exclude<keyof FeatureFrame, 'time'>[]
 export const FEATURE_STRIDE: number = FEATURE_FIELDS.length
 
@@ -71,7 +86,11 @@ const PACKS_EVERY_FIELD: [Exclude<keyof FeatureFrame, 'time' | FeatureField>] ex
 void PACKS_EVERY_FIELD
 
 /** A run of frames on the grid: frame k is at media ms (start + k)·1000/gridHz; values row-major, Float64. */
-export interface FeatureColumns { start: number; count: number; values: Float64Array }
+export interface FeatureColumns {
+  start: number
+  count: number
+  values: Float64Array
+}
 
 /** Writes `frame` into row `row` of `into` (FEATURE_STRIDE values); -Infinity (digital silence) is kept as is. */
 export function packFrame(frame: FeatureFrame, into: Float64Array, row: number): void {
@@ -118,7 +137,9 @@ export interface CommitTiming {
 }
 
 /** What the page scheduler adopts with a planned commit (markers, seeds, status, Freeze). Opaque outside live.ts. */
-export interface AdoptedState { readonly brand: 'adopted' }
+export interface AdoptedState {
+  readonly brand: 'adopted'
+}
 
 export interface PlannedCommit {
   generation: number

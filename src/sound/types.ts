@@ -367,7 +367,10 @@ const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody', 'glide
  * `current` with `patch` applied: each patched value clamped to RESPONSE_LIMITS and snapped to its step; one that is
  * not a finite number keeps the current value.
  */
-export function clampResponse(patch: Partial<ResponseSettings>, current: ResponseSettings = DEFAULT_RESPONSE): ResponseSettings {
+export function clampResponse(
+  patch: Partial<ResponseSettings>,
+  current: ResponseSettings = DEFAULT_RESPONSE,
+): ResponseSettings {
   const next = { ...current }
   for (const key of RESPONSE_KEYS) {
     const value = patch[key]

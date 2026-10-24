@@ -71,13 +71,22 @@ export function inkBox(polygon: PolygonGlyph): Box | null {
 export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, scale = 1): Warp {
   const spacing = (Math.max(rippleWavelength(params), RIPPLE_LIMITS.shortestWavelength) * unitsPerEm) / 2
   const sides = Math.round(clamp(finite(params.sides, 8), RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides))
-  const amplitude = clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) * rippleWaves(params) * RIPPLE_LIMITS.maxMove * spacing * scale
+  const amplitude =
+    clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) *
+    rippleWaves(params) *
+    RIPPLE_LIMITS.maxMove *
+    spacing *
+    scale
   const fade = clamp(finite(params.fade, 0), 0, 1)
   // Older saved settings have no Reverse; off runs exactly the expressions it always did.
   const reverse = params.reverse === true
   const centre = {
-    x: box.minX + (box.maxX - box.minX) * clamp(finite(params.centerX, 0.5), RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter),
-    y: box.minY + (box.maxY - box.minY) * clamp(finite(params.centerY, 0.5), RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter),
+    x:
+      box.minX +
+      (box.maxX - box.minX) * clamp(finite(params.centerX, 0.5), RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter),
+    y:
+      box.minY +
+      (box.maxY - box.minY) * clamp(finite(params.centerY, 0.5), RIPPLE_LIMITS.minCenter, RIPPLE_LIMITS.maxCenter),
   }
   // Farthest point of the glyph from the centre; the last ring lies beyond it and stays put.
   const reach = Math.max(
@@ -138,7 +147,8 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
     return ((Math.floor(turn) % sides) + sides) % sides
   }
   /** The slice of its wedge that (s, x) lies in. */
-  const sliceOf = (s: number, x: number) => (s > 0 ? Math.min(slices - 1, Math.max(0, Math.floor(((x / s + 1) * slices) / 2))) : 0)
+  const sliceOf = (s: number, x: number) =>
+    s > 0 ? Math.min(slices - 1, Math.max(0, Math.floor(((x / s + 1) * slices) / 2))) : 0
   /** A mesh corner: ring r on the ray at slope[i], and where it goes (ring and ray scaling applied). */
   const corner = (r: number, i: number): Corner => {
     const to = level(r) * petal[i]
@@ -156,7 +166,11 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
         if (depth === 0) return p
         const across = (x - slope[i] * s) / (slope[i + 1] - slope[i])
         const along = s - across
-        return fromWedge(j, along * petal[i] + across * petal[i + 1], along * petal[i] * slope[i] + across * petal[i + 1] * slope[i + 1])
+        return fromWedge(
+          j,
+          along * petal[i] + across * petal[i + 1],
+          along * petal[i] * slope[i] + across * petal[i + 1] * slope[i + 1],
+        )
       }
       const k = Math.floor(s)
       // The cell's corners: ring k on the slice's two rays, ring k + 1 on them; the diagonal runs from
@@ -195,7 +209,12 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
       // each side lies in one slice.
       const length2 = dx * dx + dy * dy
       const tc = length2 > 0 ? ((centre.x - a.x) * dx + (centre.y - a.y) * dy) / length2 : -1
-      if (tc > 0 && tc < 1 && Math.hypot(a.x + dx * tc - centre.x, a.y + dy * tc - centre.y) <= 1e-9 * Math.sqrt(length2)) ts.push(tc)
+      if (
+        tc > 0 &&
+        tc < 1 &&
+        Math.hypot(a.x + dx * tc - centre.x, a.y + dy * tc - centre.y) <= 1e-9 * Math.sqrt(length2)
+      )
+        ts.push(tc)
       ts.sort((p, q) => p - q)
 
       const out: number[] = []

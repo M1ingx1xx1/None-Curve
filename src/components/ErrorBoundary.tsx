@@ -21,7 +21,10 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     return { error }
   }
 
-  static getDerivedStateFromProps(props: ErrorBoundaryProps, state: ErrorBoundaryState): Partial<ErrorBoundaryState> | null {
+  static getDerivedStateFromProps(
+    props: ErrorBoundaryProps,
+    state: ErrorBoundaryState,
+  ): Partial<ErrorBoundaryState> | null {
     return props.resetKey !== state.resetKey ? { error: null, resetKey: props.resetKey } : null
   }
 

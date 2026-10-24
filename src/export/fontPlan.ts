@@ -70,7 +70,12 @@ function groupByGlyph(refs: GlyphRef[]): PlannedGlyph[] {
 }
 
 /** Decides which glyphs go into the file. Cheap; runs on every render of the export dialog. */
-export function planFontExport(font: LoadedFont, set: GlyphSet, selected: GlyphRef | null, specimenText: string): FontExportPlan {
+export function planFontExport(
+  font: LoadedFont,
+  set: GlyphSet,
+  selected: GlyphRef | null,
+  specimenText: string,
+): FontExportPlan {
   const problems: string[] = []
   const missing: string[] = []
   let refs: GlyphRef[] = []
@@ -80,7 +85,8 @@ export function planFontExport(font: LoadedFont, set: GlyphSet, selected: GlyphR
     else {
       const mapped = font.characters.filter((c) => c.index === selected.index)
       refs = mapped.length ? mapped : [selected]
-      if (!mapped.length) problems.push('The selected glyph has no character mapping, so it could not be typed. Choose a mapped glyph.')
+      if (!mapped.length)
+        problems.push('The selected glyph has no character mapping, so it could not be typed. Choose a mapped glyph.')
     }
   } else if (set === 'specimen') {
     const seen = new Set<number>()
@@ -106,11 +112,14 @@ export function planFontExport(font: LoadedFont, set: GlyphSet, selected: GlyphR
     unsupported.push(codePointLabel(ref.unicode))
     return false
   })
-  if (!refs.length && !problems.length) problems.push('All requested characters are above U+FFFF, which the font writer cannot map.')
+  if (!refs.length && !problems.length)
+    problems.push('All requested characters are above U+FFFF, which the font writer cannot map.')
 
   const glyphs = groupByGlyph(refs).filter((g) => g.index !== 0)
   if (glyphs.length > MAX_EXPORT_GLYPHS) {
-    problems.push(`This set has ${glyphs.length} glyphs; the limit is ${MAX_EXPORT_GLYPHS}. Use the specimen set instead.`)
+    problems.push(
+      `This set has ${glyphs.length} glyphs; the limit is ${MAX_EXPORT_GLYPHS}. Use the specimen set instead.`,
+    )
   }
   return { glyphs, missing, unsupported, problems }
 }
@@ -143,8 +152,10 @@ export function reservedFontNames(font: LoadedFont): string[] {
 
 export function validateNaming(naming: FontNaming): string | null {
   const ok = (s: string) => /^[\x20-\x7E]{1,63}$/.test(s) && s.trim() === s
-  if (!ok(naming.familyName)) return 'Family name must be 1–63 printable ASCII characters without leading or trailing spaces.'
-  if (!ok(naming.styleName)) return 'Style name must be 1–63 printable ASCII characters without leading or trailing spaces.'
+  if (!ok(naming.familyName))
+    return 'Family name must be 1–63 printable ASCII characters without leading or trailing spaces.'
+  if (!ok(naming.styleName))
+    return 'Style name must be 1–63 printable ASCII characters without leading or trailing spaces.'
   return null
 }
 

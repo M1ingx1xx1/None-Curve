@@ -18,7 +18,8 @@ function loop(delayMs: number, ms: number) {
   const out: { at: number; measured: number; time: number }[] = []
   for (let now = 1000; now < 1000 + ms; now += FRAME_MS) {
     held.push(frameAt(now), delayMs)
-    for (let due = held.next(now); due; due = held.next(now)) out.push({ at: now, measured: due.time - delayMs, time: due.time })
+    for (let due = held.next(now); due; due = held.next(now))
+      out.push({ at: now, measured: due.time - delayMs, time: due.time })
   }
   return { held, out }
 }

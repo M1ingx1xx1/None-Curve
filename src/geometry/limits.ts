@@ -3,7 +3,15 @@
 // workers. The effects read them from here too. Pure functions; no React, no DOM.
 
 import { clamp, finite } from './primitives'
-import type { CrumpleParams, DissolveParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from './types'
+import type {
+  CrumpleParams,
+  DissolveParams,
+  ExperimentalParams,
+  RippleParams,
+  SlipstreamParams,
+  ThornParams,
+  WhorlParams,
+} from './types'
 
 /** Angle lock's steps, in degrees (constraints.ts). */
 export const ANGLE_STEPS = [90, 45, 30, 15] as const
@@ -67,7 +75,12 @@ export function experimentalMerges(params: ExperimentalParams): boolean {
 
 /** True when any effect goes beyond its safe range, so the letters fold onto themselves. */
 export function experimentalFolds(params: ExperimentalParams): boolean {
-  return crumpleFolds(params.crumple) || rippleFolds(params.ripple) || whorlFolds(params.whorl) || slipstreamFolds(params.slipstream)
+  return (
+    crumpleFolds(params.crumple) ||
+    rippleFolds(params.ripple) ||
+    whorlFolds(params.whorl) ||
+    slipstreamFolds(params.slipstream)
+  )
 }
 
 // Crumple (crumple.ts).
@@ -163,7 +176,10 @@ export function rippleWaves(params: RippleParams): number {
 
 /** The wavelength Ripple's rings use (× the em) and how much of the waves is left there (0–1; 0: no rings). */
 export function rippleRings(params: RippleParams): { wavelength: number; waves: number } {
-  return { wavelength: Math.max(rippleWavelength(params), RIPPLE_LIMITS.shortestWavelength), waves: rippleWaves(params) }
+  return {
+    wavelength: Math.max(rippleWavelength(params), RIPPLE_LIMITS.shortestWavelength),
+    waves: rippleWaves(params),
+  }
 }
 
 /** The Petals setting (0 when missing, as in settings saved before it existed). */
@@ -223,7 +239,10 @@ export const SLIPSTREAM_LIMITS = {
 export function slipstreamIsOn(params: SlipstreamParams): boolean {
   return (
     params.enabled &&
-    (finite(params.strength, 0) > 0 || finite(params.slip, 0) * slipstreamFade(params) > 0 || wholeCount(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0 || wholeCount(params.trails, SLIPSTREAM_LIMITS.maxTrails) > 0)
+    (finite(params.strength, 0) > 0 ||
+      finite(params.slip, 0) * slipstreamFade(params) > 0 ||
+      wholeCount(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0 ||
+      wholeCount(params.trails, SLIPSTREAM_LIMITS.maxTrails) > 0)
   )
 }
 
@@ -263,7 +282,8 @@ export function wholeCount(value: number, max: number): number {
 // Thorn (thorn.ts).
 
 /** A canvas's diagonal over the text size: the diagonal in em, to 0.01 em. */
-const diagonalEm = (width: number, height: number, size: number) => Math.round((Math.hypot(width, height) / size) * 100) / 100
+const diagonalEm = (width: number, height: number, size: number) =>
+  Math.round((Math.hypot(width, height) / size) * 100) / 100
 
 export const THORN_LIMITS = {
   /** Anchors that jump; 0: none, and Thorn leaves the letter as it is. */

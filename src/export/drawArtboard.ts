@@ -159,7 +159,17 @@ export interface Touchable {
   beginPath(): void
   rect(x: number, y: number, w: number, h: number): void
   clip(): void
-  drawImage(image: unknown, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void
+  drawImage(
+    image: unknown,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+  ): void
   globalAlpha: number
   globalCompositeOperation: string
   filter: string

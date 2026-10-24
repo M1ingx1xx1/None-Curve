@@ -41,7 +41,13 @@ describe('canvas view store', () => {
 
 describe('the editor state without zoom and pan', () => {
   it('keeps only the outline and layer buttons as its view', () => {
-    expect(Object.keys(initialState.params.view).sort()).toEqual(['outline', 'showFill', 'showMetrics', 'showSkeleton', 'showVertices'])
+    expect(Object.keys(initialState.params.view).sort()).toEqual([
+      'outline',
+      'showFill',
+      'showMetrics',
+      'showSkeleton',
+      'showVertices',
+    ])
     expect(initialState.document.export).toEqual({ precision: 2 })
   })
 
@@ -51,7 +57,9 @@ describe('the editor state without zoom and pan', () => {
     expect(isOtherFace(open, { bytes, faces: [{}, {}] } as unknown as LoadedFont)).toBe(true)
     expect(isOtherFace(open, { bytes: new ArrayBuffer(4), faces: [{}, {}] } as unknown as LoadedFont)).toBe(false)
     expect(isOtherFace(null, open)).toBe(false)
-    expect(isOtherFace({ bytes, faces: null } as unknown as LoadedFont, { bytes, faces: null } as unknown as LoadedFont)).toBe(false)
+    expect(
+      isOtherFace({ bytes, faces: null } as unknown as LoadedFont, { bytes, faces: null } as unknown as LoadedFont),
+    ).toBe(false)
   })
 
   it('selects a glyph without touching the view', () => {

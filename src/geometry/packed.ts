@@ -69,7 +69,8 @@ function unpackContours(packed: PackedContours): PolygonContour[] {
   return out
 }
 
-const buffersOf = (packed: PackedContours) => [packed.xy.buffer, packed.starts.buffer, packed.clockwise.buffer] as ArrayBuffer[]
+const buffersOf = (packed: PackedContours) =>
+  [packed.xy.buffer, packed.starts.buffer, packed.clockwise.buffer] as ArrayBuffer[]
 
 /** The buffers of a packed glyph's typed arrays (to post it without copying them). */
 function transferOf(packed: PackedGlyph): ArrayBuffer[] {
@@ -84,10 +85,18 @@ function transferOf(packed: PackedGlyph): ArrayBuffer[] {
  * Packs a glyph's geometry; `transfer` lists the typed arrays' buffers (to post the glyph without copying them).
  * `withStats` false leaves the pipeline's statistics out (the canvas lane sends them only for the glyph asked).
  */
-export function packGeometry(geometry: WorkerGeometry, withStats = true): { packed: PackedGlyph; transfer: ArrayBuffer[] } {
+export function packGeometry(
+  geometry: WorkerGeometry,
+  withStats = true,
+): { packed: PackedGlyph; transfer: ArrayBuffer[] } {
   const { polygon, vertexCount, ...stats } = geometry
   const contours = packContours(polygon.contours)
-  const click = polygon.clickOutline === undefined ? null : polygon.clickOutline === polygon.contours ? 'same' : packContours(polygon.clickOutline)
+  const click =
+    polygon.clickOutline === undefined
+      ? null
+      : polygon.clickOutline === polygon.contours
+        ? 'same'
+        : packContours(polygon.clickOutline)
   let hull: Float64Array | null = null
   if (polygon.layoutHull) {
     hull = new Float64Array(2 * polygon.layoutHull.length)
@@ -114,7 +123,11 @@ export function packGeometry(geometry: WorkerGeometry, withStats = true): { pack
 
 /** A copy of a packed glyph with arrays of its own (to post one while keeping the other); the small objects are shared. */
 export function clonePacked(packed: PackedGlyph): { packed: PackedGlyph; transfer: ArrayBuffer[] } {
-  const copy = (p: PackedContours): PackedContours => ({ xy: p.xy.slice(), starts: p.starts.slice(), clockwise: p.clockwise.slice() })
+  const copy = (p: PackedContours): PackedContours => ({
+    xy: p.xy.slice(),
+    starts: p.starts.slice(),
+    clockwise: p.clockwise.slice(),
+  })
   const contours = copy(packed.contours)
   const click = packed.click && packed.click !== 'same' ? copy(packed.click) : packed.click
   const hull = packed.hull ? packed.hull.slice() : null
@@ -162,7 +175,14 @@ export function packedBytes(packed: PackedGlyph): number {
   const arrays = (p: PackedContours) => p.xy.byteLength + p.starts.byteLength + p.clockwise.byteLength
   const click = packed.click && packed.click !== 'same' ? arrays(packed.click) : 0
   const outline = packed.outline ? arrays(packed.outline) : 0
-  return arrays(packed.contours) + click + (packed.hull?.byteLength ?? 0) + outline + (packed.stats ? STATS_BYTES : 0) + ENTRY_BYTES
+  return (
+    arrays(packed.contours) +
+    click +
+    (packed.hull?.byteLength ?? 0) +
+    outline +
+    (packed.stats ? STATS_BYTES : 0) +
+    ENTRY_BYTES
+  )
 }
 
 /** Bytes the glyph takes once unpacked (estimate): an object per point, plus its statistics and small objects. */

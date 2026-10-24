@@ -74,7 +74,11 @@ class MappingStore {
    * target already is not doubled: its id comes back with `created` false, and if it was off it is switched on
    * (`switchedOn`, one undo step; a row that was on records none). Null at the limit.
    */
-  connect(feature: FeatureId, target: string, depth = 0.5): { id: string; created: boolean; switchedOn: boolean } | null {
+  connect(
+    feature: FeatureId,
+    target: string,
+    depth = 0.5,
+  ): { id: string; created: boolean; switchedOn: boolean } | null {
     const existing = this.state.mappings.find((m) => m.feature === feature && m.target === target)
     if (existing) {
       if (!existing.enabled) {
@@ -88,7 +92,9 @@ class MappingStore {
     const id = `m${this.nextId++}`
     const mode: Partial<Shaping> = targetById(target)?.kind === 'switch' ? { mode: 'toggle' } : {}
     undoHistory.record(null)
-    this.set({ mappings: [...this.state.mappings, { id, enabled: true, feature, target, depth: clampDepth(depth), ...mode }] })
+    this.set({
+      mappings: [...this.state.mappings, { id, enabled: true, feature, target, depth: clampDepth(depth), ...mode }],
+    })
     return { id, created: true, switchedOn: false }
   }
 

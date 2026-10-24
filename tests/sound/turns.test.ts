@@ -35,7 +35,13 @@ import { LiveScheduler, type LiveCommit, type LiveDeps } from '../../src/sound/l
 import { modulate, targetById, TARGETS, type Mapping } from '../../src/sound/mapping'
 import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { FLASH_LIMITS } from '../../src/sound/flash'
-import { NEUTRAL_RESPONSE, SILENT_FRAME, THORN_TURNS, type FeatureFrame, type ResponseSettings } from '../../src/sound/types'
+import {
+  NEUTRAL_RESPONSE,
+  SILENT_FRAME,
+  THORN_TURNS,
+  type FeatureFrame,
+  type ResponseSettings,
+} from '../../src/sound/types'
 import { DEFAULT_TEXT } from '../../src/specimen/samples'
 import { shapeSpecimen } from '../../src/specimen/scene'
 import { shownGlyphs } from '../../src/state/geometryClient'
@@ -44,7 +50,10 @@ import { BASE as DEFAULTS, on } from '../helpers/params'
 
 const BASE: GeometryParams = { ...DEFAULTS, distortion: { ...DEFAULTS.distortion, amount: 10 } }
 /** Thorn on as Flare starts it. */
-const THORN_ON: GeometryParams = { ...BASE, experimental: { ...BASE.experimental, ...on('thorn', { count: 1, canvasReach: 0, root: 0.25 }) } }
+const THORN_ON: GeometryParams = {
+  ...BASE,
+  experimental: { ...BASE.experimental, ...on('thorn', { count: 1, canvasReach: 0, root: 0.25 }) },
+}
 
 const REACH = targetById('experimental.thorn.canvasReach')!
 const SPREAD = targetById('experimental.thorn.spread')!
@@ -52,20 +61,35 @@ const WIDTH = targetById('experimental.thorn.width')!
 const DISTORTION = targetById('distortion.amount')!
 const THORN_IDS = TARGETS.filter((t) => isThornTarget(t.id)).map((t) => t.id)
 
-const row = (target: string, depth: number, feature: Mapping['feature'] = 'level'): Mapping => ({ id: `${target} ${feature}`, enabled: true, feature, target, depth })
+const row = (target: string, depth: number, feature: Mapping['feature'] = 'level'): Mapping => ({
+  id: `${target} ${feature}`,
+  enabled: true,
+  feature,
+  target,
+  depth,
+})
 const response = (patch: Partial<ResponseSettings>): ResponseSettings => ({ ...NEUTRAL_RESPONSE, ...patch })
 
 /** The params with these Thorn settings and Experimental seed. */
-function thornWith(params: GeometryParams, patch: Partial<NonNullable<GeometryParams['experimental']['thorn']>>, seed = params.experimental.seed): GeometryParams {
-  return { ...params, experimental: { ...params.experimental, seed, thorn: { ...params.experimental.thorn!, ...patch } } }
+function thornWith(
+  params: GeometryParams,
+  patch: Partial<NonNullable<GeometryParams['experimental']['thorn']>>,
+  seed = params.experimental.seed,
+): GeometryParams {
+  return {
+    ...params,
+    experimental: { ...params.experimental, seed, thorn: { ...params.experimental.thorn!, ...patch } },
+  }
 }
 const seedState = (seed: number): ThornState => thornState(thornWith(THORN_ON, {}, seed))
 /** Thorn's own state with Spread `dp` of its travel away (Spread moves in steps of 5%). */
-const spreadState = (dp: number): ThornState => thornState(SPREAD.set(THORN_ON, SPREAD.fromSlider(SPREAD.toSlider(SPREAD.get(THORN_ON)) + dp)))
+const spreadState = (dp: number): ThornState =>
+  thornState(SPREAD.set(THORN_ON, SPREAD.fromSlider(SPREAD.toSlider(SPREAD.get(THORN_ON)) + dp)))
 /** Thorn with Reach and Width half way along their sliders. */
 const MID_REACH = thornWith(THORN_ON, { canvasReach: 0.125, width: 0.5 })
 /** MID_REACH's Thorn state with Width `dp` of its travel away. */
-const widthState = (dp: number): ThornState => thornState(WIDTH.set(MID_REACH, WIDTH.fromSlider(WIDTH.toSlider(WIDTH.get(MID_REACH)) + dp)))
+const widthState = (dp: number): ThornState =>
+  thornState(WIDTH.set(MID_REACH, WIDTH.fromSlider(WIDTH.toSlider(WIDTH.get(MID_REACH)) + dp)))
 
 /** `count` letters across one line, glyph ids cycling through `ids`, every sixth a space. */
 function lettersOf(count: number, ids = 8): LetterSlots {
@@ -211,7 +235,9 @@ function rig(slots: LetterSlots) {
     isComputing: () => computing,
     request: (jobs) => {
       for (const job of jobs) expect(job.key).toBe(paramsKey(job.params))
-      const missing = jobs.flatMap((job) => (job.indices ?? shownGlyphs(shown, job.within)).map((i) => `${job.key}|${i}`)).filter((pair) => !known.has(pair))
+      const missing = jobs
+        .flatMap((job) => (job.indices ?? shownGlyphs(shown, job.within)).map((i) => `${job.key}|${i}`))
+        .filter((pair) => !known.has(pair))
       asked.push({ at: now, jobs, computed: missing.length })
       if (!missing.length) return false
       computing = true
@@ -226,8 +252,12 @@ function rig(slots: LetterSlots) {
       // A live frame reaches React only once every letter's glyph is known: the shared set's for the letters that show it.
       const letters = commit?.letters
       const sharedShown = shownGlyphs(shown, letters?.sharedGlyphs ?? undefined)
-      if (commit?.params) for (const index of sharedShown) expect(known.has(`${paramsKey(commit.params)}|${index}`)).toBe(true)
-      if (letters) letters.assign.forEach((k, j) => k !== SHARED && expect(known.has(`${letters.keys[k]}|${letters.slots.index[j]}`)).toBe(true))
+      if (commit?.params)
+        for (const index of sharedShown) expect(known.has(`${paramsKey(commit.params)}|${index}`)).toBe(true)
+      if (letters)
+        letters.assign.forEach(
+          (k, j) => k !== SHARED && expect(known.has(`${letters.keys[k]}|${letters.slots.index[j]}`)).toBe(true),
+        )
       commits.push({ at: now, commit })
       if (commit) later(2, () => live.rendered(commit.seq))
     },
@@ -306,7 +336,11 @@ function lettersAt(commit: LiveCommit | null, slots: LetterSlots, base: Geometry
 }
 
 /** The drawn letters (their positions among the drawn ones) whose Thorn settings change from one commit to the next. */
-function thornChanges(commits: readonly { at: number; commit: LiveCommit | null }[], slots: LetterSlots, base: GeometryParams) {
+function thornChanges(
+  commits: readonly { at: number; commit: LiveCommit | null }[],
+  slots: LetterSlots,
+  base: GeometryParams,
+) {
   const changes: { at: number; letters: number[] }[] = []
   let before: string[] | null = null
   for (const { at, commit } of commits) {
@@ -428,13 +462,22 @@ describe('turnGroups', () => {
       expect([...sizes].sort()).toEqual([...new Array(THORN_TURNS.groups - n).fill(0), ...new Array(n).fill(1)])
       expect([...groups.letters]).toEqual(sizes)
     }
-    const none = turnGroups({ ...lettersOfIds([0]), active: Uint8Array.of(0), share: Float32Array.of(0), activeCount: 0 })
+    const none = turnGroups({
+      ...lettersOfIds([0]),
+      active: Uint8Array.of(0),
+      share: Float32Array.of(0),
+      activeCount: 0,
+    })
     expect(none.count).toBe(0)
   })
 
   it('gives the same letters set differently the same groups (their shares follow)', () => {
     const slots = lettersOf(60, 12)
-    const restyled: LetterSlots = { ...slots, t: slots.t.map((t) => t * 0.8), share: slots.share.map((s, j) => (s ? (j + 1) / 1830 : 0)) }
+    const restyled: LetterSlots = {
+      ...slots,
+      t: slots.t.map((t) => t * 0.8),
+      share: slots.share.map((s, j) => (s ? (j + 1) / 1830 : 0)),
+    }
     expect(turnGroups(slots)).toBe(turnGroups(slots))
     expect([...turnGroups(restyled).of]).toEqual([...turnGroups(slots).of])
     expect(turnGroups(restyled).share).not.toEqual(turnGroups(slots).share)
@@ -444,7 +487,12 @@ describe('turnGroups', () => {
 describe('Thorn state', () => {
   it('levels never scale Thorn sliders or the Experimental seed; they still scale every other slider', () => {
     const base = thornWith(THORN_ON, { canvasReach: 0.05, spread: 0.3 })
-    const mappings = [row(REACH.id, 0.5), row(SPREAD.id, 0.4), row('experimental.seed', 1, 'beat'), row(DISTORTION.id, 0.5)]
+    const mappings = [
+      row(REACH.id, 0.5),
+      row(SPREAD.id, 0.4),
+      row('experimental.seed', 1, 'beat'),
+      row(DISTORTION.id, 0.5),
+    ]
     const loud: FeatureFrame = { ...SILENT_FRAME, time: 0, level: 0.8, levelDb: -10, silent: false }
     const shared = modulate(base, loud, mappings, new Map([['experimental.seed', 3]]))
     expect(shared.params.experimental.seed).toBe(base.experimental.seed + 3)
@@ -473,14 +521,19 @@ describe('Thorn state', () => {
     const mappings = [row(SQUARING.id, 0.5), row(WHORL.id, 0.5), row(CRUMPLE.id, 0.5), row(DISTORTION.id, 0.5)]
     const loud: FeatureFrame = { ...SILENT_FRAME, time: 0, level: 0.8, levelDb: -10, silent: false }
     const levels = letterLevels(response({ contrast: 1, pitchReactive: 1 }))!
-    for (const [base, unscaled] of [[thornOn, true], [thornOff, false]] as const) {
+    for (const [base, unscaled] of [
+      [thornOn, true],
+      [thornOff, false],
+    ] as const) {
       const shared = modulate(base, loud, mappings, new Map())
       const sets = levelSets(base, shared, levels, paramsKey)
       for (const level of [QUIET, STRONG]) {
         // Squaring (before Distortion) and Whorl's Amount move the thorns: they reach the letters by turns, unscaled.
-        for (const spec of [SQUARING, WHORL]) expect(spec.get(sets[level].params) === spec.get(shared.params), `${spec.id} ${level}`).toBe(unscaled)
+        for (const spec of [SQUARING, WHORL])
+          expect(spec.get(sets[level].params) === spec.get(shared.params), `${spec.id} ${level}`).toBe(unscaled)
         // Distortion and Crumple's Amount, which the thorns keep through, are scaled either way.
-        for (const spec of [DISTORTION, CRUMPLE]) expect(spec.get(sets[level].params), `${spec.id} ${level}`).not.toBe(spec.get(shared.params))
+        for (const spec of [DISTORTION, CRUMPLE])
+          expect(spec.get(sets[level].params), `${spec.id} ${level}`).not.toBe(spec.get(shared.params))
       }
       expect(levelPosition(SQUARING, base, 0.7, 3) === 0.7).toBe(unscaled)
       expect(levelPosition(CRUMPLE, base, 0.7, 3)).not.toBe(0.7)
@@ -490,9 +543,28 @@ describe('Thorn state', () => {
   it('the turn state holds every target that moves the thorns: not Distortion, nor the Amounts the thorns keep through', () => {
     const ids = TARGETS.filter((t) => isTurnTarget(t.id)).map((t) => t.id)
     const upstream = ['flatten.segmentsPerCurve', 'squaring.amount', 'anchors.simplify', 'grid.size', 'random.seed']
-    const warps = ['experimental.crumple.facet', 'experimental.ripple.petals', 'experimental.whorl.amount', 'experimental.slipstream.slip']
-    expect(ids).toEqual(expect.arrayContaining([...THORN_IDS.filter((id) => id !== REACH.id), 'experimental.seed', ...upstream, ...warps]))
-    for (const id of ['distortion.amount', 'distortion.frequency', 'distortion.seed', 'experimental.crumple.amount', 'experimental.ripple.amount', REACH.id]) {
+    const warps = [
+      'experimental.crumple.facet',
+      'experimental.ripple.petals',
+      'experimental.whorl.amount',
+      'experimental.slipstream.slip',
+    ]
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        ...THORN_IDS.filter((id) => id !== REACH.id),
+        'experimental.seed',
+        ...upstream,
+        ...warps,
+      ]),
+    )
+    for (const id of [
+      'distortion.amount',
+      'distortion.frequency',
+      'distortion.seed',
+      'experimental.crumple.amount',
+      'experimental.ripple.amount',
+      REACH.id,
+    ]) {
       expect(ids).not.toContain(id)
     }
     expect(thornState(THORN_ON).values).toHaveLength(ids.length)
@@ -589,7 +661,9 @@ describe('ThornTurns', () => {
       const made = turns.turns
       turns.update(letters, liveAt(now), own, now, options.take ?? (() => true))
       // Groups without letters keep up with the live state unseen, as no turn.
-      const changed = turns.states.flatMap((state, g) => (before.length && drawn[g] > 0 && state !== before[g] ? [g] : []))
+      const changed = turns.states.flatMap((state, g) =>
+        before.length && drawn[g] > 0 && state !== before[g] ? [g] : [],
+      )
       if (turns.turns === made) {
         if (before.length) expect(changed).toEqual([])
         continue
@@ -668,7 +742,10 @@ describe('ThornTurns', () => {
       return true
     }
     // From the sliders' own state, groups 0 and 1 take s1, then the sound goes back to the sliders' own state, then on to s2.
-    const log = run(turns, 2600, (t) => (t < 1 || (t >= 600 && t < 2500) ? own : t < 600 ? s1 : s2), { showMs: 0, take })
+    const log = run(turns, 2600, (t) => (t < 1 || (t >= 600 && t < 2500) ? own : t < 600 ? s1 : s2), {
+      showMs: 0,
+      take,
+    })
     expect(log.map(({ group }) => group)).toEqual([0, 1, 0, 1, 2])
     // Groups 2, 3 and 4 already show the sliders' own state: they give their turns up, one gapMs each.
     expect(log[2].at - log[1].at).toBeGreaterThanOrEqual(4 * THORN_TURNS.gapMs)
@@ -690,7 +767,8 @@ describe('ThornTurns', () => {
       const last = new Map<number, number>()
       for (const { at, group } of log) {
         expect(groups.letters[group]).toBe(1)
-        if (last.has(group)) expect(at - last.get(group)!, `${n}`).toBeGreaterThanOrEqual(THORN_TURNS.groups * THORN_TURNS.gapMs)
+        if (last.has(group))
+          expect(at - last.get(group)!, `${n}`).toBeGreaterThanOrEqual(THORN_TURNS.groups * THORN_TURNS.gapMs)
         last.set(group, at)
       }
     }
@@ -749,7 +827,8 @@ describe('ThornTurns', () => {
     const take = () => true
     const SEED = targetById('experimental.seed')!
     /** THORN_ON with this seed and Spread at slider position `spread`. */
-    const at = (seed: number, spread: number) => thornState(SPREAD.set(thornWith(THORN_ON, {}, seed), SPREAD.fromSlider(spread)))
+    const at = (seed: number, spread: number) =>
+      thornState(SPREAD.set(thornWith(THORN_ON, {}, seed), SPREAD.fromSlider(spread)))
     const own0 = at(1, 0.1)
     turns.update(slots, own0, own0, 0, take)
     // Group 0 turns to seed 2; the others keep seed 1.
@@ -804,10 +883,15 @@ describe('the live scheduler with Thorn turns', () => {
     const freeze = r.live.freezeChanges()
     r.setRunning(false)
     const hash = fnv1a()
-    for (const { at, jobs } of r.asked) hash.add(`${at}:${jobs.map((job) => `${job.key}#${job.indices?.join(',') ?? 'shown'}`).join('+')}`)
+    for (const { at, jobs } of r.asked)
+      hash.add(`${at}:${jobs.map((job) => `${job.key}#${job.indices?.join(',') ?? 'shown'}`).join('+')}`)
     for (const { at, commit } of r.commits) {
       const letters = commit?.letters
-      hash.add(commit ? `${at}|${commit.seq}|${commit.params ? paramsKey(commit.params) : 'null'}|${letters ? `${letters.key}|${letters.keys.join('+')}|${[...letters.assign].join('')}` : '-'}` : `stop|${at}`)
+      hash.add(
+        commit
+          ? `${at}|${commit.seq}|${commit.params ? paramsKey(commit.params) : 'null'}|${letters ? `${letters.key}|${letters.keys.join('+')}|${[...letters.assign].join('')}` : '-'}`
+          : `stop|${at}`,
+      )
       // Only the three levels.
       if (letters) expect(letters.keys).toHaveLength(3)
     }
@@ -1074,9 +1158,15 @@ describe('Return to plain', () => {
   const thorn = thornWith(THORN_ON, { burst: true, spikes: 40, canvasReach: 0.3 })
   const design = {
     ...thorn,
-    experimental: { ...thorn.experimental, ...on('ripple', { amount: 0.4 }), whorl: { ...thorn.experimental.whorl, enabled: false } },
+    experimental: {
+      ...thorn.experimental,
+      ...on('ripple', { amount: 0.4 }),
+      whorl: { ...thorn.experimental.whorl, enabled: false },
+    },
   }
-  const USE = ['experimental.ripple.enabled', 'experimental.thorn.enabled', 'experimental.whorl.enabled'].map((id) => targetById(id)!)
+  const USE = ['experimental.ripple.enabled', 'experimental.thorn.enabled', 'experimental.whorl.enabled'].map((id) =>
+    targetById(id)!,
+  )
 
   it('turns the effects switched on off between beats, and leaves them on while the beat pulse lasts', () => {
     const rest = modulate(design, SILENT_FRAME, [], new Map(), PLAIN)

@@ -8,6 +8,14 @@ import type { GeometryParams } from './types'
  * only when there are any, so every key without them is what it always was.
  */
 export function paramsKey(params: GeometryParams): string {
-  const groups = [params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion, params.experimental]
+  const groups = [
+    params.flatten,
+    params.random,
+    params.squaring,
+    params.anchors,
+    params.grid,
+    params.distortion,
+    params.experimental,
+  ]
   return JSON.stringify(params.variation ? [...groups, params.variation] : groups)
 }

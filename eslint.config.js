@@ -18,7 +18,10 @@ export default defineConfig(
     languageOptions: { globals: { ...globals.browser, ...globals.worker } },
     rules: {
       // A leading underscore names what is left out on purpose (`const { view: _view, ...rest } = state`).
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' },
+      ],
       // React Compiler checks (the app is not compiled with it), which flag established patterns here: refs that hold
       // the latest value and are read while rendering, drafts synced from their props in an effect, and caches kept in
       // useMemo and filled while rendering.

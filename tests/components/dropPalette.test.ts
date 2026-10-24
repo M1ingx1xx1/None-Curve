@@ -17,7 +17,12 @@ describe('drop palette', () => {
 
   it('heads each group once, over its first block, and names entries by their label under their section', () => {
     const blocks = paletteBlocks()
-    expect(blocks.filter((block) => block.group).map((block) => block.group)).toEqual(['Geometry', 'Experimental', 'Typography', 'Color'])
+    expect(blocks.filter((block) => block.group).map((block) => block.group)).toEqual([
+      'Geometry',
+      'Experimental',
+      'Typography',
+      'Color',
+    ])
     const ripple = blocks.find((block) => block.title === 'Ripple')!
     expect(ripple.targets.find((t) => t.id === 'experimental.ripple.amount')?.name).toBe('Amount')
     // The switches are one block, each named in full.
@@ -33,7 +38,9 @@ describe('drop palette', () => {
       expect(columns.every((column) => column.length > 0)).toBe(true)
       expect(ids(columns.flat())).toEqual(ids(blocks))
     }
-    const heights = intoColumns(blocks, 4).map((column) => column.reduce((sum, block) => sum + block.targets.length + 2, 0))
+    const heights = intoColumns(blocks, 4).map((column) =>
+      column.reduce((sum, block) => sum + block.targets.length + 2, 0),
+    )
     expect(Math.max(...heights) / Math.min(...heights)).toBeLessThan(2)
   })
 })

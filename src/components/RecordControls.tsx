@@ -1,6 +1,14 @@
 import { useId, useState } from 'react'
 import { getRecorder, useRecording, type RecordOptions } from '../export/recorder'
-import { RECORD_LENGTHS, VIDEO_FPS, VIDEO_LIMITS, formatClock, videoSize, type RecordLength, type VideoFormat } from '../export/videoFormat'
+import {
+  RECORD_LENGTHS,
+  VIDEO_FPS,
+  VIDEO_LIMITS,
+  formatClock,
+  videoSize,
+  type RecordLength,
+  type VideoFormat,
+} from '../export/videoFormat'
 import { LIVE_LIMITS, useLiveDriving, useLiveStatus } from '../sound/live'
 import { useMappingState } from '../sound/mappingStore'
 import type { SoundState } from '../sound/types'
@@ -27,7 +35,12 @@ const hasWholeFile = (sound: SoundState) => sound.source === 'file' && sound.dur
 
 /** The next take's length (ms) as the options set it now, at most the 10-minute cap; null until stopped. */
 function plannedLimitMs(options: RecordOptions, sound: SoundState): number | null {
-  const ms = typeof options.length === 'number' ? options.length * 1000 : options.length === 'whole-file' && hasWholeFile(sound) ? sound.duration * 1000 : null
+  const ms =
+    typeof options.length === 'number'
+      ? options.length * 1000
+      : options.length === 'whole-file' && hasWholeFile(sound)
+        ? sound.duration * 1000
+        : null
   return ms === null ? null : Math.min(ms, VIDEO_LIMITS.maxMs)
 }
 
@@ -63,7 +76,8 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
   // During a take, what it records; otherwise what Record would record now.
   const size = take ?? videoSize(artboard.width, artboard.height, artboard.scale)
   const fps = take?.fps ?? options.fps
-  const format = take?.mimes[0]?.format ?? (options.format === 'mp4' && !support.mp4 && support.webm ? 'webm' : options.format)
+  const format =
+    take?.mimes[0]?.format ?? (options.format === 'mp4' && !support.mp4 && support.webm ? 'webm' : options.format)
 
   return (
     <>
@@ -116,9 +130,9 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           <p className="field-hint">Whole file needs an audio file: this take runs until stopped.</p>
         )}
         <HintText hint={lengthHint}>
-          How long a take runs, at most {VIDEO_LIMITS.maxMs / 60_000} minutes. With a file it starts at the current Position;
-          Whole file plays the file from its start to its end, with Loop off for the take. A take also ends when the sound
-          stops, the tab is hidden or the canvas size changes.
+          How long a take runs, at most {VIDEO_LIMITS.maxMs / 60_000} minutes. With a file it starts at the current
+          Position; Whole file plays the file from its start to its end, with Loop off for the take. A take also ends
+          when the sound stops, the tab is hidden or the canvas size changes.
         </HintText>
       </div>
 
@@ -129,7 +143,12 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           </span>
           <HintButton hint={fpsHint} topic="Frame rate" />
         </span>
-        <div className="segmented segmented-small" role="radiogroup" aria-labelledby={`${id}-fps`} aria-describedby={fpsHint.id}>
+        <div
+          className="segmented segmented-small"
+          role="radiogroup"
+          aria-labelledby={`${id}-fps`}
+          aria-describedby={fpsHint.id}
+        >
           {VIDEO_FPS.map((value) => (
             <label key={value} className="segment-option">
               <input
@@ -146,10 +165,10 @@ export function RecordOptionsFields({ artboard, transparent }: RecordSetup) {
           ))}
         </div>
         <HintText hint={fpsHint}>
-          About this many frames per second in the video: when the letters have not changed, the last frame repeats.
-          The browser writes a variable-rate file, and a rate as high as the screen refresh (60 on a 60 Hz screen) may
-          drop some frames. The letters move up to {LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit
-          editors that expect those rates; they make larger files.
+          About this many frames per second in the video: when the letters have not changed, the last frame repeats. The
+          browser writes a variable-rate file, and a rate as high as the screen refresh (60 on a 60 Hz screen) may drop
+          some frames. The letters move up to {LIVE_LIMITS.maxFps} times a second, so 50 and 60 mostly suit editors that
+          expect those rates; they make larger files.
         </HintText>
       </div>
 
@@ -231,7 +250,13 @@ export function RecordGroup({ artboard, transparent, collapsible = false }: Reco
     <fieldset className={collapsible ? 'group sound sound-box record-group' : 'group sound'}>
       <legend>
         {collapsible ? (
-          <button type="button" className="group-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)}>
+          <button
+            type="button"
+            className="group-toggle"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={() => setOpen((o) => !o)}
+          >
             <Icon name="chevron" />
             Record
           </button>
@@ -282,10 +307,15 @@ export function RecordGroup({ artboard, transparent, collapsible = false }: Reco
 
         <RecordOptionsFields artboard={artboard} transparent={transparent} />
 
-        {status.slow && <p className="font-warning">Too slow for a smooth video: try fewer effects or a shorter text.</p>}
+        {status.slow && (
+          <p className="font-warning">Too slow for a smooth video: try fewer effects or a shorter text.</p>
+        )}
         {still && <p className="field-hint">Sound is not moving the letters: the video will be still.</p>}
         {message && (
-          <p className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'} data-tone={message.tone}>
+          <p
+            className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'}
+            data-tone={message.tone}
+          >
             {message.text}
           </p>
         )}

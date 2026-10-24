@@ -28,7 +28,13 @@ function fakeClient(budget = 1 << 20) {
     has: (key: string, index: number) => aheadStore.has(key, index),
     workerCount: () => 1,
     aheadInFlight: () => lease.inFlight,
-    sendAhead: (_font: string, sentGeneration: number, _glide: number, _playhead: number, items: readonly AheadItem[]) => {
+    sendAhead: (
+      _font: string,
+      sentGeneration: number,
+      _glide: number,
+      _playhead: number,
+      items: readonly AheadItem[],
+    ) => {
       generation = sentGeneration
       sent.push([...items])
       return true
@@ -42,7 +48,13 @@ function fakeClient(budget = 1 << 20) {
     for (const item of items) {
       if (item.kind !== 'glyphs') continue
       for (const index of item.indices) aheadStore.put(item.key, index, { error: 'x' })
-      listener!.results(of, item.seq, item.key, item.indices, item.indices.map(() => 5))
+      listener!.results(
+        of,
+        item.seq,
+        item.key,
+        item.indices,
+        item.indices.map(() => 5),
+      )
     }
   }
   return { client, sent, released, aheadStore, arrive, lease, listener: () => listener! }
@@ -147,7 +159,8 @@ describe('the page ahead window', () => {
   it('counts only the ahead store: a glyph the canvas or live stores hold is still asked for', () => {
     const { client, sent, arrive } = fakeClient()
     // The canvas's small stores hold k0 (they evict without telling the lane).
-    ;(client as unknown as { has: (key: string, index: number) => boolean }).has = (key, index) => key === 'k0' || client.aheadStore.has(key, index)
+    ;(client as unknown as { has: (key: string, index: number) => boolean }).has = (key, index) =>
+      key === 'k0' || client.aheadStore.has(key, index)
     const ahead = new PageAhead(() => client)
     ahead.want(windowOf(commitsOf(), 0))
     expect(ahead.ready(0)).toBe(false)
@@ -179,7 +192,13 @@ describe('the page ahead window', () => {
     const commits = commitsOf((seq) => `k${seq}`, true)
     ahead.want(windowOf(commits, 0, { glideMs: 150 }))
     arrive(sent[0])
-    listener().plans({ type: 'ahead-plans', requestId: 1, generation: 1, seq: 0, plans: [{ lineage: 0, from: { kind: 'computed', key: 'k0' }, data: null, unchanged: true }] })
+    listener().plans({
+      type: 'ahead-plans',
+      requestId: 1,
+      generation: 1,
+      seq: 0,
+      plans: [{ lineage: 0, from: { kind: 'computed', key: 'k0' }, data: null, unchanged: true }],
+    })
     expect(ahead.ready(0)).toBe(true)
     ahead.want(windowOf(commits, 0, { glideMs: 150, generation: 2 }))
     // The glyph is there; the step's plan must come again for the new plan.

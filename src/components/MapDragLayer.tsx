@@ -35,10 +35,20 @@ function paletteBox(): { left: number; top: number; maxHeight: number; width: nu
 const DropPalette = memo(function DropPalette({ feature }: { feature: string }) {
   const { mappings } = useMappingState()
   const box = useMemo(() => paletteBox(), [])
-  const columns = useMemo(() => intoColumns(paletteBlocks(), Math.max(1, Math.floor(box.width / PALETTE_COLUMN))), [box])
-  const mapped = useMemo(() => new Set(mappings.filter((m) => m.feature === feature).map((m) => m.target)), [mappings, feature])
+  const columns = useMemo(
+    () => intoColumns(paletteBlocks(), Math.max(1, Math.floor(box.width / PALETTE_COLUMN))),
+    [box],
+  )
+  const mapped = useMemo(
+    () => new Set(mappings.filter((m) => m.feature === feature).map((m) => m.target)),
+    [mappings, feature],
+  )
   return (
-    <div className={PALETTE_CLASS} aria-hidden="true" style={{ left: box.left, top: box.top, maxHeight: box.maxHeight }}>
+    <div
+      className={PALETTE_CLASS}
+      aria-hidden="true"
+      style={{ left: box.left, top: box.top, maxHeight: box.maxHeight }}
+    >
       {columns.map((column, k) => (
         <div key={k} className="map-palette-column">
           {column.map((block) => (
@@ -46,7 +56,12 @@ const DropPalette = memo(function DropPalette({ feature }: { feature: string }) 
               {block.group && <p className="map-palette-group">{block.group}</p>}
               <p className="map-palette-title">{block.title}</p>
               {block.targets.map(({ id, name }) => (
-                <div key={id} className="map-palette-entry" data-map-zone={id} data-mapped={mapped.has(id) ? '' : undefined}>
+                <div
+                  key={id}
+                  className="map-palette-entry"
+                  data-map-zone={id}
+                  data-mapped={mapped.has(id) ? '' : undefined}
+                >
                   {name}
                 </div>
               ))}
@@ -72,7 +87,12 @@ export default function MapDragLayer() {
         </div>
       )}
       {status && (
-        <div key={status.key} className="map-drag-status" aria-hidden="true" style={{ left: status.left, top: status.top }}>
+        <div
+          key={status.key}
+          className="map-drag-status"
+          aria-hidden="true"
+          style={{ left: status.left, top: status.top }}
+        >
           {status.text}
         </div>
       )}

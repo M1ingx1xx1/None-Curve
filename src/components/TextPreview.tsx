@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
 import { artboardViewFrame, type ArtboardLayout, type ArtboardParams, type PaletteParams } from '../specimen/artboard'
-import { MAX_PREVIEW_BLUR, PREVIEW_BLUR_STEP, previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
+import {
+  MAX_PREVIEW_BLUR,
+  PREVIEW_BLUR_STEP,
+  previewBlur,
+  previewColors,
+  type PreviewLook,
+} from '../specimen/previewLook'
 import type { SpecimenScene } from '../specimen/scene'
 import { RENDERER_CHOICE } from '../render/createRenderer'
 import type { GlideStore } from '../state/useGlide'
@@ -70,7 +76,9 @@ export default function TextPreview({
   useLayoutEffect(() => {
     const el = canvasRef.current
     if (!el) return
-    const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }))
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height }),
+    )
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
@@ -174,7 +182,9 @@ export default function TextPreview({
               ))}
           </ErrorBoundary>
         ) : (
-          <p className="text-preview-empty">{font ? 'Type text to preview it here.' : 'Import a font to see a preview.'}</p>
+          <p className="text-preview-empty">
+            {font ? 'Type text to preview it here.' : 'Import a font to see a preview.'}
+          </p>
         )}
       </div>
     </section>

@@ -21,8 +21,17 @@ describe('parseFlags', () => {
   })
 
   it('prefers the URL to storage, and storage to the defaults', () => {
-    const stored = storage({ 'none-curve:render': 'svg', 'none-curve:precompute': '0', 'none-curve:workerplans': 'false' })
-    expect(parseFlags('render=webgl', stored)).toEqual({ render: 'webgl', precompute: false, workerPlans: false, probe: false })
+    const stored = storage({
+      'none-curve:render': 'svg',
+      'none-curve:precompute': '0',
+      'none-curve:workerplans': 'false',
+    })
+    expect(parseFlags('render=webgl', stored)).toEqual({
+      render: 'webgl',
+      precompute: false,
+      workerPlans: false,
+      probe: false,
+    })
   })
 
   it('ignores invalid values and storage that throws', () => {

@@ -4,8 +4,20 @@ import { paramsKey } from '../geometry/paramsKey'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
 import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
 import type { LiveView } from '../sound/live'
-import { layoutArtboard, placementScene, type ArtboardLayout, type SliderPlacement, type TypographyParams } from '../specimen/artboard'
-import { placePolygons, shapeSpecimen, type PolygonLookup, type ShapedSpecimen, type SpecimenScene } from '../specimen/scene'
+import {
+  layoutArtboard,
+  placementScene,
+  type ArtboardLayout,
+  type SliderPlacement,
+  type TypographyParams,
+} from '../specimen/artboard'
+import {
+  placePolygons,
+  shapeSpecimen,
+  type PolygonLookup,
+  type ShapedSpecimen,
+  type SpecimenScene,
+} from '../specimen/scene'
 import { geometryClient, useGlyphGeometry } from './geometryClient'
 import type { AppState } from './types'
 
@@ -123,7 +135,10 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   // Live parameters equal to the sliders' change nothing: the sliders' own params and key are used, as without Sound.
   // With Thorn turns, letters can still show other settings while the shared live values are the sliders' own.
   const liveParams = live?.params
-  const liveKey = useMemo(() => (liveParams && liveParams !== params ? paramsKey(liveParams) : key), [liveParams, params, key])
+  const liveKey = useMemo(
+    () => (liveParams && liveParams !== params ? paramsKey(liveParams) : key),
+    [liveParams, params, key],
+  )
   const isLive = liveKey !== key || !!live?.letters
   const shownParams = isLive && liveParams ? liveParams : params
   const shownKey = isLive ? liveKey : key
@@ -141,14 +156,25 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   // The text as the sliders set it, which places the block and assigns the letters' levels.
   const own = layoutOf(deferredTypography)
   const sliderShaped = useMemo(
-    () => (font ? shapeSpecimen(font, deferredText, { tracking: own.tracking, lineHeight: own.lineHeight, align: own.align, slant: own.slant }) : null),
+    () =>
+      font
+        ? shapeSpecimen(font, deferredText, {
+            tracking: own.tracking,
+            lineHeight: own.lineHeight,
+            align: own.align,
+            slant: own.slant,
+          })
+        : null,
     [font, deferredText, own.tracking, own.lineHeight, own.align, own.slant],
   )
   // Shaped otherwise than by the sliders: Sound's typography or axes shape the text again, every frame they change.
   const liveShaping = shownFont !== font || liveTypography !== undefined
   const { tracking, lineHeight, align, slant } = shownTypography
   const shaped = useMemo(
-    () => (liveShaping && shownFont ? shapeSpecimen(shownFont, deferredText, { tracking, lineHeight, align, slant }) : sliderShaped),
+    () =>
+      liveShaping && shownFont
+        ? shapeSpecimen(shownFont, deferredText, { tracking, lineHeight, align, slant })
+        : sliderShaped,
     [liveShaping, shownFont, sliderShaped, deferredText, tracking, lineHeight, align, slant],
   )
   // Placed by the sliders' own letters whenever Sound changes the letters or how the text is set.
@@ -169,7 +195,12 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   // only live glyphs other than the sliders' (an axis that substitutes glyphs) are assigned on their own.
   const sliderSlots = useMemo(() => (sliderShaped ? letterSlots(sliderShaped) : NO_SLOTS), [sliderShaped])
   const slots = useMemo(
-    () => (!shaped ? NO_SLOTS : shaped === sliderShaped || sameGlyphs(sliderSlots, shaped) ? sliderSlots : letterSlots(shaped)),
+    () =>
+      !shaped
+        ? NO_SLOTS
+        : shaped === sliderShaped || sameGlyphs(sliderSlots, shaped)
+          ? sliderSlots
+          : letterSlots(shaped),
     [shaped, sliderShaped, sliderSlots],
   )
   const letters = isLive ? lettersOn(live?.letters, slots) : null
@@ -185,7 +216,9 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
             if (!found) return null
             // Live frames are shown one after another as they arrive: the newest is not "outdated", so the
             // canvas does not flash "Updating" at every frame.
-            return 'error' in found.entry ? { error: found.entry.error } : { polygon: found.entry.geometry.polygon, stale: found.stale && !isLive }
+            return 'error' in found.entry
+              ? { error: found.entry.error }
+              : { polygon: found.entry.geometry.polygon, stale: found.stale && !isLive }
           })
         : null,
     [shaped, geometry, isLive, letters, shownKey],
@@ -222,9 +255,11 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
   const sliderLetters = placeLive ? sliderScene : scene
   const lastSlider = useRef<SliderPlacement | null>(null)
   useEffect(() => {
-    if (sliderShaped && sliderLetters && sliderLetters.pendingGlyphs === 0) lastSlider.current = { shaped: sliderShaped, scene: sliderLetters }
+    if (sliderShaped && sliderLetters && sliderLetters.pendingGlyphs === 0)
+      lastSlider.current = { shaped: sliderShaped, scene: sliderLetters }
   }, [sliderShaped, sliderLetters])
-  const placement = scene && sliderShaped ? placementScene(scene, placeLive, sliderShaped, sliderScene, lastSlider.current) : null
+  const placement =
+    scene && sliderShaped ? placementScene(scene, placeLive, sliderShaped, sliderScene, lastSlider.current) : null
 
   const loadSliderScene = useCallback(async () => {
     if (!font || !sliderShaped || !placeLive) return scene
@@ -243,10 +278,16 @@ export function useGeometry(state: AppState, text: string, params: GeometryParam
     if (!font || !selectedGlyph || !source) return { kind: 'none' }
     if (!source.source) return { kind: 'source-error', message: source.error ?? 'Unknown error' }
     if (!selectedEntry) return { kind: 'ready', source: source.source, geometry: null, geometryError: null }
-    if ('error' in selectedEntry) return { kind: 'ready', source: source.source, geometry: null, geometryError: selectedEntry.error }
+    if ('error' in selectedEntry)
+      return { kind: 'ready', source: source.source, geometry: null, geometryError: selectedEntry.error }
     // Kept without its statistics (computed while another glyph was selected): they are on their way (useGlyphGeometry).
     if ('lean' in selectedEntry) return { kind: 'ready', source: source.source, geometry: null, geometryError: null }
-    return { kind: 'ready', source: source.source, geometry: { ...selectedEntry.geometry, source: source.source }, geometryError: null }
+    return {
+      kind: 'ready',
+      source: source.source,
+      geometry: { ...selectedEntry.geometry, source: source.source },
+      geometryError: null,
+    }
   }, [font, selectedGlyph, source, selectedEntry])
 
   return {

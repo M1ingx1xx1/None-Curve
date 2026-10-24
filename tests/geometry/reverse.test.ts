@@ -67,7 +67,10 @@ describe('Ripple reversed', () => {
   const half = Math.PI / RIPPLE.sides
   /** How far a point at `distance` from the centre, at `angle`, ends up from it. */
   const moved = (params: RippleParams, angle: number, distance: number) => {
-    const p = rippleWarp(params, box, upm).map({ x: centre.x + distance * Math.cos(angle), y: centre.y + distance * Math.sin(angle) })
+    const p = rippleWarp(params, box, upm).map({
+      x: centre.x + distance * Math.cos(angle),
+      y: centre.y + distance * Math.sin(angle),
+    })
     return Math.hypot(p.x - centre.x, p.y - centre.y)
   }
 
@@ -94,7 +97,10 @@ describe('Ripple reversed', () => {
         for (const distance of [0.6 * spacing, 2.3 * spacing]) {
           const label = `petals ${petals}, wedge ${k}, ${distance}`
           expect(moved(params, corner, distance) / distance, label).toBeCloseTo(1 + depth, 5)
-          expect(moved(params, middle, distance) / distance, label).toBeCloseTo(1 - Math.min(depth, RIPPLE_LIMITS.maxPetal), 5)
+          expect(moved(params, middle, distance) / distance, label).toBeCloseTo(
+            1 - Math.min(depth, RIPPLE_LIMITS.maxPetal),
+            5,
+          )
           const cornerBack = moved({ ...params, reverse: true }, corner, distance) / distance
           const middleBack = moved({ ...params, reverse: true }, middle, distance) / distance
           expect(cornerBack, label).toBeLessThan(1)
@@ -128,12 +134,17 @@ describe.each(FIXTURE_FONTS)('Thorn reversed: %s', (fontName) => {
         expect(back.stats.thorns, label).toBe(picks.length)
         const a = contoursOf(out.polygon)
         const b = contoursOf(back.polygon)
-        expect(b.map((c) => c.length), label).toEqual(a.map((c) => c.length))
+        expect(
+          b.map((c) => c.length),
+          label,
+        ).toEqual(a.map((c) => c.length))
         const tips: { contour: number; out: Point; back: Point }[] = []
-        a.forEach((points, contour) => points.forEach((p, i) => {
-          const q = b[contour][i]
-          if (p.x !== q.x || p.y !== q.y) tips.push({ contour, out: p, back: q })
-        }))
+        a.forEach((points, contour) =>
+          points.forEach((p, i) => {
+            const q = b[contour][i]
+            if (p.x !== q.x || p.y !== q.y) tips.push({ contour, out: p, back: q })
+          }),
+        )
         expect(tips.length, label).toBe(picks.length)
         for (const tip of tips) {
           // The anchor lies halfway between the two tips, and the reversed one points against the outward normal.
@@ -164,7 +175,12 @@ describe.each(FIXTURE_FONTS)('Thorn reversed: %s', (fontName) => {
       const letter = boundsOf(contoursOf(deriveGeometry(font.getGlyph(glyph.index), BASE).polygon))!
       const drawn = boundsOf(contoursOf(derived.polygon))!
       // Each thorn goes at least 35% of 40% of about 30 em (4 em): far beyond the letter on its other side.
-      const beyond = Math.max(letter.minX - drawn.minX, drawn.maxX - letter.maxX, letter.minY - drawn.minY, drawn.maxY - letter.maxY)
+      const beyond = Math.max(
+        letter.minX - drawn.minX,
+        drawn.maxX - letter.maxX,
+        letter.minY - drawn.minY,
+        drawn.maxY - letter.maxY,
+      )
       expect(beyond, `"${glyph.char}"`).toBeGreaterThan(upm)
       // The letter's own box is the one layout measures, as for thorns out of it.
       expect(derived.polygon.layoutBox, `"${glyph.char}"`).toBeDefined()
@@ -174,11 +190,14 @@ describe.each(FIXTURE_FONTS)('Thorn reversed: %s', (fontName) => {
 
 describe('describePipeline', () => {
   it('says "reversed" for Ripple and Thorn only when Reverse is on', () => {
-    const steps = (effects: Parameters<typeof paramsWith>[1]) => describePipeline(paramsWith(GEOMETRY.plain, effects)).join(' | ')
+    const steps = (effects: Parameters<typeof paramsWith>[1]) =>
+      describePipeline(paramsWith(GEOMETRY.plain, effects)).join(' | ')
     expect(steps({ ...on('ripple'), ...on('thorn') })).not.toContain('reversed')
     expect(steps({ ...on('ripple', { reverse: true }) })).toMatch(/^.*ripple [^|]*, reversed/)
     expect(steps({ ...on('thorn', { reverse: true }) })).toMatch(/thorn ×3, reversed, reach/)
     const old = paramsWith(GEOMETRY.plain, { ...on('ripple'), ...on('thorn') })
-    expect(describePipeline(withoutReverse(withoutReverse(old, 'ripple'), 'thorn')).join(' | ')).not.toContain('reversed')
+    expect(describePipeline(withoutReverse(withoutReverse(old, 'ripple'), 'thorn')).join(' | ')).not.toContain(
+      'reversed',
+    )
   })
 })

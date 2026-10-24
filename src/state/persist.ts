@@ -124,7 +124,8 @@ function fromUnversioned(raw: Raw): Raw {
         if (!isObject(m)) return m
         const feature = typeof m.feature === 'string' ? (FEATURE_RENAMES[m.feature] ?? m.feature) : m.feature
         const effect = typeof m.target === 'string' ? /^experimental\.(\w+)\.(.+)$/.exec(m.target) : null
-        const target = effect && EFFECT_RENAMES[effect[1]] ? `experimental.${EFFECT_RENAMES[effect[1]]}.${effect[2]}` : m.target
+        const target =
+          effect && EFFECT_RENAMES[effect[1]] ? `experimental.${EFFECT_RENAMES[effect[1]]}.${effect[2]}` : m.target
         return { ...m, feature, target }
       })
     : raw.mappings
@@ -145,12 +146,15 @@ function fromV1(raw: Raw): Raw {
       const { width, height } = sanitize(DEFAULT_SETTINGS.artboard, params.artboard, 'artboard')
       const canvasEm = Math.min(Math.hypot(width, height) / size, THORN_LIMITS.maxReachEm)
       // A reach that was on stays on: at least the slider's first step.
-      thorn.canvasReach = reach > 0 ? Math.max(roundReach(clamp(reach / canvasEm, 0, 1)), reachFromSlider(THORN_REACH.slider.step)) : 0
+      thorn.canvasReach =
+        reach > 0 ? Math.max(roundReach(clamp(reach / canvasEm, 0, 1)), reachFromSlider(THORN_REACH.slider.step)) : 0
     }
     params.experimental = { ...params.experimental, thorn }
   }
   const mappings = Array.isArray(raw.mappings)
-    ? raw.mappings.map((m) => (isObject(m) && m.target === 'experimental.thorn.reach' ? { ...m, target: 'experimental.thorn.canvasReach' } : m))
+    ? raw.mappings.map((m) =>
+        isObject(m) && m.target === 'experimental.thorn.reach' ? { ...m, target: 'experimental.thorn.canvasReach' } : m,
+      )
     : raw.mappings
   return { ...raw, params, mappings, version: 2 }
 }
@@ -182,7 +186,8 @@ function fromV2(raw: Raw): Raw {
         const share = (old: number) => (low + old * (high - low)) / high
         const row: Raw = { ...m }
         // Rounded to strip floating-point noise (0.15 × 11 / 12 is 0.1375, not 0.13749999999999998).
-        if (typeof m.depth === 'number' && Number.isFinite(m.depth)) row.depth = Number(((m.depth * (high - low)) / high).toFixed(9))
+        if (typeof m.depth === 'number' && Number.isFinite(m.depth))
+          row.depth = Number(((m.depth * (high - low)) / high).toFixed(9))
         const rangeMin = typeof m.rangeMin === 'number' && Number.isFinite(m.rangeMin) ? m.rangeMin : 0
         const rangeMax = typeof m.rangeMax === 'number' && Number.isFinite(m.rangeMax) ? m.rangeMax : 1
         if (rangeMin > 0 || rangeMax < 1) {
@@ -256,7 +261,10 @@ function readLeaf(path: string, value: unknown, fallback: unknown): unknown {
   // The slider's own range: every Geometry and Experimental slider and seed is a Sound target (the Typography
   // sliders are too, but keep their ranges below, which do not round).
   const target = targetById(path)
-  if (target && (target.tab === 'geometry' || target.tab === 'experimental')) return Number.isInteger(target.step) ? Math.round(clamp(value, target.min, target.max)) : clamp(value, target.min, target.max)
+  if (target && (target.tab === 'geometry' || target.tab === 'experimental'))
+    return Number.isInteger(target.step)
+      ? Math.round(clamp(value, target.min, target.max))
+      : clamp(value, target.min, target.max)
   const range = RANGES[path]
   if (range) return range[2] ? Math.round(clamp(value, range[0], range[1])) : clamp(value, range[0], range[1])
   return value
@@ -270,7 +278,8 @@ function sanitize<T>(defaults: T, saved: unknown, path = ''): T {
   }
   const source = isObject(saved) ? saved : {}
   const result: Raw = {}
-  for (const [key, fallback] of Object.entries(defaults)) result[key] = sanitize(fallback, source[key], path ? `${path}.${key}` : key)
+  for (const [key, fallback] of Object.entries(defaults))
+    result[key] = sanitize(fallback, source[key], path ? `${path}.${key}` : key)
   return result as T
 }
 
@@ -311,7 +320,11 @@ function readMappings(saved: unknown): Mapping[] {
 
 /** Range and step of each saved Sound setting: the Response group's sliders, Return to plain (0 or 1) and its Hold. */
 const SOUND_RANGES: { [K in keyof SoundSettings]: { min: number; max: number; step: number } } = {
-  sensitivity: { min: SOUND_LIMITS.minSensitivity, max: SOUND_LIMITS.maxSensitivity, step: SOUND_LIMITS.sensitivityStep },
+  sensitivity: {
+    min: SOUND_LIMITS.minSensitivity,
+    max: SOUND_LIMITS.maxSensitivity,
+    step: SOUND_LIMITS.sensitivityStep,
+  },
   releaseMs: { min: SOUND_LIMITS.minReleaseMs, max: SOUND_LIMITS.maxReleaseMs, step: SOUND_LIMITS.releaseStepMs },
   strength: RESPONSE_LIMITS.strength,
   contrast: RESPONSE_LIMITS.contrast,
@@ -335,7 +348,8 @@ function readSound(saved: unknown): SoundSettings {
   return sound
 }
 
-const shortText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max
+const shortText = (value: unknown, max: number): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= max
 
 function readFont(saved: unknown): SavedFont | null {
   if (!isObject(saved)) return null
@@ -351,7 +365,11 @@ function readGlyph(saved: unknown): SavedGlyph | null {
   if (!isObject(saved) || typeof saved.family !== 'string' || typeof saved.style !== 'string') return null
   const { index, unicode } = saved
   if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) return null
-  if (unicode !== null && (typeof unicode !== 'number' || !Number.isInteger(unicode) || unicode < 0 || unicode > 0x10ffff)) return null
+  if (
+    unicode !== null &&
+    (typeof unicode !== 'number' || !Number.isInteger(unicode) || unicode < 0 || unicode > 0x10ffff)
+  )
+    return null
   return { family: saved.family, style: saved.style, index, unicode }
 }
 
@@ -360,7 +378,10 @@ export function readSession(raw: unknown): Session | null {
   if (!isObject(raw)) return null
   const saved = migrate(raw)
   const look = isObject(saved.previewLook) ? saved.previewLook : {}
-  const blur = typeof look.blur === 'number' && Number.isFinite(look.blur) ? snapToStep(clamp(look.blur, 0, MAX_PREVIEW_BLUR), PREVIEW_BLUR_STEP) : DEFAULT_PREVIEW_LOOK.blur
+  const blur =
+    typeof look.blur === 'number' && Number.isFinite(look.blur)
+      ? snapToStep(clamp(look.blur, 0, MAX_PREVIEW_BLUR), PREVIEW_BLUR_STEP)
+      : DEFAULT_PREVIEW_LOOK.blur
   const precision = saved.precision
   return {
     params: sanitize(DEFAULT_SETTINGS, saved.params),
@@ -412,8 +433,7 @@ export function serializeConfig(session: Session): string {
 
 export type ParsedConfig =
   /** `newer`: written by a newer version of the app; what this one does not know was left out. */
-  | { ok: true; session: Session; newer: boolean }
-  | { ok: false; error: string }
+  { ok: true; session: Session; newer: boolean } | { ok: false; error: string }
 
 /** A config file's text, read as a saved session is (migrated, checked leaf by leaf); anything else is refused. */
 export function parseConfig(text: string): ParsedConfig {
@@ -428,7 +448,11 @@ export function parseConfig(text: string): ParsedConfig {
   }
   const { app: _app, kind: _kind, ...saved } = raw
   // An object always reads as a session (every damaged leaf is the default).
-  return { ok: true, session: readSession(saved)!, newer: typeof saved.version === 'number' && saved.version > SESSION_VERSION }
+  return {
+    ok: true,
+    session: readSession(saved)!,
+    newer: typeof saved.version === 'number' && saved.version > SESSION_VERSION,
+  }
 }
 
 // ---- Storage ----
@@ -488,7 +512,12 @@ export function clearRestoring(storage: Storage | null = browserStorage()): void
  * Saves `read()` SAVE_DELAY_MS after the last schedule(), or at once on flush() (the page is hidden or closing).
  * `onFailure` hears of the first save the browser refuses (storage full or blocked), once, so the app can say so.
  */
-export function createSessionSaver(read: () => Session, storage?: Storage | null, delay: number = SAVE_DELAY_MS, onFailure?: () => void) {
+export function createSessionSaver(
+  read: () => Session,
+  storage?: Storage | null,
+  delay: number = SAVE_DELAY_MS,
+  onFailure?: () => void,
+) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let failed = false
   const flush = () => {

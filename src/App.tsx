@@ -28,7 +28,14 @@ import { applyTextCase, moveFreeText, type ArtboardParams, type TextCase } from 
 import { DEFAULT_PREVIEW_LOOK, type PreviewLook } from './specimen/previewLook'
 import { DEFAULT_TEXT } from './specimen/samples'
 import { panZoomStore } from './state/canvasView'
-import { editorReducer, initialState, isOtherFace, thornCanvasEm, withThornCanvasEm, type Action } from './state/editorState'
+import {
+  editorReducer,
+  initialState,
+  isOtherFace,
+  thornCanvasEm,
+  withThornCanvasEm,
+  type Action,
+} from './state/editorState'
 import { changedSettings, listenForUndo, undoHistory, useHistoryState, type Snapshot } from './state/history'
 import {
   clearRestoring,
@@ -81,8 +88,14 @@ function findSavedGlyph(font: LoadedFont, glyph: SavedGlyph): GlyphRef | null {
 /** Whether `font` is the one `saved` names: the same Google Fonts request, or a local file of the same name. */
 function isSavedFont(font: LoadedFont, saved: SavedFont): boolean {
   const loaded = savedFont(font)
-  if (loaded.kind === 'local' || saved.kind === 'local') return loaded.kind === 'local' && saved.kind === 'local' && loaded.fileName === saved.fileName
-  return loaded.family === saved.family && loaded.weight === saved.weight && loaded.italic === saved.italic && loaded.subset === saved.subset
+  if (loaded.kind === 'local' || saved.kind === 'local')
+    return loaded.kind === 'local' && saved.kind === 'local' && loaded.fileName === saved.fileName
+  return (
+    loaded.family === saved.family &&
+    loaded.weight === saved.weight &&
+    loaded.italic === saved.italic &&
+    loaded.subset === saved.subset
+  )
 }
 
 /**
@@ -120,7 +133,15 @@ export default function App({ restored }: AppProps) {
   // number (null while Thorn is off), so the text size and canvas change the geometry only when it changes.
   const canvasEm = thornCanvasEm(state.params)
   const baseParams = useMemo<GeometryParams>(
-    () => ({ flatten, random, squaring, anchors, grid, distortion, experimental: withThornCanvasEm(experimental, canvasEm) }),
+    () => ({
+      flatten,
+      random,
+      squaring,
+      anchors,
+      grid,
+      distortion,
+      experimental: withThornCanvasEm(experimental, canvasEm),
+    }),
     [flatten, random, squaring, anchors, grid, distortion, experimental, canvasEm],
   )
   // The loaded font's variable axes are Sound targets: set in render, before the panels below read the targets in the
@@ -129,10 +150,18 @@ export default function App({ restored }: AppProps) {
   setTargetFont(font)
   useLayoutEffect(() => setTargetFont(font))
   // Sound drives the canvas's typography and colours too: the scheduler gets them with the geometry (never in its key).
-  const drivenBase = useMemo<DrivenParams>(() => ({ ...baseParams, typography, palette }), [baseParams, typography, palette])
+  const drivenBase = useMemo<DrivenParams>(
+    () => ({ ...baseParams, typography, palette }),
+    [baseParams, typography, palette],
+  )
   // Without a font there are no letters to move: Sound does not drive.
   const live = useLiveFrame(drivenBase, font !== null)
-  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } = useGeometry(state, displayText, baseParams, live)
+  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } = useGeometry(
+    state,
+    displayText,
+    baseParams,
+    live,
+  )
   // The colours as shown and recorded: Sound's over the sliders'. Exports keep the sliders' own.
   const livePalette = live.look?.palette
   const shownPalette = useMemo(() => (livePalette ? { ...palette, ...livePalette } : palette), [palette, livePalette])
@@ -300,7 +329,12 @@ export default function App({ restored }: AppProps) {
   const glyphToSave = useMemo<SavedGlyph | null>(
     () =>
       font
-        ? selectedGlyph && { family: font.familyName, style: font.styleName, index: selectedGlyph.index, unicode: selectedGlyph.unicode }
+        ? selectedGlyph && {
+            family: font.familyName,
+            style: font.styleName,
+            index: selectedGlyph.index,
+            unicode: selectedGlyph.unicode,
+          }
         : (lastVisit?.glyph ?? null),
     [font, selectedGlyph, lastVisit],
   )
@@ -330,8 +364,29 @@ export default function App({ restored }: AppProps) {
   const [saver] = useState(() => createSessionSaver(readSessionNow, undefined, undefined, () => setSaveFailed(true)))
   useEffect(
     () => saver.schedule(),
-    [saver, flatten, random, squaring, anchors, grid, distortion, experimental, typography, palette, artboard,
-      outline, showFill, showSkeleton, showVertices, showMetrics, text, previewLook, precision, fontToSave, glyphToSave],
+    [
+      saver,
+      flatten,
+      random,
+      squaring,
+      anchors,
+      grid,
+      distortion,
+      experimental,
+      typography,
+      palette,
+      artboard,
+      outline,
+      showFill,
+      showSkeleton,
+      showVertices,
+      showMetrics,
+      text,
+      previewLook,
+      precision,
+      fontToSave,
+      glyphToSave,
+    ],
   )
 
   // While the restored settings are first drawn, a mark in storage says so: should the page crash on
@@ -444,7 +499,8 @@ export default function App({ restored }: AppProps) {
       setPreviewLook(config.previewLook)
 
       const notes = [`Imported ${file.name}. Undo reverts its settings, text and Sound.`]
-      if (parsed.newer) notes.push('It was saved by a newer None-Curve: settings this version does not know were left out.')
+      if (parsed.newer)
+        notes.push('It was saved by a newer None-Curve: settings this version does not know were left out.')
       const open = current.current.state.document.font
       const wanted = config.font
       if (!wanted || (open && isSavedFont(open, wanted))) {
@@ -489,7 +545,9 @@ export default function App({ restored }: AppProps) {
   const sessionNote =
     [
       crashNote ? 'The last visit closed while drawing, so its settings were not restored.' : '',
-      !font && lastVisit?.font?.kind === 'local' ? `Last font: ${lastVisit.font.fileName}. Import it again to continue.` : '',
+      !font && lastVisit?.font?.kind === 'local'
+        ? `Last font: ${lastVisit.font.fileName}. Import it again to continue.`
+        : '',
     ]
       .filter(Boolean)
       .join(' ') || null
@@ -523,7 +581,15 @@ export default function App({ restored }: AppProps) {
 
   // A video records the canvas as shown (recorder.ts): the font names the file, the artboard sets its size.
   useRecordingContext(
-    font ? { family: font.familyName, style: font.styleName, artboard, transparent: palette.transparent, onSaved: ignoreSavedTake } : null,
+    font
+      ? {
+          family: font.familyName,
+          style: font.styleName,
+          artboard,
+          transparent: palette.transparent,
+          onSaved: ignoreSavedTake,
+        }
+      : null,
   )
 
   // The snap grid (lines and label) follows the letters as shown: while Sound drives Grid size, the live size.
@@ -554,8 +620,25 @@ export default function App({ restored }: AppProps) {
       onOpenGoogleFonts: openGoogleFonts,
       note: sessionNote,
     }),
-    [canvasDocument, view, layout, placement, shownPalette, palette, artboard, setArtboard, gridSize, highlight, selectGlyph,
-      clearHighlight, freeMove, onViewChange, importLocalFont, openGoogleFonts, sessionNote],
+    [
+      canvasDocument,
+      view,
+      layout,
+      placement,
+      shownPalette,
+      palette,
+      artboard,
+      setArtboard,
+      gridSize,
+      highlight,
+      selectGlyph,
+      clearHighlight,
+      freeMove,
+      onViewChange,
+      importLocalFont,
+      openGoogleFonts,
+      sessionNote,
+    ],
   )
   const previewProps = useMemo(
     () => ({

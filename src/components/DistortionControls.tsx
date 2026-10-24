@@ -22,14 +22,7 @@ interface DistortionControlsProps {
 
 const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1, sparse: false }
 
-function DistortionControls({
-  params,
-  stats,
-  finalVertices,
-  pending,
-  disabled,
-  dispatch,
-}: DistortionControlsProps) {
+function DistortionControls({ params, stats, finalVertices, pending, disabled, dispatch }: DistortionControlsProps) {
   const update = (patch: Partial<DistortionParams>) => dispatch({ type: 'updateParams', group: 'distortion', patch })
   const on = params.amount > 0
   const wavelength = Math.round(1000 / params.frequency)
@@ -50,8 +43,8 @@ function DistortionControls({
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Last step of the pipeline: moves the final vertices with deterministic noise, so it also moves them off the grid
-          and off locked angles. Distortion changes detail and can hurt legibility.
+          Last step of the pipeline: moves the final vertices with deterministic noise, so it also moves them off the
+          grid and off locked angles. Distortion changes detail and can hurt legibility.
         </HintText>
 
         <SliderField
@@ -103,7 +96,11 @@ function DistortionControls({
               onCommit={(seed) => update({ seed })}
             />
             <LiveSeed target="distortion.seed" />
-            <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (DISTORTION_LIMITS.maxSeed + 1) })}>
+            <button
+              type="button"
+              className="button-small"
+              onClick={() => update({ seed: (params.seed + 1) % (DISTORTION_LIMITS.maxSeed + 1) })}
+            >
               <Icon name="next" />
               Next variant
             </button>
@@ -153,19 +150,25 @@ function DistortionControls({
         )}
         {stats && stats.fallbackContours > 0 && (
           <p className="font-warning">
-            {stats.fallbackContours} {stats.fallbackContours === 1 ? 'contour is' : 'contours are'} left undistorted: even a
-            sixteenth of the amplitude made {stats.fallbackContours === 1 ? 'it' : 'them'} invalid.
+            {stats.fallbackContours} {stats.fallbackContours === 1 ? 'contour is' : 'contours are'} left undistorted:
+            even a sixteenth of the amplitude made {stats.fallbackContours === 1 ? 'it' : 'them'} invalid.
           </p>
         )}
 
         {/* Few anchors has no control of its own: only the Sound tab's Flicker preset turns it on. */}
         {params.sparse && (
           <p className="field-hint">
-            Only a few anchors move (set by the Flicker preset in the Sound tab). Reset distortion moves every anchor again.
+            Only a few anchors move (set by the Flicker preset in the Sound tab). Reset distortion moves every anchor
+            again.
           </p>
         )}
 
-        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_DISTORTION, seed: params.seed })}>
+        <button
+          type="button"
+          className="button-small"
+          disabled={disabled || isDefault}
+          onClick={() => update({ ...DEFAULT_DISTORTION, seed: params.seed })}
+        >
           <Icon name="reset" />
           Reset distortion
         </button>

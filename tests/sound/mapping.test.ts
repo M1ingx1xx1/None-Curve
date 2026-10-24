@@ -7,13 +7,39 @@ import { describe, expect, it } from 'vitest'
 import { FEATURES, featureValue, modulate, TARGETS, targetById, type Mapping } from '../../src/sound/mapping'
 import { PRESETS, presetSettings } from '../../src/sound/presets'
 import { MAPPING_LIMITS } from '../../src/sound/mappingStore'
-import { NEUTRAL_RESPONSE, RESPONSE_LIMITS, SILENT_FRAME, type FeatureFrame, type ResponseSettings } from '../../src/sound/types'
+import {
+  NEUTRAL_RESPONSE,
+  RESPONSE_LIMITS,
+  SILENT_FRAME,
+  type FeatureFrame,
+  type ResponseSettings,
+} from '../../src/sound/types'
 import { reachFromSlider, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId } from '../../src/state/sliderScales'
 import { BASE } from '../helpers/params'
 
 // The Geometry and Experimental sliders (Typography and Color have their own targets.test.ts). Tolerance (logarithmic) and Thorn's Reach (cubic) have curved scales of their own.
-const sliders = TARGETS.filter((t) => t.kind === 'slider' && (t.tab === 'geometry' || t.tab === 'experimental') && t.id !== 'flatten.tolerance' && t.id !== 'experimental.thorn.canvasReach')
-const loud: FeatureFrame = { ...SILENT_FRAME, time: 1, silent: false, levelDb: 0, level: 1, bass: 1, mids: 1, treble: 1, brightness: 1, pitch: 1, beat: 1, activity: 1, pan: 1 }
+const sliders = TARGETS.filter(
+  (t) =>
+    t.kind === 'slider' &&
+    (t.tab === 'geometry' || t.tab === 'experimental') &&
+    t.id !== 'flatten.tolerance' &&
+    t.id !== 'experimental.thorn.canvasReach',
+)
+const loud: FeatureFrame = {
+  ...SILENT_FRAME,
+  time: 1,
+  silent: false,
+  levelDb: 0,
+  level: 1,
+  bass: 1,
+  mids: 1,
+  treble: 1,
+  brightness: 1,
+  pitch: 1,
+  beat: 1,
+  activity: 1,
+  pan: 1,
+}
 
 describe('Sound targets', () => {
   it('take every slider range and step from SLIDER_RANGES', () => {
@@ -40,7 +66,7 @@ describe('Sound targets', () => {
     }
   })
 
-  it('move Thorn\'s Reach on the cubic slider the panel uses', () => {
+  it("move Thorn's Reach on the cubic slider the panel uses", () => {
     const reach = targetById('experimental.thorn.canvasReach')!
     expect([reach.min, reach.max, reach.label, reach.section]).toEqual([0, THORN_REACH.max, 'Reach', 'Thorn'])
     // Every position of the range input gives the value the panel reads from it, and sits where the panel puts its thumb.
@@ -73,13 +99,31 @@ describe('Sound targets', () => {
 })
 
 describe('modulate', () => {
-  const row = (target: string, depth: number, feature: Mapping['feature'] = 'level'): Mapping => ({ id: target, enabled: true, feature, target, depth })
+  const row = (target: string, depth: number, feature: Mapping['feature'] = 'level'): Mapping => ({
+    id: target,
+    enabled: true,
+    feature,
+    target,
+    depth,
+  })
 
   it('returns the sliders themselves in silence, with depth 0, or with the row off', () => {
     const mappings = [row('distortion.amount', 1), row('anchors.spacing', -0.5)]
     expect(modulate(BASE, SILENT_FRAME, mappings).params).toBe(BASE)
-    expect(modulate(BASE, loud, mappings.map((m) => ({ ...m, depth: 0 }))).params).toBe(BASE)
-    expect(modulate(BASE, loud, mappings.map((m) => ({ ...m, enabled: false }))).params).toBe(BASE)
+    expect(
+      modulate(
+        BASE,
+        loud,
+        mappings.map((m) => ({ ...m, depth: 0 })),
+      ).params,
+    ).toBe(BASE)
+    expect(
+      modulate(
+        BASE,
+        loud,
+        mappings.map((m) => ({ ...m, enabled: false })),
+      ).params,
+    ).toBe(BASE)
   })
 
   it('moves a slider by depth times the feature, within its range, on its step', () => {
@@ -120,7 +164,13 @@ describe('modulate', () => {
 })
 
 describe('modulate with the Response group', () => {
-  const row = (target: string, depth: number, feature: Mapping['feature'] = 'level', id = target): Mapping => ({ id, enabled: true, feature, target, depth })
+  const row = (target: string, depth: number, feature: Mapping['feature'] = 'level', id = target): Mapping => ({
+    id,
+    enabled: true,
+    feature,
+    target,
+    depth,
+  })
   const response = (patch: Partial<ResponseSettings>): ResponseSettings => ({ ...NEUTRAL_RESPONSE, ...patch })
   /** A grid of sounding frames: every feature at a few values, Melody and Pan included, with and without an onset. */
   const grid: FeatureFrame[] = []
@@ -151,7 +201,9 @@ describe('modulate with the Response group', () => {
       const seeds = new Map(mappings.filter((m) => targetById(m.target)?.kind === 'jump').map((m) => [m.target, 2]))
       for (const frame of grid) {
         for (const jumps of [undefined, seeds]) {
-          expect(modulate(params, frame, mappings, jumps, NEUTRAL_RESPONSE), preset.name).toEqual(modulate(params, frame, mappings, jumps))
+          expect(modulate(params, frame, mappings, jumps, NEUTRAL_RESPONSE), preset.name).toEqual(
+            modulate(params, frame, mappings, jumps),
+          )
         }
       }
       expect(modulate(params, SILENT_FRAME, mappings, undefined, NEUTRAL_RESPONSE).params, preset.name).toBe(params)
@@ -169,8 +221,16 @@ describe('modulate with the Response group', () => {
       expect(positions.get(target.id)).toBeCloseTo(target.toSlider(expected), 9)
     }
     // Past the slider's end it stops there.
-    expect(target.get(modulate(BASE, loud, [row(target.id, 0.5)], undefined, response({ strength: 4 })).params)).toBe(target.max)
-    const still = modulate(BASE, loud, [row(target.id, 1), row('anchors.spacing', -1)], undefined, response({ strength: 0 }))
+    expect(target.get(modulate(BASE, loud, [row(target.id, 0.5)], undefined, response({ strength: 4 })).params)).toBe(
+      target.max,
+    )
+    const still = modulate(
+      BASE,
+      loud,
+      [row(target.id, 1), row('anchors.spacing', -1)],
+      undefined,
+      response({ strength: 0 }),
+    )
     expect(still.params).toBe(BASE)
     expect(still.positions.get(target.id)).toBe(base)
   })
@@ -188,13 +248,22 @@ describe('modulate with the Response group', () => {
     const melody = 1.5
     const boosted = modulate(BASE, frame, mappings, undefined, response({ melody }))
     const boost = RESPONSE_LIMITS.melodyBoost * melody * 0.6
-    expect(at(level.id, boosted.params)).toBeCloseTo(level.toSlider(level.fromSlider(at(level.id, BASE) + 0.5 * (0.2 + boost))), 9)
+    expect(at(level.id, boosted.params)).toBeCloseTo(
+      level.toSlider(level.fromSlider(at(level.id, BASE) + 0.5 * (0.2 + boost))),
+      9,
+    )
     // Pan and the Melody row move as without it.
     expect(spacing.get(boosted.params)).toBe(spacing.get(plain.params))
     expect(squaring.get(boosted.params)).toBe(squaring.get(plain.params))
     expect(squaring.get(plain.params)).not.toBe(squaring.get(BASE))
     // The boosted feature caps at 1.
-    const capped = modulate(BASE, { ...frame, level: 0.9, melody: 1 }, [row(level.id, 0.5)], undefined, response({ melody: 2 }))
+    const capped = modulate(
+      BASE,
+      { ...frame, level: 0.9, melody: 1 },
+      [row(level.id, 0.5)],
+      undefined,
+      response({ melody: 2 }),
+    )
     expect(at(level.id, capped.params)).toBeCloseTo(level.toSlider(level.fromSlider(at(level.id, BASE) + 0.5)), 9)
   })
 

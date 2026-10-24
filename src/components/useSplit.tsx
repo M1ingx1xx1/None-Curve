@@ -48,7 +48,11 @@ function readStored(key: string, fallback: number[]): number[] {
     if (raw === null) return fallback
     const parsed: unknown = JSON.parse(raw)
     const values = typeof parsed === 'number' && fallback.length === 2 ? [parsed, 1 - parsed] : parsed
-    if (!Array.isArray(values) || values.length !== fallback.length || !values.every((v) => typeof v === 'number' && v > 0)) {
+    if (
+      !Array.isArray(values) ||
+      values.length !== fallback.length ||
+      !values.every((v) => typeof v === 'number' && v > 0)
+    ) {
       return fallback
     }
     const total = sum(values)
@@ -194,7 +198,14 @@ function useSplits<T extends HTMLElement>({ storageKey, defaults, axis, mins, cs
 }
 
 /** Two panes with one handle between them (see useSplits). */
-export function useSplit<T extends HTMLElement>({ storageKey, defaultValue, axis, minStart, minEnd, cssVars }: SplitOptions) {
+export function useSplit<T extends HTMLElement>({
+  storageKey,
+  defaultValue,
+  axis,
+  minStart,
+  minEnd,
+  cssVars,
+}: SplitOptions) {
   const split = useSplits<T>({
     storageKey,
     defaults: [defaultValue, 1 - defaultValue],

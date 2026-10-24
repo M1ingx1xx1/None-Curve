@@ -257,8 +257,8 @@ function FlattenControls({
         )}
         {stats && stats.unresolvedContours > 0 && (
           <p className="font-warning">
-            {stats.unresolvedContours} contour{stats.unresolvedContours === 1 ? ' still crosses' : 's still cross'} where
-            the original does not, even at the finest flattening tried.
+            {stats.unresolvedContours} contour{stats.unresolvedContours === 1 ? ' still crosses' : 's still cross'}{' '}
+            where the original does not, even at the finest flattening tried.
           </p>
         )}
         {stats && stats.limitedCurves > 0 && (

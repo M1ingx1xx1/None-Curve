@@ -386,7 +386,13 @@ export interface GpuPlan extends GpuGeometry {
   anchors: WebGLBuffer
   anchorArray: WebGLVertexArrayObject
   /** Mesh plans: the path rows, their vertex array, and where the path pass writes (buffer and texture). */
-  paths: { rows: WebGLBuffer; array: WebGLVertexArrayObject; count: number; positions: WebGLBuffer; texture: WebGLTexture } | null
+  paths: {
+    rows: WebGLBuffer
+    array: WebGLVertexArrayObject
+    count: number
+    positions: WebGLBuffer
+    texture: WebGLTexture
+  } | null
   /** One per distinct progress drawn in a frame (copies of a glyph mid-glide from different starts). */
   slots: GpuSlot[]
   /** Slots handed out in the current frame: slots[0, used). */
@@ -505,7 +511,11 @@ export function deleteShape(gl: WebGL2RenderingContext, shape: GpuShape) {
 }
 
 /** A plan: its anchor rows (and path rows), fans and segments; slots are made as frames need them. */
-export function uploadPlan(gl: WebGL2RenderingContext, plan: MorphPlan, data: PlanData): { plan: GpuPlan; bytes: number } {
+export function uploadPlan(
+  gl: WebGL2RenderingContext,
+  plan: MorphPlan,
+  data: PlanData,
+): { plan: GpuPlan; bytes: number } {
   const contours = planContours(data, plan.to)
   const geometry = createGeometry(gl, contours, planBounds(plan, data))
   const rows = anchorRows(data, plan.to)
@@ -545,7 +555,11 @@ export function uploadPlan(gl: WebGL2RenderingContext, plan: MorphPlan, data: Pl
  * this frame's slots, its positions still valid: only an evaluation writes a slot, and it sets `p`), else the next free
  * one, made when there is none (`fresh`: p must be evaluated into it). Pure, so `make` stands in for the GPU.
  */
-export function claimSlot<S extends { p: number }>(plan: { slots: S[]; used: number }, p: number, make: () => S): { slot: S; fresh: boolean } {
+export function claimSlot<S extends { p: number }>(
+  plan: { slots: S[]; used: number },
+  p: number,
+  make: () => S,
+): { slot: S; fresh: boolean } {
   const { slots } = plan
   for (let i = 0; i < plan.used; i++) if (slots[i].p === p) return { slot: slots[i], fresh: false }
   for (let i = plan.used; i < slots.length; i++) {
@@ -565,7 +579,12 @@ export function claimSlot<S extends { p: number }>(plan: { slots: S[]; used: num
 }
 
 /** claimSlot on the GPU: a new slot's bytes are added to `grew`. */
-export function planSlot(gl: WebGL2RenderingContext, plan: GpuPlan, p: number, grew: { bytes: number }): { slot: GpuSlot; fresh: boolean } {
+export function planSlot(
+  gl: WebGL2RenderingContext,
+  plan: GpuPlan,
+  p: number,
+  grew: { bytes: number },
+): { slot: GpuSlot; fresh: boolean } {
   return claimSlot(plan, p, () => {
     grew.bytes += slotBytes(plan.points)
     return createSlot(gl, plan.points, plan.fan, null)

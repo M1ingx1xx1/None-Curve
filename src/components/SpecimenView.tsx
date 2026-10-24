@@ -70,8 +70,26 @@ interface SpecimenGlyphProps {
  * glyphs whose shape and place did not change are not drawn again.
  */
 export const SpecimenGlyph = memo(function SpecimenGlyph(props: SpecimenGlyphProps) {
-  const { index, text, x, y, advance, skew, ascender, descender, source, polygon, polygonHref, sourceHref, clickHref, view, markerRadius, showMarkers, selected, onSelect } =
-    props
+  const {
+    index,
+    text,
+    x,
+    y,
+    advance,
+    skew,
+    ascender,
+    descender,
+    source,
+    polygon,
+    polygonHref,
+    sourceHref,
+    clickHref,
+    view,
+    markerRadius,
+    showMarkers,
+    selected,
+    onSelect,
+  } = props
   // The click target: the advance by the line (so small text and the inside of letters like "o" are
   // easy to hit) and the drawn outlines. With Thorn, the drawn outlines ignore the pointer (see
   // .specimen-glyph-thorned in styles.css), so thorns reaching across the canvas never catch clicks or
@@ -204,7 +222,8 @@ export default function SpecimenView({
   const margin = unitsPerEm
   // A line or glyph is drawn when its metric box (advance by line, plus an em for overhangs and the
   // original outlines) or its ink is in view, so thorns reaching in from far away do not pop in and out.
-  const inView = (b: Extent | null) => b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
+  const inView = (b: Extent | null) =>
+    b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
 
   const shared = sharedOutlines(`${ids}-o`)
   // The font's outlines are drawn only in these views; the flattened view needs none of them.

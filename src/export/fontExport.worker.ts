@@ -7,7 +7,8 @@ import { parseFont } from '../font/parse'
 import { buildFontFile } from './fontFile'
 import { unpackGlyphs, type FontExportRequest, type FontExportResponse } from './protocol'
 
-const post = (message: FontExportResponse, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(message, transfer)
+const post = (message: FontExportResponse, transfer: Transferable[] = []) =>
+  (self as unknown as Worker).postMessage(message, transfer)
 
 self.onmessage = async (event: MessageEvent<FontExportRequest>) => {
   const { bytes, source, plan, params, key, naming, known } = event.data

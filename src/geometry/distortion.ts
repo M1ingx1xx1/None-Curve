@@ -57,8 +57,18 @@ export interface DistortionStats {
   fallbackContours: number
 }
 
-export function applyDistortion(polygon: PolygonGlyph, params: DistortionParams): { polygon: PolygonGlyph; stats: DistortionStats } {
-  const stats: DistortionStats = { applied: false, maxShift: 0, movedAnchors: 0, clampedVertices: 0, reducedContours: 0, fallbackContours: 0 }
+export function applyDistortion(
+  polygon: PolygonGlyph,
+  params: DistortionParams,
+): { polygon: PolygonGlyph; stats: DistortionStats } {
+  const stats: DistortionStats = {
+    applied: false,
+    maxShift: 0,
+    movedAnchors: 0,
+    clampedVertices: 0,
+    reducedContours: 0,
+    fallbackContours: 0,
+  }
   const amount = clamp(finite(params.amount, 0), 0, DISTORTION_LIMITS.maxAmount)
   if (amount === 0) return { polygon, stats }
 
@@ -88,7 +98,8 @@ export function applyDistortion(polygon: PolygonGlyph, params: DistortionParams)
       if (reduced) stats.reducedContours++
       stats.clampedVertices += result.clamped
       stats.maxShift = Math.max(stats.maxShift, result.maxShift)
-      for (let i = 0; i < before.length; i++) if (result.points[i].x !== before[i].x || result.points[i].y !== before[i].y) stats.movedAnchors++
+      for (let i = 0; i < before.length; i++)
+        if (result.points[i].x !== before[i].x || result.points[i].y !== before[i].y) stats.movedAnchors++
       current[index] = result.points
       return { points: result.points, clockwise: signedArea(result.points) < 0 } satisfies PolygonContour
     }
@@ -131,7 +142,12 @@ interface Distorted {
 }
 
 /** `weights` scales each vertex's displacement (used to lower the amplitude in places). */
-function distortContour(points: readonly Point[], contourIndex: number, s: Settings, weights?: Float64Array): Distorted {
+function distortContour(
+  points: readonly Point[],
+  contourIndex: number,
+  s: Settings,
+  weights?: Float64Array,
+): Distorted {
   const n = points.length
 
   // Arc length at each vertex, measured from the start vertex; the closing edge counts too.
@@ -199,9 +215,12 @@ function distortContour(points: readonly Point[], contourIndex: number, s: Setti
       const limit = -DISTORTION_LIMITS.edgeFraction * edge
       // How much each part brings the two ends together along the edge (negative: closer).
       const byNormal =
-        ((normal[j].x * scaleN[j] - normal[i].x * scaleN[i]) * ex + (normal[j].y * scaleN[j] - normal[i].y * scaleN[i]) * ey) / edge
+        ((normal[j].x * scaleN[j] - normal[i].x * scaleN[i]) * ex +
+          (normal[j].y * scaleN[j] - normal[i].y * scaleN[i]) * ey) /
+        edge
       const byTangent =
-        ((tangent[j].x * scaleT[j] - tangent[i].x * scaleT[i]) * ex + (tangent[j].y * scaleT[j] - tangent[i].y * scaleT[i]) * ey) /
+        ((tangent[j].x * scaleT[j] - tangent[i].x * scaleT[i]) * ex +
+          (tangent[j].y * scaleT[j] - tangent[i].y * scaleT[i]) * ey) /
         edge
       if (byNormal + byTangent >= limit) continue
       changed = true
@@ -288,7 +307,10 @@ function pickMovers(polygon: PolygonGlyph, seed: number): number[][] {
 }
 
 /** A contour with its picked edge midpoints inserted as vertices, and the indices of its movers there. */
-function withMidpoints(points: readonly Point[], movers: readonly number[]): { points: readonly Point[]; movers: readonly number[] } {
+function withMidpoints(
+  points: readonly Point[],
+  movers: readonly number[],
+): { points: readonly Point[]; movers: readonly number[] } {
   if (movers.every(Number.isInteger)) return { points, movers }
   const out: Point[] = []
   const at: number[] = []
@@ -326,8 +348,14 @@ function lockedVertices(points: readonly Point[]): Uint8Array {
     const lb = Math.hypot(bx, by)
     if (la === 0 || lb === 0 || (ax * bx + ay * by) / (la * lb) < straight) locked[i] = 1
   }
-  markExtremes(points.map((p) => p.x), locked)
-  markExtremes(points.map((p) => p.y), locked)
+  markExtremes(
+    points.map((p) => p.x),
+    locked,
+  )
+  markExtremes(
+    points.map((p) => p.y),
+    locked,
+  )
   return locked
 }
 
@@ -345,13 +373,13 @@ function markExtremes(values: readonly number[], locked: Uint8Array) {
     locked.fill(1)
     return
   }
-  for (let k = 0; k < n; ) {
+  for (let k = 0; k < n;) {
     const first = (start + k) % n
     const v = values[first]
     let length = 1
     while (values[(first + length) % n] === v) length++
     const below = values[(first - 1 + n) % n] < v
-    if ((values[(first + length) % n] < v) === below) for (let m = 0; m < length; m++) locked[(first + m) % n] = 1
+    if (values[(first + length) % n] < v === below) for (let m = 0; m < length; m++) locked[(first + m) % n] = 1
     k += length
   }
 }

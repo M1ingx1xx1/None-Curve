@@ -4,7 +4,16 @@
 // no blur where the canvas cannot; the polygon paths built once, from straight segments only.
 
 import { describe, expect, it } from 'vitest'
-import { canvasFilterWorks, drawArtboard, polygonPaths, touchCanvas, type DrawTarget, type Painter, type PathSink, type Touchable } from '../../src/export/drawArtboard'
+import {
+  canvasFilterWorks,
+  drawArtboard,
+  polygonPaths,
+  touchCanvas,
+  type DrawTarget,
+  type Painter,
+  type PathSink,
+  type Touchable,
+} from '../../src/export/drawArtboard'
 import { specimenPaths } from '../../src/export/svg'
 import { glyphGeometry } from '../../src/geometry/cache'
 import { paramsKey } from '../../src/geometry/paramsKey'
@@ -136,7 +145,10 @@ function square(size = 100): PolygonGlyph {
 }
 
 /** A scene of one line with these glyphs (only the fields drawing reads). */
-function sceneOf(glyphs: { index: number; x: number; y: number; polygon: PolygonGlyph | null }[], slant = 0): SpecimenScene {
+function sceneOf(
+  glyphs: { index: number; x: number; y: number; polygon: PolygonGlyph | null }[],
+  slant = 0,
+): SpecimenScene {
   return { lines: [{ glyphs }], slant } as unknown as SpecimenScene
 }
 
@@ -159,7 +171,14 @@ const numbers = (text: string) => (text.match(/-?\d+(\.\d+)?(e-?\d+)?/g) ?? []).
 describe('drawArtboard', () => {
   it('paints the paper first, always, over the whole canvas', () => {
     const { t, ctx } = target(2400, 1600)
-    drawArtboard(t, sceneOf([{ index: 1, x: 0, y: 0, polygon: square() }]), LAYOUT, ARTBOARD, LOOK, polygonPaths(() => new FakePath()))
+    drawArtboard(
+      t,
+      sceneOf([{ index: 1, x: 0, y: 0, polygon: square() }]),
+      LAYOUT,
+      ARTBOARD,
+      LOOK,
+      polygonPaths(() => new FakePath()),
+    )
     const firstFill = ctx.calls.findIndex((c) => c[0] === 'fill')
     const paper = ctx.calls.findIndex((c) => c[0] === 'fillRect')
     expect(paper).toBeGreaterThan(-1)
@@ -171,7 +190,16 @@ describe('drawArtboard', () => {
     expect(styles.at(-1)).toEqual(['fillStyle', LOOK.paper])
     // An empty scene still gets its paper.
     const empty = target(100, 100)
-    expect(drawArtboard(empty.t, sceneOf([]), LAYOUT, ARTBOARD, LOOK, polygonPaths(() => new FakePath()))).toEqual({ glyphs: 0, blurred: false })
+    expect(
+      drawArtboard(
+        empty.t,
+        sceneOf([]),
+        LAYOUT,
+        ARTBOARD,
+        LOOK,
+        polygonPaths(() => new FakePath()),
+      ),
+    ).toEqual({ glyphs: 0, blurred: false })
     expect(empty.ctx.named('fillRect')).toEqual([['fillRect', 0, 0, 100, 100]])
   })
 
@@ -218,7 +246,8 @@ describe('drawArtboard', () => {
       expect(ctx.named('save')).toHaveLength(ctx.named('restore').length)
 
       // Straight segments only.
-      for (const call of fills) for (const command of (call[1] as FakePath).commands) expect(command).toMatch(/^([ML]-?[\d.e-]+ -?[\d.e-]+|Z)$/)
+      for (const call of fills)
+        for (const command of (call[1] as FakePath).commands) expect(command).toMatch(/^([ML]-?[\d.e-]+ -?[\d.e-]+|Z)$/)
     }
   })
 
@@ -228,11 +257,25 @@ describe('drawArtboard', () => {
       { index: 2, x: 200, y: 20, polygon: square() },
     ]
     const plain = target(1200, 800)
-    drawArtboard(plain.t, sceneOf(glyphs, 0), LAYOUT, ARTBOARD, LOOK, polygonPaths(() => new FakePath()))
+    drawArtboard(
+      plain.t,
+      sceneOf(glyphs, 0),
+      LAYOUT,
+      ARTBOARD,
+      LOOK,
+      polygonPaths(() => new FakePath()),
+    )
     expect(plain.ctx.named('transform')).toHaveLength(0)
 
     const slanted = target(1200, 800)
-    drawArtboard(slanted.t, sceneOf(glyphs, 12), LAYOUT, ARTBOARD, LOOK, polygonPaths(() => new FakePath()))
+    drawArtboard(
+      slanted.t,
+      sceneOf(glyphs, 12),
+      LAYOUT,
+      ARTBOARD,
+      LOOK,
+      polygonPaths(() => new FakePath()),
+    )
     const skews = slanted.ctx.named('transform')
     expect(skews).toHaveLength(2)
     for (const skew of skews) {
@@ -242,7 +285,9 @@ describe('drawArtboard', () => {
       expect(c).toBeCloseTo(Math.tan((-12 * Math.PI) / 180), 12)
     }
     // In SVG order: translate, skew, flip, fill.
-    const order = slanted.ctx.calls.map((c) => c[0]).filter((name) => ['translate', 'transform', 'scale', 'fill'].includes(name))
+    const order = slanted.ctx.calls
+      .map((c) => c[0])
+      .filter((name) => ['translate', 'transform', 'scale', 'fill'].includes(name))
     expect(order).toEqual(['translate', 'transform', 'scale', 'fill', 'translate', 'transform', 'scale', 'fill'])
   })
 
@@ -269,34 +314,77 @@ describe('drawArtboard', () => {
   it('blurs the glyphs as one layer, by the blur times the canvas stretch', () => {
     const look = { ...LOOK, blur: 3 }
     const { t, ctx, layerCtx, image } = target(2400, 1200, { layer: true })
-    const result = drawArtboard(t, sceneOf([{ index: 1, x: 0, y: 0, polygon: square() }]), LAYOUT, ARTBOARD, look, polygonPaths(() => new FakePath()))
+    const result = drawArtboard(
+      t,
+      sceneOf([{ index: 1, x: 0, y: 0, polygon: square() }]),
+      LAYOUT,
+      ARTBOARD,
+      look,
+      polygonPaths(() => new FakePath()),
+    )
     expect(result).toEqual({ glyphs: 1, blurred: true })
     // The glyphs go to the cleared layer, in the ink.
-    expect(layerCtx.calls.slice(0, 3)).toEqual([['setTransform', 1, 0, 0, 1, 0, 0], ['filter', 'none'], ['clearRect', 0, 0, 2400, 1200]])
+    expect(layerCtx.calls.slice(0, 3)).toEqual([
+      ['setTransform', 1, 0, 0, 1, 0, 0],
+      ['filter', 'none'],
+      ['clearRect', 0, 0, 2400, 1200],
+    ])
     expect(layerCtx.named('fill')).toHaveLength(1)
     expect(layerCtx.named('fillStyle')).toEqual([['fillStyle', LOOK.ink]])
     expect(ctx.named('fill')).toHaveLength(0)
     // The canvas: paper, then the layer through the blur (kx 2, ky 1.5 → 3 × 1.75), then no filter.
     const tail = ctx.calls.slice(ctx.calls.findIndex((c) => c[0] === 'fillRect') + 1)
-    expect(tail).toEqual([['setTransform', 1, 0, 0, 1, 0, 0], ['filter', 'blur(5.25px)'], ['drawImage', image, 0, 0], ['filter', 'none']])
+    expect(tail).toEqual([
+      ['setTransform', 1, 0, 0, 1, 0, 0],
+      ['filter', 'blur(5.25px)'],
+      ['drawImage', image, 0, 0],
+      ['filter', 'none'],
+    ])
   })
 
   it('draws without blur where the canvas cannot blur, or has no layer', () => {
     const look = { ...LOOK, blur: 3 }
     const scene = sceneOf([{ index: 1, x: 0, y: 0, polygon: square() }])
     const noFilter = target(1200, 800, { layer: true, filter: false })
-    expect(drawArtboard(noFilter.t, scene, LAYOUT, ARTBOARD, look, polygonPaths(() => new FakePath()))).toEqual({ glyphs: 1, blurred: false })
+    expect(
+      drawArtboard(
+        noFilter.t,
+        scene,
+        LAYOUT,
+        ARTBOARD,
+        look,
+        polygonPaths(() => new FakePath()),
+      ),
+    ).toEqual({ glyphs: 1, blurred: false })
     expect(noFilter.ctx.named('fill')).toHaveLength(1)
     expect(noFilter.layerCtx.calls).toEqual([])
     // `filter` is never set where it does not work.
     expect(noFilter.ctx.named('filter')).toEqual([])
 
     const noLayer = target(1200, 800)
-    expect(drawArtboard(noLayer.t, scene, LAYOUT, ARTBOARD, look, polygonPaths(() => new FakePath()))).toEqual({ glyphs: 1, blurred: false })
+    expect(
+      drawArtboard(
+        noLayer.t,
+        scene,
+        LAYOUT,
+        ARTBOARD,
+        look,
+        polygonPaths(() => new FakePath()),
+      ),
+    ).toEqual({ glyphs: 1, blurred: false })
     expect(noLayer.ctx.named('drawImage')).toEqual([])
 
     const unblurred = target(1200, 800, { layer: true })
-    expect(drawArtboard(unblurred.t, scene, LAYOUT, ARTBOARD, LOOK, polygonPaths(() => new FakePath())).blurred).toBe(false)
+    expect(
+      drawArtboard(
+        unblurred.t,
+        scene,
+        LAYOUT,
+        ARTBOARD,
+        LOOK,
+        polygonPaths(() => new FakePath()),
+      ).blurred,
+    ).toBe(false)
     expect(unblurred.layerCtx.calls).toEqual([])
   })
 })
@@ -310,9 +398,23 @@ describe('polygonPaths', () => {
     })
     const polygon = {
       contours: [
-        { points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], clockwise: false },
+        {
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 10, y: 10 },
+          ],
+          clockwise: false,
+        },
         { points: [], clockwise: true },
-        { points: [{ x: 2, y: 2 }, { x: 4, y: 2 }, { x: 3, y: 4 }], clockwise: true },
+        {
+          points: [
+            { x: 2, y: 2 },
+            { x: 4, y: 2 },
+            { x: 3, y: 4 },
+          ],
+          clockwise: true,
+        },
       ],
     } as unknown as PolygonGlyph
     const path = paths(polygon)
@@ -361,13 +463,22 @@ describe('touchCanvas', () => {
       beginPath: () => calls.push('beginPath'),
       rect: (...a: number[]) => calls.push(`rect ${a.join(',')}`),
       clip: () => calls.push('clip'),
-      drawImage: (image: unknown, ...a: number[]) => calls.push(`drawImage ${String(image)} ${a.join(',')} ${ctx.globalCompositeOperation}`),
+      drawImage: (image: unknown, ...a: number[]) =>
+        calls.push(`drawImage ${String(image)} ${a.join(',')} ${ctx.globalCompositeOperation}`),
       globalAlpha: 0.5,
       globalCompositeOperation: 'source-over',
       filter: 'blur(2px)',
     }
     touchCanvas(ctx)
     // 'copy' is unbounded: without the clip it clears everything outside the copied pixel.
-    expect(calls).toEqual(['save', 'setTransform 1,0,0,1,0,0', 'beginPath', 'rect 0,0,1,1', 'clip', 'drawImage canvas 0,0,1,1,0,0,1,1 copy', 'restore'])
+    expect(calls).toEqual([
+      'save',
+      'setTransform 1,0,0,1,0,0',
+      'beginPath',
+      'rect 0,0,1,1',
+      'clip',
+      'drawImage canvas 0,0,1,1,0,0,1,1 copy',
+      'restore',
+    ])
   })
 })

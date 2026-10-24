@@ -42,7 +42,10 @@ function options(patch: Partial<HitOptions> = {}): HitOptions {
 }
 
 /** One real glyph at the origin. */
-function realScene(char: string, params: GeometryParams | null): { scene: SpecimenScene; polygon: PolygonGlyph | null } {
+function realScene(
+  char: string,
+  params: GeometryParams | null,
+): { scene: SpecimenScene; polygon: PolygonGlyph | null } {
   const index = glyphIndex(char)
   const polygon = params ? deriveGeometry(font.getGlyph(index), params).polygon : null
   return { scene: sceneOf([[{ index, text: char, x: 0, y: 0, advance: advanceOf(char), polygon }]]), polygon }
@@ -58,7 +61,11 @@ describe('glyph hits without thorns', () => {
   it('are the advance by the line, and nothing beside it where no ink is', () => {
     const { scene } = realScene('l', BASE)
     const adv = advanceOf('l')
-    expect(hitScene(scene, adv / 2, -100, options())).toMatchObject({ kind: 'glyph', index: glyphIndex('l'), occurrence: 0 })
+    expect(hitScene(scene, adv / 2, -100, options())).toMatchObject({
+      kind: 'glyph',
+      index: glyphIndex('l'),
+      occurrence: 0,
+    })
     expect(hitScene(scene, adv / 2, -font.metrics.ascender + 1, options())).toMatchObject({ kind: 'glyph' })
     expect(hitScene(scene, adv + 200, -100, options())).toBeNull()
     expect(hitScene(scene, adv / 2, -font.metrics.ascender - 50, options())).toBeNull()
@@ -116,7 +123,8 @@ describe('glyph hits on hand-built glyphs', () => {
   // A square entirely left of its advance box: only its drawn outline can be hit there.
   const left = square(-400, 0, -100, 300)
   const sceneWith = (slant = 0) => sceneOf([[{ index: 1, polygon: left }]], slant)
-  const plain = (patch: Partial<HitOptions> = {}) => options({ source: () => squareSource(), ascender: 900, descender: -250, ...patch })
+  const plain = (patch: Partial<HitOptions> = {}) =>
+    options({ source: () => squareSource(), ascender: 900, descender: -250, ...patch })
 
   it('with Fill off take the stroke band only, 1.5 px either side of the outline', () => {
     const scene = sceneWith()
@@ -126,7 +134,9 @@ describe('glyph hits on hand-built glyphs', () => {
     expect(hitScene(scene, -400 - (STROKE_HIT_PX - 0.1), -150, plain({ fill: false }))).toMatchObject({ kind: 'glyph' })
     expect(hitScene(scene, -400 - (STROKE_HIT_PX + 0.5), -150, plain({ fill: false }))).toBeNull()
     // The band is in screen pixels: twice the font units at u = 2.
-    expect(hitScene(scene, -400 - 2 * (STROKE_HIT_PX - 0.1), -150, plain({ fill: false, u: 2 }))).toMatchObject({ kind: 'glyph' })
+    expect(hitScene(scene, -400 - 2 * (STROKE_HIT_PX - 0.1), -150, plain({ fill: false, u: 2 }))).toMatchObject({
+      kind: 'glyph',
+    })
   })
 
   it('go to the topmost (last drawn) glyph where two overlap', () => {
@@ -150,7 +160,10 @@ describe('glyph hits on hand-built glyphs', () => {
   })
 
   it('count occurrences over every glyph in reading order, spaces and missing ones included', () => {
-    const scene = sceneOf([[{ index: 3 }, { index: 0, missing: true, text: 'x' }], [{ index: 3 }, { index: 5 }]])
+    const scene = sceneOf([
+      [{ index: 3 }, { index: 0, missing: true, text: 'x' }],
+      [{ index: 3 }, { index: 5 }],
+    ])
     expect(hitScene(scene, 900, 1100, plain())).toMatchObject({ index: 5, occurrence: 3 })
   })
 
@@ -168,7 +181,8 @@ describe('glyph hits on hand-built glyphs', () => {
 
 describe('the text block with Free position', () => {
   const scene = sceneOf([[{ index: 1 }, { index: 1 }, { index: 1 }], [{ index: 1 }]])
-  const plain = (patch: Partial<HitOptions> = {}) => options({ source: () => squareSource(), ascender: 900, descender: -250, ...patch })
+  const plain = (patch: Partial<HitOptions> = {}) =>
+    options({ source: () => squareSource(), ascender: 900, descender: -250, ...patch })
 
   it('is a handle between the glyphs, behind them', () => {
     expect(hitScene(scene, 1500, 1100, plain({ freeMove: true }))).toEqual({ kind: 'block' })

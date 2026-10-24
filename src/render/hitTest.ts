@@ -103,7 +103,10 @@ function flattenSource(source: SourceGlyph): Point[][] {
         for (let k = 1; k <= CURVE_STEPS; k++) {
           const t = k / CURVE_STEPS
           const s = 1 - t
-          pts.push({ x: s * s * prev.x + 2 * s * t * seg.control.x + t * t * seg.to.x, y: s * s * prev.y + 2 * s * t * seg.control.y + t * t * seg.to.y })
+          pts.push({
+            x: s * s * prev.x + 2 * s * t * seg.control.x + t * t * seg.to.x,
+            y: s * s * prev.y + 2 * s * t * seg.control.y + t * t * seg.to.y,
+          })
         }
       } else {
         for (let k = 1; k <= CURVE_STEPS; k++) {
@@ -203,7 +206,13 @@ export function hitFrame(frame: GlideFrame, sx: number, sy: number, o: HitOption
  * text in reading order (as PolygonLookup's), spaces and missing glyphs included. With `morphs` (one per occurrence,
  * as GlideFrame's), an occurrence with a morph is hit by its in-between outline instead of the scene's polygon.
  */
-export function hitScene(scene: SpecimenScene, sx: number, sy: number, o: HitOptions, morphs?: GlideFrame['morphs']): RenderHit | null {
+export function hitScene(
+  scene: SpecimenScene,
+  sx: number,
+  sy: number,
+  o: HitOptions,
+  morphs?: GlideFrame['morphs'],
+): RenderHit | null {
   const x = sx - o.offsetX
   const y = sy - o.offsetY
   const skew = scene.slant ? Math.tan((-scene.slant * Math.PI) / 180) : 0
@@ -219,7 +228,8 @@ export function hitScene(scene: SpecimenScene, sx: number, sy: number, o: HitOpt
       if (g.missing) {
         const bx = g.x + g.advance * 0.1
         const by = g.y - o.ascender * 0.7
-        if (x >= bx && x <= bx + g.advance * 0.8 && y >= by && y <= by + o.ascender * 0.7) return { kind: 'missing', text: g.text }
+        if (x >= bx && x <= bx + g.advance * 0.8 && y >= by && y <= by + o.ascender * 0.7)
+          return { kind: 'missing', text: g.text }
         continue
       }
       // As the SVG canvas: a glyph without a source outline is not drawn, so it takes no clicks either.
@@ -234,10 +244,12 @@ export function hitScene(scene: SpecimenScene, sx: number, sy: number, o: HitOpt
       const polygon = morph ? morphNear(morph, gx, gy, reach) : g.polygon
       const thorned = polygon?.clickOutline
       if (thorned) {
-        if (windingAt(pointsOf(thorned), gx, gy) !== 0) return { kind: 'glyph', index: g.index, text: g.text, occurrence }
+        if (windingAt(pointsOf(thorned), gx, gy) !== 0)
+          return { kind: 'glyph', index: g.index, text: g.text, occurrence }
         continue
       }
-      if (source && hitsLayers(polygon?.contours ?? null, source, gx, gy, o)) return { kind: 'glyph', index: g.index, text: g.text, occurrence }
+      if (source && hitsLayers(polygon?.contours ?? null, source, gx, gy, o))
+        return { kind: 'glyph', index: g.index, text: g.text, occurrence }
     }
   }
   return o.freeMove && hitBlock(scene, sx, sy, o.offsetX, o.offsetY) ? { kind: 'block' } : null

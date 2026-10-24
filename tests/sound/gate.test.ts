@@ -4,7 +4,22 @@
 // and on a browser-like one (render quanta, frame jitter).
 
 import { describe, expect, it } from 'vitest'
-import { analyse, drumHits, from, harmonics, hits, hitTimes, mix, pink, reseed, score, sine, square, type ProbedFrame, type Rig } from '../helpers/audio'
+import {
+  analyse,
+  drumHits,
+  from,
+  harmonics,
+  hits,
+  hitTimes,
+  mix,
+  pink,
+  reseed,
+  score,
+  sine,
+  square,
+  type ProbedFrame,
+  type Rig,
+} from '../helpers/audio'
 
 const SECONDS = 8
 const RIGS: [string, Rig][] = [
@@ -13,7 +28,8 @@ const RIGS: [string, Rig][] = [
 ]
 
 /** Pulse restarts a second (an onset or the kick detector), from 1 s in. */
-const restartsPerSecond = (frames: ProbedFrame[]) => from(frames, 1000).filter((f) => f.onset || f.kick).length / (SECONDS - 1)
+const restartsPerSecond = (frames: ProbedFrame[]) =>
+  from(frames, 1000).filter((f) => f.onset || f.kick).length / (SECONDS - 1)
 
 /** Sustained low sounds that must not read as beats. */
 const STEADY: [string, () => Float64Array][] = [
@@ -63,7 +79,11 @@ describe.each(RIGS)('Beat gate: %s', (_, rig) => {
   // Under a full sawtooth (every harmonic up to Nyquist) the gate also holds back some real kicks (half of them on
   // the ideal analyser): a known limit of the fix. What must not come back is the stream of false beats.
   it('kicks over a 55 Hz sawtooth: under 0.5 false beats a second', () => {
-    const frames = analyse(signalOf('kicks over a 55 Hz sawtooth', () => mix(kicks(), harmonics(55, -12, SECONDS))), null, rig)
+    const frames = analyse(
+      signalOf('kicks over a 55 Hz sawtooth', () => mix(kicks(), harmonics(55, -12, SECONDS))),
+      null,
+      rig,
+    )
     const { recall, falsePerSecond } = score(hits(frames, 1000), KICK_TIMES, 1000, frames[frames.length - 1].time)
     expect(falsePerSecond).toBeLessThan(0.5)
     expect(recall).toBeGreaterThan(0)

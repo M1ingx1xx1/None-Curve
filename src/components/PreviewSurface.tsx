@@ -1,4 +1,14 @@
-import { useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { ExportError } from '../export/quantize'
 import { outlineStrokeWidth, specimenPaths, type SvgPathCache } from '../export/svg'
 import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
@@ -72,7 +82,9 @@ export default function PreviewSurface({
 
   // The export's check, as ExportedArtboard runs it (deferred, so a heavy text never holds up the canvas).
   const [cache] = useState<SvgPathCache>(() => new WeakMap())
-  const shown = useDeferredValue(useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]))
+  const shown = useDeferredValue(
+    useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]),
+  )
   const error = useMemo(() => {
     if (!shown.checked) return null
     try {
@@ -207,7 +219,13 @@ export default function PreviewSurface({
               <pattern id={checkerId} patternUnits="userSpaceOnUse" width={checker} height={checker}>
                 <rect width={checker} height={checker} fill={paper} />
                 <rect className="checker-tint" width={checker / 2} height={checker / 2} />
-                <rect className="checker-tint" x={checker / 2} y={checker / 2} width={checker / 2} height={checker / 2} />
+                <rect
+                  className="checker-tint"
+                  x={checker / 2}
+                  y={checker / 2}
+                  width={checker / 2}
+                  height={checker / 2}
+                />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill={`url(#${checkerId})`} />

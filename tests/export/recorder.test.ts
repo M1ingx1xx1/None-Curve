@@ -22,9 +22,25 @@ import {
 import { VIDEO_LIMITS, recordDelayMs } from '../../src/export/videoFormat'
 import { INITIAL_SOUND_STATE, type SoundState } from '../../src/sound/types'
 
-const MP4 = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']
-const MP4_SILENT = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4']
-const WEBM = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8']
+const MP4 = [
+  'video/mp4;codecs=avc1.640028,mp4a.40.2',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4',
+]
+const MP4_SILENT = [
+  'video/mp4;codecs=avc1.640028',
+  'video/mp4;codecs=avc1.42E01E',
+  'video/mp4;codecs=avc1',
+  'video/mp4',
+]
+const WEBM = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
+]
 const CHROME = new Set([...MP4, ...MP4_SILENT, ...WEBM])
 const FIREFOX = new Set(WEBM)
 
@@ -115,7 +131,12 @@ class FakeRecorder implements MediaRecorderLike {
   }
 }
 
-const CONTEXT: Omit<RecordingContext, 'onSaved'> = { family: 'Roboto', style: 'Regular', artboard: { width: 1200, height: 800, scale: 1 }, transparent: false }
+const CONTEXT: Omit<RecordingContext, 'onSaved'> = {
+  family: 'Roboto',
+  style: 'Regular',
+  artboard: { width: 1200, height: 800, scale: 1 },
+  transparent: false,
+}
 
 interface RigOptions {
   sound?: Partial<SoundState>
@@ -204,7 +225,11 @@ function rig(options: RigOptions = {}) {
       calls.push('startMicrophone')
       setSound({ source: 'microphone', busy: true })
       return Promise.resolve().then(() =>
-        setSound(answers.microphone === 'listens' ? { busy: false, listening: true } : { busy: false, error: { kind: 'permission', detail: 'denied' } }),
+        setSound(
+          answers.microphone === 'listens'
+            ? { busy: false, listening: true }
+            : { busy: false, error: { kind: 'permission', detail: 'denied' } },
+        ),
       )
     },
     stopMicrophone: () => {
@@ -269,7 +294,13 @@ function rig(options: RigOptions = {}) {
       const mime = recorderOptions.mimeType ?? ''
       tried.push(mime)
       if (options.refuse?.includes(mime)) throw new DOMException(`${mime} is not supported.`, 'NotSupportedError')
-      const recorder = new FakeRecorder(tracks, recorderOptions, later, options.refuseStart?.includes(mime) ?? false, () => now)
+      const recorder = new FakeRecorder(
+        tracks,
+        recorderOptions,
+        later,
+        options.refuseStart?.includes(mime) ?? false,
+        () => now,
+      )
       recorders.push(recorder)
       return recorder
     },
@@ -387,7 +418,11 @@ describe('recorder', () => {
     expect(r.state.phase).toBe('recording')
     expect(r.captures).toEqual([0])
     expect(r.recorder.timeslice).toBe(1000)
-    expect(r.recorder.options).toMatchObject({ mimeType: MP4[0], videoBitsPerSecond: 4_320_000, audioBitsPerSecond: 128_000 })
+    expect(r.recorder.options).toMatchObject({
+      mimeType: MP4[0],
+      videoBitsPerSecond: 4_320_000,
+      audioBitsPerSecond: 128_000,
+    })
     expect(r.recorder.tracks).toEqual([asTrack(r.video), asTrack(r.audio)])
     // The canvas as it was is the first frame (touched, so it is taken at once); the clock takes the next one a frame
     // later, touched too, so it is taken at the tick rather than at the next drawing.
@@ -446,11 +481,35 @@ describe('recorder', () => {
   const DRAIN = DELAY + VIDEO_LIMITS.drainMs
   it.each([
     ['user', (r: ReturnType<typeof rig>) => r.controller.stop(), '', 'info', LAST],
-    ['source', (r: ReturnType<typeof rig>) => r.setSound({ playing: false }), 'The sound stopped, so the recording ended. ', 'info', DRAIN],
-    ['source switch', (r: ReturnType<typeof rig>) => r.setSound({ source: 'microphone', playing: false }), 'The sound stopped, so the recording ended. ', 'info', LAST],
+    [
+      'source',
+      (r: ReturnType<typeof rig>) => r.setSound({ playing: false }),
+      'The sound stopped, so the recording ended. ',
+      'info',
+      DRAIN,
+    ],
+    [
+      'source switch',
+      (r: ReturnType<typeof rig>) => r.setSound({ source: 'microphone', playing: false }),
+      'The sound stopped, so the recording ended. ',
+      'info',
+      LAST,
+    ],
     ['hidden', (r: ReturnType<typeof rig>) => r.hide(), 'Recording stopped because the tab was hidden. ', 'warning', 0],
-    ['size', (r: ReturnType<typeof rig>) => r.setContext({ artboard: { width: 1200, height: 800, scale: 2 } }), 'Recording stopped because the canvas size changed. ', 'warning', 0],
-    ['font', (r: ReturnType<typeof rig>) => r.controller.setContext(null), 'Recording stopped because the font was closed. ', 'warning', 0],
+    [
+      'size',
+      (r: ReturnType<typeof rig>) => r.setContext({ artboard: { width: 1200, height: 800, scale: 2 } }),
+      'Recording stopped because the canvas size changed. ',
+      'warning',
+      0,
+    ],
+    [
+      'font',
+      (r: ReturnType<typeof rig>) => r.controller.setContext(null),
+      'Recording stopped because the font was closed. ',
+      'warning',
+      0,
+    ],
   ] as const)('stops and saves: %s', async (_, end, prefix, tone, tail) => {
     const r = rig()
     await r.record()
@@ -518,7 +577,9 @@ describe('recorder', () => {
     expect(r.state.phase).toBe('recording')
     r.advance(1)
     r.finish()
-    expect(r.state.message?.text).toBe('Stopped at the 10-minute limit. Saved Roboto-Regular-video.mp4: 10:00, 1200 × 800 px.')
+    expect(r.state.message?.text).toBe(
+      'Stopped at the 10-minute limit. Saved Roboto-Regular-video.mp4: 10:00, 1200 × 800 px.',
+    )
     expect(r.saves).toHaveLength(1)
   })
 
@@ -563,7 +624,10 @@ describe('recorder', () => {
     failed.recorder.fail(new DOMException('Out of memory', 'UnknownError'))
     failed.finish()
     expect(failed.saves).toEqual([])
-    expect(failed.state.message).toEqual({ tone: 'error', text: 'Recording failed: UnknownError: Out of memory. Nothing was recorded.' })
+    expect(failed.state.message).toEqual({
+      tone: 'error',
+      text: 'Recording failed: UnknownError: Out of memory. Nothing was recorded.',
+    })
   })
 
   it('ends a take at once when the tab is hidden during its last moments', async () => {
@@ -639,7 +703,11 @@ describe('recorder', () => {
     r.advance(29_999)
     expect(r.state.phase).toBe('starting')
     r.advance(1)
-    expect(r.state).toMatchObject({ phase: 'idle', take: null, message: { tone: 'error', text: 'The sound did not start, so nothing was recorded.' } })
+    expect(r.state).toMatchObject({
+      phase: 'idle',
+      take: null,
+      message: { tone: 'error', text: 'The sound did not start, so nothing was recorded.' },
+    })
     expect(r.recorders).toEqual([])
 
     const still = rig({ sound: playing })
@@ -654,7 +722,10 @@ describe('recorder', () => {
     r.answers.play = 'refused'
     r.controller.start()
     await settle()
-    expect(r.state).toMatchObject({ phase: 'idle', message: { text: 'The sound did not start, so nothing was recorded.' } })
+    expect(r.state).toMatchObject({
+      phase: 'idle',
+      message: { text: 'The sound did not start, so nothing was recorded.' },
+    })
 
     const mic = rig({ sound: { source: 'microphone' } })
     mic.answers.microphone = 'denied'
@@ -729,7 +800,10 @@ describe('recorder', () => {
     const r = rig({ refuse: MP4 })
     await r.record()
     expect(r.state.phase).toBe('idle')
-    expect(r.state.message).toEqual({ tone: 'error', text: 'Recording failed: NotSupportedError: video/mp4 is not supported. Nothing was recorded.' })
+    expect(r.state.message).toEqual({
+      tone: 'error',
+      text: 'Recording failed: NotSupportedError: video/mp4 is not supported. Nothing was recorded.',
+    })
     expect(r.video.stopped).toBe(true)
     expect(r.tapStops).toBe(1)
     expect(r.calls).toEqual(['play', 'pause'])
@@ -830,27 +904,30 @@ describe('recorder', () => {
     expect(fast.captures).toEqual([0, 60])
   })
 
-  it.each([24, 25, 30, 50, 60] as const)('asks for %i frames a second on its clock, however the canvas draws', async (fps) => {
-    const r = rig({ record: { fps } })
-    await r.record()
-    expect(r.state.take?.fps).toBe(fps)
-    // Bursts of drawings 7 ms apart, then a still second, then drawings 50 ms apart: 10 s in all.
-    for (let t = 0; t < 3000; t += 7) {
-      r.advance(7)
-      r.draw()
-    }
-    r.advance(1000 - (3003 - 3000))
-    for (let t = 4000; t < 10_000; t += 50) {
-      r.advance(50)
-      r.draw()
-    }
-    // Frame 0 and one a tick for 10 s: no more, no fewer.
-    expect(r.now).toBe(10_000)
-    expect(r.video.frames).toBe(1 + Math.round(fps * 10))
-    expect(r.video.lost).toBe(0)
-    const gaps = r.video.frameTimes.slice(1).map((at, i) => at - r.video.frameTimes[i])
-    for (const gap of gaps) expect(gap).toBeCloseTo(1000 / fps, 6)
-  })
+  it.each([24, 25, 30, 50, 60] as const)(
+    'asks for %i frames a second on its clock, however the canvas draws',
+    async (fps) => {
+      const r = rig({ record: { fps } })
+      await r.record()
+      expect(r.state.take?.fps).toBe(fps)
+      // Bursts of drawings 7 ms apart, then a still second, then drawings 50 ms apart: 10 s in all.
+      for (let t = 0; t < 3000; t += 7) {
+        r.advance(7)
+        r.draw()
+      }
+      r.advance(1000 - (3003 - 3000))
+      for (let t = 4000; t < 10_000; t += 50) {
+        r.advance(50)
+        r.draw()
+      }
+      // Frame 0 and one a tick for 10 s: no more, no fewer.
+      expect(r.now).toBe(10_000)
+      expect(r.video.frames).toBe(1 + Math.round(fps * 10))
+      expect(r.video.lost).toBe(0)
+      const gaps = r.video.frameTimes.slice(1).map((at, i) => at - r.video.frameTimes[i])
+      for (const gap of gaps) expect(gap).toBeCloseTo(1000 / fps, 6)
+    },
+  )
 
   it('repeats the last drawing when nothing changed, and takes a new one as it is', async () => {
     const r = rig()

@@ -11,10 +11,25 @@ import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import { edgesFit, FLASH_LIMITS, FlashBudget } from '../../src/sound/flash'
 import { JumpTracker } from '../../src/sound/jumps'
-import { assignLevels, letterLevels, letterSlots, levelPosition, levelSets, STRONG, switchSwing, type LetterSlots } from '../../src/sound/letters'
+import {
+  assignLevels,
+  letterLevels,
+  letterSlots,
+  levelPosition,
+  levelSets,
+  STRONG,
+  switchSwing,
+  type LetterSlots,
+} from '../../src/sound/letters'
 import { FlashLimiter, LiveScheduler, type LevelSpread, type LiveDeps } from '../../src/sound/live'
 import { modulate, targetById, type Mapping, type Modulated } from '../../src/sound/mapping'
-import { NEUTRAL_RESPONSE, SILENT_FRAME, SOUND_LIMITS, type FeatureFrame, type ResponseSettings } from '../../src/sound/types'
+import {
+  NEUTRAL_RESPONSE,
+  SILENT_FRAME,
+  SOUND_LIMITS,
+  type FeatureFrame,
+  type ResponseSettings,
+} from '../../src/sound/types'
 import { DEFAULT_TEXT } from '../../src/specimen/samples'
 import { shapeSpecimen } from '../../src/specimen/scene'
 import { analyse, notes } from '../helpers/audio'
@@ -52,14 +67,21 @@ const CASES: Case[] = [
 ]
 
 const mappingsOf = (c: Case): Mapping[] => [
-  ...SLIDERS.slice(0, c.sliders).map((target, i) => ({ id: `m${i}`, enabled: true, feature: FEATURES[i], target, depth: c.depth })),
+  ...SLIDERS.slice(0, c.sliders).map((target, i) => ({
+    id: `m${i}`,
+    enabled: true,
+    feature: FEATURES[i],
+    target,
+    depth: c.depth,
+  })),
   ...(c.seed ? [{ id: 'seed', enabled: true, feature: 'beat' as const, target: SEED, depth: 1 }] : []),
 ]
 
 function frameAt(c: Case, t: number): FeatureFrame {
   const frame: FeatureFrame = { ...SILENT_FRAME, time: t, silent: false, levelDb: -20, level: 0.5 }
   for (let i = 0; i < c.sliders; i++) {
-    ;(frame as unknown as Record<string, number>)[FEATURES[i]] = Math.sin(2 * Math.PI * ((4 * t) / 1000 - (c.phased ? i / c.sliders : 0))) >= 0 ? 1 : 0
+    ;(frame as unknown as Record<string, number>)[FEATURES[i]] =
+      Math.sin(2 * Math.PI * ((4 * t) / 1000 - (c.phased ? i / c.sliders : 0))) >= 0 ? 1 : 0
   }
   frame.onset = Math.floor(t / 250) !== Math.floor((t - FRAME_MS) / 250)
   frame.beat = frame.onset ? 1 : 0
@@ -89,7 +111,8 @@ function changeCounter() {
           one.set(id, { dir: 0, extreme: p })
           continue
         }
-        const turn = state.dir >= 0 && p <= state.extreme - swing ? -1 : state.dir <= 0 && p >= state.extreme + swing ? 1 : 0
+        const turn =
+          state.dir >= 0 && p <= state.extreme - swing ? -1 : state.dir <= 0 && p >= state.extreme + swing ? 1 : 0
         if (turn) [state.dir, state.extreme, turned] = [turn, p, true]
         else follow(state, p)
       }
@@ -98,7 +121,8 @@ function changeCounter() {
       for (const [id, p] of positions) {
         const state = all.get(id)
         if (!state) continue
-        const amount = state.dir > 0 ? state.extreme - p : state.dir < 0 ? p - state.extreme : Math.abs(p - state.extreme)
+        const amount =
+          state.dir > 0 ? state.extreme - p : state.dir < 0 ? p - state.extreme : Math.abs(p - state.extreme)
         if (amount > 0) {
           moving.add(id)
           back += amount
@@ -145,7 +169,11 @@ function unlimited(c: Case): number[] {
 }
 
 /** The limiter and the jumps sharing one budget, frame by frame; `shown` hears each frame's limited values. */
-function limited(c: Case, spread?: LevelSpread, shown?: (out: { modulated: Modulated; holds: ReadonlyMap<string, number> | null }) => void): number[] {
+function limited(
+  c: Case,
+  spread?: LevelSpread,
+  shown?: (out: { modulated: Modulated; holds: ReadonlyMap<string, number> | null }) => void,
+): number[] {
   const mappings = mappingsOf(c)
   const budget = new FlashBudget()
   const limiter = new FlashLimiter(budget)
@@ -231,7 +259,11 @@ const AMOUNT = targetById('distortion.amount')!
 /** One driven slider (Noise amplitude, base 10) at `position`, as modulate gives it. */
 function amountAt(position: number): Modulated {
   const value = AMOUNT.fromSlider(position)
-  return { params: AMOUNT.set(BASE, value), positions: new Map([[AMOUNT.id, AMOUNT.toSlider(value)]]), seeds: new Map() }
+  return {
+    params: AMOUNT.set(BASE, value),
+    positions: new Map([[AMOUNT.id, AMOUNT.toSlider(value)]]),
+    seeds: new Map(),
+  }
 }
 
 /** Whether a move of Noise amplitude from `from` back to `to` is held while the budget is spent: an edge. */
@@ -249,18 +281,28 @@ describe('flash limit with letters on other levels', async () => {
   const slots = letterSlots(shapeSpecimen(font, DEFAULT_TEXT))
   const response = (patch: Partial<ResponseSettings>): ResponseSettings => ({ ...NEUTRAL_RESPONSE, ...patch })
   const level = (depth: number) => [{ id: 'a', enabled: true, feature: 'level' as const, target: AMOUNT.id, depth }]
-  const steady = (t: number, pitch = 0.5): FeatureFrame => ({ ...SILENT_FRAME, time: t, level: 0.8, silent: false, levelDb: -20, pitch, pitchConfidence: 1 })
+  const steady = (t: number, pitch = 0.5): FeatureFrame => ({
+    ...SILENT_FRAME,
+    time: t,
+    level: 0.8,
+    silent: false,
+    levelDb: -20,
+    pitch,
+    pitchConfidence: 1,
+  })
 
   it.each(CASES)('$name: no levels (an empty spread) is the shared limit exactly', (c) => {
     const plain: string[] = []
     const empty: string[] = []
     const record = (into: string[]) => (out: { modulated: Modulated; holds: ReadonlyMap<string, number> | null }) =>
-      into.push(`${paramsKey(out.modulated.params)}|${JSON.stringify([...out.modulated.positions])}|${JSON.stringify([...(out.holds ?? [])])}`)
+      into.push(
+        `${paramsKey(out.modulated.params)}|${JSON.stringify([...out.modulated.positions])}|${JSON.stringify([...(out.holds ?? [])])}`,
+      )
     expect(limited(c, { base: BASE, gains: [] }, record(empty))).toEqual(limited(c, undefined, record(plain)))
     expect(empty).toEqual(plain)
   })
 
-  it('a slider\'s move back is the largest over the levels letters show, clamped at the slider\'s ends', () => {
+  it("a slider's move back is the largest over the levels letters show, clamped at the slider's ends", () => {
     // Noise amplitude 0.2 → 0.15 (40 → 30): 0.05 back on the shared level, under a swing.
     expect(heldBack(0.2, 0.15)).toBe(false)
     // The strong level (2.33) moves back 0.4 → 0.285: an edge. The quiet level (0.38) alone moves 0.015: none.
@@ -280,28 +322,31 @@ describe('flash limit with letters on other levels', async () => {
     [1, 0],
     [0.3, 0],
     [1, 2],
-  ])('Motion contrast %s with Pitch reactive %s: the drift alone never makes an edge, at 60 or 20 frames a second', (contrast, pitchReactive) => {
-    const r = response({ contrast, pitchReactive })
-    const levels = letterLevels(r)!
-    for (const depth of [0.25, 0.5, 1]) {
-      for (const fps of [60, 20]) {
-        let shown: Uint8Array | null = null
-        let most = 0
-        let moves = 0
-        for (let t = 1000; t < 13_000; t += 1000 / fps) {
-          const frame = steady(t)
-          const shared = modulate(BASE, frame, level(depth))
-          const wanted = assignLevels(slots, r, frame, levels, shown)
-          if (shown && wanted.some((l, j) => l !== shown![j])) moves++
-          most = Math.max(most, switchSwing(shown, wanted, slots, levelSets(BASE, shared, levels, paramsKey)))
-          shown = wanted
+  ])(
+    'Motion contrast %s with Pitch reactive %s: the drift alone never makes an edge, at 60 or 20 frames a second',
+    (contrast, pitchReactive) => {
+      const r = response({ contrast, pitchReactive })
+      const levels = letterLevels(r)!
+      for (const depth of [0.25, 0.5, 1]) {
+        for (const fps of [60, 20]) {
+          let shown: Uint8Array | null = null
+          let most = 0
+          let moves = 0
+          for (let t = 1000; t < 13_000; t += 1000 / fps) {
+            const frame = steady(t)
+            const shared = modulate(BASE, frame, level(depth))
+            const wanted = assignLevels(slots, r, frame, levels, shown)
+            if (shown && wanted.some((l, j) => l !== shown![j])) moves++
+            most = Math.max(most, switchSwing(shown, wanted, slots, levelSets(BASE, shared, levels, paramsKey)))
+            shown = wanted
+          }
+          // Letters do move between levels, a few at a time.
+          expect(moves).toBeGreaterThan(20)
+          expect(most).toBeLessThan(FLASH_LIMITS.swing)
         }
-        // Letters do move between levels, a few at a time.
-        expect(moves).toBeGreaterThan(20)
-        expect(most).toBeLessThan(FLASH_LIMITS.swing)
       }
-    }
-  })
+    },
+  )
 
   it('the pitch moving an octave at Pitch reactive 200 % moves half the text: an edge', () => {
     const r = response({ pitchReactive: 2 })
@@ -314,23 +359,28 @@ describe('flash limit with letters on other levels', async () => {
     let moved = 0
     for (let j = 0; j < slots.count; j++) if (before[j] !== after[j]) moved += slots.share[j]
     expect(moved).toBeGreaterThan(0.5)
-    expect(switchSwing(before, after, slots, levelSets(BASE, shared, levels, paramsKey))).toBeGreaterThanOrEqual(FLASH_LIMITS.swing)
+    expect(switchSwing(before, after, slots, levelSets(BASE, shared, levels, paramsKey))).toBeGreaterThanOrEqual(
+      FLASH_LIMITS.swing,
+    )
   })
 
   // The last case moves the shared slider by 6 % of its travel (under a swing), but the strong letters by four times that.
   const SMALL: Case = { name: 'one slider at 1.5 %', sliders: 1, seed: false, depth: 0.015, phased: false }
 
-  it.each([...CASES, SMALL])('$name, at Strength 400 %, Motion contrast 100 %, Pitch reactive 200 % and an octave at 6 Hz: every letter on screen keeps to the limit', (c) => {
-    const { times, turns } = lettersOnScreen(c, slots, shapeSpecimen(font, DEFAULT_TEXT).indices)
-    expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
-    // Still moving with the music.
-    expect(mostWithin(times, 1000)).toBeGreaterThanOrEqual(4)
-    if (c === SMALL) {
-      // Only the strong level swings: the shared values alone would never count.
-      expect(turns[1]).toBe(0)
-      expect(turns[2]).toBeGreaterThan(20)
-    }
-  })
+  it.each([...CASES, SMALL])(
+    '$name, at Strength 400 %, Motion contrast 100 %, Pitch reactive 200 % and an octave at 6 Hz: every letter on screen keeps to the limit',
+    (c) => {
+      const { times, turns } = lettersOnScreen(c, slots, shapeSpecimen(font, DEFAULT_TEXT).indices)
+      expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
+      // Still moving with the music.
+      expect(mostWithin(times, 1000)).toBeGreaterThanOrEqual(4)
+      if (c === SMALL) {
+        // Only the strong level swings: the shared values alone would never count.
+        expect(turns[1]).toBe(0)
+        expect(turns[2]).toBeGreaterThan(20)
+      }
+    },
+  )
 
   // Updates come every animation frame, frames reach the screen at most 30 times a second (fewer while the glyphs
   // take long): a move between levels split over several updates still counts once it shows.
@@ -338,53 +388,62 @@ describe('flash limit with letters on other levels', async () => {
     { fps: 120, computeMs: 5 },
     { fps: 60, computeMs: 100 },
     { fps: 120, computeMs: 100 },
-  ])('an octave at 6 Hz, updates at $fps a second, $computeMs ms per frame: every letter on screen keeps to the limit', (run) => {
-    const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
-    for (const c of [CASES[0], CASES[5]]) {
-      const { times, switches } = lettersOnScreen(c, slots, indices, run)
-      expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
-      // With one slider, letters do move between levels on screen in large steps (with more, the budget can all go
-      // to the sliders and the seed).
-      if (c === CASES[0]) expect(switches).toBeGreaterThan(0)
-    }
-  })
-
-  it.each([{ fps: 60 }, { fps: 120 }])('Pitch reactive 200 % alone, a steady slider and the pitch gliding over two octaves at 2 and 3 Hz, $fps updates a second: letters moving between levels keep to the limit', ({ fps }) => {
-    const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
-    // Noise amplitude (the third of SLIDERS, counted on screen) on a steady Level, 0.4 of its travel up: only the
-    // letters' levels move.
-    const steadySlider: Case = { name: 'a steady slider', sliders: 3, seed: false, depth: 0, phased: false }
-    for (const hz of [2, 3]) {
-      const glide = (t: number) => {
-        const phase = ((t * hz) / 1000) % 1
-        return 0.3 + 0.4 * (phase < 0.5 ? 2 * phase : 2 - 2 * phase)
+  ])(
+    'an octave at 6 Hz, updates at $fps a second, $computeMs ms per frame: every letter on screen keeps to the limit',
+    (run) => {
+      const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
+      for (const c of [CASES[0], CASES[5]]) {
+        const { times, switches } = lettersOnScreen(c, slots, indices, run)
+        expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
+        // With one slider, letters do move between levels on screen in large steps (with more, the budget can all go
+        // to the sliders and the seed).
+        if (c === CASES[0]) expect(switches).toBeGreaterThan(0)
       }
-      const { times, switches } = lettersOnScreen(steadySlider, slots, indices, {
-        fps,
-        computeMs: 5,
-        pitch: glide,
-        response: { ...NEUTRAL_RESPONSE, pitchReactive: 2 },
-        mappings: level(0.8),
-      })
-      expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
-      expect(switches).toBeGreaterThan(0)
-    }
-  })
+    },
+  )
+
+  it.each([{ fps: 60 }, { fps: 120 }])(
+    'Pitch reactive 200 % alone, a steady slider and the pitch gliding over two octaves at 2 and 3 Hz, $fps updates a second: letters moving between levels keep to the limit',
+    ({ fps }) => {
+      const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
+      // Noise amplitude (the third of SLIDERS, counted on screen) on a steady Level, 0.4 of its travel up: only the
+      // letters' levels move.
+      const steadySlider: Case = { name: 'a steady slider', sliders: 3, seed: false, depth: 0, phased: false }
+      for (const hz of [2, 3]) {
+        const glide = (t: number) => {
+          const phase = ((t * hz) / 1000) % 1
+          return 0.3 + 0.4 * (phase < 0.5 ? 2 * phase : 2 - 2 * phase)
+        }
+        const { times, switches } = lettersOnScreen(steadySlider, slots, indices, {
+          fps,
+          computeMs: 5,
+          pitch: glide,
+          response: { ...NEUTRAL_RESPONSE, pitchReactive: 2 },
+          mappings: level(0.8),
+        })
+        expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
+        expect(switches).toBeGreaterThan(0)
+      }
+    },
+  )
 
   // Pitch reactive places the pitch in the recent melody's range: an octave that is the whole range moves the strong
   // letters from one end of the text to the other.
   it.each([
     { fps: 60, computeMs: 5 },
     { fps: 120, computeMs: 100 },
-  ])('an octave at 6 Hz that is the whole melody range, $fps updates a second, $computeMs ms per frame: every letter on screen keeps to the limit', (run) => {
-    const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
-    for (const c of [CASES[0], CASES[5], SMALL]) {
-      const { times, switches } = lettersOnScreen(c, slots, indices, { ...run, range: [0.4, 0.6] })
-      expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
-      // With one slider, the letters' moves across the text show as large steps (see the default range above).
-      if (c === CASES[0]) expect(switches).toBeGreaterThan(0)
-    }
-  })
+  ])(
+    'an octave at 6 Hz that is the whole melody range, $fps updates a second, $computeMs ms per frame: every letter on screen keeps to the limit',
+    (run) => {
+      const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
+      for (const c of [CASES[0], CASES[5], SMALL]) {
+        const { times, switches } = lettersOnScreen(c, slots, indices, { ...run, range: [0.4, 0.6] })
+        expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
+        // With one slider, the letters' moves across the text show as large steps (see the default range above).
+        if (c === CASES[0]) expect(switches).toBeGreaterThan(0)
+      }
+    },
+  )
 
   describe('a melody heard through FeatureExtractor', () => {
     const indices = shapeSpecimen(font, DEFAULT_TEXT).indices
@@ -425,20 +484,36 @@ describe('flash limit with letters on other levels', async () => {
     it.each([
       { pitchReactive: 1, followed: 1 },
       { pitchReactive: 2, followed: 0.8 },
-    ])('notes an octave apart (C4, C5, 500 ms each) at Pitch reactive $pitchReactive: the strong letters cross the text with every note, within the limit', ({ pitchReactive, followed }) => {
-      const frames = analyse(notes([...Array(12)].map((_, k) => (k % 2 ? C5 : C4)), 500, -12))
-      const { times, shown } = play(frames, pitchReactive)
-      const at = strongAt(shown, 12, 500)
-      // From the second note on, at each note's end: C4's on the left, C5's on the right.
-      const placed = at.slice(1).filter((t, k) => ((k + 1) % 2 ? t > 0.65 : t < 0.35))
-      expect(placed.length / 11, at.map((t) => t.toFixed(2)).join(' ')).toBeGreaterThanOrEqual(followed)
-      expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
-      // On the whole scale (55 to 1760 Hz) the same octave is a fifth of the text: the strong letters barely move.
-      const whole = strongAt(play(frames.map((f) => ({ ...f, pitchLow: 0, pitchHigh: 1 })), pitchReactive).shown, 12, 500)
-      for (let k = 2; k < 12; k++) expect(Math.abs(whole[k] - whole[k - 1])).toBeLessThan(0.25)
-    })
+    ])(
+      'notes an octave apart (C4, C5, 500 ms each) at Pitch reactive $pitchReactive: the strong letters cross the text with every note, within the limit',
+      ({ pitchReactive, followed }) => {
+        const frames = analyse(
+          notes(
+            [...Array(12)].map((_, k) => (k % 2 ? C5 : C4)),
+            500,
+            -12,
+          ),
+        )
+        const { times, shown } = play(frames, pitchReactive)
+        const at = strongAt(shown, 12, 500)
+        // From the second note on, at each note's end: C4's on the left, C5's on the right.
+        const placed = at.slice(1).filter((t, k) => ((k + 1) % 2 ? t > 0.65 : t < 0.35))
+        expect(placed.length / 11, at.map((t) => t.toFixed(2)).join(' ')).toBeGreaterThanOrEqual(followed)
+        expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
+        // On the whole scale (55 to 1760 Hz) the same octave is a fifth of the text: the strong letters barely move.
+        const whole = strongAt(
+          play(
+            frames.map((f) => ({ ...f, pitchLow: 0, pitchHigh: 1 })),
+            pitchReactive,
+          ).shown,
+          12,
+          500,
+        )
+        for (let k = 2; k < 12; k++) expect(Math.abs(whole[k] - whole[k - 1])).toBeLessThan(0.25)
+      },
+    )
 
-    it('the test track\'s melody (A2 A3 A4 A5 A4 A3, twice) at Pitch reactive 1: once its range is heard, each note has its own place, low to high across the text', () => {
+    it("the test track's melody (A2 A3 A4 A5 A4 A3, twice) at Pitch reactive 1: once its range is heard, each note has its own place, low to high across the text", () => {
       const run = [0, 1, 2, 3, 2, 1].map((octave) => A2 * 2 ** octave)
       const { times, shown } = play(analyse(notes([...run, ...run], 500, -12)), 1)
       const at = strongAt(shown, 12, 500)
@@ -446,7 +521,14 @@ describe('flash limit with letters on other levels', async () => {
       const [a2, a3, a4, a5, b4, b3] = at.slice(6)
       expect(a2).toBeLessThan(0.3)
       expect(a5).toBeGreaterThan(0.7)
-      for (const [lower, higher] of [[a2, a3], [a3, a4], [a4, a5], [b4, a5], [b3, b4]]) expect(higher - lower).toBeGreaterThan(0.1)
+      for (const [lower, higher] of [
+        [a2, a3],
+        [a3, a4],
+        [a4, a5],
+        [b4, a5],
+        [b3, b4],
+      ])
+        expect(higher - lower).toBeGreaterThan(0.1)
       expect(mostWithin(times, 1000)).toBeLessThanOrEqual(MOST)
     })
   })
@@ -500,7 +582,8 @@ function lettersOnScreen(
   const recent: { time: number; assign: Uint8Array }[] = []
   let before: Uint8Array | null = null
   const sliders = run.targets ?? SLIDERS.slice(0, c.sliders)
-  const positionsOn = (params: GeometryParams) => new Map(sliders.map((id) => [id, targetById(id)!.toSlider(targetById(id)!.get(params))]))
+  const positionsOn = (params: GeometryParams) =>
+    new Map(sliders.map((id) => [id, targetById(id)!.toSlider(targetById(id)!.get(params))]))
   const shownLevels: { time: number; assign: Uint8Array }[] = []
   const deps: LiveDeps = {
     now: () => now,
@@ -523,7 +606,9 @@ function lettersOnScreen(
       const assign = letters?.assign ?? new Uint8Array(slots.count).fill(1)
       // Every level's slider positions, from the shared ones; the levels' parameters match them.
       const shared = positionsOn(params)
-      const at = levels.gains.map((gain) => new Map(sliders.map((id) => [id, levelPosition(targetById(id)!, BASE, shared.get(id)!, gain)])))
+      const at = levels.gains.map(
+        (gain) => new Map(sliders.map((id) => [id, levelPosition(targetById(id)!, BASE, shared.get(id)!, gain)])),
+      )
       for (const job of letters?.jobs ?? []) {
         const level = job.key === letters!.keys[0] ? 0 : 2
         for (const [id, position] of positionsOn(job.params)) expect(position).toBeCloseTo(at[level].get(id)!, 9)
@@ -554,7 +639,12 @@ function lettersOnScreen(
         while (recent.length && recent[0].time <= now - SPREAD_MS) recent.shift()
         const large = (from: Uint8Array) => moved(from) >= FLASH_LIMITS.swing - 1e-9
         if (large(before) || recent.some((r) => large(r.assign))) switches.push(now)
-        if (switches.at(-1) === now || seeds.times.at(-1) === now || counters.some((counter) => counter.times.at(-1) === now)) recent.length = 0
+        if (
+          switches.at(-1) === now ||
+          seeds.times.at(-1) === now ||
+          counters.some((counter) => counter.times.at(-1) === now)
+        )
+          recent.length = 0
       }
       recent.push({ time: now, assign: assign.slice() })
       before = assign
@@ -601,7 +691,9 @@ function lettersOnScreen(
     live.setFrame(frame)
   }
   return {
-    times: [...new Set([...counters.flatMap((counter) => counter.times), ...seeds.times, ...switches])].sort((a, b) => a - b),
+    times: [...new Set([...counters.flatMap((counter) => counter.times), ...seeds.times, ...switches])].sort(
+      (a, b) => a - b,
+    ),
     turns: counters.map((counter) => counter.times.length),
     switches: switches.length,
     shown: shownLevels,

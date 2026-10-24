@@ -9,15 +9,7 @@ export type TextCase = 'none' | 'upper' | 'lower' | 'title'
 
 /** Where the text block sits on the artboard: one of nine anchors (inside the margin), or Free. */
 export type TextAnchor =
-  | 'top-left'
-  | 'top'
-  | 'top-right'
-  | 'left'
-  | 'center'
-  | 'right'
-  | 'bottom-left'
-  | 'bottom'
-  | 'bottom-right'
+  'top-left' | 'top' | 'top-right' | 'left' | 'center' | 'right' | 'bottom-left' | 'bottom' | 'bottom-right'
 export type TextPosition = TextAnchor | 'free'
 
 /** The nine anchors in reading order (rows top to bottom), as a 3 × 3 grid. */
@@ -188,7 +180,12 @@ export function textOverflows(scene: SpecimenScene, layout: ArtboardLayout): boo
  * margin (EDGE_MARGIN_PX from the canvas edges, whatever the font size); the lines are already aligned
  * inside the block by the scene. Free places the box by freeX / freeY, inside the artboard edges.
  */
-export function layoutArtboard(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): ArtboardLayout {
+export function layoutArtboard(
+  scene: SpecimenScene,
+  typography: TypographyParams,
+  artboard: ArtboardParams,
+  unitsPerEm: number,
+): ArtboardLayout {
   const emPx = clamp(typography.size, TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
   const unitsPerPx = unitsPerEm / emPx
   const width = artboard.width * unitsPerPx
@@ -246,7 +243,10 @@ export function placementScene(
 }
 
 /** freeX / freeY that keep the block where it is now, for switching from an anchor to Free. */
-export function freeFromLayout(scene: SpecimenScene, layout: ArtboardLayout): Pick<TypographyParams, 'freeX' | 'freeY'> {
+export function freeFromLayout(
+  scene: SpecimenScene,
+  layout: ArtboardLayout,
+): Pick<TypographyParams, 'freeX' | 'freeY'> {
   const box = textBox(scene)
   const roomX = layout.width - box.width
   const roomY = layout.height - box.height
@@ -283,11 +283,19 @@ const round3 = (v: number) => Math.round(v * 1000) / 1000
  * inside the margin on both axes: the text fills the artboard less EDGE_MARGIN_PX on each side. Rounded
  * down to a whole pixel so it never overflows.
  */
-export function fitTextSize(scene: SpecimenScene, typography: TypographyParams, artboard: ArtboardParams, unitsPerEm: number): number {
+export function fitTextSize(
+  scene: SpecimenScene,
+  typography: TypographyParams,
+  artboard: ArtboardParams,
+  unitsPerEm: number,
+): number {
   const box = textBox(scene)
   if (!(box.width > 0 && box.height > 0)) return typography.size
   const room = (side: number) => Math.max(1, side - 2 * EDGE_MARGIN_PX)
-  const emPx = Math.min((room(artboard.width) * unitsPerEm) / box.width, (room(artboard.height) * unitsPerEm) / box.height)
+  const emPx = Math.min(
+    (room(artboard.width) * unitsPerEm) / box.width,
+    (room(artboard.height) * unitsPerEm) / box.height,
+  )
   return clamp(Math.floor(emPx), TYPOGRAPHY_LIMITS.minSize, TYPOGRAPHY_LIMITS.maxSize)
 }
 
@@ -313,7 +321,9 @@ export function normalizeHex(value: string): string | null {
 /** WCAG contrast ratio of two #rrggbb colours (1 to 21). */
 export function contrastRatio(a: string, b: string): number {
   const luminance = (hex: string) => {
-    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    const c = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
     return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
   }
   const la = luminance(a)

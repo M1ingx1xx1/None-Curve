@@ -101,12 +101,28 @@ describe('signedArea', () => {
   it('is 0 for fewer than three points and for a flat ring', () => {
     expect(signedArea([])).toBe(0)
     expect(signedArea([{ x: 1, y: 1 }])).toBe(0)
-    expect(signedArea([{ x: 0, y: 0 }, { x: 5, y: 5 }])).toBe(0)
-    expect(signedArea([{ x: 0, y: 0 }, { x: 5, y: 5 }, { x: 10, y: 10 }])).toBe(0)
+    expect(
+      signedArea([
+        { x: 0, y: 0 },
+        { x: 5, y: 5 },
+      ]),
+    ).toBe(0)
+    expect(
+      signedArea([
+        { x: 0, y: 0 },
+        { x: 5, y: 5 },
+        { x: 10, y: 10 },
+      ]),
+    ).toBe(0)
   })
 
   it('does not change when the ring starts at another point', () => {
-    const ring = [{ x: 0, y: 0 }, { x: 8, y: 1 }, { x: 6, y: 7 }, { x: -2, y: 5 }]
+    const ring = [
+      { x: 0, y: 0 },
+      { x: 8, y: 1 },
+      { x: 6, y: 7 },
+      { x: -2, y: 5 },
+    ]
     const rotated = [...ring.slice(2), ...ring.slice(0, 2)]
     expect(signedArea(rotated)).toBe(signedArea(ring))
   })

@@ -8,7 +8,10 @@ interface LocalFileInputProps {
 }
 
 /** Hidden file input; open it with `ref.current.click()`. */
-const LocalFileInput = forwardRef<HTMLInputElement, LocalFileInputProps>(function LocalFileInput({ onFile, accept = LOCAL_FONT_ACCEPT }, ref) {
+const LocalFileInput = forwardRef<HTMLInputElement, LocalFileInputProps>(function LocalFileInput(
+  { onFile, accept = LOCAL_FONT_ACCEPT },
+  ref,
+) {
   return (
     <input
       ref={ref}

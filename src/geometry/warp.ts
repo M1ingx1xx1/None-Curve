@@ -163,7 +163,11 @@ export function applyWarp(
     }
     // Nothing valid: leave the whole glyph as it was, which is valid.
     if (!chosen) {
-      return { polygon, stats: { ...emptyWarpStats(), applied: true, fallbackContours: polygon.contours.length }, marks: inputMarks }
+      return {
+        polygon,
+        stats: { ...emptyWarpStats(), applied: true, fallbackContours: polygon.contours.length },
+        marks: inputMarks,
+      }
     }
     current[index] = chosen.points
     chosen = tidyValid(chosen, unitsPerEm, valid, (after) => conflicts(after, before, index, current, layout)) ?? chosen
@@ -266,7 +270,8 @@ function inputsOwn(image: Warped, input: readonly Point[], c: { i: number; j: nu
   const apart = segmentGap(input[a], input[(a + 1) % n], input[b], input[(b + 1) % n])
   if (Math.min(gap, n - gap) >= 2 && apart <= WARP_LIMITS.touch) return true
   const m = image.points.length
-  const exact = (e: number) => (image.origins[(e + 1) % m] - image.origins[e] + image.exactCount) % image.exactCount === 1
+  const exact = (e: number) =>
+    (image.origins[(e + 1) % m] - image.origins[e] + image.exactCount) % image.exactCount === 1
   return apart <= WARP_LIMITS.nearTouch && exact(c.i) && exact(c.j)
 }
 
@@ -278,7 +283,12 @@ function segmentGap(a1: Point, a2: Point, b1: Point, b2: Point): number {
   const d3 = side(b1, b2, a1)
   const d4 = side(b1, b2, a2)
   if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return 0
-  return Math.min(distanceToSegment(b1, a1, a2), distanceToSegment(b2, a1, a2), distanceToSegment(a1, b1, b2), distanceToSegment(a2, b1, b2))
+  return Math.min(
+    distanceToSegment(b1, a1, a2),
+    distanceToSegment(b2, a1, a2),
+    distanceToSegment(a1, b1, b2),
+    distanceToSegment(a2, b1, b2),
+  )
 }
 
 /**
@@ -288,7 +298,7 @@ function segmentGap(a1: Point, a2: Point, b1: Point, b2: Point): number {
  */
 function removeFoldBacks(points: readonly Point[]): number[] {
   const kept = points.map((_, i) => i)
-  for (let k = 0; kept.length > 3 && k < kept.length; ) {
+  for (let k = 0; kept.length > 3 && k < kept.length;) {
     const n = kept.length
     const a = points[kept[(k - 1 + n) % n]]
     const b = points[kept[k]]
@@ -330,7 +340,12 @@ interface Warped {
  * crease. `marks` flags the input vertices that earlier effects added at creases. Null once the image
  * has more than `maxPoints` points.
  */
-function warpContour(points: readonly Point[], warp: Warp, marks?: readonly boolean[], maxPoints = Infinity): Warped | null {
+function warpContour(
+  points: readonly Point[],
+  warp: Warp,
+  marks?: readonly boolean[],
+  maxPoints = Infinity,
+): Warped | null {
   const n = points.length
   const images: Point[] = []
   const kinds: Kind[] = []
@@ -406,7 +421,13 @@ function tidy(image: Warped, unitsPerEm: number, driftScale = 1, pins: ReadonlyS
       if (run.filter((k) => kinds[k] === 'input').length >= WARP_LIMITS.curveRun) continue
       let weakest = -1
       for (const k of run) {
-        if (kinds[k] !== 'input' && near(k) && !pins.has(origins[k]) && (weakest < 0 || run.turn(k) < run.turn(weakest))) weakest = k
+        if (
+          kinds[k] !== 'input' &&
+          near(k) &&
+          !pins.has(origins[k]) &&
+          (weakest < 0 || run.turn(k) < run.turn(weakest))
+        )
+          weakest = k
       }
       // Never two neighbours in one round: each removal is measured against the other's current place.
       if (weakest >= 0 && !drop.has((weakest + 1) % m) && !drop.has((weakest - 1 + m) % m)) drop.add(weakest)
@@ -446,7 +467,13 @@ export function curveLikeRuns(points: readonly Point[], shortEdge: number): Run[
   const runs: Run[] = []
   // Start just after a vertex that breaks runs, so no run is split where the contour closes.
   const start = sign.findIndex((v) => v === 0)
-  if (start < 0) return [Object.assign(Array.from({ length: n }, (_, k) => k), { turn })]
+  if (start < 0)
+    return [
+      Object.assign(
+        Array.from({ length: n }, (_, k) => k),
+        { turn },
+      ),
+    ]
   let current: number[] = []
   const close = () => {
     if (current.length >= WARP_LIMITS.curveRun) runs.push(Object.assign(current, { turn }))
@@ -470,7 +497,11 @@ export function curveLikeRuns(points: readonly Point[], shortEdge: number): Run[
  * (Thorn's, and those the vertex budget simplified). Such a vertex turns gently between short edges, so leaving it out
  * barely moves the outline.
  */
-export function breakRuns(contour: PolygonContour, removable: readonly boolean[] | undefined, shortEdge: number): PolygonContour {
+export function breakRuns(
+  contour: PolygonContour,
+  removable: readonly boolean[] | undefined,
+  shortEdge: number,
+): PolygonContour {
   if (!removable) return contour
   let points = contour.points
   let kept = removable

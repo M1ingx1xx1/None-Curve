@@ -179,7 +179,11 @@ export class PageAhead implements AheadGeometry, PlanSource {
     this.listen()
     const before = this.window
     const store = this.client().aheadStore
-    const newPlan = !before || before.generation !== window.generation || before.level !== window.level || before.fontId !== window.fontId
+    const newPlan =
+      !before ||
+      before.generation !== window.generation ||
+      before.level !== window.level ||
+      before.fontId !== window.fontId
     if (newPlan || before.glideMs !== window.glideMs) {
       this.records.clear()
       this.lastSent = ''
@@ -300,7 +304,14 @@ export class PageAhead implements AheadGeometry, PlanSource {
     client.aheadStore.clear()
   }
 
-  chained(lineage: number, seq: number, from: PolygonGlyph, to: PolygonGlyph, fromTag: ChainTag | null, fromComputedKey: string | null): MorphPlan | null | undefined {
+  chained(
+    lineage: number,
+    seq: number,
+    from: PolygonGlyph,
+    to: PolygonGlyph,
+    fromTag: ChainTag | null,
+    fromComputedKey: string | null,
+  ): MorphPlan | null | undefined {
     const record = this.records.get(seq)?.get(lineage)
     if (!record) return undefined
     const planned = record.from
@@ -323,7 +334,9 @@ export class PageAhead implements AheadGeometry, PlanSource {
 
   request(job: PlanRequest, done: (plan: MorphPlan | null) => void): () => void {
     const { from, to } = job
-    const cancel = this.client().requestPlan(encodeGlyph(from), encodeGlyph(to), (data) => done(data ? decodePlan(data, from, to) : null))
+    const cancel = this.client().requestPlan(encodeGlyph(from), encodeGlyph(to), (data) =>
+      done(data ? decodePlan(data, from, to) : null),
+    )
     if (cancel) return cancel
     // No worker can take it: paired here, as without worker plans.
     done(planMorph(settleInBetween(from, to), to))
@@ -338,7 +351,10 @@ export class PageAhead implements AheadGeometry, PlanSource {
     if (Math.abs(window.playheadMs - this.prunedAt) > AHEAD_PAGE_LIMITS.pruneEveryMs) {
       this.prunedAt = window.playheadMs
       const margin = AHEAD_PAGE_LIMITS.pruneEveryMs
-      this.client().aheadStore.pruneUses(window.playheadMs - PRECOMPUTE_LIMITS.windowBehindMs - margin, window.playheadMs + PRECOMPUTE_LIMITS.windowAheadMs + margin)
+      this.client().aheadStore.pruneUses(
+        window.playheadMs - PRECOMPUTE_LIMITS.windowBehindMs - margin,
+        window.playheadMs + PRECOMPUTE_LIMITS.windowAheadMs + margin,
+      )
       this.pruneMemo(window.playheadMs)
     }
     if (window.dueSeq !== this.lastDueSeq) {
@@ -404,7 +420,8 @@ export class PageAhead implements AheadGeometry, PlanSource {
     const from = playheadMs - PRECOMPUTE_LIMITS.windowBehindMs - AHEAD_PAGE_LIMITS.memoMarginMs
     const to = playheadMs + PRECOMPUTE_LIMITS.windowAheadMs + AHEAD_PAGE_LIMITS.memoMarginMs
     let changed = false
-    for (const [seq, { mediaMs }] of this.memo) if (mediaMs < from || mediaMs > to) changed = this.forget(seq) || changed
+    for (const [seq, { mediaMs }] of this.memo)
+      if (mediaMs < from || mediaMs > to) changed = this.forget(seq) || changed
     if (changed) this.memoVersion++
     if (this.memoRefs <= 2 * this.memoLive + 1024) return
     let refs = 0
@@ -444,7 +461,8 @@ export class PageAhead implements AheadGeometry, PlanSource {
         }
         // A superseded plan's commits are not this one's (its seqs name other commits), as for plans below.
         if (generation !== this.window?.generation) return
-        if (this.window.glideMs > 0) for (const index of indices) this.held.set(key, index, Math.max(seq, this.held.get(key, index) ?? seq))
+        if (this.window.glideMs > 0)
+          for (const index of indices) this.held.set(key, index, Math.max(seq, this.held.get(key, index) ?? seq))
         this.backlog = Math.max(0, this.backlog - indices.length)
         this.notifyReady()
       },
@@ -452,7 +470,13 @@ export class PageAhead implements AheadGeometry, PlanSource {
         if (message.generation !== this.window?.generation) return
         let records = this.records.get(message.seq)
         if (!records) this.records.set(message.seq, (records = new Map()))
-        for (const plan of message.plans) records.set(plan.lineage, { from: plan.from, data: plan.data, unchanged: plan.unchanged === true, decoded: new WeakMap() })
+        for (const plan of message.plans)
+          records.set(plan.lineage, {
+            from: plan.from,
+            data: plan.data,
+            unchanged: plan.unchanged === true,
+            decoded: new WeakMap(),
+          })
         this.notifyReady()
       },
       ended: (stopped) => {
@@ -474,7 +498,8 @@ export class PageAhead implements AheadGeometry, PlanSource {
     const due = firstAtOrAfter(commits, window.dueSeq)
     const nearEnd = ph + PRECOMPUTE_LIMITS.nearMs
     let a = due
-    for (; a < commits.length && commits[a].mediaMs <= nearEnd; a++) yield { commit: commits[a], near: true, distance: Math.max(0, commits[a].mediaMs - ph) }
+    for (; a < commits.length && commits[a].mediaMs <= nearEnd; a++)
+      yield { commit: commits[a], near: true, distance: Math.max(0, commits[a].mediaMs - ph) }
     let b = due - 1
     const weight = PRECOMPUTE_LIMITS.behindWeight
     while (a < commits.length || b >= 0) {
@@ -505,7 +530,10 @@ export class PageAhead implements AheadGeometry, PlanSource {
     const glide = window.glideMs > 0
     const workers = client.workerCount()
     const rate = this.rate > 0 ? this.rate : AHEAD_PAGE_LIMITS.defaultRate
-    const lease = Math.max(PRECOMPUTE_LIMITS.leaseMinGlyphs * workers, (PRECOMPUTE_LIMITS.leaseMs / 1000) * rate * workers)
+    const lease = Math.max(
+      PRECOMPUTE_LIMITS.leaseMinGlyphs * workers,
+      (PRECOMPUTE_LIMITS.leaseMs / 1000) * rate * workers,
+    )
     const full = store.full()
     const edge = full ? store.farthest() : Infinity
     const items: AheadItem[] = []
@@ -586,7 +614,13 @@ export class PageAhead implements AheadGeometry, PlanSource {
     const client = this.client()
     const store = client.aheadStore
     reportPrecompute({
-      store: { entries: store.size(), points: store.points(), bytes: store.bytes(), evictions: store.evictions, orphans: store.orphans() },
+      store: {
+        entries: store.size(),
+        points: store.points(),
+        bytes: store.bytes(),
+        evictions: store.evictions,
+        orphans: store.orphans(),
+      },
       workers: { bytes: client.aheadWorkerBytes() },
       reuse: { ...this.reuse },
     })

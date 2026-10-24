@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest'
 import { createBufferStore, EMPTY_BUFFER, QUANTUM } from '../../src/sound/bufferStore'
 import { PRECOMPUTE_LIMITS } from '../../src/sound/timelineTypes'
 
-const snapshot = (plannedMs: number, ready: number[] = []) => ({ durationMs: 60_000, plannedMs, ready: Float32Array.from(ready) })
+const snapshot = (plannedMs: number, ready: number[] = []) => ({
+  durationMs: 60_000,
+  plannedMs,
+  ready: Float32Array.from(ready),
+})
 
 describe('the buffer store', () => {
   it('publishes at most every bufferEveryMs, only what moved by a quantum, and at once when forced', () => {

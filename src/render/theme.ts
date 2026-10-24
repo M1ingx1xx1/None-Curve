@@ -47,7 +47,10 @@ export function resolveTokens(read: ColorReader): ThemeTokens {
  * A reader that resolves through a hidden span inside `container` (so the container's own tokens apply). The span is
  * made for the read and removed again.
  */
-export function probeReader(container: HTMLElement, computed: (el: Element) => { color: string } = getComputedStyle): ColorReader {
+export function probeReader(
+  container: HTMLElement,
+  computed: (el: Element) => { color: string } = getComputedStyle,
+): ColorReader {
   return (expression) => {
     const span = container.ownerDocument.createElement('span')
     span.style.display = 'none'
@@ -74,7 +77,10 @@ function browserEnvironment(): ThemeEnvironment {
     observeRoot(listener) {
       if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') return () => {}
       const observer = new MutationObserver(listener)
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] })
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme', 'class', 'style'],
+      })
       return () => observer.disconnect()
     },
     observeScheme(listener) {

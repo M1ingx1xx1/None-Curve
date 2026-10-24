@@ -13,7 +13,14 @@ const TEXT = 'Ab c\n\nd\u{1F600}e'
 
 const polygon = (index: number, occurrence: number): PolygonGlyph => ({
   ref: { index, name: String(occurrence), unicode: null },
-  metrics: { unitsPerEm: 2048, advanceWidth: 1000, leftSideBearing: 0, rightSideBearing: 0, ascender: 1900, descender: -500 },
+  metrics: {
+    unitsPerEm: 2048,
+    advanceWidth: 1000,
+    leftSideBearing: 0,
+    rightSideBearing: 0,
+    ascender: 1900,
+    descender: -500,
+  },
   contours: [],
 })
 

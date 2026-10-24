@@ -27,7 +27,13 @@ const frame = (level: number, time: number): FeatureFrame => ({
   silent: level === 0,
   levelDb: level ? -20 : -Infinity,
 })
-const row = (target: string, depth = 0.5, feature: Mapping['feature'] = 'level'): Mapping => ({ id: `${target} ${depth}`, enabled: true, feature, target, depth })
+const row = (target: string, depth = 0.5, feature: Mapping['feature'] = 'level'): Mapping => ({
+  id: `${target} ${depth}`,
+  enabled: true,
+  feature,
+  target,
+  depth,
+})
 const response = (patch: Partial<ResponseSettings>): ResponseSettings => ({ ...NEUTRAL_RESPONSE, ...patch })
 
 /** `count` letters across one line, glyph ids cycling through `ids`, every sixth a space. */
@@ -49,7 +55,15 @@ function lettersOf(count: number, ids = 3): LetterSlots {
  * `cache: false`), React renders a commit in 2 ms. Glyphs are known by (key, glyph id); a job without indices asks
  * for the `shown` glyphs.
  */
-function rig(options: { computeMs?: number; render?: boolean; cache?: boolean; shown?: readonly number[]; onCommit?: (commit: LiveCommit | null) => void } = {}) {
+function rig(
+  options: {
+    computeMs?: number
+    render?: boolean
+    cache?: boolean
+    shown?: readonly number[]
+    onCommit?: (commit: LiveCommit | null) => void
+  } = {},
+) {
   let now = 0
   let running = true
   let computing = false
@@ -180,17 +194,24 @@ describe('live scheduler', () => {
     ['the target does not act (Ripple off)', { mappings: [row('experimental.ripple.amount', 1)] }],
     ['no font is loaded', { font: false }],
     ['Strength is 0', { strength: 0 }],
-  ])('does not drive when %s', (_, setup: { running?: boolean; drive?: boolean; mappings?: Mapping[]; font?: boolean; strength?: number }) => {
-    const r = rig()
-    r.setRunning(setup.running ?? true)
-    r.live.setBase(BASE, setup.font ?? true)
-    r.live.setMappings(setup.mappings ?? [row('distortion.amount')], setup.drive ?? true, response({ strength: setup.strength ?? 1 }))
-    r.play(1000, loud)
-    expect(r.commits).toEqual([])
-    expect(r.requests).toEqual([])
-    expect(r.live.status.get().driving).toBe(false)
-    expect(r.live.positions.get('distortion.amount')).toBeNull()
-  })
+  ])(
+    'does not drive when %s',
+    (_, setup: { running?: boolean; drive?: boolean; mappings?: Mapping[]; font?: boolean; strength?: number }) => {
+      const r = rig()
+      r.setRunning(setup.running ?? true)
+      r.live.setBase(BASE, setup.font ?? true)
+      r.live.setMappings(
+        setup.mappings ?? [row('distortion.amount')],
+        setup.drive ?? true,
+        response({ strength: setup.strength ?? 1 }),
+      )
+      r.play(1000, loud)
+      expect(r.commits).toEqual([])
+      expect(r.requests).toEqual([])
+      expect(r.live.status.get().driving).toBe(false)
+      expect(r.live.positions.get('distortion.amount')).toBeNull()
+    },
+  )
 
   it('shows markers in silence without committing, and commits live parameters on sound', () => {
     const r = rig()
@@ -285,11 +306,14 @@ describe('live scheduler', () => {
     expect(r.live.freezeChanges()).toBeNull()
   })
 
-  it('Freeze leaves out Thorn\'s canvasEm, which rides only on the geometry parameters', () => {
+  it("Freeze leaves out Thorn's canvasEm, which rides only on the geometry parameters", () => {
     const r = rig()
     const thorned: GeometryParams = {
       ...BASE,
-      experimental: { ...BASE.experimental, thorn: { ...BASE.experimental.thorn, enabled: true, canvasReach: 0.01, canvasEm: 30.04 } },
+      experimental: {
+        ...BASE.experimental,
+        thorn: { ...BASE.experimental.thorn, enabled: true, canvasReach: 0.01, canvasEm: 30.04 },
+      },
     }
     r.live.setBase(thorned)
     r.live.setMappings([row('experimental.thorn.canvasReach')], true)
@@ -319,7 +343,7 @@ describe('live scheduler', () => {
     expect(r.live.status.get().driving).toBe(false)
   })
 
-  it('Strength 0 stops driving: the sliders\' own parameters, the seeds back on their fields, no markers', () => {
+  it("Strength 0 stops driving: the sliders' own parameters, the seeds back on their fields, no markers", () => {
     const r = rig()
     const mappings = [row('distortion.amount'), row('distortion.seed', 1, 'beat')]
     r.live.setBase(BASE)
@@ -403,8 +427,12 @@ describe('live scheduler: letters on their own levels', () => {
       r.live.setMappings([row('distortion.amount', 1), row('distortion.seed', 1, 'beat')], true, r2)
       r.play(2000, sweep)
       return {
-        asked: r.asked.map(({ jobs, at }) => `${at}:${jobs.map((job) => `${job.key}#${job.indices?.join(',') ?? 'shown'}`).join('+')}`),
-        commits: r.commits.map((c, i) => (c ? `${c.params ? paramsKey(c.params) : 'null'}|${c.seq}|${c.letters === null}|${r.commitTimes[i]}` : 'stop')),
+        asked: r.asked.map(
+          ({ jobs, at }) => `${at}:${jobs.map((job) => `${job.key}#${job.indices?.join(',') ?? 'shown'}`).join('+')}`,
+        ),
+        commits: r.commits.map((c, i) =>
+          c ? `${c.params ? paramsKey(c.params) : 'null'}|${c.seq}|${c.letters === null}|${r.commitTimes[i]}` : 'stop',
+        ),
       }
     }
     const without = run(false, NEUTRAL_RESPONSE)
@@ -444,7 +472,9 @@ describe('live scheduler: letters on their own levels', () => {
     expect(levelKeys.size).toBe(2)
     expect(after.length).toBeGreaterThan(10)
     expect(after.every(({ computed }) => computed === 0)).toBe(true)
-    const frames = new Set(r.commits.filter((c, i) => c?.letters && r.commitTimes[i] > 3000).map((c) => c!.letters!.key))
+    const frames = new Set(
+      r.commits.filter((c, i) => c?.letters && r.commitTimes[i] > 3000).map((c) => c!.letters!.key),
+    )
     expect(frames.size).toBeGreaterThan(10)
   })
 
@@ -491,7 +521,11 @@ describe('live scheduler: letters on their own levels', () => {
     r.live.setBase(BASE)
     r.live.setSlots(slots)
     // Square waves at Strength 400 %: the flash limit holds the slider back often.
-    r.live.setMappings([row('distortion.amount', 0.5), row('squaring.amount', 0.5, 'bass')], true, response({ strength: 4, contrast: 1 }))
+    r.live.setMappings(
+      [row('distortion.amount', 0.5), row('squaring.amount', 0.5, 'bass')],
+      true,
+      response({ strength: 4, contrast: 1 }),
+    )
     r.play(3000, (t) => (Math.floor(t / 125) % 2 ? 1 : 0.1))
     expect(checked).toBeGreaterThan(10)
     const shown = r.last!.params!
@@ -504,7 +538,11 @@ describe('live scheduler: letters on their own levels', () => {
 })
 
 describe('live scheduler: the canvas look and switches', () => {
-  const driven = { ...BASE, typography: DEFAULT_TYPOGRAPHY, palette: { ink: '#b03a2e', paper: '#f4efe6', transparent: false } }
+  const driven = {
+    ...BASE,
+    typography: DEFAULT_TYPOGRAPHY,
+    palette: { ink: '#b03a2e', paper: '#f4efe6', transparent: false },
+  }
 
   it('commits typography and colours as the look, with the geometry of the sliders, and restores them', () => {
     const r = rig()

@@ -1,7 +1,17 @@
 // The export dialog's body: the formats, their options, and the exports themselves (SVG, PNG, font file, video, config).
 // Loaded the first time the dialog opens (ExportDialog.tsx), with the export code it brings.
 
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react'
 import { downloadFile, safeFileName } from '../export/download'
 import { runFontExport } from '../export/fontExportClient'
 import {
@@ -93,16 +103,33 @@ interface ExportBodyProps extends Omit<ExportDialogProps, 'open'> {
 
 const formats: { value: Format; label: string; hint: string }[] = [
   { value: 'svg', label: 'SVG — main view', hint: 'The canvas with its text, colours, and size, as vector outlines.' },
-  { value: 'png', label: 'PNG — main view', hint: 'The canvas as an image, at the size and multiplier set under Canvas size.' },
-  { value: 'otf', label: 'Font file — OpenType (.otf)', hint: 'A font with polygon outlines, verified before download. Always filled.' },
-  { value: 'video', label: 'Video — live sound', hint: 'Records the canvas as it moves with the sound, in real time, with its audio.' },
-  { value: 'config', label: 'Config — settings (.json)', hint: 'Every setting, the text, Sound and the font’s name, to load again with Import → Config file.' },
+  {
+    value: 'png',
+    label: 'PNG — main view',
+    hint: 'The canvas as an image, at the size and multiplier set under Canvas size.',
+  },
+  {
+    value: 'otf',
+    label: 'Font file — OpenType (.otf)',
+    hint: 'A font with polygon outlines, verified before download. Always filled.',
+  },
+  {
+    value: 'video',
+    label: 'Video — live sound',
+    hint: 'Records the canvas as it moves with the sound, in real time, with its audio.',
+  },
+  {
+    value: 'config',
+    label: 'Config — settings (.json)',
+    hint: 'Every setting, the text, Sound and the font’s name, to load again with Import → Config file.',
+  },
 ]
 
 /** The font a config names, as the dialog describes it. */
 function configFontLine(font: SavedFont | null): string {
   if (!font) return 'No font: importing it keeps the font that is open.'
-  if (font.kind === 'local') return `Font: the local file ${font.fileName}, named only. Import that file again after the config.`
+  if (font.kind === 'local')
+    return `Font: the local file ${font.fileName}, named only. Import that file again after the config.`
   return `Font: ${font.family} ${font.weight}${font.italic ? ' italic' : ''} from Google Fonts, downloaded again on import.`
 }
 
@@ -150,7 +177,17 @@ function estimateExport(font: LoadedFont, plan: FontExportPlan, key: string) {
  * dialog and starts the take. The header shows it running, with Stop; opened again during the take (the header
  * is out of reach behind the dialog), the dialog has its own Stop, and then shows how the take ended.
  */
-function VideoExport({ artboard, transparent, fill, onRecord }: { artboard: ArtboardParams; transparent: boolean; fill: boolean; onRecord: () => void }) {
+function VideoExport({
+  artboard,
+  transparent,
+  fill,
+  onRecord,
+}: {
+  artboard: ArtboardParams
+  transparent: boolean
+  fill: boolean
+  onRecord: () => void
+}) {
   const { phase, message } = useRecording()
   const still = useStillVideo()
   const blockerId = useId()
@@ -168,13 +205,22 @@ function VideoExport({ artboard, transparent, fill, onRecord }: { artboard: Artb
         </p>
       )}
       {idle && message && (
-        <p className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'} data-tone={message.tone}>
+        <p
+          className={message.tone === 'info' ? 'panel-notice record-message' : 'font-warning record-message'}
+          data-tone={message.tone}
+        >
           {message.text}
         </p>
       )}
       <div className="export-actions">
         {idle ? (
-          <button type="button" className="button-primary" disabled={blocked !== null} aria-describedby={blocked !== null ? blockerId : undefined} onClick={onRecord}>
+          <button
+            type="button"
+            className="button-primary"
+            disabled={blocked !== null}
+            aria-describedby={blocked !== null ? blockerId : undefined}
+            onClick={onRecord}
+          >
             <Icon name="record" />
             Record
           </button>
@@ -211,8 +257,8 @@ function PaintNote({ format, fill }: { format: Format; fill: boolean }) {
     <p className="field-hint">Fill is on: the letters are filled.</p>
   ) : (
     <p className="panel-notice">
-      Fill is off on the canvas: outlines only, {OUTLINE_STROKE_PX} px strokes in the text colour with no fill. Turn Fill on
-      in the canvas toolbar for filled letters.
+      Fill is off on the canvas: outlines only, {OUTLINE_STROKE_PX} px strokes in the text colour with no fill. Turn
+      Fill on in the canvas toolbar for filled letters.
     </p>
   )
 }
@@ -229,9 +275,21 @@ async function browserAcceptsFont(bytes: ArrayBuffer): Promise<boolean> {
 }
 
 export default function ExportBody(props: ExportBodyProps) {
-  const { onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale, fill } = props
+  const { onClose, font, selectedGlyph, specimenText, typography, palette, artboard, previewLook, previewScale, fill } =
+    props
   const { params, paramsKey, pending, precision, onPrecisionChange, readConfig, kept, firstRef } = props
-  const { chosen, setFormat, usePreviewLook, setUsePreviewLook, glyphSet, setGlyphSet, naming, setNaming, built, setBuilt } = kept
+  const {
+    chosen,
+    setFormat,
+    usePreviewLook,
+    setUsePreviewLook,
+    glyphSet,
+    setGlyphSet,
+    naming,
+    setNaming,
+    built,
+    setBuilt,
+  } = kept
   // While Sound drives the letters the canvas shows live shapes, but exports use the sliders (SOUND_PLAN §9).
   const { driving: soundLive } = useLiveStatus()
   // Without a font only the config can be saved.
@@ -256,7 +314,7 @@ export default function ExportBody(props: ExportBodyProps) {
   const namingError = validateNaming(naming)
   // SIL OFL "Reserved Font Name": a modified version must not use it.
   const reservedClash = font
-    ? reservedFontNames(font).find((name) => naming.familyName.toLowerCase().includes(name.toLowerCase())) ?? null
+    ? (reservedFontNames(font).find((name) => naming.familyName.toLowerCase().includes(name.toLowerCase())) ?? null)
     : null
   const working = status.kind === 'working'
 
@@ -271,9 +329,18 @@ export default function ExportBody(props: ExportBodyProps) {
     const background = !palette.transparent
     const outlineOnly = !fill
     if (!usePreviewLook) return { ink: palette.ink, paper: palette.paper, background, blur: 0, outlineOnly }
-    return { ...previewColors(palette, previewLook), background, blur: previewBlur(previewLook.blur, previewScale, unitsPerPx), outlineOnly }
+    return {
+      ...previewColors(palette, previewLook),
+      background,
+      blur: previewBlur(previewLook.blur, previewScale, unitsPerPx),
+      outlineOnly,
+    }
   }
-  const { width: pngWidth, height: pngHeight, capped: pngCapped } = pngSize(artboard.width, artboard.height, artboard.scale)
+  const {
+    width: pngWidth,
+    height: pngHeight,
+    capped: pngCapped,
+  } = pngSize(artboard.width, artboard.height, artboard.scale)
   const lookName = `${
     usePreviewLook
       ? `preview look (${previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}${previewLook.inverted ? ', inverted' : ''})`
@@ -290,7 +357,11 @@ export default function ExportBody(props: ExportBodyProps) {
       const { tracking, lineHeight, align, slant } = typography
       // The canvas's polygons; glyphs not computed yet for these settings are computed in the geometry worker first.
       const shaped = shapeSpecimen(font, specimenText, { tracking, lineHeight, align, slant })
-      if (shaped.indices.some((index) => !geometryClient.lookup(paramsKey, index) || geometryClient.lookup(paramsKey, index)!.stale)) {
+      if (
+        shaped.indices.some(
+          (index) => !geometryClient.lookup(paramsKey, index) || geometryClient.lookup(paramsKey, index)!.stale,
+        )
+      ) {
         setStatus({ kind: 'working', message: 'Computing outlines…' })
       }
       const lookup = await geometryClient.ensure(font, params, paramsKey, shaped.indices, controller.signal)
@@ -299,12 +370,22 @@ export default function ExportBody(props: ExportBodyProps) {
       const subject = `${usePreviewLook ? 'preview' : 'main view'} “${specimenText.slice(0, 80)}”`
       // PNG coordinates only need to be sharp at the chosen pixel size; two decimals is plenty.
       const size = { width: artboard.width, height: artboard.height }
-      const svg = specimenToSvg(scene, layout, size, forPng ? 2 : precision, { fontName, subject, pipeline }, look(layout.unitsPerPx))
+      const svg = specimenToSvg(
+        scene,
+        layout,
+        size,
+        forPng ? 2 : precision,
+        { fontName, subject, pipeline },
+        look(layout.unitsPerPx),
+      )
       const parts = [font.familyName, font.styleName, usePreviewLook ? 'preview' : 'text']
       if (!forPng) {
         const fileName = safeFileName(parts, 'svg')
         downloadFile(svg.svg, fileName, 'image/svg+xml')
-        setStatus({ kind: 'done', message: `Saved ${fileName}: ${svg.paths} outline${svg.paths === 1 ? '' : 's'}, ${svg.vertices} vertices, ${lookName}.` })
+        setStatus({
+          kind: 'done',
+          message: `Saved ${fileName}: ${svg.paths} outline${svg.paths === 1 ? '' : 's'}, ${svg.vertices} vertices, ${lookName}.`,
+        })
         return
       }
       setStatus({ kind: 'working', message: 'Drawing the PNG…' })
@@ -335,11 +416,19 @@ export default function ExportBody(props: ExportBodyProps) {
       // In a worker of its own, which Cancel stops at once; the glyphs the canvas has are used as they are.
       const onProgress = (done: number, total: number, stage: FontExportStage) => {
         if (controller.signal.aborted) return
-        const label = stage === 'outlines' ? `Processing outlines ${done} / ${total}` : stage === 'writing' ? 'Writing the font…' : 'Verifying with fontkit…'
+        const label =
+          stage === 'outlines'
+            ? `Processing outlines ${done} / ${total}`
+            : stage === 'writing'
+              ? 'Writing the font…'
+              : 'Verifying with fontkit…'
         setStatus({ kind: 'working', message: label })
       }
       const known = knownGlyphs(font, plan, paramsKey)
-      const result = await runFontExport({ font, plan, params, key: paramsKey, naming, known, onProgress }, controller.signal)
+      const result = await runFontExport(
+        { font, plan, params, key: paramsKey, naming, known, onProgress },
+        controller.signal,
+      )
       setStatus({ kind: 'working', message: 'Checking with the browser font engine…' })
       if (!(await browserAcceptsFont(result.bytes))) {
         throw new Error('The browser’s font engine rejected the generated file, so it is not offered for download.')
@@ -374,15 +463,17 @@ export default function ExportBody(props: ExportBodyProps) {
 
   const counts: Record<GlyphSet, string> = {
     current: selectedGlyph ? `1 glyph (${glyphName})` : 'no glyph selected',
-    specimen: font ? `${new Set([...specimenText].filter((c) => c !== '\n' && c !== '\r')).size} distinct characters` : '',
+    specimen: font
+      ? `${new Set([...specimenText].filter((c) => c !== '\n' && c !== '\r')).size} distinct characters`
+      : '',
     all: font ? `${font.characters.length} characters` : '',
   }
 
   const configSection = (
     <div className="export-section">
       <p className="field-hint">
-        The settings, the canvas view’s buttons, the text, the preview look, the coordinate precision, the Sound mappings and
-        Response, and the selected glyph. {configFontLine(format === 'config' ? readConfig().font : null)}
+        The settings, the canvas view’s buttons, the text, the preview look, the coordinate precision, the Sound
+        mappings and Response, and the selected glyph. {configFontLine(format === 'config' ? readConfig().font : null)}
       </p>
       <div className="export-actions">
         <button type="button" className="button-primary" onClick={exportConfig}>
@@ -413,7 +504,9 @@ export default function ExportBody(props: ExportBodyProps) {
 
   return !font ? (
     <>
-      <p className="gf-intro">Load a font to export SVG, PNG, a font file or a video. The config can be saved without one.</p>
+      <p className="gf-intro">
+        Load a font to export SVG, PNG, a font file or a video. The config can be saved without one.
+      </p>
       {configSection}
       {statusLine}
     </>
@@ -421,10 +514,14 @@ export default function ExportBody(props: ExportBodyProps) {
     <>
       <p className="gf-intro">
         Exports use the final polygons shown on the canvas: {fontName}, pipeline {pipeline.join(' → ')}.{' '}
-        {format === 'video' ? 'The video is saved when the take ends.' : 'Nothing is downloaded until you press the download button.'}
+        {format === 'video'
+          ? 'The video is saved when the take ends.'
+          : 'Nothing is downloaded until you press the download button.'}
       </p>
       {soundLive && format !== 'video' && (
-        <p className="font-warning">Sound is moving the letters: exports use the sliders. To export the live look, press Freeze.</p>
+        <p className="font-warning">
+          Sound is moving the letters: exports use the sliders. To export the live look, press Freeze.
+        </p>
       )}
 
       <fieldset className="export-formats">
@@ -450,7 +547,9 @@ export default function ExportBody(props: ExportBodyProps) {
         ))}
       </fieldset>
 
-      {pending && format !== 'video' && format !== 'config' && <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>}
+      {pending && format !== 'video' && format !== 'config' && (
+        <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>
+      )}
 
       {(format === 'svg' || format === 'png') && (
         <div className="export-section">
@@ -466,20 +565,26 @@ export default function ExportBody(props: ExportBodyProps) {
           </div>
           <p id="export-preview-look-hint" className="field-hint">
             Off: the main view — the canvas in its Color settings. On: the bottom-right preview’s current look —{' '}
-            {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'}, {previewLook.inverted ? 'colours swapped' : 'same colours'}. The
-            blur keeps its size relative to the letters{format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
+            {previewLook.blur > 0 ? `blur ${previewLook.blur} px` : 'no blur'},{' '}
+            {previewLook.inverted ? 'colours swapped' : 'same colours'}. The blur keeps its size relative to the letters
+            {format === 'svg' ? ' and is stored as an SVG blur filter' : ''}.
           </p>
           <PaintNote format={format} fill={fill} />
           {palette.transparent && (
             <p className="field-hint">
-              Transparent background (set in Color): only the text is drawn{format === 'png' ? ' (PNG with transparency)' : ''}.
+              Transparent background (set in Color): only the text is drawn
+              {format === 'png' ? ' (PNG with transparency)' : ''}.
             </p>
           )}
 
           {format === 'svg' ? (
             <div className="field">
               <label htmlFor="export-precision">Coordinate precision</label>
-              <select id="export-precision" value={precision} onChange={(e) => onPrecisionChange(Number(e.target.value))}>
+              <select
+                id="export-precision"
+                value={precision}
+                onChange={(e) => onPrecisionChange(Number(e.target.value))}
+              >
                 {[0, 1, 2, 3, 4].map((p) => (
                   <option key={p} value={p}>
                     {p === 0 ? 'Whole font units' : `${p} decimal place${p === 1 ? '' : 's'}`}
@@ -487,25 +592,34 @@ export default function ExportBody(props: ExportBodyProps) {
                 ))}
               </select>
               <p className="field-hint">
-                The file is {artboard.width} × {artboard.height} px. Outline coordinates are kept in font units and placed
-                with transforms. Rounding is repaired where it can be; if a contour would still collapse or cross
+                The file is {artboard.width} × {artboard.height} px. Outline coordinates are kept in font units and
+                placed with transforms. Rounding is repaired where it can be; if a contour would still collapse or cross
                 itself, the export stops and asks for a higher precision.
               </p>
             </div>
           ) : (
             <p className="field-hint">
-              Image size: {pngWidth} × {pngHeight} px (canvas {artboard.width} × {artboard.height} px at {artboard.scale}×
-              {pngCapped ? ', scaled down to what a browser can draw' : ''}). Change it under Canvas size,
-              below the canvas.
+              Image size: {pngWidth} × {pngHeight} px (canvas {artboard.width} × {artboard.height} px at{' '}
+              {artboard.scale}×{pngCapped ? ', scaled down to what a browser can draw' : ''}). Change it under Canvas
+              size, below the canvas.
             </p>
           )}
           <p className="export-summary">
             Text: “{specimenText.slice(0, 60)}
             {specimenText.length > 60 ? '…' : ''}” · {lookName}
-            {format === 'svg' ? (fill ? ' · SVG paths use only M, L, and Z with nonzero fill.' : ' · SVG paths use only M, L, and Z, stroked with no fill.') : ''}
+            {format === 'svg'
+              ? fill
+                ? ' · SVG paths use only M, L, and Z with nonzero fill.'
+                : ' · SVG paths use only M, L, and Z, stroked with no fill.'
+              : ''}
           </p>
           <div className="export-actions">
-            <button type="button" className="button-primary" disabled={pending || working || !specimenText.trim()} onClick={exportImage}>
+            <button
+              type="button"
+              className="button-primary"
+              disabled={pending || working || !specimenText.trim()}
+              onClick={exportImage}
+            >
               {format === 'svg' ? 'Download SVG' : 'Download PNG'}
             </button>
             {working && (
@@ -523,9 +637,21 @@ export default function ExportBody(props: ExportBodyProps) {
             <legend>Glyphs to include</legend>
             {(['current', 'specimen', 'all'] as GlyphSet[]).map((set) => (
               <label key={set} className="export-format">
-                <input type="radio" name="export-glyphs" value={set} checked={glyphSet === set} onChange={() => setGlyphSet(set)} />
+                <input
+                  type="radio"
+                  name="export-glyphs"
+                  value={set}
+                  checked={glyphSet === set}
+                  onChange={() => setGlyphSet(set)}
+                />
                 <span>
-                  <strong>{set === 'current' ? 'Current glyph' : set === 'specimen' ? 'Specimen characters' : 'All mapped characters'}</strong>
+                  <strong>
+                    {set === 'current'
+                      ? 'Current glyph'
+                      : set === 'specimen'
+                        ? 'Specimen characters'
+                        : 'All mapped characters'}
+                  </strong>
                   <span className="field-hint">{counts[set]}</span>
                 </span>
               </label>
@@ -534,11 +660,21 @@ export default function ExportBody(props: ExportBodyProps) {
           <div className="export-names">
             <div className="field">
               <label htmlFor="export-family">Family name</label>
-              <input id="export-family" type="text" value={naming.familyName} onChange={(e) => setNaming({ ...naming, familyName: e.target.value })} />
+              <input
+                id="export-family"
+                type="text"
+                value={naming.familyName}
+                onChange={(e) => setNaming({ ...naming, familyName: e.target.value })}
+              />
             </div>
             <div className="field">
               <label htmlFor="export-style">Style name</label>
-              <input id="export-style" type="text" value={naming.styleName} onChange={(e) => setNaming({ ...naming, styleName: e.target.value })} />
+              <input
+                id="export-style"
+                type="text"
+                value={naming.styleName}
+                onChange={(e) => setNaming({ ...naming, styleName: e.target.value })}
+              />
             </div>
           </div>
           {namingError && <p className="font-warning">{namingError}</p>}
@@ -552,13 +688,20 @@ export default function ExportBody(props: ExportBodyProps) {
           <p className="export-summary">
             {plan.glyphs.length} glyph{plan.glyphs.length === 1 ? '' : 's'} plus .notdef, every one processed with the
             current pipeline.
-            {font.axes.length > 0 && ` Variable font: the instance shown on the canvas (${font.instance ? Object.entries(font.instance).map(([tag, value]) => `${tag} ${value}`).join(', ') : 'default'}) is exported.`}
+            {font.axes.length > 0 &&
+              ` Variable font: the instance shown on the canvas (${
+                font.instance
+                  ? Object.entries(font.instance)
+                      .map(([tag, value]) => `${tag} ${value}`)
+                      .join(', ')
+                  : 'default'
+              }) is exported.`}
             {estimate && ` About ${estimate.points.toLocaleString('en-US')} outline points.`}
           </p>
           {estimate && estimate.points > MAX_EXPORT_POINTS && (
             <p className="font-warning">
-              That is more than the {MAX_EXPORT_POINTS.toLocaleString('en-US')} a font file can hold. Use a larger Anchor spacing,
-              weaker Experimental effects, or the specimen characters.
+              That is more than the {MAX_EXPORT_POINTS.toLocaleString('en-US')} a font file can hold. Use a larger
+              Anchor spacing, weaker Experimental effects, or the specimen characters.
             </p>
           )}
           {estimate && estimate.points <= MAX_EXPORT_POINTS && estimate.pointsToCompute > SLOW_EXPORT_POINTS && (
@@ -566,12 +709,19 @@ export default function ExportBody(props: ExportBodyProps) {
               {estimate.toCompute} glyphs still need computing at these settings: the build may take minutes.
             </p>
           )}
-          {plan.missing.length > 0 && <p className="font-warning">Not in this font, left out: {plan.missing.join(' ')}</p>}
+          {plan.missing.length > 0 && (
+            <p className="font-warning">Not in this font, left out: {plan.missing.join(' ')}</p>
+          )}
           {plan.unsupported.length > 0 && (
-            <p className="font-warning">Above U+FFFF, left out: {plan.unsupported.slice(0, 12).join(' ')}{plan.unsupported.length > 12 ? ' …' : ''}</p>
+            <p className="font-warning">
+              Above U+FFFF, left out: {plan.unsupported.slice(0, 12).join(' ')}
+              {plan.unsupported.length > 12 ? ' …' : ''}
+            </p>
           )}
           {plan.problems.map((p) => (
-            <p key={p} className="font-warning">{p}</p>
+            <p key={p} className="font-warning">
+              {p}
+            </p>
           ))}
           <details className="export-limits">
             <summary>What the font file does not include</summary>
@@ -583,7 +733,11 @@ export default function ExportBody(props: ExportBodyProps) {
           </details>
 
           <div className="export-actions">
-            <button type="button" disabled={working || pending || plan.problems.length > 0 || Boolean(namingError)} onClick={buildFont}>
+            <button
+              type="button"
+              disabled={working || pending || plan.problems.length > 0 || Boolean(namingError)}
+              onClick={buildFont}
+            >
               Build &amp; verify
             </button>
             {working && (
@@ -599,30 +753,40 @@ export default function ExportBody(props: ExportBodyProps) {
           {currentBuild && (
             <div className="export-result" role="status">
               <p>
-                Verified {currentBuild.fileName}: {currentBuild.result.glyphCount} glyphs, {currentBuild.result.characterCount} characters,{' '}
-                {currentBuild.result.contourCount} contours. Reopened with fontkit (mappings, advances,
-                {currentBuild.result.kerning ? ' kerning,' : ''} line spacing, every contour point and direction) and accepted by the
-                browser’s font engine.
+                Verified {currentBuild.fileName}: {currentBuild.result.glyphCount} glyphs,{' '}
+                {currentBuild.result.characterCount} characters, {currentBuild.result.contourCount} contours. Reopened
+                with fontkit (mappings, advances,
+                {currentBuild.result.kerning ? ' kerning,' : ''} line spacing, every contour point and direction) and
+                accepted by the browser’s font engine.
               </p>
               {currentBuild.result.excluded.length > 0 && (
                 <p className="font-warning">
                   Left out of the font file:{' '}
-                  {currentBuild.result.excluded.slice(0, 8).map((e) => `${e.label} (${e.reason})`).join('; ')}
-                  {currentBuild.result.excluded.length > 8 ? `; and ${currentBuild.result.excluded.length - 8} more` : ''}.
+                  {currentBuild.result.excluded
+                    .slice(0, 8)
+                    .map((e) => `${e.label} (${e.reason})`)
+                    .join('; ')}
+                  {currentBuild.result.excluded.length > 8
+                    ? `; and ${currentBuild.result.excluded.length - 8} more`
+                    : ''}
+                  .
                 </p>
               )}
               {currentBuild.result.trimmed.length > 0 && (
                 <p className="font-warning">
                   Trimmed to fit: a font stores each glyph within a square 32,766 font units across (
-                  {Number((FONT_BOX_LIMITS.span / font.metrics.unitsPerEm).toFixed(1))} em for this font). Outline parts reaching further, such as long Thorn tips, were cut off at
-                  its edge in {currentBuild.result.trimmed.slice(0, 8).join(', ')}
-                  {currentBuild.result.trimmed.length > 8 ? `; and ${currentBuild.result.trimmed.length - 8} more` : ''}. Only the font file is
-                  trimmed: the canvas, SVG and PNG are not.
+                  {Number((FONT_BOX_LIMITS.span / font.metrics.unitsPerEm).toFixed(1))} em for this font). Outline parts
+                  reaching further, such as long Thorn tips, were cut off at its edge in{' '}
+                  {currentBuild.result.trimmed.slice(0, 8).join(', ')}
+                  {currentBuild.result.trimmed.length > 8 ? `; and ${currentBuild.result.trimmed.length - 8} more` : ''}
+                  . Only the font file is trimmed: the canvas, SVG and PNG are not.
                 </p>
               )}
             </div>
           )}
-          {built && !currentBuild && <p className="field-hint">Settings changed since the last build. Build again to download.</p>}
+          {built && !currentBuild && (
+            <p className="field-hint">Settings changed since the last build. Build again to download.</p>
+          )}
         </div>
       )}
 

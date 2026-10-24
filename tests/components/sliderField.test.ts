@@ -26,7 +26,9 @@ type Props = Parameters<typeof SliderField>[0]
 /** The markup, with React's generated ids replaced by ID0, ID1… in order of appearance. */
 function render(props: Props, open = false): string {
   const ids = new Map<string, string>()
-  const html = renderToStaticMarkup(createElement(HintsContext.Provider, { value: open }, createElement(SliderField, props)))
+  const html = renderToStaticMarkup(
+    createElement(HintsContext.Provider, { value: open }, createElement(SliderField, props)),
+  )
   return html.replace(/«[^»]*»|_R_[A-Za-z0-9_]*_|:r[0-9a-z]+:/g, (m) => {
     if (!ids.has(m)) ids.set(m, `ID${ids.size}`)
     return ids.get(m)!
@@ -58,14 +60,29 @@ describe('SliderField', () => {
   })
 
   it('lays out the row layout as Typography did: the number box and unit after the slider', () => {
-    const html = render({ layout: 'row', id: 'type-size', target: 'typography.size', label: 'Size', value: 120, unit: 'px', onChange: () => {} })
+    const html = render({
+      layout: 'row',
+      id: 'type-size',
+      target: 'typography.size',
+      label: 'Size',
+      value: 120,
+      unit: 'px',
+      onChange: () => {},
+    })
     expect(html).toMatch(
       /^<div class="field slider-field"><span class="field-title"><label for="type-size">Size<\/label><\/span><div class="slider-row"><span class="live-slider"><input id="type-size" type="range" min="\d+" max="\d+" step="1" value="120"\/><span[^>]*data-map-target="typography.size"[^>]*><\/span><\/span><input class="number-field"[^>]*aria-label="Size \(px\)" value="120"\/><span class="unit slider-unit">px<\/span><\/div><\/div>$/,
     )
   })
 
   it('wires an explanation to the slider and its ⓘ button, closed until Show all explanations opens it', () => {
-    const props: Props = { id: 'x', target: 'grid.size', label: 'Grid size', value: 10, hint: 'Why.', onChange: () => {} }
+    const props: Props = {
+      id: 'x',
+      target: 'grid.size',
+      label: 'Grid size',
+      value: 10,
+      hint: 'Why.',
+      onChange: () => {},
+    }
     const closed = render(props)
     expect(closed).toContain('aria-controls="ID0" aria-label="About Grid size"')
     expect(closed).toContain('aria-describedby="ID0"')
@@ -78,7 +95,14 @@ describe('SliderField', () => {
   })
 
   it('puts more controls under the slider, above the explanation', () => {
-    const html = render({ id: 'x', target: 'squaring.amount', label: 'Amount', value: 0, hint: 'Why.', onChange: () => {} })
+    const html = render({
+      id: 'x',
+      target: 'squaring.amount',
+      label: 'Amount',
+      value: 0,
+      hint: 'Why.',
+      onChange: () => {},
+    })
     const withPresets = render({
       id: 'x',
       target: 'squaring.amount',
@@ -92,10 +116,27 @@ describe('SliderField', () => {
   })
 
   it('places a curved slider by its curve and types the value itself in its number box', () => {
-    const html = render({ id: 'thorn-reach', target: 'experimental.thorn.canvasReach', curve: REACH_CURVE, label: 'Reach', value: 0.125, scale: 100, unit: '% canvas', onChange: () => {} })
+    const html = render({
+      id: 'thorn-reach',
+      target: 'experimental.thorn.canvasReach',
+      curve: REACH_CURVE,
+      label: 'Reach',
+      value: 0.125,
+      scale: 100,
+      unit: '% canvas',
+      onChange: () => {},
+    })
     expect(html).toContain('type="range" min="0" max="1" step="0.005" value="0.5"')
     expect(html).toContain('min="0" max="100" step="0.01" aria-label="Reach (% canvas)" value="12.5"')
-    const tolerance = render({ id: 't', target: 'flatten.tolerance', curve: TOLERANCE_CURVE, label: 'Tolerance', value: 4, unit: 'u', onChange: () => {} })
+    const tolerance = render({
+      id: 't',
+      target: 'flatten.tolerance',
+      curve: TOLERANCE_CURVE,
+      label: 'Tolerance',
+      value: 4,
+      unit: 'u',
+      onChange: () => {},
+    })
     expect(tolerance).toContain('min="0.1" max="500" step="0.01" aria-label="Tolerance (u)" value="4"')
   })
 })

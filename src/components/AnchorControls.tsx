@@ -56,8 +56,9 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
           valueText={spacingOn ? `${params.spacing} font units` : 'Off'}
           hint={
             <>
-              Splits every polygon edge so no edge is longer than this{spacingOn ? emPercent(params.spacing, unitsPerEm) : ''}.
-              New points sit on the existing edges, so the shape does not change. 0 turns it off.
+              Splits every polygon edge so no edge is longer than this
+              {spacingOn ? emPercent(params.spacing, unitsPerEm) : ''}. New points sit on the existing edges, so the
+              shape does not change. 0 turns it off.
             </>
           }
           onChange={(spacing) => update({ spacing })}
@@ -73,8 +74,8 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
           hint={
             <>
               Ramer–Douglas–Peucker: removes vertices that lie within this distance of the simplified outline
-              {reductionOn ? emPercent(params.simplify, unitsPerEm) : ''}. Larger values remove more points and can erase
-              small details, corners, and thin features. 0 turns it off.
+              {reductionOn ? emPercent(params.simplify, unitsPerEm) : ''}. Larger values remove more points and can
+              erase small details, corners, and thin features. 0 turns it off.
             </>
           }
           onChange={(simplify) => update({ simplify })}
@@ -93,8 +94,16 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
         {stats && (
           <dl className="pipeline-steps" aria-live="polite" aria-busy={pending}>
             <Step label="Flattened" value={stats.flattenedVertices} active />
-            <Step label="Spacing" value={stats.spacingApplied ? stats.spacedVertices : 'off'} active={stats.spacingApplied} />
-            <Step label="Reduction" value={stats.reductionApplied ? stats.finalVertices : 'off'} active={stats.reductionApplied} />
+            <Step
+              label="Spacing"
+              value={stats.spacingApplied ? stats.spacedVertices : 'off'}
+              active={stats.spacingApplied}
+            />
+            <Step
+              label="Reduction"
+              value={stats.reductionApplied ? stats.finalVertices : 'off'}
+              active={stats.reductionApplied}
+            />
           </dl>
         )}
         {stats?.reductionApplied && (
@@ -124,9 +133,10 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
         )}
         {stats && stats.reductionFallbacks > 0 && (
           <p className="font-warning">
-            {stats.reductionFallbacks} contour{stats.reductionFallbacks === 1 ? '' : 's'} could not be reduced safely (the
-            result collapsed, flipped direction, crossed itself, or moved across another contour) and {stats.reductionFallbacks === 1 ? 'keeps' : 'keep'}{' '}
-            {stats.reductionFallbacks === 1 ? 'its' : 'their'} unreduced points.
+            {stats.reductionFallbacks} contour{stats.reductionFallbacks === 1 ? '' : 's'} could not be reduced safely
+            (the result collapsed, flipped direction, crossed itself, or moved across another contour) and{' '}
+            {stats.reductionFallbacks === 1 ? 'keeps' : 'keep'} {stats.reductionFallbacks === 1 ? 'its' : 'their'}{' '}
+            unreduced points.
           </p>
         )}
       </div>

@@ -582,7 +582,10 @@ export class FeatureExtractor {
     }
     // A move is measured from where the note was settled when it began.
     const from = this.pending === null ? this.centre : this.pendingFrom
-    if (PITCH_SEMITONES * Math.abs(note - from) >= SOUND_LIMITS.melodyStepSt && time - this.since >= SOUND_LIMITS.melodySettleMs) {
+    if (
+      PITCH_SEMITONES * Math.abs(note - from) >= SOUND_LIMITS.melodyStepSt &&
+      time - this.since >= SOUND_LIMITS.melodySettleMs
+    ) {
       if (this.pending === null || PITCH_SEMITONES * Math.abs(note - this.pending) >= SOUND_LIMITS.melodyStepSt) {
         this.pending = note
         this.pendingFrom = from

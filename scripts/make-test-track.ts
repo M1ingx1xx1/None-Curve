@@ -6,7 +6,9 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { encodeWav, renderTestTrack } from './test-track'
 
-const out = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('../test-audio/sound-test.wav', import.meta.url))
+const out = process.argv[2]
+  ? resolve(process.argv[2])
+  : fileURLToPath(new URL('../test-audio/sound-test.wav', import.meta.url))
 const track = renderTestTrack()
 mkdirSync(dirname(out), { recursive: true })
 writeFileSync(out, encodeWav(track))

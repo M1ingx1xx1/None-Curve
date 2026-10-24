@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
@@ -190,7 +201,11 @@ export default function GlyphSurface({
   useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const renderer = createRenderer(kind, canvas, { mode: 'full', detailCanvas: detailRef.current, onLost: () => fallBack() })
+    const renderer = createRenderer(kind, canvas, {
+      mode: 'full',
+      detailCanvas: detailRef.current,
+      onLost: () => fallBack(),
+    })
     if (!renderer) {
       fallBack()
       return
@@ -236,7 +251,21 @@ export default function GlyphSurface({
     }
     // themeVersion: the theme changed, so theme.get() resolves again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, themeVersion, ink, highlight, view.outline, view.showFill, view.showSkeleton, view.showVertices, showMarkers, u, unitsPerEm, ascender, descender])
+  }, [
+    theme,
+    themeVersion,
+    ink,
+    highlight,
+    view.outline,
+    view.showFill,
+    view.showSkeleton,
+    view.showVertices,
+    showMarkers,
+    u,
+    unitsPerEm,
+    ascender,
+    descender,
+  ])
 
   // View, style and selection, then a draw: in a layout effect, so the canvas changes with the underlay.
   const dpr = useDevicePixelRatio()
@@ -245,7 +274,15 @@ export default function GlyphSurface({
     if (!renderer || !ready || !style) return
     latest.current.dpr = dpr
     const el = containerRef.current
-    renderer.setView({ kind: 'canvas', left, top, u, cssWidth: el?.clientWidth ?? visW / u, cssHeight: el?.clientHeight ?? visH / u, dpr })
+    renderer.setView({
+      kind: 'canvas',
+      left,
+      top,
+      u,
+      cssWidth: el?.clientWidth ?? visW / u,
+      cssHeight: el?.clientHeight ?? visH / u,
+      dpr,
+    })
     renderer.setStyle(style)
     renderer.setSelected(selectedGlyph?.index ?? null)
     renderer.setFrame(frameNow(), source)

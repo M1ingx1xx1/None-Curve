@@ -30,7 +30,10 @@ export function filterGlyphs(glyphs: GlyphRef[], query: GlyphQuery | null): Glyp
   const exact: GlyphRef[] = []
   const byName: GlyphRef[] = []
   for (const g of glyphs) {
-    if ((query.codePoint !== null && g.unicode === query.codePoint) || (query.index !== null && g.index === query.index))
+    if (
+      (query.codePoint !== null && g.unicode === query.codePoint) ||
+      (query.index !== null && g.index === query.index)
+    )
       exact.push(g)
     else if (query.text !== '' && g.name.toLowerCase().includes(query.text)) byName.push(g)
   }

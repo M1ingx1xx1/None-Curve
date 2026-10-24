@@ -17,7 +17,14 @@ interface ToolHeadProps {
 }
 
 /** Top left, first: font import and font information. */
-export default function ToolHead({ document, importer, onOpenGoogleFonts, onConfigFile, configNotice, onDismissConfigNotice }: ToolHeadProps) {
+export default function ToolHead({
+  document,
+  importer,
+  onOpenGoogleFonts,
+  onConfigFile,
+  configNotice,
+  onDismissConfigNotice,
+}: ToolHeadProps) {
   const dismiss = (
     <button type="button" className="button-small" aria-label="Dismiss" onClick={onDismissConfigNotice}>
       <Icon name="close" />

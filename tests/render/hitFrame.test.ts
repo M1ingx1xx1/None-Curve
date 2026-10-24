@@ -59,7 +59,13 @@ describe('hit testing a frame of Glide', async () => {
     ])
     for (const slant of [0, 12]) {
       const layout = sceneOf([glyphs.filter((g) => g.y === 0), glyphs.filter((g) => g.y === 1200)], slant)
-      const morphs: (GlyphMorph | null)[] = [...pick.map((plan, i) => ({ plan, p: 0.2 + 0.15 * i })), null, null, { plan: pick[0], p: 0.7 }, null]
+      const morphs: (GlyphMorph | null)[] = [
+        ...pick.map((plan, i) => ({ plan, p: 0.2 + 0.15 * i })),
+        null,
+        null,
+        { plan: pick[0], p: 0.7 },
+        null,
+      ]
       const scene = evaluated(layout, morphs)
       const frame: GlideFrame = {
         target: layout,
@@ -69,7 +75,12 @@ describe('hit testing a frame of Glide', async () => {
           throw new Error('scene() evaluates every morph')
         },
       }
-      for (const o of [options(), options({ fill: false }), options({ showVertices: true, showMarkers: true }), options({ outline: 'compare', offsetX: 30 })]) {
+      for (const o of [
+        options(),
+        options({ fill: false }),
+        options({ showVertices: true, showMarkers: true }),
+        options({ outline: 'compare', offsetX: 30 }),
+      ]) {
         let hits = 0
         for (let sx = -1200; sx <= 4200; sx += 97) {
           for (let sy = -1500; sy <= 1700; sy += 89) {

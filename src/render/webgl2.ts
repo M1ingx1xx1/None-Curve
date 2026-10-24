@@ -50,13 +50,20 @@ interface Program {
   uniforms: Record<string, WebGLUniformLocation | null>
 }
 
-function compile(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: string[], feedback: string[] | null): Program {
+function compile(
+  gl: WebGL2RenderingContext,
+  vs: string,
+  fs: string,
+  uniforms: string[],
+  feedback: string[] | null,
+): Program {
   const shader = (type: number, source: string) => {
     const s = gl.createShader(type)
     if (!s) throw new Error('WebGL shader')
     gl.shaderSource(s, source)
     gl.compileShader(s)
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) throw new Error(`WebGL shader: ${gl.getShaderInfoLog(s)}`)
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost())
+      throw new Error(`WebGL shader: ${gl.getShaderInfoLog(s)}`)
     return s
   }
   const program = gl.createProgram()
@@ -67,7 +74,8 @@ function compile(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: s
   gl.attachShader(program, f)
   if (feedback) gl.transformFeedbackVaryings(program, feedback, gl.SEPARATE_ATTRIBS)
   gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS) && !gl.isContextLost()) throw new Error(`WebGL link: ${gl.getProgramInfoLog(program)}`)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS) && !gl.isContextLost())
+    throw new Error(`WebGL link: ${gl.getProgramInfoLog(program)}`)
   gl.deleteShader(v)
   gl.deleteShader(f)
   const locations: Program['uniforms'] = {}
@@ -247,11 +255,23 @@ export class WebGL2Renderer implements GlyphRenderer {
     private readonly gl: WebGL2RenderingContext,
     private readonly options: WebGLOptions,
   ) {
-    this.evalProgram = compile(gl, EVAL_VS, DISCARD_FS, ['u_p', 'u_start', 'u_end', 'u_ringA', 'u_ringB', 'u_paths'], ['v_pos'])
+    this.evalProgram = compile(
+      gl,
+      EVAL_VS,
+      DISCARD_FS,
+      ['u_p', 'u_start', 'u_end', 'u_ringA', 'u_ringB', 'u_paths'],
+      ['v_pos'],
+    )
     this.pathProgram = compile(gl, PATH_VS, DISCARD_FS, ['u_p', 'u_centre', 'u_ring'], ['v_pos'])
     this.fillProgram = compile(gl, FILL_VS, COLOR_FS, ['u_glyph', 'u_viewport', 'u_color'], null)
     this.coverProgram = compile(gl, COVER_VS, COLOR_FS, ['u_rect', 'u_viewport', 'u_color'], null)
-    this.strokeProgram = compile(gl, STROKE_VS, COLOR_FS, ['u_pos', 'u_glyph', 'u_half', 'u_limit', 'u_viewport', 'u_color'], null)
+    this.strokeProgram = compile(
+      gl,
+      STROKE_VS,
+      COLOR_FS,
+      ['u_pos', 'u_glyph', 'u_half', 'u_limit', 'u_viewport', 'u_color'],
+      null,
+    )
     this.shapes = new GpuLru((shape) => deleteShape(gl, shape))
     this.plans = new GpuLru((plan) => deletePlan(gl, plan))
     this.batch = new Batch(gl)
@@ -270,7 +290,13 @@ export class WebGL2Renderer implements GlyphRenderer {
   static create(canvas: HTMLCanvasElement, options: WebGLOptions): WebGL2Renderer | null {
     let gl: WebGL2RenderingContext | null
     try {
-      gl = canvas.getContext('webgl2', { antialias: true, stencil: true, alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: false })
+      gl = canvas.getContext('webgl2', {
+        antialias: true,
+        stencil: true,
+        alpha: true,
+        premultipliedAlpha: true,
+        preserveDrawingBuffer: false,
+      })
     } catch {
       gl = null
     }
@@ -361,7 +387,8 @@ export class WebGL2Renderer implements GlyphRenderer {
       this.gl.deleteTransformFeedback(this.feedback)
       this.gl.deleteTexture(this.blank)
       this.gl.deleteVertexArray(this.emptyArray)
-      for (const p of [this.evalProgram, this.pathProgram, this.fillProgram, this.coverProgram, this.strokeProgram]) this.gl.deleteProgram(p.program)
+      for (const p of [this.evalProgram, this.pathProgram, this.fillProgram, this.coverProgram, this.strokeProgram])
+        this.gl.deleteProgram(p.program)
     }
     this.detail?.dispose()
     this.detail = null
@@ -415,7 +442,10 @@ export class WebGL2Renderer implements GlyphRenderer {
     const fill = canvasView ? style.fill && style.outline !== 'source' : style.fill
     const compare = canvasView && style.outline === 'compare'
     const stroke = !style.fill || compare
-    const half = canvasView || style.scalingStroke === null ? (OUTLINE_PX * view.dpr) / 2 : this.scalingHalf(view, style.scalingStroke)
+    const half =
+      canvasView || style.scalingStroke === null
+        ? (OUTLINE_PX * view.dpr) / 2
+        : this.scalingHalf(view, style.scalingStroke)
     for (const item of items) {
       if (fill) this.fillItem(item, compare ? COMPARE_ALPHA : 1, width, height)
       if (stroke) this.strokeItem(item, half, width, height)
@@ -506,7 +536,10 @@ export class WebGL2Renderer implements GlyphRenderer {
           if (morph) {
             transient.push({ item, polygon })
             const b = polygon.contours.flatMap((c) => c.points)
-            item.bounds = b.reduce<Box>((box, p) => [Math.min(box[0], p.x), Math.min(box[1], p.y), Math.max(box[2], p.x), Math.max(box[3], p.y)], [Infinity, Infinity, -Infinity, -Infinity])
+            item.bounds = b.reduce<Box>(
+              (box, p) => [Math.min(box[0], p.x), Math.min(box[1], p.y), Math.max(box[2], p.x), Math.max(box[3], p.y)],
+              [Infinity, Infinity, -Infinity, -Infinity],
+            )
           } else {
             let shape = this.shapes.get(polygon, now)
             if (!shape) {

@@ -18,7 +18,12 @@ const { view: initialView, ...defaultSettings } = initialState.params
 export const DEFAULT_SETTINGS: SettingsParams = defaultSettings
 
 /** What the history holds as the editor first opens: the defaults and the sample text. */
-export const START_SNAPSHOT: Snapshot = { params: DEFAULT_SETTINGS, text: DEFAULT_TEXT, mappings: [], sound: DEFAULT_SOUND_SETTINGS }
+export const START_SNAPSHOT: Snapshot = {
+  params: DEFAULT_SETTINGS,
+  text: DEFAULT_TEXT,
+  mappings: [],
+  sound: DEFAULT_SOUND_SETTINGS,
+}
 
 /** What Reset also restores outside the undo history: the preview look and the export precision. */
 export interface ResetExtras {
@@ -26,12 +31,19 @@ export interface ResetExtras {
   precision: number
 }
 
-export const DEFAULT_RESET_EXTRAS: ResetExtras = { previewLook: DEFAULT_PREVIEW_LOOK, precision: initialState.document.export.precision }
+export const DEFAULT_RESET_EXTRAS: ResetExtras = {
+  previewLook: DEFAULT_PREVIEW_LOOK,
+  precision: initialState.document.export.precision,
+}
 
 /** Whether the preview look and the export precision are at their defaults. */
 export function isDefaultExtras({ previewLook, precision }: ResetExtras): boolean {
   const look = DEFAULT_RESET_EXTRAS.previewLook
-  return previewLook.blur === look.blur && previewLook.inverted === look.inverted && precision === DEFAULT_RESET_EXTRAS.precision
+  return (
+    previewLook.blur === look.blur &&
+    previewLook.inverted === look.inverted &&
+    precision === DEFAULT_RESET_EXTRAS.precision
+  )
 }
 
 /** Whether the settings, mappings and Sound values are at their defaults (the text is not looked at). */
@@ -39,7 +51,10 @@ export function isDefaultSnapshot({ params, mappings, sound }: Omit<Snapshot, 't
   return (
     mappings.length === 0 &&
     changedSettings(params, DEFAULT_SETTINGS) === null &&
-    (!sound || (Object.keys(DEFAULT_SOUND_SETTINGS) as (keyof typeof DEFAULT_SOUND_SETTINGS)[]).every((key) => sound[key] === DEFAULT_SOUND_SETTINGS[key]))
+    (!sound ||
+      (Object.keys(DEFAULT_SOUND_SETTINGS) as (keyof typeof DEFAULT_SOUND_SETTINGS)[]).every(
+        (key) => sound[key] === DEFAULT_SOUND_SETTINGS[key],
+      ))
   )
 }
 
@@ -56,7 +71,10 @@ export interface StartCheck {
 }
 
 /** Whether Reset all would change nothing: no font, the sample text, and everything at its default. */
-export function isAtStart(snapshot: Snapshot, { document, view, viewMoved, extras, drive, defaultDrive }: StartCheck): boolean {
+export function isAtStart(
+  snapshot: Snapshot,
+  { document, view, viewMoved, extras, drive, defaultDrive }: StartCheck,
+): boolean {
   return (
     document.font === null &&
     document.status.kind === 'empty' &&

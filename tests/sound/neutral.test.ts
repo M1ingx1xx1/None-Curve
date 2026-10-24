@@ -157,7 +157,11 @@ describe('neutral Sound reproduces 4a54e5d', () => {
       for (let f = 0; f < 64; f++) {
         const frame = soundFrame(rand, 100 + f * 16)
         for (const count of [0, 3]) {
-          const { params, positions, seeds: live } = modulate(base, frame, mappings, new Map(seeds.map((id) => [id, count])))
+          const {
+            params,
+            positions,
+            seeds: live,
+          } = modulate(base, frame, mappings, new Map(seeds.map((id) => [id, count])))
           if (params !== base) moved++
           hash.add(`${preset.id}|${f}|${count}|${paramsKey(params)}|${entries(positions)}|${entries(live)}`)
         }
@@ -178,11 +182,15 @@ describe('neutral Sound reproduces 4a54e5d', () => {
       r.live.setMappings(mappingsOf(preset), true)
       const rand = random(29)
       // Quiet, seeded sound (the flash limit holds much of it back), a quiet gap, then slow waves.
-      r.play(3000, (t) => (t < 300 ? quietFrame(t) : t < 1500 ? soundFrame(rand, t) : t < 1800 ? quietFrame(t) : waveFrame(t)))
+      r.play(3000, (t) =>
+        t < 300 ? quietFrame(t) : t < 1500 ? soundFrame(rand, t) : t < 1800 ? quietFrame(t) : waveFrame(t),
+      )
       const freeze = r.live.freezeChanges()
       r.setRunning(false)
       live += r.commits.filter((c) => c.startsWith('[')).length
-      hash.add(`${preset.id}|${r.requests.join(';')}|${r.commits.join(';')}|${freeze ? JSON.stringify(freeze) : 'null'}`)
+      hash.add(
+        `${preset.id}|${r.requests.join(';')}|${r.commits.join(';')}|${freeze ? JSON.stringify(freeze) : 'null'}`,
+      )
     }
     expect(live).toBeGreaterThan(UNTHORNED.length * 20)
     expect(hash.hex).toBe(PINNED.scheduler)
@@ -193,11 +201,21 @@ describe('neutral Sound reproduces 4a54e5d', () => {
     reseed(41)
     const kick = drumHits(hitTimes(2, seconds), seconds, -8)
     const hats = hiHat(4, seconds, -22, 0.55)
-    const left = mix(sine(220, -14, seconds, 0, 2), sine(330, -16, seconds, 2, seconds), kick, hats, noise(-40, seconds))
+    const left = mix(
+      sine(220, -14, seconds, 0, 2),
+      sine(330, -16, seconds, 2, seconds),
+      kick,
+      hats,
+      noise(-40, seconds),
+    )
     const right = mix(sine(220, -20, seconds, 0, 2), sine(330, -14, seconds, 2, seconds), kick, noise(-40, seconds))
     const runs = [
       analyse(left, right),
-      analyse(mix(left, right), null, { jitterMs: 3, quantum: 128, settings: { ...DEFAULT_FEATURE_SETTINGS, sensitivity: 6, releaseMs: 300 } }),
+      analyse(mix(left, right), null, {
+        jitterMs: 3,
+        quantum: 128,
+        settings: { ...DEFAULT_FEATURE_SETTINGS, sensitivity: 6, releaseMs: 300 },
+      }),
     ]
     const hash = fnv1a()
     for (const frames of runs) for (const f of frames) hash.add(featureFields(f))
@@ -228,12 +246,19 @@ describe('neutral Sound reproduces 4a54e5d', () => {
     expect(scene.failedGlyphs).toBe(0)
     const layout = layoutArtboard(scene, DEFAULT_TYPOGRAPHY, DEFAULT_ARTBOARD, font.metrics.unitsPerEm)
     const size = { width: DEFAULT_ARTBOARD.width, height: DEFAULT_ARTBOARD.height }
-    const svg = specimenToSvg(scene, layout, size, 2, { fontName: 'Roboto Regular', subject: 'neutral', pipeline: ['Flatten', 'Noise'] }, {
-      ink: '#111111',
-      paper: '#ffffff',
-      background: true,
-      blur: 0,
-    })
+    const svg = specimenToSvg(
+      scene,
+      layout,
+      size,
+      2,
+      { fontName: 'Roboto Regular', subject: 'neutral', pipeline: ['Flatten', 'Noise'] },
+      {
+        ink: '#111111',
+        paper: '#ffffff',
+        background: true,
+        blur: 0,
+      },
+    )
     const paths = specimenPaths(scene, layout, 2)
     // Straight segments only.
     for (const path of paths.paths) expect(path.d).toMatch(/^[MLZ0-9 .-]+$/)
@@ -251,7 +276,22 @@ describe('neutral Sound reproduces 4a54e5d', () => {
 
 /** Today's FeatureFrame fields, listed so that fields added later are left out. */
 function featureFields(f: ProbedFrame): string {
-  return [f.time, f.levelDb, f.level, f.swell, f.bass, f.mids, f.treble, f.brightness, f.pitch, f.beat, f.activity, f.pan, f.onset, f.silent]
+  return [
+    f.time,
+    f.levelDb,
+    f.level,
+    f.swell,
+    f.bass,
+    f.mids,
+    f.treble,
+    f.brightness,
+    f.pitch,
+    f.beat,
+    f.activity,
+    f.pan,
+    f.onset,
+    f.silent,
+  ]
     .map((v) => (typeof v === 'number' && Number.isFinite(v) ? v.toPrecision(10) : String(v)))
     .join(',')
 }
@@ -283,7 +323,9 @@ function rig() {
     request: ((a: unknown, b?: unknown) => {
       const jobs = (Array.isArray(a) ? a : [{ params: a, key: b }]) as Job[]
       for (const job of jobs) expect(job.key).toBe(paramsKey(job.params))
-      requests.push(`${now}:${jobs.map((job) => `${job.key}#${job.indices ? job.indices.join(',') : 'shown'}`).join('+')}`)
+      requests.push(
+        `${now}:${jobs.map((job) => `${job.key}#${job.indices ? job.indices.join(',') : 'shown'}`).join('+')}`,
+      )
       const missing = jobs.filter((job) => !known.has(job.key))
       if (missing.length === 0) return false
       computing = true

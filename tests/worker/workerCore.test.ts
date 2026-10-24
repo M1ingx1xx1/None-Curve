@@ -38,8 +38,10 @@ function worker(reply: (message: WorkerResponse, send: (m: WorkerRequest) => voi
     transfers.push(transfer ?? [])
     reply(message, send)
   })
-  const ended = (requestId: number) => sent.find((m) => (m.type === 'done' || m.type === 'failed') && m.requestId === requestId)
-  const until = (requestId: number) => vi.waitFor(() => expect(ended(requestId)).toBeDefined(), { timeout: 20_000, interval: 5 })
+  const ended = (requestId: number) =>
+    sent.find((m) => (m.type === 'done' || m.type === 'failed') && m.requestId === requestId)
+  const until = (requestId: number) =>
+    vi.waitFor(() => expect(ended(requestId)).toBeDefined(), { timeout: 20_000, interval: 5 })
   const of = (requestId: number) => sent.filter((m) => 'requestId' in m && m.requestId === requestId)
   return { sent, transfers, send, ended, until, of }
 }
@@ -64,7 +66,9 @@ describe('geometry worker core', async () => {
     w.send(compute(1, glyphs.slice(0, 12)))
     await w.until(1)
     const messages = w.of(1)
-    expect(messages.filter((m) => m.type === 'glyph').map((m) => (m as { index: number }).index)).toEqual(glyphs.slice(0, 12))
+    expect(messages.filter((m) => m.type === 'glyph').map((m) => (m as { index: number }).index)).toEqual(
+      glyphs.slice(0, 12),
+    )
     const results = messages.flatMap((m) => (m.type === 'results' ? m.results : []))
     expect(results.map((r) => r.index)).toEqual(glyphs.slice(0, 12))
     expect(results.every((r) => 'packed' in r)).toBe(true)
@@ -72,7 +76,9 @@ describe('geometry worker core', async () => {
     expect(messages[messages.length - 1]).toEqual({ type: 'done', requestId: 1 })
     expect(messages.filter((m) => m.type === 'done' || m.type === 'failed')).toHaveLength(1)
     const first = results[0]
-    expect('packed' in first && unpackGeometry(first.packed).polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[0]), BASE).polygon)
+    expect('packed' in first && unpackGeometry(first.packed).polygon).toEqual(
+      deriveGeometry(font.getGlyph(glyphs[0]), BASE).polygon,
+    )
   })
 
   it('times each glyph it computes, and gives no time for one its cache already held', async () => {
@@ -168,13 +174,17 @@ describe('geometry worker core', async () => {
     const messages = w.of(30)
     const pairs = (m: WorkerResponse) => (m.type === 'results' ? m.results.map((r) => `${m.key}|${r.index}`) : [])
     const expected = jobs.flatMap(({ key, indices }) => indices.map((index) => `${key}|${index}`))
-    expect(messages.filter((m) => m.type === 'glyph').map((m) => (m.type === 'glyph' ? `${m.key}|${m.index}` : ''))).toEqual(expected)
+    expect(
+      messages.filter((m) => m.type === 'glyph').map((m) => (m.type === 'glyph' ? `${m.key}|${m.index}` : '')),
+    ).toEqual(expected)
     expect(messages.flatMap(pairs)).toEqual(expected)
     // Every batch is one job's glyphs, and keeps the live flag.
     for (const m of messages) if (m.type === 'results') expect(m.live).toBe(true)
     const second = messages.flatMap((m) => (m.type === 'results' && m.key === jobs[1].key ? m.results : []))
     const shape = second[0]
-    expect('packed' in shape && unpackGeometry(shape.packed).polygon).toEqual(deriveGeometry(font.getGlyph(glyphs[1]), seeded).polygon)
+    expect('packed' in shape && unpackGeometry(shape.packed).polygon).toEqual(
+      deriveGeometry(font.getGlyph(glyphs[1]), seeded).polygon,
+    )
     expect(messages.filter((m) => m.type === 'done' || m.type === 'failed')).toEqual([{ type: 'done', requestId: 30 }])
     expect(messages.at(-1)).toEqual({ type: 'done', requestId: 30 })
   })
@@ -184,10 +194,16 @@ describe('geometry worker core', async () => {
     const last = first.indices.at(-1)
     // When the first job's last glyph arrives, a newer request comes in: the second job is never started.
     const w = worker((message, send) => {
-      if (message.type === 'results' && message.requestId === 40 && message.results.some((r) => r.index === last)) send(compute(41, glyphs.slice(0, 1)))
+      if (message.type === 'results' && message.requestId === 40 && message.results.some((r) => r.index === last))
+        send(compute(41, glyphs.slice(0, 1)))
     })
     w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
-    w.send({ type: 'compute', requestId: 40, fontId: 'roboto', jobs: [first, job(glyphs.slice(2, 4), paramsWith(GEOMETRY.plain, ALL_DEFAULT))] })
+    w.send({
+      type: 'compute',
+      requestId: 40,
+      fontId: 'roboto',
+      jobs: [first, job(glyphs.slice(2, 4), paramsWith(GEOMETRY.plain, ALL_DEFAULT))],
+    })
     await w.until(40)
     await w.until(41)
     expect(w.ended(40)).toEqual({ type: 'done', requestId: 40, stopped: true })
@@ -211,12 +227,21 @@ describe('geometry worker core', async () => {
     const w = worker()
     w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
     const asked = job(glyphs.slice(0, 3))
-    w.send({ type: 'compute', requestId: 50, fontId: 'roboto', jobs: [asked], stats: { key: asked.key, index: glyphs[1] } })
+    w.send({
+      type: 'compute',
+      requestId: 50,
+      fontId: 'roboto',
+      jobs: [asked],
+      stats: { key: asked.key, index: glyphs[1] },
+    })
     await w.until(50)
-    const posted = w.sent.flatMap((m, n) => (m.type === 'results' && m.requestId === 50 ? [{ results: m.results, transfer: w.transfers[n] }] : []))
+    const posted = w.sent.flatMap((m, n) =>
+      m.type === 'results' && m.requestId === 50 ? [{ results: m.results, transfer: w.transfers[n] }] : [],
+    )
     const results = posted.flatMap((m) => m.results)
     expect(results.map((r) => 'packed' in r && r.packed.stats !== null)).toEqual([false, true, false])
-    for (const { results, transfer } of posted) for (const r of results) if ('packed' in r) expect(transfer).toContain(r.packed.contours.xy.buffer)
+    for (const { results, transfer } of posted)
+      for (const r of results) if ('packed' in r) expect(transfer).toContain(r.packed.contours.xy.buffer)
     // The glyph named comes back whole; the others without statistics, the same polygon.
     const named = results[1]
     const { source: _source, ...whole } = deriveGeometry(font.getGlyph(glyphs[1]), BASE)

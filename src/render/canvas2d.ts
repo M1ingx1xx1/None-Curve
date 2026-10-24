@@ -17,7 +17,15 @@ import type { SpecimenScene } from '../specimen/scene'
 import { hitScene } from './hitTest'
 import { apply, glyphMatrix, IDENTITY, traceSource, tracePolygon, type CurveSink, type Matrix } from './strokes'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
-import { artboardMatrix, canvasCull, canvasMatrix, hitOptions, scenePoint, sizeBackingStore, type CanvasBacking } from './view'
+import {
+  artboardMatrix,
+  canvasCull,
+  canvasMatrix,
+  hitOptions,
+  scenePoint,
+  sizeBackingStore,
+  type CanvasBacking,
+} from './view'
 
 export type { CanvasBacking } from './view'
 
@@ -211,7 +219,15 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
         const occ = occurrence++
         if (!cull.glyph(g, band)) continue
         if (g.missing) {
-          this.drawMissing(base, g.x + g.advance * 0.1, g.y - ascender * 0.7, g.advance * 0.8, ascender * 0.7, dpr, style)
+          this.drawMissing(
+            base,
+            g.x + g.advance * 0.1,
+            g.y - ascender * 0.7,
+            g.advance * 0.8,
+            ascender * 0.7,
+            dpr,
+            style,
+          )
           continue
         }
         const source = this.source ? this.source(g.index) : null
@@ -223,7 +239,15 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
     }
   }
 
-  private drawGlyph(m: Matrix, polygon: PolygonGlyph | null, source: SourceGlyph | null, color: string, dpr: number, k: number, style: RenderStyle) {
+  private drawGlyph(
+    m: Matrix,
+    polygon: PolygonGlyph | null,
+    source: SourceGlyph | null,
+    color: string,
+    dpr: number,
+    k: number,
+    style: RenderStyle,
+  ) {
     const detail = this.mode === 'detail'
     const hasPolygon = polygon !== null && polygon.contours.length > 0
     if (style.outline === 'source' && source) {

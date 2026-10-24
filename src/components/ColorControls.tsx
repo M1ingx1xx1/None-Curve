@@ -32,7 +32,11 @@ function randomPalette(): Pick<PaletteParams, 'ink' | 'paper'> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const hue = Math.random() * 360
     const bright = hslToHex(hue, 0.6 + Math.random() * 0.35, 0.6 + Math.random() * 0.2)
-    const deep = hslToHex((hue + [0, 0, 30, 180][Math.floor(Math.random() * 4)]) % 360, 0.3 + Math.random() * 0.4, 0.05 + Math.random() * 0.08)
+    const deep = hslToHex(
+      (hue + [0, 0, 30, 180][Math.floor(Math.random() * 4)]) % 360,
+      0.3 + Math.random() * 0.4,
+      0.05 + Math.random() * 0.08,
+    )
     const pair = Math.random() < 0.75 ? { ink: bright, paper: deep } : { ink: deep, paper: bright }
     if (contrastRatio(pair.ink, pair.paper) >= 4.5) return pair
   }
@@ -51,7 +55,6 @@ export default function ColorControls({ params, live, disabled, dispatch }: Colo
       <legend className="visually-hidden">Color</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
-
         <div className="field">
           <span className="field-label" id="palette-presets-label">
             Presets
@@ -76,15 +79,33 @@ export default function ColorControls({ params, live, disabled, dispatch }: Colo
               <Icon name="shuffle" />
               Random
             </button>
-            <button type="button" className="button-small" onClick={() => update({ ink: params.paper, paper: params.ink })}>
+            <button
+              type="button"
+              className="button-small"
+              onClick={() => update({ ink: params.paper, paper: params.ink })}
+            >
               <Icon name="swap" />
               Swap
             </button>
           </div>
         </div>
 
-        <ColorField id="palette-ink" label="Text" value={params.ink} live={live?.ink} target="ink" onChange={(ink) => update({ ink })} />
-        <ColorField id="palette-paper" label="Background" value={params.paper} live={live?.paper} target="paper" onChange={(paper) => update({ paper })} />
+        <ColorField
+          id="palette-ink"
+          label="Text"
+          value={params.ink}
+          live={live?.ink}
+          target="ink"
+          onChange={(ink) => update({ ink })}
+        />
+        <ColorField
+          id="palette-paper"
+          label="Background"
+          value={params.paper}
+          live={live?.paper}
+          target="paper"
+          onChange={(paper) => update({ paper })}
+        />
         <div className="field field-toggle">
           <input
             id="palette-transparent"

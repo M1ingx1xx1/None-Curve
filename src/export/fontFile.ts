@@ -68,7 +68,9 @@ export async function buildFontFile(
 
   const loaded = await import('opentype.js')
   // The browser build has named exports; the CommonJS build (Node, tests) puts them on `default`.
-  const opentype = ('Path' in loaded ? loaded : (loaded as unknown as { default: typeof loaded }).default) as typeof loaded
+  const opentype = (
+    'Path' in loaded ? loaded : (loaded as unknown as { default: typeof loaded }).default
+  ) as typeof loaded
   signal.throwIfAborted()
 
   const expected: { unicodes: number[]; advance: number; contours: Point[][] }[] = []
@@ -85,7 +87,9 @@ export async function buildFontFile(
       if ('error' in found) throw new Error(found.error)
       return found.polygon
     }
-    return cache ? glyphGeometry(font, index, params, key).polygon : deriveGeometry(font.getGlyph(index), params).polygon
+    return cache
+      ? glyphGeometry(font, index, params, key).polygon
+      : deriveGeometry(font.getGlyph(index), params).polygon
   }
 
   onProgress(0, plan.glyphs.length, 'outlines')
@@ -110,8 +114,12 @@ export async function buildFontFile(
       const polygon = polygonOf(entry.index)
       // The advance is written into the outline as one of its numbers (CFF), which hold at most 32767.
       advance = Math.round(polygon.metrics.advanceWidth)
-      if (!Number.isFinite(advance) || advance < 0) throw new ExportError(`invalid advance width (${polygon.metrics.advanceWidth})`)
-      if (advance > INT16_MAX) throw new ExportError(`the advance width (${advance}) is more than ${INT16_MAX} units, more than a font can store`)
+      if (!Number.isFinite(advance) || advance < 0)
+        throw new ExportError(`invalid advance width (${polygon.metrics.advanceWidth})`)
+      if (advance > INT16_MAX)
+        throw new ExportError(
+          `the advance width (${advance}) is more than ${INT16_MAX} units, more than a font can store`,
+        )
       const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
       cut = fitted.trimmed
       contours = cffDirection(quantizePolygon(fitted.polygon, 0, `Glyph ${entry.label}`))
@@ -154,14 +162,23 @@ export async function buildFontFile(
       for (const p of contour.slice(1)) path.lineTo(p.x, p.y)
       path.close()
     }
-    glyphs.push(new opentype.Glyph({ name: glyphName(font, entry, usedNames), unicodes: entry.unicodes, advanceWidth: advance, path }))
+    glyphs.push(
+      new opentype.Glyph({
+        name: glyphName(font, entry, usedNames),
+        unicodes: entry.unicodes,
+        advanceWidth: advance,
+        path,
+      }),
+    )
     expected.push({ unicodes: entry.unicodes, advance, contours })
     newGid.set(entry.index, expected.length)
     if (cut) trimmed.push(entry.label)
   }
 
   if (expected.length === 0) {
-    throw new ExportError(`None of the glyphs could be stored. ${excluded[0] ? `${excluded[0].label}: ${excluded[0].reason}` : ''}`)
+    throw new ExportError(
+      `None of the glyphs could be stored. ${excluded[0] ? `${excluded[0].label}: ${excluded[0].reason}` : ''}`,
+    )
   }
 
   onProgress(plan.glyphs.length, plan.glyphs.length, 'writing')
@@ -360,8 +377,18 @@ function notdefGlyph(opentype: typeof import('opentype.js'), font: LoadedFont) {
   const path = new opentype.Path()
   const box = (x0: number, y0: number, x1: number, y1: number, clockwise: boolean) => {
     const pts = clockwise
-      ? [[x0, y0], [x0, y1], [x1, y1], [x1, y0]]
-      : [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+      ? [
+          [x0, y0],
+          [x0, y1],
+          [x1, y1],
+          [x1, y0],
+        ]
+      : [
+          [x0, y0],
+          [x1, y0],
+          [x1, y1],
+          [x0, y1],
+        ]
     path.moveTo(pts[0][0], pts[0][1])
     for (const [x, y] of pts.slice(1)) path.lineTo(x, y)
     path.close()
@@ -375,7 +402,10 @@ function glyphName(font: LoadedFont, entry: PlannedGlyph, used: Set<string>): st
   const source = font.characters.find((c) => c.index === entry.index)?.name ?? ''
   const candidates = [source]
   const cp = entry.unicodes[0]
-  if (cp !== undefined) candidates.push(cp <= 0xffff ? `uni${cp.toString(16).toUpperCase().padStart(4, '0')}` : `u${cp.toString(16).toUpperCase()}`)
+  if (cp !== undefined)
+    candidates.push(
+      cp <= 0xffff ? `uni${cp.toString(16).toUpperCase().padStart(4, '0')}` : `u${cp.toString(16).toUpperCase()}`,
+    )
   candidates.push(`glyph${entry.index}`)
   for (const name of candidates) {
     if (/^[A-Za-z_.][A-Za-z0-9_.]{0,30}$/.test(name) && name !== '.notdef' && !used.has(name)) {
@@ -412,16 +442,26 @@ async function verifyFont(
   try {
     parsed = fontkit.create(new Uint8Array(bytes) as unknown as Buffer)
   } catch (error) {
-    throw new ExportError(`Verification failed: the written font could not be reopened (${error instanceof Error ? error.message : error}).`)
+    throw new ExportError(
+      `Verification failed: the written font could not be reopened (${error instanceof Error ? error.message : error}).`,
+    )
   }
   if ('fonts' in parsed) throw new ExportError('Verification failed: the written file is a font collection.')
 
   const problems: string[] = []
   if (parsed.familyName !== naming.familyName) problems.push(`family name reads back as “${parsed.familyName}”`)
-  if (parsed.postscriptName !== meta.postScriptName) problems.push(`PostScript name reads back as “${parsed.postscriptName}”`)
+  if (parsed.postscriptName !== meta.postScriptName)
+    problems.push(`PostScript name reads back as “${parsed.postscriptName}”`)
   // OS/2, hhea, head and CFF are part of fontkit's runtime API but not typed.
   const tables = parsed as unknown as {
-    'OS/2'?: { version: number; usWeightClass: number; fsSelection: { useTypoMetrics: boolean }; typoAscender: number; typoDescender: number; typoLineGap: number }
+    'OS/2'?: {
+      version: number
+      usWeightClass: number
+      fsSelection: { useTypoMetrics: boolean }
+      typoAscender: number
+      typoDescender: number
+      typoLineGap: number
+    }
     hhea?: { lineGap: number }
     head?: { xMin: number; yMin: number; xMax: number; yMax: number }
     'CFF '?: { topDict?: { FontBBox?: number[] } }
@@ -432,15 +472,19 @@ async function verifyFont(
   const typo = [os2?.typoAscender, os2?.typoDescender, os2?.typoLineGap]
   if (typo.some((v, i) => v !== meta.typo[i])) problems.push(`typographic metrics read back as ${typo.join(' / ')}`)
   if (!os2 || os2.version < 4 || !os2.fsSelection?.useTypoMetrics) problems.push('USE_TYPO_METRICS is not set')
-  if (parsed.numGlyphs !== expected.length + 1) problems.push(`glyph count is ${parsed.numGlyphs}, expected ${expected.length + 1}`)
+  if (parsed.numGlyphs !== expected.length + 1)
+    problems.push(`glyph count is ${parsed.numGlyphs}, expected ${expected.length + 1}`)
   // The union of every glyph's points, .notdef included, in head and as the CFF FontBBox.
   const box = [bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax]
-  if (!(bounds.xMin <= bounds.xMax && bounds.yMin <= bounds.yMax)) problems.push(`the font's bounding box is empty (${box.join(' ')})`)
+  if (!(bounds.xMin <= bounds.xMax && bounds.yMin <= bounds.yMax))
+    problems.push(`the font's bounding box is empty (${box.join(' ')})`)
   const head = tables.head
   const headBox = [head?.xMin, head?.yMin, head?.xMax, head?.yMax]
-  if (headBox.some((v, i) => v !== box[i])) problems.push(`the bounding box in head reads back as ${headBox.join(' ')}, expected ${box.join(' ')}`)
+  if (headBox.some((v, i) => v !== box[i]))
+    problems.push(`the bounding box in head reads back as ${headBox.join(' ')}, expected ${box.join(' ')}`)
   const cffBox = tables['CFF ']?.topDict?.FontBBox ?? []
-  if (box.some((v, i) => cffBox[i] !== v)) problems.push(`the CFF FontBBox reads back as ${cffBox.join(' ')}, expected ${box.join(' ')}`)
+  if (box.some((v, i) => cffBox[i] !== v))
+    problems.push(`the CFF FontBBox reads back as ${cffBox.join(' ')}, expected ${box.join(' ')}`)
 
   expected.forEach((glyph, i) => {
     const id = i + 1
@@ -465,7 +509,8 @@ async function verifyFont(
     }
     const read = outlineBounds([contours.flat()])
     const limit = FONT_BOX_LIMITS.maxCoordinate
-    if (Math.min(read.xMin, read.yMin) < -limit || Math.max(read.xMax, read.yMax) > limit) problems.push(`glyph ${id} has points beyond ±${limit}`)
+    if (Math.min(read.xMin, read.yMin) < -limit || Math.max(read.xMax, read.yMax) > limit)
+      problems.push(`glyph ${id} has points beyond ±${limit}`)
     else if (Math.max(read.xMax - read.xMin, read.yMax - read.yMin) > FONT_BOX_LIMITS.span) {
       problems.push(`glyph ${id} is more than ${FONT_BOX_LIMITS.span} units across`)
     }
@@ -477,7 +522,8 @@ async function verifyFont(
       const want = glyph.contours[c]
       const same = points.length === want.length && points.every((p, k) => p.x === want[k].x && p.y === want[k].y)
       if (!same) problems.push(`glyph ${id} contour ${c + 1} points differ`)
-      else if (Math.sign(signedArea(points)) !== Math.sign(signedArea(want))) problems.push(`glyph ${id} contour ${c + 1} changed direction`)
+      else if (Math.sign(signedArea(points)) !== Math.sign(signedArea(want)))
+        problems.push(`glyph ${id} contour ${c + 1} changed direction`)
     })
   })
 
@@ -485,7 +531,9 @@ async function verifyFont(
 
   if (problems.length) {
     const shown = problems.slice(0, 5).join('; ')
-    throw new ExportError(`Verification failed: ${shown}${problems.length > 5 ? `; and ${problems.length - 5} more` : ''}.`)
+    throw new ExportError(
+      `Verification failed: ${shown}${problems.length > 5 ? `; and ${problems.length - 5} more` : ''}.`,
+    )
   }
 }
 

@@ -15,8 +15,7 @@ export type BreakRule = 'extrema' | 'corners'
 type Curve = Point[] // 2 points (a straight line), 3 (quadratic), or 4 (cubic)
 
 export type ContourItem =
-  | { kind: 'line'; to: Point }
-  | { kind: 'run'; pieces: Curve[]; sourceCurves: number; sourceLines: number }
+  { kind: 'line'; to: Point } | { kind: 'run'; pieces: Curve[]; sourceCurves: number; sourceLines: number }
 
 /** Joints whose tangent is within this angle of horizontal or vertical count as extrema. */
 const EXTREMUM_JOINT_DEGREES = 1
@@ -49,10 +48,12 @@ export function buildCurveRuns(
   let prev = contour.start
   for (const seg of contour.segments) {
     if (seg.type === 'line') {
-      if (mergeLines) entries.push({ kind: 'piece', pts: [prev, seg.to], isLine: true, forcedBreak: false, segmentStart: true })
+      if (mergeLines)
+        entries.push({ kind: 'piece', pts: [prev, seg.to], isLine: true, forcedBreak: false, segmentStart: true })
       else entries.push({ kind: 'line', to: seg.to })
     } else {
-      const curve: Curve = seg.type === 'quad' ? [prev, seg.control, seg.to] : [prev, seg.control1, seg.control2, seg.to]
+      const curve: Curve =
+        seg.type === 'quad' ? [prev, seg.control, seg.to] : [prev, seg.control1, seg.control2, seg.to]
       const pieces = breakAt === 'extrema' ? splitAtExtrema(curve) : [curve]
       pieces.forEach((pts, i) =>
         entries.push({ kind: 'piece', pts, isLine: false, forcedBreak: i > 0, segmentStart: i === 0 }),
@@ -108,9 +109,11 @@ export function buildCurveRuns(
  */
 export function sampleRun(pieces: readonly Curve[], n: number, push: (p: Point) => void): number {
   const dense: Point[] = [pieces[0][0]]
-  for (const piece of pieces) for (let k = 1; k <= SAMPLES_PER_PIECE; k++) dense.push(evaluate(piece, k / SAMPLES_PER_PIECE))
+  for (const piece of pieces)
+    for (let k = 1; k <= SAMPLES_PER_PIECE; k++) dense.push(evaluate(piece, k / SAMPLES_PER_PIECE))
   const cumulative = [0]
-  for (let i = 1; i < dense.length; i++) cumulative.push(cumulative[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y))
+  for (let i = 1; i < dense.length; i++)
+    cumulative.push(cumulative[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y))
   const total = cumulative[cumulative.length - 1]
 
   const out: Point[] = [dense[0]]
@@ -120,7 +123,10 @@ export function sampleRun(pieces: readonly Curve[], n: number, push: (p: Point) 
     while (j < dense.length - 1 && cumulative[j] < target) j++
     const span = cumulative[j] - cumulative[j - 1]
     const f = span > 0 ? (target - cumulative[j - 1]) / span : 0
-    out.push({ x: dense[j - 1].x + (dense[j].x - dense[j - 1].x) * f, y: dense[j - 1].y + (dense[j].y - dense[j - 1].y) * f })
+    out.push({
+      x: dense[j - 1].x + (dense[j].x - dense[j - 1].x) * f,
+      y: dense[j - 1].y + (dense[j].y - dense[j - 1].y) * f,
+    })
   }
   out.push(dense[dense.length - 1])
   for (let i = 1; i < out.length; i++) push(out[i])
@@ -141,14 +147,20 @@ export function sampleRun(pieces: readonly Curve[], n: number, push: (p: Point) 
  * into that many parts of equal arc length. Pushes the end point of each edge and returns the
  * largest deviation.
  */
-export function simplifyRun(pieces: readonly Curve[], tolerance: number, minEdges: number, push: (p: Point) => void): number {
+export function simplifyRun(
+  pieces: readonly Curve[],
+  tolerance: number,
+  minEdges: number,
+  push: (p: Point) => void,
+): number {
   const dense: Point[] = [pieces[0][0]]
   for (const piece of pieces) {
     const steps = piece.length === 2 ? 1 : SAMPLES_PER_PIECE
     for (let k = 1; k <= steps; k++) dense.push(evaluate(piece, k / steps))
   }
   const cumulative = [0]
-  for (let i = 1; i < dense.length; i++) cumulative.push(cumulative[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y))
+  for (let i = 1; i < dense.length; i++)
+    cumulative.push(cumulative[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y))
   const total = cumulative[cumulative.length - 1]
   const last = dense.length - 1
 

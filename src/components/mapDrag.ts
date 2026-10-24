@@ -134,7 +134,16 @@ export interface MapDragState {
   announcement: string
 }
 
-const IDLE: MapDragState = { feature: null, mode: null, x: 0, y: 0, over: null, status: null, marked: null, announcement: '' }
+const IDLE: MapDragState = {
+  feature: null,
+  mode: null,
+  x: 0,
+  y: 0,
+  over: null,
+  status: null,
+  marked: null,
+  announcement: '',
+}
 
 let state: MapDragState = IDLE
 const listeners = new Set<() => void>()
@@ -466,7 +475,9 @@ export function startPick(feature: FeatureId, origin: HTMLElement) {
       // A colour's Hue or Lightness zone is shown only while dragging: its field, which is on view, holds the inputs.
       const zone = mapped ? zoneOf(id) : null
       const field = zone?.closest<HTMLElement>(ZONE_SELECTOR) ?? null
-      const control = visible(field) ? field.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled)') : null
+      const control = visible(field)
+        ? field.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled)')
+        : null
       if (control) {
         control.focus()
         return

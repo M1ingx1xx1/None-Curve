@@ -12,14 +12,39 @@ import { GeometryClient } from '../../src/state/geometryClient'
 import { FakeWorker } from '../helpers/fakeWorker'
 import { BASE } from '../helpers/params'
 
-const font = (id: string) => ({ id, bytes: new Uint8Array(4), source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 } }) as unknown as LoadedFont
-const geometry = (index: number) => ({ polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] }, vertexCount: index }) as unknown as WorkerGeometry
+const font = (id: string) =>
+  ({
+    id,
+    bytes: new Uint8Array(4),
+    source: { kind: 'local', fileName: `${id}.ttf`, byteSize: 4 },
+  }) as unknown as LoadedFont
+const geometry = (index: number) =>
+  ({
+    polygon: { ref: { index, name: '', unicode: null }, metrics: {}, contours: [] },
+    vertexCount: index,
+  }) as unknown as WorkerGeometry
 const packed = (index: number) => packGeometry(geometry(index)).packed
 const shape = (index: number): EncodedGlyph => ({ glyph: geometry(index).polygon, kept: null, pose: null })
-const glyphs = (seq: number, key: string, indices: number[]): AheadItem => ({ kind: 'glyphs', seq, key, params: BASE, indices })
-const step = (seq: number, index: number): AheadItem => ({ kind: 'step', seq, mediaMs: 0, lineage: index, parent: -1, index, key: 'k' })
-const aheadOf = (w: FakeWorker) => w.received.filter((m) => m.type === 'ahead').at(-1) as Extract<WorkerRequest, { type: 'ahead' }> | undefined
-const planOf = (w: FakeWorker) => w.received.filter((m) => m.type === 'plan').at(-1) as Extract<WorkerRequest, { type: 'plan' }>
+const glyphs = (seq: number, key: string, indices: number[]): AheadItem => ({
+  kind: 'glyphs',
+  seq,
+  key,
+  params: BASE,
+  indices,
+})
+const step = (seq: number, index: number): AheadItem => ({
+  kind: 'step',
+  seq,
+  mediaMs: 0,
+  lineage: index,
+  parent: -1,
+  index,
+  key: 'k',
+})
+const aheadOf = (w: FakeWorker) =>
+  w.received.filter((m) => m.type === 'ahead').at(-1) as Extract<WorkerRequest, { type: 'ahead' }> | undefined
+const planOf = (w: FakeWorker) =>
+  w.received.filter((m) => m.type === 'plan').at(-1) as Extract<WorkerRequest, { type: 'plan' }>
 
 const STUCK = 'Took longer than 5 s; try lighter settings'
 
@@ -48,7 +73,9 @@ describe('geometry client lanes', () => {
   }
 
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'queueMicrotask'] })
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'queueMicrotask'],
+    })
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -81,7 +108,18 @@ describe('geometry client lanes', () => {
     expect(client.requestPlan(shape(1), shape(2), () => {})).not.toBeNull()
     expect(client.isComputing()).toBe(false)
     const { requestId } = aheadOf(w)!
-    w.reply({ type: 'ahead-results', requestId, generation: 1, seq: 1, key: 'k', results: [{ index: 1, packed: packed(1) }, { index: 2, packed: packed(2) }], times: [3, 4] })
+    w.reply({
+      type: 'ahead-results',
+      requestId,
+      generation: 1,
+      seq: 1,
+      key: 'k',
+      results: [
+        { index: 1, packed: packed(1) },
+        { index: 2, packed: packed(2) },
+      ],
+      times: [3, 4],
+    })
     expect(client.lookup('k', 1)).toEqual({ entry: { geometry: geometry(1) }, stale: false })
     expect(client.has('k', 2)).toBe(true)
     const held = client.lookup('k', 2)!.entry as { geometry: WorkerGeometry }
@@ -154,11 +192,22 @@ describe('geometry client lanes', () => {
     const w = workers[0]
     client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [1, 2, 3])])
     const results = [1, 2, 3].map((index) => ({ index, packed: packed(index) }))
-    w.reply({ type: 'ahead-results', requestId: aheadOf(w)!.requestId, generation: 1, seq: 1, key: 'k', results, times: [1, 1, 1] })
+    w.reply({
+      type: 'ahead-results',
+      requestId: aheadOf(w)!.requestId,
+      generation: 1,
+      seq: 1,
+      key: 'k',
+      results,
+      times: [1, 1, 1],
+    })
     const stored = client.aheadStore.bytes()
     // A later set's glyphs are only known to be held (the first set's stand in on the canvas, so they are looked up).
     const computes = w.computes
-    client.computeJobs(font('f'), [{ params: BASE, key: 'base', indices: [1] }, { params: BASE, key: 'k', indices: [1, 2, 3] }])
+    client.computeJobs(font('f'), [
+      { params: BASE, key: 'base', indices: [1] },
+      { params: BASE, key: 'k', indices: [1, 2, 3] },
+    ])
     expect(w.computes).toBe(computes + 1)
     expect(w.lastRequest.jobs.map((j) => j.key)).toEqual(['base'])
     expect(client.aheadStore.bytes()).toBe(stored)

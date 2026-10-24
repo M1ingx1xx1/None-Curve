@@ -10,7 +10,15 @@
 // allows and stops there. After a seek, glyphs near the old spot keep their use times and go only when room is needed;
 // after a new plan, every glyph is an orphan until the new window uses it again (content-addressed reuse).
 
-import { ERROR_BYTES, packedBytes, packedPoints, unpackedBytes, unpackEntry, type PackedGlyph, type UnpackedEntry } from '../geometry/packed'
+import {
+  ERROR_BYTES,
+  packedBytes,
+  packedPoints,
+  unpackedBytes,
+  unpackEntry,
+  type PackedGlyph,
+  type UnpackedEntry,
+} from '../geometry/packed'
 import type { LeanGeometry, WorkerGeometry } from '../geometry/protocol'
 import { PRECOMPUTE_LIMITS } from '../sound/timelineTypes'
 import { weightedDistance } from './aheadTypes'
@@ -110,7 +118,8 @@ export class AheadStore {
     this.hot.add(entry)
     this.hotBytes += entry.hotBytes
     // The newest stays, however large: it is the one being looked up.
-    while (this.hot.size > 1 && (this.hot.size > this.materializedMax || this.hotBytes > this.materializedBytesMax)) this.cool(this.hot.values().next().value!)
+    while (this.hot.size > 1 && (this.hot.size > this.materializedMax || this.hotBytes > this.materializedBytesMax))
+      this.cool(this.hot.values().next().value!)
     return entry.materialized
   }
 
@@ -171,7 +180,8 @@ export class AheadStore {
   pruneUses(fromMs: number, toMs: number): void {
     for (const [key, byIndex] of this.uses) {
       const held = this.entries.get(key)
-      for (const [index, use] of byIndex) if ((use.last < fromMs || use.first > toMs) && !held?.has(index)) byIndex.delete(index)
+      for (const [index, use] of byIndex)
+        if ((use.last < fromMs || use.first > toMs) && !held?.has(index)) byIndex.delete(index)
       if (!byIndex.size) this.uses.delete(key)
     }
   }
@@ -195,7 +205,8 @@ export class AheadStore {
     const cached = this.farthestCache
     if (cached && cached.version === this.version && cached.at === this.playheadMs) return cached.value
     let value = 0
-    for (const entry of this.order) if (entry.use) value = Math.max(value, weightedDistance(entry.use.first, entry.use.last, this.playheadMs))
+    for (const entry of this.order)
+      if (entry.use) value = Math.max(value, weightedDistance(entry.use.first, entry.use.last, this.playheadMs))
     this.farthestCache = { at: this.playheadMs, version: this.version, value }
     return value
   }

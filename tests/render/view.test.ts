@@ -4,7 +4,15 @@
 import { describe, expect, it } from 'vitest'
 import { apply } from '../../src/render/strokes'
 import type { CanvasView, RenderStyle } from '../../src/render/types'
-import { artboardMatrix, canvasCull, canvasMatrix, hitOptions, NO_CULL, scenePoint, sizeBackingStore } from '../../src/render/view'
+import {
+  artboardMatrix,
+  canvasCull,
+  canvasMatrix,
+  hitOptions,
+  NO_CULL,
+  scenePoint,
+  sizeBackingStore,
+} from '../../src/render/view'
 import type { PlacedGlyph } from '../../src/specimen/scene'
 
 const view: CanvasView = { kind: 'canvas', left: -100, top: 200, u: 2, cssWidth: 300, cssHeight: 150, dpr: 2 }

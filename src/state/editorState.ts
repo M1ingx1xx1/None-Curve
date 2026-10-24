@@ -21,7 +21,15 @@ export const initialState: AppState = {
     export: { precision: 2 },
   },
   params: {
-    flatten: { mode: 'adaptive', tolerance: 4, segmentsPerCurve: 4, mergeCurves: false, breakAt: 'extrema', cornerAngle: 15, mergeLines: false },
+    flatten: {
+      mode: 'adaptive',
+      tolerance: 4,
+      segmentsPerCurve: 4,
+      mergeCurves: false,
+      breakAt: 'extrema',
+      cornerAngle: 15,
+      mergeLines: false,
+    },
     random: { enabled: false, density: 12, randomness: 1, keepCorners: true, seed: 1 },
     squaring: { amount: 0, scope: 'round' },
     anchors: { spacing: 0, simplify: 0 },
@@ -30,10 +38,42 @@ export const initialState: AppState = {
     experimental: {
       seed: 1,
       crumple: { enabled: false, amount: 0.7, facet: 0.18, turn: 0 },
-      ripple: { enabled: false, amount: 0.5, wavelength: 0.3, sides: 8, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
+      ripple: {
+        enabled: false,
+        amount: 0.5,
+        wavelength: 0.3,
+        sides: 8,
+        centerX: 0.5,
+        centerY: 0.5,
+        fade: 0,
+        petals: 0,
+        reverse: false,
+      },
       whorl: { enabled: false, amount: 0.6, rings: 6, sides: 8, pinned: true },
-      slipstream: { enabled: false, direction: 0, strength: 0.15, gust: 0.12, gustiness: 0.6, slip: 0.15, cuts: 2, trails: 2 },
-      thorn: { enabled: false, count: 3, canvasReach: 0.1, spread: 0.5, width: 0.3, root: 0.5, refraction: 0, flute: 0.1, reverse: false, burst: false, spikes: 40, dent: 0.8 },
+      slipstream: {
+        enabled: false,
+        direction: 0,
+        strength: 0.15,
+        gust: 0.12,
+        gustiness: 0.6,
+        slip: 0.15,
+        cuts: 2,
+        trails: 2,
+      },
+      thorn: {
+        enabled: false,
+        count: 3,
+        canvasReach: 0.1,
+        spread: 0.5,
+        width: 0.3,
+        root: 0.5,
+        refraction: 0,
+        flute: 0.1,
+        reverse: false,
+        burst: false,
+        spikes: 40,
+        dent: 0.8,
+      },
       dissolve: { enabled: false, amount: 0.5, grain: 0.4, spread: 0.8, specks: 0.4, curl: 0.6, facets: 0.3 },
     },
     view: initialView,
@@ -47,7 +87,11 @@ export const initialState: AppState = {
  * The canvas diagonal in em (canvasDiagonalEm), which Thorn's Reach is a share of, while Thorn is on; else
  * null, so with Thorn off the text size and canvas never change the geometry. The PNG scale never counts.
  */
-export function thornCanvasEm({ experimental, typography, artboard }: Pick<EditorParams, 'experimental' | 'typography' | 'artboard'>): number | null {
+export function thornCanvasEm({
+  experimental,
+  typography,
+  artboard,
+}: Pick<EditorParams, 'experimental' | 'typography' | 'artboard'>): number | null {
   return experimental.thorn?.enabled ? canvasDiagonalEm(artboard.width, artboard.height, typography.size) : null
 }
 
