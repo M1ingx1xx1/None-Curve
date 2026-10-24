@@ -21,9 +21,14 @@ import {
   artboardMatrix,
   canvasCull,
   canvasMatrix,
+  COMPARE_ALPHA,
   hitOptions,
+  MITER_LIMIT,
+  missingBox,
+  OUTLINE_PX,
   scenePoint,
   sizeBackingStore,
+  VERTEX_SCALE,
   type CanvasBacking,
 } from './view'
 
@@ -52,14 +57,10 @@ export interface Context2D<P> {
   globalAlpha: number
 }
 
-/** Outline strokes, in CSS px (styles.css: .outline-stroke, .compare-source, .strip-missing, .skeleton-*). */
-const OUTLINE_PX = 1.5
+/** Skeleton strokes, in CSS px (styles.css: .skeleton-*); the outline's is view.ts's OUTLINE_PX. */
 const SKELETON_PX = 1.25
 const HANDLE_PX = 1
 const ANCHOR_STROKE_PX = 1
-const MITER_LIMIT = 4
-/** Vertex dots are this share of the marker radius (GlyphLayers' VERTEX_SCALE). */
-const VERTEX_SCALE = 0.4
 
 /** True when the 'detail' layer has anything to draw for this style and scene. */
 export function needsDetail(style: RenderStyle, scene: SpecimenScene | null): boolean {
@@ -219,15 +220,8 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
         const occ = occurrence++
         if (!cull.glyph(g, band)) continue
         if (g.missing) {
-          this.drawMissing(
-            base,
-            g.x + g.advance * 0.1,
-            g.y - ascender * 0.7,
-            g.advance * 0.8,
-            ascender * 0.7,
-            dpr,
-            style,
-          )
+          const box = missingBox(g, ascender)
+          this.drawMissing(base, box.x, box.y, box.width, box.height, dpr, style)
           continue
         }
         const source = this.source ? this.source(g.index) : null
@@ -258,7 +252,7 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
       else this.strokePolygon(m, polygon, color, dpr)
     } else if (style.outline === 'compare') {
       if (!detail && hasPolygon) {
-        if (style.fill) this.fillPolygon(m, polygon, color, 0.35)
+        if (style.fill) this.fillPolygon(m, polygon, color, COMPARE_ALPHA)
         this.strokePolygon(m, polygon, color, dpr)
       }
       if (source) this.strokeSource(m, source, style.colors.accent, OUTLINE_PX * dpr, [5 * dpr, 3 * dpr])

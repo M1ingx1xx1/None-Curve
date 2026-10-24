@@ -38,12 +38,19 @@ import { hitFrame } from './hitTest'
 import { glyphMatrix, type Matrix } from './strokes'
 import { parseColor, type Rgba } from './theme'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
-import { artboardMatrix, canvasCull, canvasMatrix, hitOptions, NO_CULL, scenePoint, sizeBackingStore } from './view'
+import {
+  artboardMatrix,
+  canvasCull,
+  canvasMatrix,
+  COMPARE_ALPHA,
+  hitOptions,
+  MITER_LIMIT,
+  NO_CULL,
+  OUTLINE_PX,
+  scenePoint,
+  sizeBackingStore,
+} from './view'
 import { COLOR_FS, COVER_VS, DISCARD_FS, EVAL_VS, FILL_VS, PATH_VS, STROKE_VS } from './webglShaders'
-
-const OUTLINE_PX = 1.5
-const MITER_LIMIT = 4
-const COMPARE_ALPHA = 0.35
 
 interface Program {
   program: WebGLProgram
