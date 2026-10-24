@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { FONT_BOX_LIMITS, fitToFontBox, glyphFontBox, type FontBox } from '../../src/export/fitGlyph'
-import { signedArea } from '../../src/geometry/flatten'
+import { signedArea } from '../../src/geometry/primitives'
 import type { Point, PolygonGlyph } from '../../src/geometry/types'
 
 const METRICS = { unitsPerEm: 2048, advanceWidth: 1200, leftSideBearing: 0, rightSideBearing: 0, ascender: 1900, descender: -500 }

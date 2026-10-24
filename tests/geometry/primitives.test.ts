@@ -1,7 +1,6 @@
 // The small helpers every geometry step shares (src/geometry/primitives.ts).
 
 import { describe, expect, it } from 'vitest'
-import { signedArea as flattenSignedArea } from '../../src/geometry/flatten'
 import { clamp, distanceToSegment, lerp, signedArea } from '../../src/geometry/primitives'
 import type { Point } from '../../src/geometry/types'
 import { rect, seededRandom, signedArea2 } from '../helpers/outline'
@@ -116,6 +115,5 @@ describe('signedArea', () => {
     const random = seededRandom(3)
     const ring = Array.from({ length: 12 }, () => ({ x: random() * 100, y: random() * 100 }))
     expect(signedArea(ring)).toBeCloseTo(signedArea2(ring) / 2, 9)
-    expect(flattenSignedArea).toBe(signedArea)
   })
 })

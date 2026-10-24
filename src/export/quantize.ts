@@ -1,7 +1,7 @@
 import { simplifyClosed } from '../geometry/anchors'
 import { ContourLayout } from '../geometry/contourLayout'
 import { findRingCrossings, findSelfCrossings, ringBox, type Crossing } from '../geometry/crossings'
-import { signedArea } from '../geometry/flatten'
+import { distanceToSegment, signedArea } from '../geometry/primitives'
 import type { Point, PolygonGlyph } from '../geometry/types'
 
 export class ExportError extends Error {
@@ -259,14 +259,6 @@ class Original {
     }
     return this.crossings
   }
-}
-
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const length = dx * dx + dy * dy
-  const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length))
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
 }
 
 /**

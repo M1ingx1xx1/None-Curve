@@ -4,7 +4,7 @@
 // body: each contour is clipped against the window's sides, which only ever adds straight edges. Pure functions
 // in font units (y up); no React, no DOM.
 
-import { signedArea } from '../geometry/flatten'
+import { signedArea } from '../geometry/primitives'
 import { mergeOverlaps } from '../geometry/overlaps'
 import type { Point, PolygonContour, PolygonGlyph } from '../geometry/types'
 

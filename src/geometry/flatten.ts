@@ -12,9 +12,6 @@ import { buildCurveRuns, sampleRun, simplifyRun } from './curveRuns'
 import { distanceToSegment, lerp, signedArea } from './primitives'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
-// Kept here for the export modules that still import it from flatten; geometry code imports it from primitives.
-export { signedArea }
-
 /** Hard limits that keep pathological input (huge or degenerate curves) from running away. */
 export const FLATTEN_LIMITS = {
   minTolerance: 0.01,

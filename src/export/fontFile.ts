@@ -5,7 +5,7 @@
 import { readKerning } from '../font/kerning'
 import type { LoadedFont, SourceKerning } from '../font/model'
 import { glyphGeometry } from '../geometry/cache'
-import { signedArea } from '../geometry/flatten'
+import { signedArea } from '../geometry/primitives'
 import { deriveGeometry } from '../geometry/pipeline'
 import type { GeometryParams, GlyphRef, Point, PolygonGlyph } from '../geometry/types'
 import { specimenLines } from '../specimen/scene'
