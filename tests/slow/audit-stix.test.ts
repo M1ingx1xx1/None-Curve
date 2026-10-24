@@ -4,4 +4,8 @@
 
 import { auditPart, CONFIGS, geometryInvariants } from '../helpers/invariants'
 
-geometryInvariants('STIXTwoText', CONFIGS.filter((c) => auditPart(c) === 'main'), { glyphs: 'all', recheckScale: 10 })
+geometryInvariants(
+  'STIXTwoText',
+  CONFIGS.filter((c) => auditPart(c) === 'main'),
+  { glyphs: 'all', recheckScale: 10 },
+)

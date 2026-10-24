@@ -4,14 +4,27 @@
 // result farther than everything kept is dropped at once.
 
 import { describe, expect, it } from 'vitest'
-import { ERROR_BYTES, packGeometry } from '../../src/geometry/packed'
+import { ERROR_BYTES, packedBytes, packGeometry, unpackedBytes } from '../../src/geometry/packed'
 import type { WorkerGeometry } from '../../src/geometry/protocol'
 import { AheadStore } from '../../src/state/aheadStore'
 
 /** A small glyph: one triangle. */
 const glyph = (x: number) =>
   packGeometry({
-    polygon: { ref: { index: x }, metrics: {}, contours: [{ points: [{ x, y: 0 }, { x: x + 1, y: 0 }, { x, y: 1 }], clockwise: true }] },
+    polygon: {
+      ref: { index: x },
+      metrics: {},
+      contours: [
+        {
+          points: [
+            { x, y: 0 },
+            { x: x + 1, y: 0 },
+            { x, y: 1 },
+          ],
+          clockwise: true,
+        },
+      ],
+    },
     vertexCount: 3,
   } as unknown as WorkerGeometry).packed
 
@@ -100,5 +113,34 @@ describe('the page ahead store', () => {
     expect(calls).toEqual([2])
     expect(store.size()).toBe(0)
     expect(store.bytes()).toBe(0)
+  })
+
+  it('bounds the glyphs kept as objects by bytes as well, and counts them in its bytes and its budget', () => {
+    const packedSize = packedBytes(glyph(1))
+    const objects = unpackedBytes(glyph(1))
+    const store = new AheadStore(1 << 20, { materializedBytes: 2.5 * objects })
+    for (const key of ['a', 'b', 'c']) store.put(key, 1, { packed: glyph(key.charCodeAt(0)) })
+    expect(store.bytes()).toBe(3 * packedSize)
+    // A presence check turns nothing into objects.
+    expect(store.has('a', 1)).toBe(true)
+    expect(store.bytes()).toBe(3 * packedSize)
+    const a = store.get('a', 1)
+    store.get('b', 1)
+    expect(store.bytes()).toBe(3 * packedSize + 2 * objects)
+    // A third would pass the byte bound: the least recently looked up goes back to packed only.
+    store.get('c', 1)
+    expect(store.bytes()).toBe(3 * packedSize + 2 * objects)
+    expect(store.get('a', 1)).not.toBe(a)
+    // Within a budget that has room for the packed glyphs alone, the objects make the oldest orphan go.
+    const tight = new AheadStore(3 * packedSize + objects, { materializedBytes: 10 * objects })
+    const evicted: string[] = []
+    tight.onEvict((list) => evicted.push(...list.map((e) => e.key)))
+    tight.put('a', 1, { packed: glyph(97) })
+    tight.put('b', 1, { packed: glyph(98) })
+    tight.get('a', 1)
+    tight.get('b', 1)
+    tight.put('c', 1, { packed: glyph(99) })
+    expect(evicted).toEqual(['a'])
+    expect(tight.bytes()).toBeLessThanOrEqual(0.9 * (3 * packedSize + objects))
   })
 })

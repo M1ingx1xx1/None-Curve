@@ -26,9 +26,16 @@ export interface RendererOptions {
 }
 
 /** A renderer of exactly `choice` on `canvas`, or null when it cannot start there ('svg' is not drawn on a canvas). */
-export function createRenderer(choice: RendererChoice, canvas: HTMLCanvasElement, options: RendererOptions): GlyphRenderer | null {
+export function createRenderer(
+  choice: RendererChoice,
+  canvas: HTMLCanvasElement,
+  options: RendererOptions,
+): GlyphRenderer | null {
   if (choice === 'webgl') {
-    return WebGL2Renderer.create(canvas, { detailCanvas: options.mode === 'full' ? (options.detailCanvas ?? null) : null, onLost: options.onLost })
+    return WebGL2Renderer.create(canvas, {
+      detailCanvas: options.mode === 'full' ? (options.detailCanvas ?? null) : null,
+      onLost: options.onLost,
+    })
   }
   if (choice === 'canvas') return Canvas2DRenderer.create(canvas, options.mode)
   return null

@@ -1,171 +1,32 @@
 // Font file export: writes the final polygons as an OpenType (CFF) font with opentype.js, adds the
 // source's pair kerning (gpos.ts), then reopens the bytes with fontkit — a separate parser — and
-// checks them before anything is offered for download. No React, no DOM.
+// checks them before anything is offered for download. No React, no DOM. It runs the whole geometry
+// pipeline, so the page loads it only for a build that cannot run in the export worker (fontExportClient.ts);
+// what the dialog needs before a build is in fontPlan.ts.
 
 import { readKerning } from '../font/kerning'
 import type { LoadedFont, SourceKerning } from '../font/model'
 import { glyphGeometry } from '../geometry/cache'
-import { signedArea } from '../geometry/flatten'
+import { signedArea } from '../geometry/primitives'
 import { deriveGeometry } from '../geometry/pipeline'
-import type { GeometryParams, GlyphRef, Point, PolygonGlyph } from '../geometry/types'
-import { specimenLines } from '../specimen/scene'
-import { FONT_BOX_LIMITS, fitToFontBox, glyphFontBox } from './fitGlyph'
+import type { GeometryParams, Point, PolygonGlyph } from '../geometry/types'
+import { fitToFontBox, glyphFontBox } from './fitGlyph'
+import {
+  codePointLabel,
+  FONT_BOX_LIMITS,
+  MAX_EXPORT_POINTS,
+  postScriptName,
+  validateNaming,
+  type FontExportPlan,
+  type FontExportResult,
+  type FontExportStage,
+  type FontNaming,
+  type KnownGlyph,
+  type PlannedGlyph,
+} from './fontPlan'
 import { exportKerning, kerningDifferences, writeGpos } from './gpos'
 import { ExportError, quantizePolygon } from './quantize'
 import { patchFont } from './sfnt'
-
-export type GlyphSet = 'current' | 'specimen' | 'all'
-
-export const MAX_EXPORT_GLYPHS = 5000
-/** Most outline points in one font file. Dense settings (Anchor spacing 1: thousands of points per
-    glyph) would otherwise make files of tens of megabytes and exhaust the page's memory. */
-export const MAX_EXPORT_POINTS = 1_000_000
-
-/** What the font file does not carry over; shown before export and in the README. */
-export const FONT_EXPORT_LIMITS = [
-  'Format: OpenType with CFF (PostScript) outlines, .otf. TrueType (.ttf), WOFF, and WOFF2 output are not available.',
-  'Outlines are straight-line polygons rounded to whole font units; points that land on a straight line or on each other are merged, and crossings that rounding creates are repaired.',
-  'Pair kerning between the exported glyphs is exported (GPOS kern feature). Contextual and language-specific kerning, ligatures, mark positioning, and all other OpenType layout features are not.',
-  'Hinting, color, and vertical-layout tables are not exported.',
-  'A file holds at most 1,000,000 outline points; very dense settings (Anchor spacing near 1) reach that with a whole font.',
-  'Each glyph must fit in a square 32,766 font units across (16 em at 2048 units per em, 32.8 em at 1000), placed around the glyph; outline parts beyond it, such as long Thorn tips, are cut off at its edge.',
-  'Variable fonts are exported as the default instance shown on the canvas; variation axes are dropped.',
-  'Only glyphs reached through the character map are exported; glyphs used only by layout features are left out.',
-  'Characters above U+FFFF (outside the Basic Multilingual Plane) are left out: the font writer cannot map them reliably, which read-back verification confirmed.',
-  'Line spacing is the canvas’s: the source’s hhea ascender, descender, and line gap, also written as the typographic metrics with USE_TYPO_METRICS set. The Windows ascent and descent grow to cover outlines that reach past them, so applications that ignore that setting may space lines further apart.',
-  'Family and style names are set here. Weight, width, style bits, slant, panose, and the copyright, trademark, manufacturer, designer, and license entries are copied from the source font, with a note that None-Curve modified it. Check the source font’s license before sharing; many open fonts require a new name for modified versions.',
-]
-
-export interface PlannedGlyph {
-  index: number
-  unicodes: number[]
-  label: string
-}
-
-export interface FontExportPlan {
-  glyphs: PlannedGlyph[]
-  /** Characters that were requested but are not in the font. */
-  missing: string[]
-  /** Characters in the font that the writer cannot map (above U+FFFF). */
-  unsupported: string[]
-  problems: string[]
-}
-
-function codePointLabel(cp: number): string {
-  return `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
-}
-
-function groupByGlyph(refs: GlyphRef[]): PlannedGlyph[] {
-  const byIndex = new Map<number, PlannedGlyph>()
-  for (const ref of refs) {
-    let entry = byIndex.get(ref.index)
-    if (!entry) {
-      const char = ref.unicode !== null ? String.fromCodePoint(ref.unicode) : ''
-      entry = { index: ref.index, unicodes: [], label: char.trim() ? `“${char}”` : ref.name || `glyph #${ref.index}` }
-      byIndex.set(ref.index, entry)
-    }
-    if (ref.unicode !== null && !entry.unicodes.includes(ref.unicode)) entry.unicodes.push(ref.unicode)
-  }
-  return [...byIndex.values()]
-}
-
-/** Decides which glyphs go into the file. Cheap; runs on every render of the export dialog. */
-export function planFontExport(font: LoadedFont, set: GlyphSet, selected: GlyphRef | null, specimenText: string): FontExportPlan {
-  const problems: string[] = []
-  const missing: string[] = []
-  let refs: GlyphRef[] = []
-
-  if (set === 'current') {
-    if (!selected) problems.push('No glyph is selected.')
-    else {
-      const mapped = font.characters.filter((c) => c.index === selected.index)
-      refs = mapped.length ? mapped : [selected]
-      if (!mapped.length) problems.push('The selected glyph has no character mapping, so it could not be typed. Choose a mapped glyph.')
-    }
-  } else if (set === 'specimen') {
-    const seen = new Set<number>()
-    for (const line of specimenLines(specimenText)) {
-      for (const char of line) {
-        const cp = char.codePointAt(0)!
-        if (seen.has(cp)) continue
-        seen.add(cp)
-        const ref = font.characters.find((c) => c.unicode === cp)
-        if (ref) refs.push(ref)
-        else missing.push(char.trim() ? char : codePointLabel(cp))
-      }
-    }
-    if (!refs.length) problems.push('The specimen contains no characters that this font maps.')
-  } else {
-    refs = font.characters
-    if (!refs.length) problems.push('This font maps no characters.')
-  }
-
-  const unsupported: string[] = []
-  refs = refs.filter((ref) => {
-    if (ref.unicode === null || ref.unicode <= 0xffff) return true
-    unsupported.push(codePointLabel(ref.unicode))
-    return false
-  })
-  if (!refs.length && !problems.length) problems.push('All requested characters are above U+FFFF, which the font writer cannot map.')
-
-  const glyphs = groupByGlyph(refs).filter((g) => g.index !== 0)
-  if (glyphs.length > MAX_EXPORT_GLYPHS) {
-    problems.push(`This set has ${glyphs.length} glyphs; the limit is ${MAX_EXPORT_GLYPHS}. Use the specimen set instead.`)
-  }
-  return { glyphs, missing, unsupported, problems }
-}
-
-export interface FontNaming {
-  familyName: string
-  styleName: string
-}
-
-/** PostScript name: Family-Style, printable ASCII without spaces or []{}()<>/%, at most 63 characters. */
-export function postScriptName(naming: FontNaming): string {
-  const clean = (s: string) => s.replace(/[^\x21-\x7E]|[[\](){}<>/%]/g, '')
-  const family = clean(naming.familyName) || 'NoneCurve'
-  const style = clean(naming.styleName)
-  return (style ? `${family}-${style}` : family).slice(0, 63)
-}
-
-/**
- * Names the source font's license reserves (SIL Open Font License "Reserved Font Name"), which a
- * modified version may not use.
- */
-export function reservedFontNames(font: LoadedFont): string[] {
-  const text = [font.info.names.copyright, font.info.names.license].filter(Boolean).join('\n')
-  const found = new Set<string>()
-  for (const match of text.matchAll(/Reserved\s+Font\s+Names?\s*([^\n]*)/gi)) {
-    for (const quoted of match[1].matchAll(/["“”']([^"“”']+)["“”']/g)) found.add(quoted[1].trim())
-  }
-  return [...found].filter(Boolean)
-}
-
-export function validateNaming(naming: FontNaming): string | null {
-  const ok = (s: string) => /^[\x20-\x7E]{1,63}$/.test(s) && s.trim() === s
-  if (!ok(naming.familyName)) return 'Family name must be 1–63 printable ASCII characters without leading or trailing spaces.'
-  if (!ok(naming.styleName)) return 'Style name must be 1–63 printable ASCII characters without leading or trailing spaces.'
-  return null
-}
-
-export interface FontExportResult {
-  bytes: ArrayBuffer
-  /** Glyphs written, including .notdef. */
-  glyphCount: number
-  characterCount: number
-  contourCount: number
-  /** True when the file carries kerning. */
-  kerning: boolean
-  /** Glyphs left out because their outline could not be stored safely, with the reason. */
-  excluded: { label: string; reason: string }[]
-  /** Glyphs written cut off at the edge of the square a font stores a glyph in (see fitGlyph.ts), by label. */
-  trimmed: string[]
-}
-
-export type FontExportStage = 'outlines' | 'writing' | 'verifying'
-
-/** A glyph's outline already computed for these settings (the canvas's), or why it failed there. */
-export type KnownGlyph = { polygon: PolygonGlyph } | { error: string }
 
 export interface BuildOptions {
   /** Glyphs already computed for these settings: used as they are, so the file has the canvas's outlines. */
@@ -207,7 +68,9 @@ export async function buildFontFile(
 
   const loaded = await import('opentype.js')
   // The browser build has named exports; the CommonJS build (Node, tests) puts them on `default`.
-  const opentype = ('Path' in loaded ? loaded : (loaded as unknown as { default: typeof loaded }).default) as typeof loaded
+  const opentype = (
+    'Path' in loaded ? loaded : (loaded as unknown as { default: typeof loaded }).default
+  ) as typeof loaded
   signal.throwIfAborted()
 
   const expected: { unicodes: number[]; advance: number; contours: Point[][] }[] = []
@@ -224,7 +87,9 @@ export async function buildFontFile(
       if ('error' in found) throw new Error(found.error)
       return found.polygon
     }
-    return cache ? glyphGeometry(font, index, params, key).polygon : deriveGeometry(font.getGlyph(index), params).polygon
+    return cache
+      ? glyphGeometry(font, index, params, key).polygon
+      : deriveGeometry(font.getGlyph(index), params).polygon
   }
 
   onProgress(0, plan.glyphs.length, 'outlines')
@@ -249,8 +114,12 @@ export async function buildFontFile(
       const polygon = polygonOf(entry.index)
       // The advance is written into the outline as one of its numbers (CFF), which hold at most 32767.
       advance = Math.round(polygon.metrics.advanceWidth)
-      if (!Number.isFinite(advance) || advance < 0) throw new ExportError(`invalid advance width (${polygon.metrics.advanceWidth})`)
-      if (advance > INT16_MAX) throw new ExportError(`the advance width (${advance}) is more than ${INT16_MAX} units, more than a font can store`)
+      if (!Number.isFinite(advance) || advance < 0)
+        throw new ExportError(`invalid advance width (${polygon.metrics.advanceWidth})`)
+      if (advance > INT16_MAX)
+        throw new ExportError(
+          `the advance width (${advance}) is more than ${INT16_MAX} units, more than a font can store`,
+        )
       const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
       cut = fitted.trimmed
       contours = cffDirection(quantizePolygon(fitted.polygon, 0, `Glyph ${entry.label}`))
@@ -293,14 +162,23 @@ export async function buildFontFile(
       for (const p of contour.slice(1)) path.lineTo(p.x, p.y)
       path.close()
     }
-    glyphs.push(new opentype.Glyph({ name: glyphName(font, entry, usedNames), unicodes: entry.unicodes, advanceWidth: advance, path }))
+    glyphs.push(
+      new opentype.Glyph({
+        name: glyphName(font, entry, usedNames),
+        unicodes: entry.unicodes,
+        advanceWidth: advance,
+        path,
+      }),
+    )
     expected.push({ unicodes: entry.unicodes, advance, contours })
     newGid.set(entry.index, expected.length)
     if (cut) trimmed.push(entry.label)
   }
 
   if (expected.length === 0) {
-    throw new ExportError(`None of the glyphs could be stored. ${excluded[0] ? `${excluded[0].label}: ${excluded[0].reason}` : ''}`)
+    throw new ExportError(
+      `None of the glyphs could be stored. ${excluded[0] ? `${excluded[0].label}: ${excluded[0].reason}` : ''}`,
+    )
   }
 
   onProgress(plan.glyphs.length, plan.glyphs.length, 'writing')
@@ -499,8 +377,18 @@ function notdefGlyph(opentype: typeof import('opentype.js'), font: LoadedFont) {
   const path = new opentype.Path()
   const box = (x0: number, y0: number, x1: number, y1: number, clockwise: boolean) => {
     const pts = clockwise
-      ? [[x0, y0], [x0, y1], [x1, y1], [x1, y0]]
-      : [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+      ? [
+          [x0, y0],
+          [x0, y1],
+          [x1, y1],
+          [x1, y0],
+        ]
+      : [
+          [x0, y0],
+          [x1, y0],
+          [x1, y1],
+          [x0, y1],
+        ]
     path.moveTo(pts[0][0], pts[0][1])
     for (const [x, y] of pts.slice(1)) path.lineTo(x, y)
     path.close()
@@ -514,7 +402,10 @@ function glyphName(font: LoadedFont, entry: PlannedGlyph, used: Set<string>): st
   const source = font.characters.find((c) => c.index === entry.index)?.name ?? ''
   const candidates = [source]
   const cp = entry.unicodes[0]
-  if (cp !== undefined) candidates.push(cp <= 0xffff ? `uni${cp.toString(16).toUpperCase().padStart(4, '0')}` : `u${cp.toString(16).toUpperCase()}`)
+  if (cp !== undefined)
+    candidates.push(
+      cp <= 0xffff ? `uni${cp.toString(16).toUpperCase().padStart(4, '0')}` : `u${cp.toString(16).toUpperCase()}`,
+    )
   candidates.push(`glyph${entry.index}`)
   for (const name of candidates) {
     if (/^[A-Za-z_.][A-Za-z0-9_.]{0,30}$/.test(name) && name !== '.notdef' && !used.has(name)) {
@@ -551,16 +442,26 @@ async function verifyFont(
   try {
     parsed = fontkit.create(new Uint8Array(bytes) as unknown as Buffer)
   } catch (error) {
-    throw new ExportError(`Verification failed: the written font could not be reopened (${error instanceof Error ? error.message : error}).`)
+    throw new ExportError(
+      `Verification failed: the written font could not be reopened (${error instanceof Error ? error.message : error}).`,
+    )
   }
   if ('fonts' in parsed) throw new ExportError('Verification failed: the written file is a font collection.')
 
   const problems: string[] = []
   if (parsed.familyName !== naming.familyName) problems.push(`family name reads back as “${parsed.familyName}”`)
-  if (parsed.postscriptName !== meta.postScriptName) problems.push(`PostScript name reads back as “${parsed.postscriptName}”`)
+  if (parsed.postscriptName !== meta.postScriptName)
+    problems.push(`PostScript name reads back as “${parsed.postscriptName}”`)
   // OS/2, hhea, head and CFF are part of fontkit's runtime API but not typed.
   const tables = parsed as unknown as {
-    'OS/2'?: { version: number; usWeightClass: number; fsSelection: { useTypoMetrics: boolean }; typoAscender: number; typoDescender: number; typoLineGap: number }
+    'OS/2'?: {
+      version: number
+      usWeightClass: number
+      fsSelection: { useTypoMetrics: boolean }
+      typoAscender: number
+      typoDescender: number
+      typoLineGap: number
+    }
     hhea?: { lineGap: number }
     head?: { xMin: number; yMin: number; xMax: number; yMax: number }
     'CFF '?: { topDict?: { FontBBox?: number[] } }
@@ -571,15 +472,19 @@ async function verifyFont(
   const typo = [os2?.typoAscender, os2?.typoDescender, os2?.typoLineGap]
   if (typo.some((v, i) => v !== meta.typo[i])) problems.push(`typographic metrics read back as ${typo.join(' / ')}`)
   if (!os2 || os2.version < 4 || !os2.fsSelection?.useTypoMetrics) problems.push('USE_TYPO_METRICS is not set')
-  if (parsed.numGlyphs !== expected.length + 1) problems.push(`glyph count is ${parsed.numGlyphs}, expected ${expected.length + 1}`)
+  if (parsed.numGlyphs !== expected.length + 1)
+    problems.push(`glyph count is ${parsed.numGlyphs}, expected ${expected.length + 1}`)
   // The union of every glyph's points, .notdef included, in head and as the CFF FontBBox.
   const box = [bounds.xMin, bounds.yMin, bounds.xMax, bounds.yMax]
-  if (!(bounds.xMin <= bounds.xMax && bounds.yMin <= bounds.yMax)) problems.push(`the font's bounding box is empty (${box.join(' ')})`)
+  if (!(bounds.xMin <= bounds.xMax && bounds.yMin <= bounds.yMax))
+    problems.push(`the font's bounding box is empty (${box.join(' ')})`)
   const head = tables.head
   const headBox = [head?.xMin, head?.yMin, head?.xMax, head?.yMax]
-  if (headBox.some((v, i) => v !== box[i])) problems.push(`the bounding box in head reads back as ${headBox.join(' ')}, expected ${box.join(' ')}`)
+  if (headBox.some((v, i) => v !== box[i]))
+    problems.push(`the bounding box in head reads back as ${headBox.join(' ')}, expected ${box.join(' ')}`)
   const cffBox = tables['CFF ']?.topDict?.FontBBox ?? []
-  if (box.some((v, i) => cffBox[i] !== v)) problems.push(`the CFF FontBBox reads back as ${cffBox.join(' ')}, expected ${box.join(' ')}`)
+  if (box.some((v, i) => cffBox[i] !== v))
+    problems.push(`the CFF FontBBox reads back as ${cffBox.join(' ')}, expected ${box.join(' ')}`)
 
   expected.forEach((glyph, i) => {
     const id = i + 1
@@ -604,7 +509,8 @@ async function verifyFont(
     }
     const read = outlineBounds([contours.flat()])
     const limit = FONT_BOX_LIMITS.maxCoordinate
-    if (Math.min(read.xMin, read.yMin) < -limit || Math.max(read.xMax, read.yMax) > limit) problems.push(`glyph ${id} has points beyond ±${limit}`)
+    if (Math.min(read.xMin, read.yMin) < -limit || Math.max(read.xMax, read.yMax) > limit)
+      problems.push(`glyph ${id} has points beyond ±${limit}`)
     else if (Math.max(read.xMax - read.xMin, read.yMax - read.yMin) > FONT_BOX_LIMITS.span) {
       problems.push(`glyph ${id} is more than ${FONT_BOX_LIMITS.span} units across`)
     }
@@ -616,7 +522,8 @@ async function verifyFont(
       const want = glyph.contours[c]
       const same = points.length === want.length && points.every((p, k) => p.x === want[k].x && p.y === want[k].y)
       if (!same) problems.push(`glyph ${id} contour ${c + 1} points differ`)
-      else if (Math.sign(signedArea(points)) !== Math.sign(signedArea(want))) problems.push(`glyph ${id} contour ${c + 1} changed direction`)
+      else if (Math.sign(signedArea(points)) !== Math.sign(signedArea(want)))
+        problems.push(`glyph ${id} contour ${c + 1} changed direction`)
     })
   })
 
@@ -624,7 +531,9 @@ async function verifyFont(
 
   if (problems.length) {
     const shown = problems.slice(0, 5).join('; ')
-    throw new ExportError(`Verification failed: ${shown}${problems.length > 5 ? `; and ${problems.length - 5} more` : ''}.`)
+    throw new ExportError(
+      `Verification failed: ${shown}${problems.length > 5 ? `; and ${problems.length - 5} more` : ''}.`,
+    )
   }
 }
 

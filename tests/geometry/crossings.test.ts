@@ -2,7 +2,14 @@
 // instead of x (combs, Slipstream streaks), and must still find exactly what a sweep along x finds, in the same order.
 
 import { describe, expect, it } from 'vitest'
-import { findRingCrossings, findSelfCrossings, insideRing, RingIndex, SegmentSweep, type Crossing } from '../../src/geometry/crossings'
+import {
+  findRingCrossings,
+  findSelfCrossings,
+  insideRing,
+  RingIndex,
+  SegmentSweep,
+  type Crossing,
+} from '../../src/geometry/crossings'
 import type { Point } from '../../src/geometry/types'
 import { seededRandom } from '../helpers/outline'
 
@@ -14,7 +21,10 @@ const orient = (a: Point, b: Point, c: Point) => {
   return Math.abs(v) < 1e-9 ? 0 : Math.sign(v)
 }
 const within = (a: Point, b: Point, p: Point) =>
-  Math.min(a.x, b.x) - 1e-9 <= p.x && p.x <= Math.max(a.x, b.x) + 1e-9 && Math.min(a.y, b.y) - 1e-9 <= p.y && p.y <= Math.max(a.y, b.y) + 1e-9
+  Math.min(a.x, b.x) - 1e-9 <= p.x &&
+  p.x <= Math.max(a.x, b.x) + 1e-9 &&
+  Math.min(a.y, b.y) - 1e-9 <= p.y &&
+  p.y <= Math.max(a.y, b.y) + 1e-9
 
 /** Where two segments cross or touch, as crossings.ts defines it (the same tolerances), or null. */
 function meet(a1: Point, a2: Point, b1: Point, b2: Point): Point | null {
@@ -41,7 +51,8 @@ interface Segment {
   i: number
 }
 
-const segmentsOf = (points: readonly Point[], ring: number): Segment[] => points.map((a, i) => ({ a, b: points[(i + 1) % points.length], ring, i }))
+const segmentsOf = (points: readonly Point[], ring: number): Segment[] =>
+  points.map((a, i) => ({ a, b: points[(i + 1) % points.length], ring, i }))
 
 const boxesOverlap = (s: Segment, t: Segment) =>
   Math.max(s.a.x, s.b.x) >= Math.min(t.a.x, t.b.x) &&
@@ -90,10 +101,14 @@ function bruteRings(a: readonly Point[], b: readonly Point[]): Crossing[] {
 // ---- Shapes ----
 
 const turn = (points: Point[], angle: number): Point[] =>
-  points.map((p) => ({ x: p.x * Math.cos(angle) - p.y * Math.sin(angle), y: p.x * Math.sin(angle) + p.y * Math.cos(angle) }))
+  points.map((p) => ({
+    x: p.x * Math.cos(angle) - p.y * Math.sin(angle),
+    y: p.x * Math.sin(angle) + p.y * Math.cos(angle),
+  }))
 
 /** Points scattered on a small integer grid: many crossings, touches and repeated points. */
-const scatter = (random: () => number, n: number, size = 50): Point[] => Array.from({ length: n }, () => ({ x: Math.round(random() * size), y: Math.round(random() * size) }))
+const scatter = (random: () => number, n: number, size = 50): Point[] =>
+  Array.from({ length: n }, () => ({ x: Math.round(random() * size), y: Math.round(random() * size) }))
 
 /** A comb of long parallel teeth (each end on one side or the other), some of them nudged, turned by `angle`. */
 function comb(random: () => number, n: number, angle: number): Point[] {
@@ -115,8 +130,10 @@ function shapes(): { name: string; points: Point[] }[] {
   const random = seededRandom(99)
   const out: { name: string; points: Point[] }[] = []
   for (const n of [5, 40, 120, 300]) out.push({ name: `scatter ${n}`, points: scatter(random, n) })
-  for (const angle of ANGLES) for (const n of [80, 400]) out.push({ name: `comb ${n} at ${angle.toFixed(2)}`, points: comb(random, n, angle) })
-  for (const angle of [Math.PI / 4, -Math.PI / 4]) out.push({ name: `diagonal at ${angle.toFixed(2)}`, points: diagonal(random, 200, angle) })
+  for (const angle of ANGLES)
+    for (const n of [80, 400]) out.push({ name: `comb ${n} at ${angle.toFixed(2)}`, points: comb(random, n, angle) })
+  for (const angle of [Math.PI / 4, -Math.PI / 4])
+    out.push({ name: `diagonal at ${angle.toFixed(2)}`, points: diagonal(random, 200, angle) })
   return out
 }
 
@@ -131,7 +148,8 @@ describe('crossing searches equal a brute-force check', () => {
   it.each(all)('findSelfCrossings: $name', ({ points }) => {
     const expected = bruteSelf(points)
     expect(findSelfCrossings(points)).toEqual(expected)
-    for (const limit of [0, 2]) expect(findSelfCrossings(points, limit).length).toBe(Math.min(expected.length, limit + 1))
+    for (const limit of [0, 2])
+      expect(findSelfCrossings(points, limit).length).toBe(Math.min(expected.length, limit + 1))
   })
 
   it('findRingCrossings, with and without indexes', () => {
@@ -143,7 +161,8 @@ describe('crossing searches equal a brute-force check', () => {
       compared += expected.length
       expect(findRingCrossings(a, b), `${all[k].name} with ${all[(k * 7 + 3) % all.length].name}`).toEqual(expected)
       expect(findRingCrossings(a, b, Infinity, new RingIndex(a), new RingIndex(b))).toEqual(expected)
-      for (const limit of [0, 2]) expect(findRingCrossings(a, b, limit).length).toBe(Math.min(expected.length, limit + 1))
+      for (const limit of [0, 2])
+        expect(findRingCrossings(a, b, limit).length).toBe(Math.min(expected.length, limit + 1))
     }
     expect(compared).toBeGreaterThan(1000)
   })
@@ -167,8 +186,10 @@ describe('crossing searches equal a brute-force check', () => {
         for (let j = i + 1; j < segments.length; j++) {
           const key = i * points.length + j
           const overlap = boxesOverlap(segments[i], segments[j])
-          if (!overlap) expect(compared.has(key), `${name}: ${i} ${j} compared though their boxes are apart`).toBe(false)
-          else if (meet(segments[i].a, segments[i].b, segments[j].a, segments[j].b)) expect(compared.has(key), `${name}: ${i} ${j} meet but were not compared`).toBe(true)
+          if (!overlap)
+            expect(compared.has(key), `${name}: ${i} ${j} compared though their boxes are apart`).toBe(false)
+          else if (meet(segments[i].a, segments[i].b, segments[j].a, segments[j].b))
+            expect(compared.has(key), `${name}: ${i} ${j} meet but were not compared`).toBe(true)
         }
       }
     }
@@ -188,7 +209,15 @@ describe('RingIndex', () => {
         const x = [at(minX, maxX), at(minX, maxX)].sort((p, q) => p - q)
         const y = [at(minY, maxY), at(minY, maxY)].sort((p, q) => p - q)
         const expected = segmentsOf(points, 0)
-          .filter((s) => !(Math.max(s.a.x, s.b.x) < x[0] || Math.min(s.a.x, s.b.x) > x[1] || Math.max(s.a.y, s.b.y) < y[0] || Math.min(s.a.y, s.b.y) > y[1]))
+          .filter(
+            (s) =>
+              !(
+                Math.max(s.a.x, s.b.x) < x[0] ||
+                Math.min(s.a.x, s.b.x) > x[1] ||
+                Math.max(s.a.y, s.b.y) < y[0] ||
+                Math.min(s.a.y, s.b.y) > y[1]
+              ),
+          )
           .map((s) => s.i)
         expect(index.segmentsIn(x[0], x[1], y[0], y[1]), `${name}: segments in a box`).toEqual(expected)
         const p = { x: x[0], y: y[1] }

@@ -3,8 +3,8 @@
 // older between items.
 
 import { describe, expect, it, vi } from 'vitest'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { AheadItem, WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
-import { paramsKey } from '../../src/geometry/cache'
 import { unpackGeometry } from '../../src/geometry/packed'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import { createGeometryWorker } from '../../src/geometry/workerCore'
@@ -23,16 +23,32 @@ function worker(reply: (message: WorkerResponse, send: (m: WorkerRequest) => voi
     reply(message, send)
   })
   const index = (match: (m: WorkerResponse) => boolean) => sent.findIndex(match)
-  const until = (match: (m: WorkerResponse) => boolean) => vi.waitFor(() => expect(index(match)).toBeGreaterThanOrEqual(0), { timeout: 30_000, interval: 5 })
+  const until = (match: (m: WorkerResponse) => boolean) =>
+    vi.waitFor(() => expect(index(match)).toBeGreaterThanOrEqual(0), { timeout: 30_000, interval: 5 })
   return { sent, send, index, until, transfers }
 }
 
 const roboto = fixtureBytes('Roboto')
 const font = { type: 'font', fontId: 'roboto', bytes: roboto, source: localSource('Roboto.ttf', roboto) } as const
 const heavy = paramsWith(GEOMETRY.plain, ALL_DEFAULT)
-const glyphItem = (seq: number, indices: number[], params = heavy): AheadItem => ({ kind: 'glyphs', seq, key: paramsKey(params), params, indices })
-const ahead = (requestId: number, items: AheadItem[], generation = 1): Extract<WorkerRequest, { type: 'ahead' }> => ({ type: 'ahead', requestId, fontId: 'roboto', generation, glideMs: 150, playheadMs: 0, items })
-const doneOf = (id: number) => (m: WorkerResponse) => (m.type === 'done' || m.type === 'ahead-done') && m.requestId === id
+const glyphItem = (seq: number, indices: number[], params = heavy): AheadItem => ({
+  kind: 'glyphs',
+  seq,
+  key: paramsKey(params),
+  params,
+  indices,
+})
+const ahead = (requestId: number, items: AheadItem[], generation = 1): Extract<WorkerRequest, { type: 'ahead' }> => ({
+  type: 'ahead',
+  requestId,
+  fontId: 'roboto',
+  generation,
+  glideMs: 150,
+  playheadMs: 0,
+  items,
+})
+const doneOf = (id: number) => (m: WorkerResponse) =>
+  (m.type === 'done' || m.type === 'ahead-done') && m.requestId === id
 
 describe('worker lanes', async () => {
   const loaded = await loadFixture('Roboto')
@@ -43,7 +59,12 @@ describe('worker lanes', async () => {
     const w = worker((message, send) => {
       if (message.type === 'ahead-results' && !sentCompute) {
         sentCompute = true
-        send({ type: 'compute', requestId: 2, fontId: 'roboto', jobs: [{ params: BASE, key: paramsKey(BASE), indices: glyphs.slice(0, 3) }] })
+        send({
+          type: 'compute',
+          requestId: 2,
+          fontId: 'roboto',
+          jobs: [{ params: BASE, key: paramsKey(BASE), indices: glyphs.slice(0, 3) }],
+        })
       }
     })
     w.send(font)
@@ -63,7 +84,9 @@ describe('worker lanes', async () => {
       w.send(font)
       w.send({ ...ahead(1, [glyphItem(1, glyphs.slice(0, 3), BASE)]), glideMs })
       await w.until(doneOf(1))
-      const results = w.sent.filter((m): m is Extract<WorkerResponse, { type: 'ahead-results' }> => m.type === 'ahead-results')
+      const results = w.sent.filter(
+        (m): m is Extract<WorkerResponse, { type: 'ahead-results' }> => m.type === 'ahead-results',
+      )
       const packed = results.flatMap((m) => m.results)
       expect(packed.map((r) => r.index)).toEqual(glyphs.slice(0, 3))
       for (const message of results) {
@@ -122,8 +145,19 @@ describe('worker lanes', async () => {
     const a = await glyphOf('Roboto', 'Hamburg', 1, burst(1))
     const b = await glyphOf('Roboto', 'Hamburg', 1, burst(2))
     const between = morphAt(planMorph(a, b)!, 0.4)
-    w.send({ type: 'compute', requestId: 6, fontId: 'roboto', jobs: [{ params: heavy, key: paramsKey(heavy), indices: glyphs.slice(0, 6) }] })
-    w.send({ type: 'plan', requestId: 7, fontId: 'roboto', from: structuredClone(encodeGlyph(between)), to: structuredClone(encodeGlyph(a)) })
+    w.send({
+      type: 'compute',
+      requestId: 6,
+      fontId: 'roboto',
+      jobs: [{ params: heavy, key: paramsKey(heavy), indices: glyphs.slice(0, 6) }],
+    })
+    w.send({
+      type: 'plan',
+      requestId: 7,
+      fontId: 'roboto',
+      from: structuredClone(encodeGlyph(between)),
+      to: structuredClone(encodeGlyph(a)),
+    })
     await w.until((m) => m.type === 'plan-result' && m.requestId === 7)
     expect(w.index(doneOf(6))).toBeLessThan(w.index((m) => m.type === 'plan-result' && m.requestId === 7))
     const result = w.sent.find((m) => m.type === 'plan-result' && m.requestId === 7)
@@ -138,7 +172,12 @@ describe('worker lanes', async () => {
     const w = worker()
     w.send(font)
     const a = await glyphOf('Roboto', 'Hamburg', 0, burst(1))
-    w.send({ type: 'compute', requestId: 8, fontId: 'roboto', jobs: [{ params: heavy, key: paramsKey(heavy), indices: glyphs.slice(0, 4) }] })
+    w.send({
+      type: 'compute',
+      requestId: 8,
+      fontId: 'roboto',
+      jobs: [{ params: heavy, key: paramsKey(heavy), indices: glyphs.slice(0, 4) }],
+    })
     w.send({ type: 'plan', requestId: 9, fontId: 'roboto', from: encodeGlyph(a), to: encodeGlyph(a) })
     w.send({ type: 'cancel', requestId: 9 })
     await w.until(doneOf(8))

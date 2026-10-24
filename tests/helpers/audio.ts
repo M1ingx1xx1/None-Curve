@@ -4,7 +4,7 @@
 // and jitters its time. Stereo input is mixed down ((L + R) / 2) as an AnalyserNode mixes it, and the channels are
 // passed as `stereo`, as the engine's channel analysers give them.
 
-import { analyserFftSize } from '../../src/sound/engine'
+import { analyserFftSize } from '../../src/sound/features'
 import { FeatureExtractor } from '../../src/sound/features'
 import { blackmanWindow as blackman, fftInPlace } from '../../src/sound/offline'
 import { DEFAULT_FEATURE_SETTINGS, type FeatureFrame, type FeatureSettings } from '../../src/sound/types'
@@ -113,7 +113,8 @@ export const samplesIn = (seconds: number, sr = SR) => Math.round(seconds * sr)
 export function sine(freq: number, peakDb: number, seconds: number, on = 0, off = seconds, sr = SR): Float64Array {
   const out = new Float64Array(samplesIn(seconds, sr))
   const a = fromDb(peakDb)
-  for (let i = samplesIn(on, sr); i < Math.min(out.length, samplesIn(off, sr)); i++) out[i] = a * Math.sin((2 * Math.PI * freq * i) / sr)
+  for (let i = samplesIn(on, sr); i < Math.min(out.length, samplesIn(off, sr)); i++)
+    out[i] = a * Math.sin((2 * Math.PI * freq * i) / sr)
   return out
 }
 
@@ -122,7 +123,14 @@ export function sine(freq: number, peakDb: number, seconds: number, on = 0, off 
  * × k: a band-limited sawtooth with every harmonic, a buzzy bass with a few. Summed by rotating each harmonic's phasor,
  * so hundreds of harmonics stay quick.
  */
-export function harmonics(freq: number, peakDb: number, seconds: number, count = Infinity, phase = 0, sr = SR): Float64Array {
+export function harmonics(
+  freq: number,
+  peakDb: number,
+  seconds: number,
+  count = Infinity,
+  phase = 0,
+  sr = SR,
+): Float64Array {
   const out = new Float64Array(samplesIn(seconds, sr))
   const a = fromDb(peakDb)
   const top = Math.min(count, Math.floor((sr / 2 - 1) / freq))
@@ -169,7 +177,14 @@ export function glide(from: number, to: number, seconds: number, peakDb: number,
 }
 
 /** A steady note with vibrato: `cents` either way, `rateHz` times a second. */
-export function vibrato(freq: number, cents: number, rateHz: number, seconds: number, peakDb: number, sr = SR): Float64Array {
+export function vibrato(
+  freq: number,
+  cents: number,
+  rateHz: number,
+  seconds: number,
+  peakDb: number,
+  sr = SR,
+): Float64Array {
   return tone((t) => freq * 2 ** ((cents / 1200) * Math.sin(2 * Math.PI * rateHz * t)), peakDb, seconds, sr)
 }
 
@@ -240,7 +255,13 @@ function highPass(x: Float64Array, freq: number, q: number, sr: number): void {
   const alpha = Math.sin(w) / (2 * q)
   const cos = Math.cos(w)
   const a0 = 1 + alpha
-  const [b0, b1, b2, a1, a2] = [(1 + cos) / 2 / a0, -(1 + cos) / a0, (1 + cos) / 2 / a0, (-2 * cos) / a0, (1 - alpha) / a0]
+  const [b0, b1, b2, a1, a2] = [
+    (1 + cos) / 2 / a0,
+    -(1 + cos) / a0,
+    (1 + cos) / 2 / a0,
+    (-2 * cos) / a0,
+    (1 - alpha) / a0,
+  ]
   let [x1, x2, y1, y2] = [0, 0, 0, 0]
   for (let i = 0; i < x.length; i++) {
     const y = b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
@@ -255,7 +276,8 @@ export function hiHat(perSecond: number, seconds: number, rmsDb = -12, first = 0
   const a = fromDb(rmsDb)
   for (const t0 of hitTimes(perSecond, seconds, first)) {
     const s0 = samplesIn(t0, sr)
-    for (let i = 0; i < samplesIn(0.12, sr) && s0 + i < out.length; i++) out[s0 + i] += a * Math.exp(-i / sr / 0.02) * gauss()
+    for (let i = 0; i < samplesIn(0.12, sr) && s0 + i < out.length; i++)
+      out[s0 + i] += a * Math.exp(-i / sr / 0.02) * gauss()
   }
   highPass(out, 5000, 0.5411961, sr)
   highPass(out, 5000, 1.306563, sr)
@@ -263,12 +285,21 @@ export function hiHat(perSecond: number, seconds: number, rmsDb = -12, first = 0
 }
 
 /** Noise bursts (a snare): white noise decaying with `decay` s, then a 4th-order high-pass at `hpHz`. */
-export function bursts(perSecond: number, seconds: number, rmsDb: number, decay: number, hpHz: number, first = 0.3, sr = SR): Float64Array {
+export function bursts(
+  perSecond: number,
+  seconds: number,
+  rmsDb: number,
+  decay: number,
+  hpHz: number,
+  first = 0.3,
+  sr = SR,
+): Float64Array {
   const out = new Float64Array(samplesIn(seconds, sr))
   const a = fromDb(rmsDb)
   for (const t0 of hitTimes(perSecond, seconds, first)) {
     const s0 = samplesIn(t0, sr)
-    for (let i = 0; i < samplesIn(Math.min(0.45, 8 * decay), sr) && s0 + i < out.length; i++) out[s0 + i] += a * Math.exp(-i / sr / decay) * gauss()
+    for (let i = 0; i < samplesIn(Math.min(0.45, 8 * decay), sr) && s0 + i < out.length; i++)
+      out[s0 + i] += a * Math.exp(-i / sr / decay) * gauss()
   }
   highPass(out, hpHz, Math.SQRT1_2, sr)
   highPass(out, hpHz, Math.SQRT1_2, sr)
@@ -293,7 +324,8 @@ export const between = (frames: ProbedFrame[], a: number, b: number) => frames.f
  */
 export function hits(frames: ProbedFrame[], fromMs = 0): number[] {
   const out: number[] = []
-  for (const f of frames) if ((f.onset || f.kick) && f.time >= fromMs && !(out.length && f.time - out[out.length - 1] < 100)) out.push(f.time)
+  for (const f of frames)
+    if ((f.onset || f.kick) && f.time >= fromMs && !(out.length && f.time - out[out.length - 1] < 100)) out.push(f.time)
   return out
 }
 

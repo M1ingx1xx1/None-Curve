@@ -1,7 +1,7 @@
 import type { FontMetrics } from '../font/model'
 
 /** Grid lines closer than this on screen are not drawn. */
-export const MIN_GRID_PX = 4
+const MIN_GRID_PX = 4
 
 /** Horizontal metric guides; guides at the same height (e.g. x-height = cap height) share one line. */
 export function metricGuides(metrics: FontMetrics): [string, number][] {

@@ -18,7 +18,17 @@ import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, layoutArtboard }
 import { placePolygons, shapeSpecimen } from '../../src/specimen/scene'
 import { LATIN_SAMPLE, loadFixture, sampleGlyphs, type FixtureFont } from './fonts'
 import { allFinite, contoursOf, outlineCrossings, sameContours } from './outline'
-import { ALL_DEFAULT, BURST_MAX, EFFECTS, GEOMETRY, on, paramsWith, SLIDER_MAX, THORN_FARTHEST, withoutEffects } from './params'
+import {
+  ALL_DEFAULT,
+  BURST_MAX,
+  EFFECTS,
+  GEOMETRY,
+  on,
+  paramsWith,
+  SLIDER_MAX,
+  THORN_FARTHEST,
+  withoutEffects,
+} from './params'
 
 /** Path data of the SVG export: moves, lines and closes, with plain decimal numbers. */
 export const STRAIGHT_PATH = /^[MLZ0-9 .-]+$/
@@ -32,25 +42,61 @@ export interface Config {
 
 export const CONFIGS: Config[] = [
   { name: 'Experimental off', params: paramsWith(GEOMETRY.plain, {}), recheckEvery: 3 },
-  ...EFFECTS.map((effect) => ({ name: `${effect} default`, params: paramsWith(GEOMETRY.plain, on(effect)), recheckEvery: 3 })),
+  ...EFFECTS.map((effect) => ({
+    name: `${effect} default`,
+    params: paramsWith(GEOMETRY.plain, on(effect)),
+    recheckEvery: 3,
+  })),
   { name: 'all six default', params: paramsWith(GEOMETRY.plain, ALL_DEFAULT), recheckEvery: 3 },
   { name: 'all six default, dense Geometry', params: paramsWith(GEOMETRY.dense, ALL_DEFAULT), recheckEvery: 6 },
   { name: 'all six default, heavy Geometry', params: paramsWith(GEOMETRY.heavy, ALL_DEFAULT), recheckEvery: 6 },
-  { name: 'Anchor spacing 1, Crumple at max', params: paramsWith(GEOMETRY.spacing1, SLIDER_MAX.crumple), recheckEvery: 10 },
+  {
+    name: 'Anchor spacing 1, Crumple at max',
+    params: paramsWith(GEOMETRY.spacing1, SLIDER_MAX.crumple),
+    recheckEvery: 10,
+  },
   { name: 'Anchor spacing 1, Thorn default', params: paramsWith(GEOMETRY.spacing1, on('thorn')), recheckEvery: 10 },
   // Thorns across a large canvas: far beyond the letter, where the merge works with the largest coordinates.
-  { name: 'Thorn default, Reach 100% of a 150 em canvas', params: paramsWith(GEOMETRY.plain, on('thorn', { canvasReach: 1, canvasEm: 150 })), recheckEvery: 3 },
+  {
+    name: 'Thorn default, Reach 100% of a 150 em canvas',
+    params: paramsWith(GEOMETRY.plain, on('thorn', { canvasReach: 1, canvasEm: 150 })),
+    recheckEvery: 3,
+  },
   { name: 'Thorn at slider max, reaching 256 em', params: paramsWith(GEOMETRY.plain, THORN_FARTHEST), recheckEvery: 6 },
   // Reverse: Ripple swaps out and in (petals at mid-side), Thorn shoots into the letter, its slits and spikes merged.
-  { name: 'Ripple reversed, with petals', params: paramsWith(GEOMETRY.plain, on('ripple', { petals: 1, reverse: true })), recheckEvery: 3 },
-  { name: 'Ripple at slider max, reversed', params: paramsWith(GEOMETRY.plain, on('ripple', { ...SLIDER_MAX.ripple.ripple, reverse: true })), recheckEvery: 6 },
+  {
+    name: 'Ripple reversed, with petals',
+    params: paramsWith(GEOMETRY.plain, on('ripple', { petals: 1, reverse: true })),
+    recheckEvery: 3,
+  },
+  {
+    name: 'Ripple at slider max, reversed',
+    params: paramsWith(GEOMETRY.plain, on('ripple', { ...SLIDER_MAX.ripple.ripple, reverse: true })),
+    recheckEvery: 6,
+  },
   { name: 'Thorn reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { reverse: true })), recheckEvery: 3 },
-  { name: 'Thorn at slider max (Reach 100%), reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { ...SLIDER_MAX.thorn.thorn, reverse: true })), recheckEvery: 6 },
+  {
+    name: 'Thorn at slider max (Reach 100%), reversed',
+    params: paramsWith(GEOMETRY.plain, on('thorn', { ...SLIDER_MAX.thorn.thorn, reverse: true })),
+    recheckEvery: 6,
+  },
   // Burst: up to 80 spikes round every contour, crossing the letter and each other, and dents between them, merged.
   { name: 'Thorn burst', params: paramsWith(GEOMETRY.plain, on('thorn', { burst: true })), recheckEvery: 3 },
-  { name: 'Thorn burst at slider max (80 spikes, Reach and Dent 100%)', params: paramsWith(GEOMETRY.plain, BURST_MAX), recheckEvery: 6 },
-  { name: 'Thorn burst at slider max, reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { ...BURST_MAX.thorn, reverse: true })), recheckEvery: 6 },
-  { name: 'all five default, Thorn burst, dense Geometry', params: paramsWith(GEOMETRY.dense, { ...ALL_DEFAULT, ...on('thorn', { burst: true }) }), recheckEvery: 6 },
+  {
+    name: 'Thorn burst at slider max (80 spikes, Reach and Dent 100%)',
+    params: paramsWith(GEOMETRY.plain, BURST_MAX),
+    recheckEvery: 6,
+  },
+  {
+    name: 'Thorn burst at slider max, reversed',
+    params: paramsWith(GEOMETRY.plain, on('thorn', { ...BURST_MAX.thorn, reverse: true })),
+    recheckEvery: 6,
+  },
+  {
+    name: 'all five default, Thorn burst, dense Geometry',
+    params: paramsWith(GEOMETRY.dense, { ...ALL_DEFAULT, ...on('thorn', { burst: true }) }),
+    recheckEvery: 6,
+  },
 ]
 
 /**
@@ -69,7 +115,14 @@ interface Baseline {
   contacts: number
 }
 
-function checkGlyph(font: LoadedFont, index: number, label: string, config: Config, recheck: boolean, baseline: Baseline): { problems: string[]; derived: DerivedGeometry | null } {
+function checkGlyph(
+  font: LoadedFont,
+  index: number,
+  label: string,
+  config: Config,
+  recheck: boolean,
+  baseline: Baseline,
+): { problems: string[]; derived: DerivedGeometry | null } {
   const problems: string[] = []
   let derived: DerivedGeometry
   try {
@@ -81,15 +134,18 @@ function checkGlyph(font: LoadedFont, index: number, label: string, config: Conf
   if (!allFinite(contours)) problems.push(`${label}: non-finite coordinate`)
   const { cross } = outlineCrossings(contours)
   const folds = derived.experimental.folds
-  if (cross > 0 && baseline.cross === 0 && baseline.contacts === 0) problems.push(`${label}: ${cross} new proper crossings`)
-  if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex) problems.push(`${label}: ${cross} proper crossings after a merge`)
+  if (cross > 0 && baseline.cross === 0 && baseline.contacts === 0)
+    problems.push(`${label}: ${cross} new proper crossings`)
+  if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex)
+    problems.push(`${label}: ${cross} proper crossings after a merge`)
   if (recheck && !sameContours(contoursOf(deriveGeometry(font.getGlyph(index), config.params).polygon), contours)) {
     problems.push(`${label}: not deterministic`)
   }
   for (const decimals of [0, 2]) {
     try {
       const rounded = quantizePolygon(derived.polygon, decimals, label)
-      if (rounded.length < contours.length) problems.push(`${label}: precision ${decimals} left out ${contours.length - rounded.length} contours`)
+      if (rounded.length < contours.length)
+        problems.push(`${label}: precision ${decimals} left out ${contours.length - rounded.length} contours`)
     } catch (error) {
       problems.push(`${label}: precision ${decimals} threw ${String(error)}`)
     }
@@ -118,7 +174,11 @@ export interface InvariantOptions {
   recheckScale?: number
 }
 
-export function geometryInvariants(fontName: FixtureFont, configs: readonly Config[] = CONFIGS, options: InvariantOptions = {}) {
+export function geometryInvariants(
+  fontName: FixtureFont,
+  configs: readonly Config[] = CONFIGS,
+  options: InvariantOptions = {},
+) {
   const which = options.glyphs ?? 'sample'
   describe(`geometry invariants: ${fontName}${which === 'all' ? ', every glyph' : ''}`, async () => {
     const font = await loadFixture(fontName)
@@ -132,7 +192,9 @@ export function geometryInvariants(fontName: FixtureFont, configs: readonly Conf
       if (!crossings) {
         crossings = new Map(
           glyphs.map((g) => {
-            const { cross, touch, pinch } = outlineCrossings(contoursOf(deriveGeometry(font.getGlyph(g.index), off).polygon))
+            const { cross, touch, pinch } = outlineCrossings(
+              contoursOf(deriveGeometry(font.getGlyph(g.index), off).polygon),
+            )
             return [g.index, { cross, contacts: touch + pinch }]
           }),
         )
@@ -152,7 +214,14 @@ export function geometryInvariants(fontName: FixtureFont, configs: readonly Conf
         const polygons = new Map<number, DerivedGeometry>()
         glyphs.forEach((g, k) => {
           const recheck = k % (config.recheckEvery * (options.recheckScale ?? 1)) === 0
-          const result = checkGlyph(font, g.index, g.char ? `"${g.char}" #${g.index}` : `#${g.index}`, config, recheck, baseline.get(g.index)!)
+          const result = checkGlyph(
+            font,
+            g.index,
+            g.char ? `"${g.char}" #${g.index}` : `#${g.index}`,
+            config,
+            recheck,
+            baseline.get(g.index)!,
+          )
           problems.push(...result.problems)
           if (result.derived) polygons.set(g.index, result.derived)
         })

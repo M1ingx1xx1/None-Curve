@@ -48,7 +48,17 @@ function readTab(): Tab {
  * canvas (Typography), characters to insert (Glyphs), and its colours (Color). Every tab stays
  * mounted, so switching keeps local state such as the glyph search or a hex value being typed.
  */
-export default function TextTools({ typography, palette, livePalette, artboard, font, scene, loadSliderScene, dispatch, onInsertGlyph }: TextToolsProps) {
+export default function TextTools({
+  typography,
+  palette,
+  livePalette,
+  artboard,
+  font,
+  scene,
+  loadSliderScene,
+  dispatch,
+  onInsertGlyph,
+}: TextToolsProps) {
   const [tab, setTab] = useState<Tab>(readTab)
   const ids = useId()
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ typography: null, glyphs: null, color: null })

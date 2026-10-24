@@ -5,9 +5,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { renderTestTrack, TEST_TRACK_SAMPLE_RATE } from '../../scripts/test-track'
-import { analyserFftSize } from '../../src/sound/engine'
-import { FeatureExtractor } from '../../src/sound/features'
-import { gridFrameCount, highpassCoefficients, highpassInPlace, measureFrames, type MeasuredChannels } from '../../src/sound/offline'
+import { analyserFftSize, FeatureExtractor } from '../../src/sound/features'
+import {
+  gridFrameCount,
+  highpassCoefficients,
+  highpassInPlace,
+  measureFrames,
+  type MeasuredChannels,
+} from '../../src/sound/offline'
 import { DEFAULT_FEATURE_SETTINGS, SOUND_LIMITS, type FeatureFrame } from '../../src/sound/types'
 import { analyse, bursts, glide, mix, noise, reseed, SR, type ProbedFrame, type Rig } from '../helpers/audio'
 
@@ -37,7 +42,10 @@ const track = renderTestTrack()
 function trackSlice(a: number, b: number): [Float64Array, Float64Array] {
   const sr = TEST_TRACK_SAMPLE_RATE
   const [from, to] = [Math.round(a * sr), Math.round(b * sr)]
-  return [Float64Array.from(track.left.subarray(from, to), (v) => v / 32768), Float64Array.from(track.right.subarray(from, to), (v) => v / 32768)]
+  return [
+    Float64Array.from(track.left.subarray(from, to), (v) => v / 32768),
+    Float64Array.from(track.right.subarray(from, to), (v) => v / 32768),
+  ]
 }
 
 /** The cookbook high-pass (Q from Web Audio's dB value), Float32 out, its state in doubles: written apart from offline.ts. */
@@ -104,9 +112,16 @@ describe('offline analyser', () => {
       const w0 = (2 * Math.PI * 20) / sr
       const alphaQdB = Math.sin(w0) / (2 * 10 ** (Q / 20))
       const a0 = 1 + alphaQdB
-      const want = { b0: (1 + Math.cos(w0)) / 2 / a0, b1: -(1 + Math.cos(w0)) / a0, b2: (1 + Math.cos(w0)) / 2 / a0, a1: (-2 * Math.cos(w0)) / a0, a2: (1 - alphaQdB) / a0 }
+      const want = {
+        b0: (1 + Math.cos(w0)) / 2 / a0,
+        b1: -(1 + Math.cos(w0)) / a0,
+        b2: (1 + Math.cos(w0)) / 2 / a0,
+        a1: (-2 * Math.cos(w0)) / a0,
+        a2: (1 - alphaQdB) / a0,
+      }
       const got = highpassCoefficients(sr)
-      for (const k of ['b0', 'b1', 'b2', 'a1', 'a2'] as const) expect(Math.abs(got[k] - want[k]), `${sr} ${k}`).toBeLessThan(1e-12)
+      for (const k of ['b0', 'b1', 'b2', 'a1', 'a2'] as const)
+        expect(Math.abs(got[k] - want[k]), `${sr} ${k}`).toBeLessThan(1e-12)
     }
   })
 
@@ -138,7 +153,20 @@ describe('offline analyser', () => {
     const rig: Rig = { sr, quantum: 128, jitterMs: 4, fps: 60 }
     const theirs = withoutKick(analyse(Float64Array.from(l), Float64Array.from(r), rig))
     const n = Math.min(ours.length, theirs.length)
-    const keys = ['level', 'swell', 'bass', 'mids', 'treble', 'brightness', 'pitch', 'pitchConfidence', 'pitchLow', 'pitchHigh', 'activity', 'pan'] as const
+    const keys = [
+      'level',
+      'swell',
+      'bass',
+      'mids',
+      'treble',
+      'brightness',
+      'pitch',
+      'pitchConfidence',
+      'pitchLow',
+      'pitchHigh',
+      'activity',
+      'pan',
+    ] as const
     for (const key of keys) {
       const diffs = Array.from({ length: n }, (_, i) => Math.abs(ours[i][key] - theirs[i][key])).sort((a, b) => a - b)
       const meanDiff = diffs.reduce((s, d) => s + d, 0) / n
@@ -146,7 +174,11 @@ describe('offline analyser', () => {
       expect(meanDiff, `${key} mean`).toBeLessThan(0.05)
       expect(p99, `${key} p99`).toBeLessThan(0.2)
     }
-    const onsets = (frames: FeatureFrame[]) => frames.slice(0, n).filter((f) => f.onset).map((f) => f.time)
+    const onsets = (frames: FeatureFrame[]) =>
+      frames
+        .slice(0, n)
+        .filter((f) => f.onset)
+        .map((f) => f.time)
     const a = onsets(ours)
     const b = onsets(theirs)
     expect(a.length).toBeGreaterThan(30)

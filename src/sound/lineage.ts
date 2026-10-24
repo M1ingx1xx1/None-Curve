@@ -21,7 +21,7 @@ export const DECIMATION_LEVELS = [1, 2, 3, 4] as const
 const SPACING_SLACK_MS = 1
 
 /** Commits that are always shown: a flash edge, or the sliders' own. */
-export function mandatory(commit: PlannedCommit): boolean {
+function mandatory(commit: PlannedCommit): boolean {
   return commit.commit === null || plannedEdges(commit.adopted).length > 0
 }
 
@@ -35,13 +35,15 @@ export function selectCommits(commits: readonly PlannedCommit[], level: number):
   const step = (level * 1000) / LIVE_LIMITS.maxFps - SPACING_SLACK_MS
   /** Grid frames (PRECOMPUTE_LIMITS.gridHz) per step: planned commits sit on that grid. */
   const frames = (level * PRECOMPUTE_LIMITS.gridHz) / LIVE_LIMITS.maxFps
-  const stepOf = (commit: PlannedCommit) => Math.floor(Math.round((commit.mediaMs * PRECOMPUTE_LIMITS.gridHz) / 1000) / frames)
+  const stepOf = (commit: PlannedCommit) =>
+    Math.floor(Math.round((commit.mediaMs * PRECOMPUTE_LIMITS.gridHz) / 1000) / frames)
   const out: PlannedCommit[] = []
   for (let i = 0; i < commits.length; i++) {
     const commit = commits[i]
     const prev = commits[i - 1]
     const next = commits[i + 1]
-    const keep = !prev || stepOf(commit) !== stepOf(prev) || mandatory(commit) || !next || next.mediaMs - commit.mediaMs >= step
+    const keep =
+      !prev || stepOf(commit) !== stepOf(prev) || mandatory(commit) || !next || next.mediaMs - commit.mediaMs >= step
     if (keep) out.push(commit)
   }
   return out
@@ -118,7 +120,11 @@ export class LineageBook {
  * The distinct glide steps of a selected commit (one per lineage): its glyph and the lineage it continues. `lineage`
  * comes from LineageBook.lineagesOf for this commit.
  */
-export function stepsOf(commit: PlannedCommit, lineage: Int32Array, parents: ReadonlyMap<number, number>): { lineage: number; parent: number; index: number; key: string }[] {
+export function stepsOf(
+  commit: PlannedCommit,
+  lineage: Int32Array,
+  parents: ReadonlyMap<number, number>,
+): { lineage: number; parent: number; index: number; key: string }[] {
   const seen = new Set<number>()
   const steps: { lineage: number; parent: number; index: number; key: string }[] = []
   for (let j = 0; j < lineage.length; j++) {

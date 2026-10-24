@@ -1,19 +1,28 @@
 import { memo, type Dispatch, type ReactNode } from 'react'
-import { EXPERIMENTAL_LIMITS, experimentalMerges, type ExperimentalStats } from '../geometry/experimental'
+import { type ExperimentalStats } from '../geometry/experimental'
 import type { DissolveStats } from '../geometry/dissolve'
+import { BURST_REACH, EXPERIMENTAL_LIMITS, experimentalMerges, THORN_LIMITS } from '../geometry/limits'
 import type { SlipstreamStats } from '../geometry/slipstream'
-import { BURST_REACH, THORN_LIMITS, type ThornStats } from '../geometry/thorn'
-import type { CrumpleParams, DissolveParams, ExperimentalParams, RippleParams, SlipstreamParams, ThornParams, WhorlParams } from '../geometry/types'
+import { type ThornStats } from '../geometry/thorn'
+import type {
+  CrumpleParams,
+  DissolveParams,
+  ExperimentalParams,
+  RippleParams,
+  SlipstreamParams,
+  ThornParams,
+  WhorlParams,
+} from '../geometry/types'
 import type { WarpStats } from '../geometry/warp'
 import { clearedExperimental, isClearedExperimental } from '../state/clearExperimental'
 import { initialState, type Action } from '../state/editorState'
-import { reachFromSlider, reachPercent, reachToSlider, SLIDER_RANGES, THORN_REACH, type SliderId, type SliderRange } from '../state/sliderScales'
-import { HintButton, HintText, useHint, type HintState } from './Hint'
+import { REACH_CURVE, reachPercent } from '../state/sliderScales'
+import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
-import LiveMarker from './LiveMarker'
 import LiveSeed from './LiveSeed'
 import { LiveSwitch } from './LiveValue'
-import SliderNumber from './SliderNumber'
+import NumberField from './NumberField'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface ExperimentalControlsProps {
@@ -35,22 +44,22 @@ const percent = (v: number) => Math.round(v * 100)
 /** Ems for a hint: one decimal below 10, whole above. */
 const ems = (v: number) => (Math.round(v * 10) < 100 ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)))
 
-// Reach is cubic (THORN_REACH): short thorns keep fine steps, and the top flings anchors across the whole canvas.
-// Its number box takes the reach itself, to roundReach's unit.
-const REACH_CURVE: SliderCurve = {
-  slider: THORN_REACH.slider,
-  toSlider: reachToSlider,
-  fromSlider: reachFromSlider,
-  value: { min: 0, max: THORN_REACH.max, step: THORN_REACH.step },
-}
-
 /**
  * The Experimental tab: effects that run after the whole Geometry pipeline and can all be on at once.
  * Each folds the letter along straight creases, so it adds corners but never curves. Beyond 100% an
  * effect folds the letter onto itself, and the overlaps are merged into one outline.
  */
-function ExperimentalControls({ params, stats, pending, disabled, dispatch, statistics, reachEm }: ExperimentalControlsProps) {
-  const update = (patch: Partial<ExperimentalParams>) => dispatch({ type: 'updateParams', group: 'experimental', patch })
+function ExperimentalControls({
+  params,
+  stats,
+  pending,
+  disabled,
+  dispatch,
+  statistics,
+  reachEm,
+}: ExperimentalControlsProps) {
+  const update = (patch: Partial<ExperimentalParams>) =>
+    dispatch({ type: 'updateParams', group: 'experimental', patch })
   const introHint = useHint()
   const seedHint = useHint()
   // Reset clears every effect but keeps the seed, so a variant the user liked is not lost.
@@ -60,7 +69,9 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
     <>
       <div className="panel-notice panel-intro">
         <p className="field-title">
-          <span>Runs after Geometry: Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve. Effects can be on together.</span>
+          <span>
+            Runs after Geometry: Crumple → Ripple → Whorl → Slipstream → Thorn → Dissolve. Effects can be on together.
+          </span>
           <HintButton hint={introHint} topic="Experimental effects" />
         </p>
         {statistics}
@@ -75,10 +86,34 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
         {(experimentalMerges(params) || stats?.budget.applied) && <FoldStats stats={stats} pending={pending} />}
       </div>
 
-      <CrumpleGroup params={params.crumple} stats={stats?.crumple ?? null} pending={pending} disabled={disabled} onChange={(crumple) => update({ crumple })} />
-      <RippleGroup params={params.ripple} stats={stats?.ripple ?? null} pending={pending} disabled={disabled} onChange={(ripple) => update({ ripple })} />
-      <WhorlGroup params={params.whorl} stats={stats?.whorl ?? null} pending={pending} disabled={disabled} onChange={(whorl) => update({ whorl })} />
-      <SlipstreamGroup params={params.slipstream} stats={stats?.slipstream ?? null} pending={pending} disabled={disabled} onChange={(slipstream) => update({ slipstream })} />
+      <CrumpleGroup
+        params={params.crumple}
+        stats={stats?.crumple ?? null}
+        pending={pending}
+        disabled={disabled}
+        onChange={(crumple) => update({ crumple })}
+      />
+      <RippleGroup
+        params={params.ripple}
+        stats={stats?.ripple ?? null}
+        pending={pending}
+        disabled={disabled}
+        onChange={(ripple) => update({ ripple })}
+      />
+      <WhorlGroup
+        params={params.whorl}
+        stats={stats?.whorl ?? null}
+        pending={pending}
+        disabled={disabled}
+        onChange={(whorl) => update({ whorl })}
+      />
+      <SlipstreamGroup
+        params={params.slipstream}
+        stats={stats?.slipstream ?? null}
+        pending={pending}
+        disabled={disabled}
+        onChange={(slipstream) => update({ slipstream })}
+      />
       <ThornGroup
         params={params.thorn ?? DEFAULT_EXPERIMENTAL.thorn}
         stats={stats?.thorn ?? null}
@@ -104,18 +139,15 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
               <HintButton hint={seedHint} topic="Seed" />
             </span>
             <div className="seed-row">
-              <input
+              <NumberField
                 id="experimental-seed"
-                type="number"
+                plain
                 min={0}
                 max={EXPERIMENTAL_LIMITS.maxSeed}
                 step={1}
                 value={params.seed}
                 aria-describedby={seedHint.id}
-                onChange={(e) => {
-                  const value = Math.trunc(Number(e.target.value))
-                  if (Number.isFinite(value)) update({ seed: Math.min(EXPERIMENTAL_LIMITS.maxSeed, Math.max(0, value)) })
-                }}
+                onCommit={(seed) => update({ seed })}
               />
               <LiveSeed target="experimental.seed" />
               <button
@@ -128,8 +160,9 @@ function ExperimentalControls({ params, stats, pending, disabled, dispatch, stat
               </button>
             </div>
             <HintText hint={seedHint}>
-              Picks Crumple’s folds, Slipstream’s gusts, slips, cuts and trails, Thorn’s anchors and flutes, and Dissolve’s
-              ink; Ripple and Whorl have no randomness. The same seed and settings always produce the same letters.
+              Picks Crumple’s folds, Slipstream’s gusts, slips, cuts and trails, Thorn’s anchors and flutes, and
+              Dissolve’s ink; Ripple and Whorl have no randomness. The same seed and settings always produce the same
+              letters.
             </HintText>
           </div>
 
@@ -160,9 +193,6 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
   const update = (patch: Partial<CrumpleParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
-  const amountHint = useHint()
-  const facetHint = useHint()
-  const turnHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -177,12 +207,17 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
         </HintText>
 
         <div className="field field-toggle">
-          <input id="crumple-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <input
+            id="crumple-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
           <label htmlFor="crumple-enabled">Use crumple</label>
           <LiveSwitch target="experimental.crumple.enabled" />
         </div>
 
-        <RangeField
+        <SliderField
           id="crumple-amount"
           target="experimental.crumple.amount"
           label="Amount"
@@ -191,11 +226,10 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
-          hint={amountHint}
-          hintText="How far the folds move the outline. Above 100%, facets flip over their neighbours and the letter folds onto itself."
+          hint="How far the folds move the outline. Above 100%, facets flip over their neighbours and the letter folds onto itself."
           onChange={(amount) => update({ amount })}
         />
-        <RangeField
+        <SliderField
           id="crumple-facet"
           target="experimental.crumple.facet"
           label="Facet size"
@@ -204,11 +238,10 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           unit="% em"
           valueText={`${percent(params.facet)} percent of the em`}
           disabled={off}
-          hint={facetHint}
-          hintText="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds. Below 8% the triangles stay that size and the folds flatten out instead, so creases always read as corners. 0%: off."
+          hint="Size of the triangles, as a share of the em. Larger facets give fewer, bigger folds. Below 8% the triangles stay that size and the folds flatten out instead, so creases always read as corners. 0%: off."
           onChange={(facet) => update({ facet })}
         />
-        <RangeField
+        <SliderField
           id="crumple-turn"
           target="experimental.crumple.turn"
           label="Turn"
@@ -216,8 +249,7 @@ function CrumpleGroup({ params, stats, pending, disabled, onChange }: GroupProps
           unit="°"
           valueText={`${Math.round(params.turn ?? 0)} degrees`}
           disabled={off}
-          hint={turnHint}
-          hintText="Turns the way every fold moves, keeping the creases where they are. At 180° the paper is crumpled the opposite way."
+          hint="Turns the way every fold moves, keeping the creases where they are. At 180° the paper is crumpled the opposite way."
           onChange={(turn) => update({ turn })}
         />
 
@@ -231,11 +263,6 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
   const update = (patch: Partial<RippleParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
-  const amountHint = useHint()
-  const wavelengthHint = useHint()
-  const centerHint = useHint()
-  const fadeHint = useHint()
-  const petalsHint = useHint()
   const reverseHint = useHint()
 
   return (
@@ -246,17 +273,22 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Waves spread from a point as rings of straight-sided polygons. Each ring is pushed out or pulled in, in turn, so
-          the outline zigzags where it crosses them. Runs after Crumple.
+          Waves spread from a point as rings of straight-sided polygons. Each ring is pushed out or pulled in, in turn,
+          so the outline zigzags where it crosses them. Runs after Crumple.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="ripple-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <input
+            id="ripple-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
           <label htmlFor="ripple-enabled">Use ripple</label>
           <LiveSwitch target="experimental.ripple.enabled" />
         </div>
 
-        <RangeField
+        <SliderField
           id="ripple-amount"
           target="experimental.ripple.amount"
           label="Amount"
@@ -265,8 +297,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
-          hint={amountHint}
-          hintText="How far each ring moves. Above 100%, rings overtake each other and the letter folds onto itself."
+          hint="How far each ring moves. Above 100%, rings overtake each other and the letter folds onto itself."
           onChange={(amount) => update({ amount })}
         />
         <div className="field field-toggle">
@@ -283,10 +314,10 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           <LiveSwitch target="experimental.ripple.reverse" />
         </div>
         <HintText hint={reverseHint}>
-          Swaps out and in: rings that were pushed out are pulled in, and petals point at the middle of each side instead of
-          the corners.
+          Swaps out and in: rings that were pushed out are pulled in, and petals point at the middle of each side
+          instead of the corners.
         </HintText>
-        <RangeField
+        <SliderField
           id="ripple-wavelength"
           target="experimental.ripple.wavelength"
           label="Wavelength"
@@ -295,11 +326,10 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           unit="% em"
           valueText={`${percent(params.wavelength)} percent of the em`}
           disabled={off}
-          hint={wavelengthHint}
-          hintText="Distance from one crest to the next, as a share of the em. Rings fall half of it apart. Below 8% the rings keep that spacing and the waves flatten out instead. 0%: no waves; Petals still shapes the letter."
+          hint="Distance from one crest to the next, as a share of the em. Rings fall half of it apart. Below 8% the rings keep that spacing and the waves flatten out instead. 0%: no waves; Petals still shapes the letter."
           onChange={(wavelength) => update({ wavelength })}
         />
-        <RangeField
+        <SliderField
           id="ripple-sides"
           target="experimental.ripple.sides"
           label="Sides"
@@ -308,7 +338,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           disabled={off}
           onChange={(sides) => update({ sides })}
         />
-        <RangeField
+        <SliderField
           id="ripple-center-x"
           target="experimental.ripple.centerX"
           label="Center X"
@@ -317,11 +347,10 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           unit="%"
           valueText={`${percent(params.centerX)} percent across the letter`}
           disabled={off}
-          hint={centerHint}
-          hintText="Where the waves start, as a share of each letter’s width and height: 0% is the left or bottom edge, 100% the right or top. Values beyond put the center outside the letter."
+          hint="Where the waves start, as a share of each letter’s width and height: 0% is the left or bottom edge, 100% the right or top. Values beyond put the center outside the letter."
           onChange={(centerX) => update({ centerX })}
         />
-        <RangeField
+        <SliderField
           id="ripple-center-y"
           target="experimental.ripple.centerY"
           label="Center Y"
@@ -332,7 +361,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           disabled={off}
           onChange={(centerY) => update({ centerY })}
         />
-        <RangeField
+        <SliderField
           id="ripple-fade"
           target="experimental.ripple.fade"
           label="Fade"
@@ -341,11 +370,10 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           unit="%"
           valueText={`${percent(params.fade)} percent`}
           disabled={off}
-          hint={fadeHint}
-          hintText="How much the waves die down away from the center. At 100% they are gone by the farthest point of the letter."
+          hint="How much the waves die down away from the center. At 100% they are gone by the farthest point of the letter."
           onChange={(fade) => update({ fade })}
         />
-        <RangeField
+        <SliderField
           id="ripple-petals"
           target="experimental.ripple.petals"
           label="Petals"
@@ -354,8 +382,7 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           unit="%"
           valueText={`${percent(params.petals ?? 0)} percent`}
           disabled={off}
-          hint={petalsHint}
-          hintText="Bends every ring into a flower with straight-edged petals, one per side. Above 100% the petals keep growing; the notches between them stay put."
+          hint="Bends every ring into a flower with straight-edged petals, one per side. Above 100% the petals keep growing; the notches between them stay put."
           onChange={(petals) => update({ petals })}
         />
 
@@ -369,9 +396,7 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
   const update = (patch: Partial<WhorlParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
-  const amountHint = useHint()
   const pinHint = useHint()
-  const ringsHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -381,17 +406,22 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Swirls each letter around its middle. The swirl is built from rings of straight-sided polygons that each turn as
-          a whole, so strokes bend only along straight creases. Runs after Ripple.
+          Swirls each letter around its middle. The swirl is built from rings of straight-sided polygons that each turn
+          as a whole, so strokes bend only along straight creases. Runs after Ripple.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="whorl-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <input
+            id="whorl-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
           <label htmlFor="whorl-enabled">Use whorl</label>
           <LiveSwitch target="experimental.whorl.enabled" />
         </div>
 
-        <RangeField
+        <SliderField
           id="whorl-amount"
           target="experimental.whorl.amount"
           label="Amount"
@@ -400,8 +430,7 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
-          hint={amountHint}
-          hintText="How far the swirl turns; below 0% it turns clockwise. Above 100% either way, the rings turn past each other and the letter folds onto itself."
+          hint="How far the swirl turns; below 0% it turns clockwise. Above 100% either way, the rings turn past each other and the letter folds onto itself."
           onChange={(amount) => update({ amount })}
         />
         <div className="field field-toggle">
@@ -420,18 +449,17 @@ function WhorlGroup({ params, stats, pending, disabled, onChange }: GroupProps<W
           On: the top and bottom of the letter stay put and the middle turns. Off: the middle stays put and the outside
           turns, the top and bottom with it.
         </HintText>
-        <RangeField
+        <SliderField
           id="whorl-rings"
           target="experimental.whorl.rings"
           label="Rings"
           value={params.rings}
           valueText={`${params.rings} rings`}
           disabled={off}
-          hint={ringsHint}
-          hintText="Rings from the middle of the letter to its top and bottom. Fewer rings give bigger, chunkier facets."
+          hint="Rings from the middle of the letter to its top and bottom. Fewer rings give bigger, chunkier facets."
           onChange={(rings) => update({ rings })}
         />
-        <RangeField
+        <SliderField
           id="whorl-sides"
           target="experimental.whorl.sides"
           label="Sides"
@@ -457,13 +485,6 @@ function SlipstreamGroup({
   const update = (patch: Partial<SlipstreamParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
-  const directionHint = useHint()
-  const strengthHint = useHint()
-  const slipHint = useHint()
-  const gustHint = useHint()
-  const gustinessHint = useHint()
-  const cutsHint = useHint()
-  const trailsHint = useHint()
   // Older saved settings have no slip, cuts or trails: they show as 0, as the effect reads them.
   const slip = Number.isFinite(params.slip) ? params.slip : 0
   const cuts = Number.isFinite(params.cuts) ? params.cuts : 0
@@ -477,18 +498,23 @@ function SlipstreamGroup({
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          Letters caught in a stream. Bands across the stream slide past each other like slices, and the stream draws the
-          letters out: the side facing it stays put, and gusts pull some bands further than others. Thin cuts run into the
-          letters along the stream, and trails stream off their downwind side. Runs after Whorl.
+          Letters caught in a stream. Bands across the stream slide past each other like slices, and the stream draws
+          the letters out: the side facing it stays put, and gusts pull some bands further than others. Thin cuts run
+          into the letters along the stream, and trails stream off their downwind side. Runs after Whorl.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="slipstream-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <input
+            id="slipstream-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
           <label htmlFor="slipstream-enabled">Use slipstream</label>
           <LiveSwitch target="experimental.slipstream.enabled" />
         </div>
 
-        <RangeField
+        <SliderField
           id="slipstream-direction"
           target="experimental.slipstream.direction"
           label="Direction"
@@ -496,11 +522,10 @@ function SlipstreamGroup({
           unit="°"
           valueText={`${Math.round(params.direction)} degrees`}
           disabled={off}
-          hint={directionHint}
-          hintText="Where the stream flows to: 0° to the right, 90° up, 180° to the left, 270° down. Slices, cuts and trails follow it."
+          hint="Where the stream flows to: 0° to the right, 90° up, 180° to the left, 270° down. Slices, cuts and trails follow it."
           onChange={(direction) => update({ direction })}
         />
-        <RangeField
+        <SliderField
           id="slipstream-strength"
           target="experimental.slipstream.strength"
           label="Strength"
@@ -509,11 +534,10 @@ function SlipstreamGroup({
           unit="%"
           valueText={`${percent(params.strength)} percent`}
           disabled={off}
-          hint={strengthHint}
-          hintText="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the stream, at 800% eight times as far. Nothing moves more than 4 em. Stronger streams also draw longer trails."
+          hint="How much longer the letters get in a full gust: at 100% a part of the letter is pulled as far again as it lies downwind of the edge facing the stream, at 800% eight times as far. Nothing moves more than 4 em. Stronger streams also draw longer trails."
           onChange={(strength) => update({ strength })}
         />
-        <RangeField
+        <SliderField
           id="slipstream-slip"
           target="experimental.slipstream.slip"
           label="Slip"
@@ -522,11 +546,10 @@ function SlipstreamGroup({
           unit="% em"
           valueText={`${percent(slip)} percent of the em`}
           disabled={off}
-          hint={slipHint}
-          hintText="How far bands across the stream slide past each other along it, as a share of the em. Wide bands, a few gust sizes across, sway by up to this much; each gust-size band adds a small jolt of its own, so strokes break into offset slices with a few large steps and finer ones between. Slipping never folds the letter."
+          hint="How far bands across the stream slide past each other along it, as a share of the em. Wide bands, a few gust sizes across, sway by up to this much; each gust-size band adds a small jolt of its own, so strokes break into offset slices with a few large steps and finer ones between. Slipping never folds the letter."
           onChange={(value) => update({ slip: value })}
         />
-        <RangeField
+        <SliderField
           id="slipstream-gust"
           target="experimental.slipstream.gust"
           label="Gust size"
@@ -535,11 +558,10 @@ function SlipstreamGroup({
           unit="% em"
           valueText={`${percent(params.gust)} percent of the em`}
           disabled={off}
-          hint={gustHint}
-          hintText="Width of each band that a gust pulls or slides, as a share of the em. With a level stream, every letter on a line shares the same bands. Below 6% the bands keep that width and Gustiness and Slip fade out instead. 0%: a steady stream, no gusts and no slip."
+          hint="Width of each band that a gust pulls or slides, as a share of the em. With a level stream, every letter on a line shares the same bands. Below 6% the bands keep that width and Gustiness and Slip fade out instead. 0%: a steady stream, no gusts and no slip."
           onChange={(gust) => update({ gust })}
         />
-        <RangeField
+        <SliderField
           id="slipstream-gustiness"
           target="experimental.slipstream.gustiness"
           label="Gustiness"
@@ -548,30 +570,27 @@ function SlipstreamGroup({
           unit="%"
           valueText={`${percent(params.gustiness)} percent`}
           disabled={off}
-          hint={gustinessHint}
-          hintText="How much the gusts differ from band to band. Above 100%, some gusts blow backwards and tear the letter."
+          hint="How much the gusts differ from band to band. Above 100%, some gusts blow backwards and tear the letter."
           onChange={(gustiness) => update({ gustiness })}
         />
-        <RangeField
+        <SliderField
           id="slipstream-cuts"
           target="experimental.slipstream.cuts"
           label="Cuts"
           value={cuts}
           valueText={`${cuts} ${cuts === 1 ? 'cut' : 'cuts'} per letter`}
           disabled={off}
-          hint={cutsHint}
-          hintText="Thin wedge-shaped slits per letter, along the stream. Each enters from the side facing the stream or the side away from it, widest where it enters, and tapers to a point inside a stroke; about one in four goes right through. The outline is redrawn around them."
+          hint="Thin wedge-shaped slits per letter, along the stream. Each enters from the side facing the stream or the side away from it, widest where it enters, and tapers to a point inside a stroke; about one in four goes right through. The outline is redrawn around them."
           onChange={(value) => update({ cuts: value })}
         />
-        <RangeField
+        <SliderField
           id="slipstream-trails"
           target="experimental.slipstream.trails"
           label="Trails"
           value={trails}
           valueText={`${trails} ${trails === 1 ? 'trail' : 'trails'} per letter`}
           disabled={off}
-          hint={trailsHint}
-          hintText="Thin streaks per letter, dragged downwind out of its outside edges that face away from the stream; Strength makes them longer. A trail that would run into the letter or another trail grows elsewhere or not at all, so letters can get fewer."
+          hint="Thin streaks per letter, dragged downwind out of its outside edges that face away from the stream; Strength makes them longer. A trail that would run into the letter or another trail grows elsewhere or not at all, so letters can get fewer."
           onChange={(value) => update({ trails: value })}
         />
 
@@ -612,15 +631,7 @@ function ThornGroup({
   const dent = params.dent ?? DEFAULT_EXPERIMENTAL.thorn.dent
   const introHint = useHint()
   const burstHint = useHint()
-  const dentHint = useHint()
-  const countHint = useHint()
-  const reachHint = useHint()
   const reverseHint = useHint()
-  const rootHint = useHint()
-  const spreadHint = useHint()
-  const widthHint = useHint()
-  const refractionHint = useHint()
-  const fluteHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -630,14 +641,19 @@ function ThornGroup({
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
         <HintText hint={introHint}>
-          A few anchors on the outside of each letter jump out into the canvas as long, straight thorns and pull the letter
-          along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows the letter through fluted
-          glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump somewhere new.
-          Burst instead grows many spikes all round each letter. Runs after Slipstream.
+          A few anchors on the outside of each letter jump out into the canvas as long, straight thorns and pull the
+          letter along: strokes lean and thin, and counters bend toward the thorn. Refraction then shows the letter
+          through fluted glass. The seed picks which anchors and where they go: Next variant, or Sound, makes them jump
+          somewhere new. Burst instead grows many spikes all round each letter. Runs after Slipstream.
         </HintText>
 
         <div className="field field-toggle">
-          <input id="thorn-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <input
+            id="thorn-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
           <label htmlFor="thorn-enabled">Use thorn</label>
           <LiveSwitch target="experimental.thorn.enabled" />
         </div>
@@ -655,37 +671,35 @@ function ThornGroup({
           <LiveSwitch target="experimental.thorn.burst" />
         </div>
         <HintText hint={burstHint}>
-          The letter explodes: many straight spikes grow all round it, into its counters too, and the outline between them
-          sinks into the strokes, so they look thin and broken. Anchors then counts spikes (up to{' '}
+          The letter explodes: many straight spikes grow all round it, into its counters too, and the outline between
+          them sinks into the strokes, so they look thin and broken. Anchors then counts spikes (up to{' '}
           {THORN_LIMITS.maxSpikes}), Dent sets how deep the outline sinks, and Root is not used.
         </HintText>
 
         {burst ? (
-          <RangeField
+          <SliderField
             id="thorn-spikes"
             target="experimental.thorn.spikes"
             label="Anchors"
             value={spikes}
             valueText={`${spikes} spikes`}
             disabled={off}
-            hint={countHint}
-            hintText="How many spikes grow from each letter, spread evenly round all its outlines, counters included. 0: none, and Thorn leaves the letter as it is."
+            hint="How many spikes grow from each letter, spread evenly round all its outlines, counters included. 0: none, and Thorn leaves the letter as it is."
             onChange={(spikes) => update({ spikes })}
           />
         ) : (
-          <RangeField
+          <SliderField
             id="thorn-count"
             target="experimental.thorn.count"
             label="Anchors"
             value={params.count}
             valueText={`${params.count} ${params.count === 1 ? 'anchor' : 'anchors'}`}
             disabled={off}
-            hint={countHint}
-            hintText="How many anchors of each letter jump. 0: none, and Thorn leaves the letter as it is."
+            hint="How many anchors of each letter jump. 0: none, and Thorn leaves the letter as it is."
             onChange={(count) => update({ count })}
           />
         )}
-        <RangeField
+        <SliderField
           id="thorn-reach"
           target="experimental.thorn.canvasReach"
           curve={REACH_CURVE}
@@ -695,8 +709,7 @@ function ThornGroup({
           unit="% canvas"
           valueText={`${reachPercent(params.canvasReach)} percent of the canvas`}
           disabled={off}
-          hint={reachHint}
-          hintText={
+          hint={
             burst
               ? `How long the spikes are, as a share of the canvas diagonal: the longest is ${percent(BURST_REACH)}% of that share, most are much shorter. At this text size and canvas, 100% gives spikes up to about ${ems(reachEm * BURST_REACH)} em.`
               : `How far the anchors jump, as a share of the canvas diagonal: at 100% a thorn can cross the whole canvas. Each goes a random 35–100% of it. At this text size and canvas, 100% is about ${ems(reachEm)} em.`
@@ -717,10 +730,10 @@ function ThornGroup({
           <LiveSwitch target="experimental.thorn.reverse" />
         </div>
         <HintText hint={reverseHint}>
-          Thorns shoot into the letter instead of out of it. Through strokes they cut a slit; across counters and past the
-          far side they show as ink. In Burst, the outline between spikes bulges out instead of sinking in.
+          Thorns shoot into the letter instead of out of it. Through strokes they cut a slit; across counters and past
+          the far side they show as ink. In Burst, the outline between spikes bulges out instead of sinking in.
         </HintText>
-        <RangeField
+        <SliderField
           id="thorn-dent"
           target="experimental.thorn.dent"
           label="Dent"
@@ -729,11 +742,10 @@ function ThornGroup({
           unit="%"
           valueText={`${percent(dent)} percent`}
           disabled={off || !burst}
-          hint={dentHint}
-          hintText="In Burst: how deep the outline between spikes sinks into the strokes, in a few straight cuts. 0%: the outline stays as it was."
+          hint="In Burst: how deep the outline between spikes sinks into the strokes, in a few straight cuts. 0%: the outline stays as it was."
           onChange={(dent) => update({ dent })}
         />
-        <RangeField
+        <SliderField
           id="thorn-root"
           target="experimental.thorn.root"
           label="Root"
@@ -742,11 +754,10 @@ function ThornGroup({
           unit="%"
           valueText={`${percent(root)} percent`}
           disabled={off || burst}
-          hint={rootHint}
-          hintText={`How much of the letter around each anchor its thorn pulls along, up to ${percent(THORN_LIMITS.maxRoot)}% of the em away. The thorn grows from a wide root that narrows to its tip, and the strokes and counters inside the root lean and bend with it. 0%: the thorns are only added on. Not used in Burst.`}
+          hint={`How much of the letter around each anchor its thorn pulls along, up to ${percent(THORN_LIMITS.maxRoot)}% of the em away. The thorn grows from a wide root that narrows to its tip, and the strokes and counters inside the root lean and bend with it. 0%: the thorns are only added on. Not used in Burst.`}
           onChange={(root) => update({ root })}
         />
-        <RangeField
+        <SliderField
           id="thorn-spread"
           target="experimental.thorn.spread"
           label="Spread"
@@ -755,11 +766,10 @@ function ThornGroup({
           unit="%"
           valueText={`${percent(params.spread)} percent`}
           disabled={off}
-          hint={spreadHint}
-          hintText="0%: every anchor jumps straight out from the outline. 100%: anywhere up to 90° to either side."
+          hint="0%: every anchor jumps straight out from the outline. 100%: anywhere up to 90° to either side."
           onChange={(spread) => update({ spread })}
         />
-        <RangeField
+        <SliderField
           id="thorn-width"
           target="experimental.thorn.width"
           label="Width"
@@ -768,11 +778,10 @@ function ThornGroup({
           unit="%"
           valueText={`${percent(params.width)} percent`}
           disabled={off}
-          hint={widthHint}
-          hintText="How wide each thorn's tip is where it leaves its root. 0%: a thin needle. 100%: the tip starts where the root starts to narrow (at Root 0%, it pulls the anchor's whole edges along)."
+          hint="How wide each thorn's tip is where it leaves its root. 0%: a thin needle. 100%: the tip starts where the root starts to narrow (at Root 0%, it pulls the anchor's whole edges along)."
           onChange={(width) => update({ width })}
         />
-        <RangeField
+        <SliderField
           id="thorn-refraction"
           target="experimental.thorn.refraction"
           label="Refraction"
@@ -781,11 +790,10 @@ function ThornGroup({
           unit="%"
           valueText={`${percent(refraction)} percent`}
           disabled={off}
-          hint={refractionHint}
-          hintText="Shows the letter through fluted glass: it is cut into vertical strips, each magnified a little and moved up or down, so strokes and thorns look broken and offset. The glass covers the letter; thorn tips reaching past it to the left or right stay sharp. 0%: off."
+          hint="Shows the letter through fluted glass: it is cut into vertical strips, each magnified a little and moved up or down, so strokes and thorns look broken and offset. The glass covers the letter; thorn tips reaching past it to the left or right stay sharp. 0%: off."
           onChange={(refraction) => update({ refraction })}
         />
-        <RangeField
+        <SliderField
           id="thorn-flute"
           target="experimental.thorn.flute"
           label="Flute width"
@@ -794,8 +802,7 @@ function ThornGroup({
           unit="% em"
           valueText={`${percent(flute)} percent of the em`}
           disabled={off || refraction === 0}
-          hint={fluteHint}
-          hintText="How wide each strip of the fluted glass is, as a share of the em. Below 4% the strips keep that width and the refraction fades out instead. 0%: no glass."
+          hint="How wide each strip of the fluted glass is, as a share of the em. Below 4% the strips keep that width and the refraction fades out instead. 0%: no glass."
           onChange={(flute) => update({ flute })}
         />
 
@@ -822,14 +829,16 @@ function ThornGroup({
         )}
         {(stats?.reducedContours ?? 0) > 0 && (
           <p className="font-warning">
-            {stats!.reducedContours} {stats!.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker root or refraction
-            to stay valid.
+            {stats!.reducedContours} {stats!.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker root or
+            refraction to stay valid.
           </p>
         )}
         {(stats?.fallbackContours ?? 0) > 0 && (
           <p className="font-warning">This glyph is left without roots or refraction: no strength kept it valid.</p>
         )}
-        {stats?.tooComplex && <p className="font-warning">This glyph is left without roots or refraction: too complex.</p>}
+        {stats?.tooComplex && (
+          <p className="font-warning">This glyph is left without roots or refraction: too complex.</p>
+        )}
       </div>
     </fieldset>
   )
@@ -845,12 +854,6 @@ function DissolveGroup({
   const update = (patch: Partial<DissolveParams>) => onChange({ ...params, ...patch })
   const off = disabled || !params.enabled
   const introHint = useHint()
-  const amountHint = useHint()
-  const grainHint = useHint()
-  const spreadHint = useHint()
-  const specksHint = useHint()
-  const curlHint = useHint()
-  const facetsHint = useHint()
 
   return (
     <fieldset className="group experimental" disabled={disabled}>
@@ -866,12 +869,17 @@ function DissolveGroup({
         </HintText>
 
         <div className="field field-toggle">
-          <input id="dissolve-enabled" type="checkbox" checked={params.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          <input
+            id="dissolve-enabled"
+            type="checkbox"
+            checked={params.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
           <label htmlFor="dissolve-enabled">Use dissolve</label>
           <LiveSwitch target="experimental.dissolve.enabled" />
         </div>
 
-        <RangeField
+        <SliderField
           id="dissolve-amount"
           target="experimental.dissolve.amount"
           label="Amount"
@@ -880,11 +888,10 @@ function DissolveGroup({
           unit="%"
           valueText={`${percent(params.amount)} percent`}
           disabled={off}
-          hint={amountHint}
-          hintText="How much ink is eaten away. 0%: a nearly solid letter with a ragged edge. 100%: only thin squiggles and rings are left."
+          hint="How much ink is eaten away. 0%: a nearly solid letter with a ragged edge. 100%: only thin squiggles and rings are left."
           onChange={(amount) => update({ amount })}
         />
-        <RangeField
+        <SliderField
           id="dissolve-grain"
           target="experimental.dissolve.grain"
           label="Grain"
@@ -893,11 +900,10 @@ function DissolveGroup({
           unit="% stroke"
           valueText={`${percent(params.grain)} percent of the stroke`}
           disabled={off}
-          hint={grainHint}
-          hintText="Size of the islands and rings, as a share of the stroke width. Small grain gives fine, busy ink; large grain gives a few coarse blobs."
+          hint="Size of the islands and rings, as a share of the stroke width. Small grain gives fine, busy ink; large grain gives a few coarse blobs."
           onChange={(grain) => update({ grain })}
         />
-        <RangeField
+        <SliderField
           id="dissolve-spread"
           target="experimental.dissolve.spread"
           label="Spread"
@@ -906,11 +912,10 @@ function DissolveGroup({
           unit="%"
           valueText={`${percent(params.spread)} percent`}
           disabled={off}
-          hint={spreadHint}
-          hintText="How far the ragged edge reaches past the outline, in half-strokes: at 100% it reaches half a stroke out."
+          hint="How far the ragged edge reaches past the outline, in half-strokes: at 100% it reaches half a stroke out."
           onChange={(spread) => update({ spread })}
         />
-        <RangeField
+        <SliderField
           id="dissolve-specks"
           target="experimental.dissolve.specks"
           label="Specks"
@@ -919,11 +924,10 @@ function DissolveGroup({
           unit="%"
           valueText={`${percent(params.specks)} percent`}
           disabled={off}
-          hint={specksHint}
-          hintText="How many loose specks lie just outside the strokes. 0%: none."
+          hint="How many loose specks lie just outside the strokes. 0%: none."
           onChange={(specks) => update({ specks })}
         />
-        <RangeField
+        <SliderField
           id="dissolve-curl"
           target="experimental.dissolve.curl"
           label="Curl"
@@ -932,11 +936,10 @@ function DissolveGroup({
           unit="%"
           valueText={`${percent(params.curl)} percent`}
           disabled={off}
-          hint={curlHint}
-          hintText="0%: plain blobs. 100%: the ink wanders into loops and rings."
+          hint="0%: plain blobs. 100%: the ink wanders into loops and rings."
           onChange={(curl) => update({ curl })}
         />
-        <RangeField
+        <SliderField
           id="dissolve-facets"
           target="experimental.dissolve.facets"
           label="Facets"
@@ -945,8 +948,7 @@ function DissolveGroup({
           unit="%"
           valueText={`${percent(params.facets)} percent`}
           disabled={off}
-          hint={facetsHint}
-          hintText="How long the straight edges are. 0%: short edges, still with clear corners. 100%: long edges, chunky shards; small rings close up."
+          hint="How long the straight edges are. 0%: short edges, still with clear corners. 100%: long edges, chunky shards; small rings close up."
           onChange={(facets) => update({ facets })}
         />
 
@@ -969,78 +971,14 @@ function DissolveGroup({
             </div>
           </dl>
         )}
-        {stats?.coarser && <p className="font-warning">This glyph is too large for the grain: it is dissolved more coarsely.</p>}
-        {stats?.reduced && <p className="font-warning">Longer facets on this glyph: these settings make too many vertices.</p>}
+        {stats?.coarser && (
+          <p className="font-warning">This glyph is too large for the grain: it is dissolved more coarsely.</p>
+        )}
+        {stats?.reduced && (
+          <p className="font-warning">Longer facets on this glyph: these settings make too many vertices.</p>
+        )}
       </div>
     </fieldset>
-  )
-}
-
-/**
- * A slider that is not linear: its range input's own range, how a value maps to a position on it and back, and
- * the value's own range and finest step, for its number box.
- */
-interface SliderCurve {
-  slider: SliderRange
-  toSlider: (value: number) => number
-  fromSlider: (position: number) => number
-  value: SliderRange
-}
-
-type RangeFieldProps = {
-  id: string
-  label: string
-  value: number
-  /** What the number box shows per unit of the value: 100 for a share shown in percent. */
-  scale?: number
-  unit?: string
-  valueText: string
-  disabled: boolean
-  hint?: HintState
-  hintText?: string
-  onChange: (value: number) => void
-} & (
-  /** The Sound target this slider is ("experimental.crumple.amount"): its range, and its live marker. */
-  | { target: SliderId; curve?: undefined }
-  /** A curved slider (Reach): its Sound target, for the live marker, and its curve. */
-  | { target: string; curve: SliderCurve }
-)
-
-/** A labelled slider with a number box for its value, the live marker while Sound drives it, and an optional ⓘ explanation. */
-function RangeField({ id, target, curve, label, value, scale, unit, valueText, disabled, hint, hintText, onChange }: RangeFieldProps) {
-  const range = curve ? curve.slider : SLIDER_RANGES[target]
-  return (
-    <div className="field">
-      <div className="field-head">
-        <span className="field-title">
-          <label htmlFor={id}>{label}</label>
-          {hint && <HintButton hint={hint} topic={label} />}
-        </span>
-        <SliderNumber
-          {...(curve ? curve.value : range)}
-          value={value}
-          scale={scale}
-          unit={unit}
-          label={label}
-          disabled={disabled}
-          onCommit={onChange}
-        />
-      </div>
-      <span className="live-slider">
-        <input
-          id={id}
-          type="range"
-          {...range}
-          value={curve ? curve.toSlider(value) : value}
-          disabled={disabled}
-          aria-valuetext={valueText}
-          aria-describedby={hint?.id}
-          onChange={(e) => onChange(curve ? curve.fromSlider(Number(e.target.value)) : Number(e.target.value))}
-        />
-        <LiveMarker target={target} />
-      </span>
-      {hint && hintText && <HintText hint={hint}>{hintText}</HintText>}
-    </div>
   )
 }
 
@@ -1092,11 +1030,13 @@ function EffectStats({ stats, pending, effect }: { stats: WarpStats | null; pend
       </dl>
       {stats.reducedContours > 0 && (
         <p className="font-warning">
-          {stats.reducedContours} {stats.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker {effect} to stay
-          valid.
+          {stats.reducedContours} {stats.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker {effect} to
+          stay valid.
         </p>
       )}
-      {stats.fallbackContours > 0 && <p className="font-warning">This glyph is left without {effect}: no strength kept it valid.</p>}
+      {stats.fallbackContours > 0 && (
+        <p className="font-warning">This glyph is left without {effect}: no strength kept it valid.</p>
+      )}
       {stats.tooComplex && <p className="font-warning">This glyph is left without {effect}: too complex.</p>}
     </>
   )

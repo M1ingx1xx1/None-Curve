@@ -4,7 +4,13 @@
 
 import type { PolygonGlyph, WhorlMotion } from '../../src/geometry/types'
 import { morphAt, type MorphPlan } from '../../src/specimen/morph'
-import { PLAN_DATA_VERSION, type MeshData, type PlanData, type StraightTrack, type WhorlTrack } from '../../src/specimen/planData'
+import {
+  PLAN_DATA_VERSION,
+  type MeshData,
+  type PlanData,
+  type StraightTrack,
+  type WhorlTrack,
+} from '../../src/specimen/planData'
 import { along, ringPolygon, STRAIGHT, turnAtSize, whorlTrajectory, whorlUnturn } from '../../src/specimen/trajectory'
 import { square } from './fixtures'
 
@@ -74,7 +80,17 @@ export function straightFixture(): PlanFixture {
     trajectory: 'straight',
     tracks: [
       { clockwise: false, sx, sy, tx, ty, kept, base, path: STRAIGHT.path(sx, sy, tx, ty), still: null },
-      { clockwise: false, sx: new Float64Array(0), sy: new Float64Array(0), tx: new Float64Array(0), ty: new Float64Array(0), kept: new Uint8Array(3).fill(1), base: new Uint8Array(0), path: null, still: to.contours[1] },
+      {
+        clockwise: false,
+        sx: new Float64Array(0),
+        sy: new Float64Array(0),
+        tx: new Float64Array(0),
+        ty: new Float64Array(0),
+        kept: new Uint8Array(3).fill(1),
+        base: new Uint8Array(0),
+        path: null,
+        still: to.contours[1],
+      },
     ],
     points: 7,
     xs: new Float64Array(4),
@@ -96,7 +112,15 @@ export const whorlMotion = (patch: Partial<WhorlMotion> = {}): WhorlMotion => ({
 })
 
 /** A Whorl track's arrays, worked out as whorlTrajectory's `path` works them out. */
-export function whorlTrackData(from: WhorlMotion | undefined, to: WhorlMotion | undefined, sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base: Uint8Array): { track: WhorlTrack; startX: number; startY: number; endX: number; endY: number; sidesA: number; sidesB: number } {
+export function whorlTrackData(
+  from: WhorlMotion | undefined,
+  to: WhorlMotion | undefined,
+  sx: Float64Array,
+  sy: Float64Array,
+  tx: Float64Array,
+  ty: Float64Array,
+  base: Uint8Array,
+): { track: WhorlTrack; startX: number; startY: number; endX: number; endY: number; sidesA: number; sidesB: number } {
   const start = (from ?? to)!
   const end = (to ?? from)!
   const ringA = ringPolygon(start.sides)
@@ -175,8 +199,8 @@ export function whorlFixture(two: boolean): PlanFixture {
   ]
   const sx = Float64Array.from(pts.map(([x]) => x + 10))
   const sy = Float64Array.from(pts.map(([, y]) => y + 20))
-  const tx = Float64Array.from(pts.map(([x, y]) => -y * 0.8 + 40))
-  const ty = Float64Array.from(pts.map(([x, y]) => x * 0.9 - 10))
+  const tx = Float64Array.from(pts.map(([, y]) => -y * 0.8 + 40))
+  const ty = Float64Array.from(pts.map(([x]) => x * 0.9 - 10))
   const base = Uint8Array.from([0, 0, 1, 0, 1, 0])
   const built = whorlTrackData(from, to, sx, sy, tx, ty, base)
   const data: PlanData = {
@@ -184,7 +208,14 @@ export function whorlFixture(two: boolean): PlanFixture {
     trajectory: 'whorl',
     points: sx.length,
     longest: sx.length,
-    whorl: { startX: built.startX, startY: built.startY, endX: built.endX, endY: built.endY, sidesA: built.sidesA, sidesB: built.sidesB },
+    whorl: {
+      startX: built.startX,
+      startY: built.startY,
+      endX: built.endX,
+      endY: built.endY,
+      sidesA: built.sidesA,
+      sidesB: built.sidesB,
+    },
     mesh: null,
     tracks: [built.track],
     settled: null,
@@ -278,7 +309,16 @@ export function meshFixture(): PlanFixture {
     startTurns: Float64Array.from([0, 0.1]),
     endTurns: Float64Array.from([0, 1.4]),
   }
-  const data: PlanData = { version: PLAN_DATA_VERSION, trajectory: 'whorl-mesh', points: 4, longest: 0, whorl: null, mesh, tracks: [], settled: null }
+  const data: PlanData = {
+    version: PLAN_DATA_VERSION,
+    trajectory: 'whorl-mesh',
+    points: 4,
+    longest: 0,
+    whorl: null,
+    mesh,
+    tracks: [],
+    settled: null,
+  }
   const g = glyph([
     [
       [centreX, centreY],
@@ -318,4 +358,9 @@ export function meshFixture(): PlanFixture {
   }
 }
 
-export const allFixtures = (): PlanFixture[] => [straightFixture(), whorlFixture(false), whorlFixture(true), meshFixture()]
+export const allFixtures = (): PlanFixture[] => [
+  straightFixture(),
+  whorlFixture(false),
+  whorlFixture(true),
+  meshFixture(),
+]

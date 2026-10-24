@@ -5,12 +5,21 @@
 // facet length, no run of gentle turns along short edges bends like an arc, and small specks have few corners.
 
 import { describe, expect, it } from 'vitest'
-import { applyDissolve, DISSOLVE_LIMITS, dissolveIsOn } from '../../src/geometry/dissolve'
-import { EXPERIMENTAL_LIMITS } from '../../src/geometry/experimental'
+import { applyDissolve } from '../../src/geometry/dissolve'
+import { DISSOLVE_LIMITS, dissolveIsOn, EXPERIMENTAL_LIMITS } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { DerivedGeometry, DissolveParams, GeometryParams, Point } from '../../src/geometry/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { allFinite, contoursOf, outlineCrossings, polygonOf, rect, sameContours, signedArea2, winding } from '../helpers/outline'
+import {
+  allFinite,
+  contoursOf,
+  outlineCrossings,
+  polygonOf,
+  rect,
+  sameContours,
+  signedArea2,
+  winding,
+} from '../helpers/outline'
 import { ALL_DEFAULT, ALL_MAX, BASE, GEOMETRY, on, paramsWith, SLIDER_MAX, withoutEffects } from '../helpers/params'
 
 const DISSOLVE = on('dissolve').dissolve!
@@ -27,7 +36,8 @@ const SETTINGS: [string, Partial<DissolveParams>][] = [
   ['slider max', SLIDER_MAX.dissolve.dissolve!],
 ]
 
-const withDissolve = (patch: Partial<DissolveParams>, seed = 1): GeometryParams => paramsWith(GEOMETRY.plain, on('dissolve', patch), seed)
+const withDissolve = (patch: Partial<DissolveParams>, seed = 1): GeometryParams =>
+  paramsWith(GEOMETRY.plain, on('dissolve', patch), seed)
 
 /** How far the ring turns at each vertex, in degrees (positive to the left), and the edge from it. */
 function shape(ring: readonly Point[]) {
@@ -60,22 +70,35 @@ function problems(derived: DerivedGeometry, label: string): string[] {
     const n = ring.length
     edgeCount += n
     if (n < 3) out.push(`${label}: contour ${c} has ${n} points`)
-    if (derived.polygon.contours[c].clockwise !== signedArea2(ring) < 0) out.push(`${label}: contour ${c} has the wrong direction flag`)
+    if (derived.polygon.contours[c].clockwise !== signedArea2(ring) < 0)
+      out.push(`${label}: contour ${c} has the wrong direction flag`)
     for (let k = 0; k < n; k++) {
       // No edge shorter than a tenth of a facet; one shorter than half is rare (see below).
-      if (edges[k] < 0.1 * facet) out.push(`${label}: contour ${c} has an edge of ${edges[k].toFixed(2)} u (facet ${facet.toFixed(1)} u)`)
+      if (edges[k] < 0.1 * facet)
+        out.push(`${label}: contour ${c} has an edge of ${edges[k].toFixed(2)} u (facet ${facet.toFixed(1)} u)`)
       if (edges[k] < 0.5 * facet) short++
       // An arc: three vertices in a row turning the same way, each by less than 40°, along edges under 1.25 facets.
-      const gentle = (j: number) => Math.abs(turns[j % n]) < 40 && edges[j % n] < 1.25 * facet && edges[(j - 1 + n) % n] < 1.25 * facet
-      if (n > 3 && gentle(k) && gentle(k + 1) && gentle(k + 2) && Math.sign(turns[k]) === Math.sign(turns[(k + 1) % n]) && Math.sign(turns[k]) === Math.sign(turns[(k + 2) % n])) {
-        out.push(`${label}: contour ${c} bends like an arc at ${k} (turns ${[0, 1, 2].map((j) => turns[(k + j) % n].toFixed(0)).join(', ')}°)`)
+      const gentle = (j: number) =>
+        Math.abs(turns[j % n]) < 40 && edges[j % n] < 1.25 * facet && edges[(j - 1 + n) % n] < 1.25 * facet
+      if (
+        n > 3 &&
+        gentle(k) &&
+        gentle(k + 1) &&
+        gentle(k + 2) &&
+        Math.sign(turns[k]) === Math.sign(turns[(k + 1) % n]) &&
+        Math.sign(turns[k]) === Math.sign(turns[(k + 2) % n])
+      ) {
+        out.push(
+          `${label}: contour ${c} bends like an arc at ${k} (turns ${[0, 1, 2].map((j) => turns[(k + j) % n].toFixed(0)).join(', ')}°)`,
+        )
       }
     }
     // A small speck is a triangle, quadrilateral, pentagon or hexagon.
     const area = signedArea2(ring) / 2
     if (area > 0 && area < 0.5 * facet * facet && n > 6) out.push(`${label}: speck ${c} has ${n} corners`)
   }
-  if (short > Math.max(2, 0.003 * edgeCount)) out.push(`${label}: ${short} of ${edgeCount} edges shorter than half a facet`)
+  if (short > Math.max(2, 0.003 * edgeCount))
+    out.push(`${label}: ${short} of ${edgeCount} edges shorter than half a facet`)
   // Ink on the left of every edge and none on the right (a sample of edges): winding 1 and 0, never anything else.
   const eps = 1e-3
   for (const ring of contours) {
@@ -112,7 +135,9 @@ describe('applyDissolve', () => {
     const result = applyDissolve(square, DISSOLVE, 1, 1000)
     expect(result.stats.applied).toBe(true)
     expect(result.stats.islands).toBeGreaterThan(0)
-    expect(problems({ polygon: result.polygon, experimental: { dissolve: result.stats } } as DerivedGeometry, 'square')).toEqual([])
+    expect(
+      problems({ polygon: result.polygon, experimental: { dissolve: result.stats } } as DerivedGeometry, 'square'),
+    ).toEqual([])
     // Two overlapping squares the same way round fill like their union: the result does not cross either.
     const overlapping = applyDissolve(polygonOf([rect(0, 0, 300, 300), rect(150, 150, 450, 450)]), DISSOLVE, 1, 1000)
     expect(outlineCrossings(contoursOf(overlapping.polygon)).cross).toBe(0)
@@ -127,13 +152,28 @@ describe.each(FIXTURE_FONTS)('Dissolve: %s', (fontName) => {
     const font = await loadFixture(fontName)
     for (const effects of [{}, ALL_DEFAULT]) {
       const off = withoutEffects(paramsWith(GEOMETRY.plain, effects))
-      const others = { ...off, experimental: { ...off.experimental, ...effects, dissolve: { ...DISSOLVE, enabled: false, amount: 0.9, grain: 0.2 } } }
+      const others = {
+        ...off,
+        experimental: {
+          ...off.experimental,
+          ...effects,
+          dissolve: { ...DISSOLVE, enabled: false, amount: 0.9, grain: 0.2 },
+        },
+      }
       // Older saved settings have no Dissolve at all.
       const { dissolve: _, ...older } = others.experimental
       const without = { ...others, experimental: { ...older, dissolve: undefined } } as unknown as GeometryParams
       for (const g of sampleGlyphs(font, 'agQ@')) {
-        const reference = contoursOf(deriveGeometry(font.getGlyph(g.index), { ...others, experimental: { ...others.experimental, dissolve: { ...DISSOLVE, enabled: false } } }).polygon)
-        expect(sameContours(contoursOf(deriveGeometry(font.getGlyph(g.index), others).polygon), reference), g.char).toBe(true)
+        const reference = contoursOf(
+          deriveGeometry(font.getGlyph(g.index), {
+            ...others,
+            experimental: { ...others.experimental, dissolve: { ...DISSOLVE, enabled: false } },
+          }).polygon,
+        )
+        expect(
+          sameContours(contoursOf(deriveGeometry(font.getGlyph(g.index), others).polygon), reference),
+          g.char,
+        ).toBe(true)
         const derived = deriveGeometry(font.getGlyph(g.index), without)
         expect(sameContours(contoursOf(derived.polygon), reference), g.char).toBe(true)
         expect(derived.experimental.dissolve.applied).toBe(false)
@@ -145,8 +185,14 @@ describe.each(FIXTURE_FONTS)('Dissolve: %s', (fontName) => {
     const font = await loadFixture(fontName)
     for (const g of sampleGlyphs(font, 'aQ8')) {
       const a = contoursOf(deriveGeometry(font.getGlyph(g.index), withDissolve({}, 1)).polygon)
-      expect(sameContours(contoursOf(deriveGeometry(font.getGlyph(g.index), withDissolve({}, 1)).polygon), a), g.char).toBe(true)
-      expect(sameContours(contoursOf(deriveGeometry(font.getGlyph(g.index), withDissolve({}, 2)).polygon), a), g.char).toBe(false)
+      expect(
+        sameContours(contoursOf(deriveGeometry(font.getGlyph(g.index), withDissolve({}, 1)).polygon), a),
+        g.char,
+      ).toBe(true)
+      expect(
+        sameContours(contoursOf(deriveGeometry(font.getGlyph(g.index), withDissolve({}, 2)).polygon), a),
+        g.char,
+      ).toBe(false)
     }
   })
 
@@ -177,7 +223,12 @@ describe.each(FIXTURE_FONTS)('Dissolve: %s', (fontName) => {
     const found: string[] = []
     for (const geometry of ['dense', 'heavy'] as const) {
       for (const index of BOW_TIES[fontName]?.[geometry] ?? []) {
-        found.push(...problems(deriveGeometry(font.getGlyph(index), paramsWith(GEOMETRY[geometry], ALL_DEFAULT)), `${geometry} #${index}`))
+        found.push(
+          ...problems(
+            deriveGeometry(font.getGlyph(index), paramsWith(GEOMETRY[geometry], ALL_DEFAULT)),
+            `${geometry} #${index}`,
+          ),
+        )
       }
     }
     expect(found).toEqual([])
@@ -207,7 +258,7 @@ describe.each(FIXTURE_FONTS)('Dissolve: %s', (fontName) => {
       }
     }
     // The defaults stay well within it, without coarser facets.
-    for (const g of sampleGlyphs(font, 'gQ@')) expect(deriveGeometry(font.getGlyph(g.index), withDissolve({})).experimental.dissolve.reduced, g.char).toBe(false)
+    for (const g of sampleGlyphs(font, 'gQ@'))
+      expect(deriveGeometry(font.getGlyph(g.index), withDissolve({})).experimental.dissolve.reduced, g.char).toBe(false)
   })
 })
-

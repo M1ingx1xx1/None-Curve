@@ -29,7 +29,8 @@ export function patchFont(bytes: ArrayBuffer, patch: FontPatch): ArrayBuffer {
   edit('head', (view) => {
     patch.fontBBox.forEach((value, k) => {
       // DataView wraps values that do not fit without a word; a wrapped box makes font engines reject the file.
-      if (!(Number.isInteger(value) && value >= -32768 && value <= 32767)) throw new Error(`the bounding box (${patch.fontBBox.join(' ')}) does not fit in head`)
+      if (!(Number.isInteger(value) && value >= -32768 && value <= 32767))
+        throw new Error(`the bounding box (${patch.fontBBox.join(' ')}) does not fit in head`)
       view.setInt16(36 + 2 * k, value)
     })
     view.setUint16(44, patch.macStyle)
@@ -98,7 +99,10 @@ export function writeTables(flavor: number, tables: Map<string, Uint8Array>): Ar
 // ---- CFF ----
 
 /** An INDEX at `offset`: where its data starts and where the whole INDEX ends. */
-function readIndex(data: Uint8Array, offset: number): { count: number; offSize: number; offsets: number[]; dataStart: number; end: number } {
+function readIndex(
+  data: Uint8Array,
+  offset: number,
+): { count: number; offSize: number; offsets: number[]; dataStart: number; end: number } {
   const count = (data[offset] << 8) | data[offset + 1]
   if (count === 0) return { count, offSize: 0, offsets: [], dataStart: offset + 2, end: offset + 2 }
   const offSize = data[offset + 2]
@@ -124,7 +128,7 @@ function readDict(bytes: Uint8Array): DictEntry[] {
   const entries: DictEntry[] = []
   let raw: number[] = []
   let operands: number[] = []
-  for (let i = 0; i < bytes.length; ) {
+  for (let i = 0; i < bytes.length;) {
     const b = bytes[i]
     if (b <= 21) {
       const operator = b === 12 ? [b, bytes[i + 1]] : [b]
@@ -134,7 +138,7 @@ function readDict(bytes: Uint8Array): DictEntry[] {
       i += operator.length
     } else if (b === 28) {
       raw.push(...bytes.slice(i, i + 3))
-      operands.push(((bytes[i + 1] << 8) | bytes[i + 2]) << 16 >> 16)
+      operands.push((((bytes[i + 1] << 8) | bytes[i + 2]) << 16) >> 16)
       i += 3
     } else if (b === 29) {
       raw.push(...bytes.slice(i, i + 5))
@@ -143,7 +147,7 @@ function readDict(bytes: Uint8Array): DictEntry[] {
     } else if (b === 30) {
       // Real number: nibbles until one is 0xf.
       let end = i + 1
-      while (end < bytes.length && (bytes[end] & 0x0f) !== 0x0f && (bytes[end] >> 4) !== 0x0f) end++
+      while (end < bytes.length && (bytes[end] & 0x0f) !== 0x0f && bytes[end] >> 4 !== 0x0f) end++
       raw.push(...bytes.slice(i, end + 1))
       operands.push(NaN)
       i = end + 1
@@ -192,7 +196,8 @@ function setCffFontBBox(cff: Uint8Array, bbox: [number, number, number, number])
   const top = readIndex(cff, names.end)
   if (top.count !== 1) throw new Error('expected one font in the CFF table')
   const dict = readDict(cff.slice(top.dataStart + top.offsets[0], top.dataStart + top.offsets[1]))
-  if (!dict.some((e) => e.operator[0] === FONT_BBOX && e.operator.length === 1)) dict.unshift({ operator: [FONT_BBOX], raw: [], operands: [] })
+  if (!dict.some((e) => e.operator[0] === FONT_BBOX && e.operator.length === 1))
+    dict.unshift({ operator: [FONT_BBOX], raw: [], operands: [] })
 
   const encode = (shift: number) =>
     dict.flatMap((e) => {
@@ -201,7 +206,8 @@ function setCffFontBBox(cff: Uint8Array, bbox: [number, number, number, number])
       if (op === CHARSET || op === CHAR_STRINGS || (op === ENCODING && e.operands[0] > 1)) {
         return [...encodeInteger(e.operands[0] + shift, true), ...e.operator]
       }
-      if (op === PRIVATE) return [...encodeInteger(e.operands[0]), ...encodeInteger(e.operands[1] + shift, true), ...e.operator]
+      if (op === PRIVATE)
+        return [...encodeInteger(e.operands[0]), ...encodeInteger(e.operands[1] + shift, true), ...e.operator]
       return [...e.raw, ...e.operator]
     })
 

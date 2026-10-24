@@ -20,7 +20,13 @@ import {
   type TextPosition,
   type TypographyParams,
 } from '../../src/specimen/artboard'
-import { placePolygons, PLAIN_LAYOUT, shapeSpecimen, type ShapedSpecimen, type SpecimenScene } from '../../src/specimen/scene'
+import {
+  placePolygons,
+  PLAIN_LAYOUT,
+  shapeSpecimen,
+  type ShapedSpecimen,
+  type SpecimenScene,
+} from '../../src/specimen/scene'
 import { loadFixture } from '../helpers/fonts'
 import { BASE, on, paramsWith } from '../helpers/params'
 
@@ -49,10 +55,21 @@ const spike = (x: number, y: number): PolygonContour => ({
   clockwise: false,
 })
 
-function polygon(contours: PolygonContour[], layoutBox: PolygonGlyph['layoutBox'] | null = null, layoutHull: Point[] | null = null): PolygonGlyph {
+function polygon(
+  contours: PolygonContour[],
+  layoutBox: PolygonGlyph['layoutBox'] | null = null,
+  layoutHull: Point[] | null = null,
+): PolygonGlyph {
   return {
     ref: { index: 0, name: '', unicode: null },
-    metrics: { unitsPerEm: UPM, advanceWidth: 700, leftSideBearing: 50, rightSideBearing: 50, ascender: ASCENDER, descender: DESCENDER },
+    metrics: {
+      unitsPerEm: UPM,
+      advanceWidth: 700,
+      leftSideBearing: 50,
+      rightSideBearing: 50,
+      ascender: ASCENDER,
+      descender: DESCENDER,
+    },
     contours,
     ...(layoutBox ? { layoutBox } : {}),
     ...(layoutHull ? { layoutHull } : {}),
@@ -90,7 +107,10 @@ const I = polygon([rect(50, 0, 250, 700)])
 /** H with thorns: one far to the right, one far up and to the left, each `reach` font units long. With a layout
     box (the letter before the thorns) as Thorn sets it, or with null, none (as if another effect had grown them). */
 const thorned = (reach: number, layoutBox: PolygonGlyph['layoutBox'] | null = BODY) =>
-  polygon([rect(BODY.minX, BODY.minY, BODY.maxX, BODY.maxY), spike(600 + reach, 350), spike(600 - reach, 350 + reach)], layoutBox)
+  polygon(
+    [rect(BODY.minX, BODY.minY, BODY.maxX, BODY.maxY), spike(600 + reach, 350), spike(600 - reach, 350 + reach)],
+    layoutBox,
+  )
 
 function scene(h: PolygonGlyph, options: { slant?: number; lines?: number } = {}): SpecimenScene {
   return placePolygons(shaped(options.slant, options.lines), (index) => ({ polygon: index === 1 ? h : I }))
@@ -146,7 +166,8 @@ describe('scene body', () => {
     const letter: PolygonContour = { points: corners, clockwise: false }
     const outline = [letter, spike(30_000, 350), spike(-30_000, 30_000)]
     // The glyph's body on its own (the other glyph not computed yet).
-    const body = (h: PolygonGlyph, slant = 0) => placePolygons(shaped(slant), (index) => (index === 1 ? { polygon: h } : null)).body!
+    const body = (h: PolygonGlyph, slant = 0) =>
+      placePolygons(shaped(slant), (index) => (index === 1 ? { polygon: h } : null)).body!
     const plain = polygon([letter])
     const spiky = polygon(outline, BODY, corners)
     const noHull = polygon(outline, BODY)
@@ -250,7 +271,14 @@ describe('Fit text', () => {
     const wide = scene(thorned(5000, null))
     const { minX, minY, maxX, maxY } = wide.ink!
     const size = fitTextSize(wide, typography(), DEFAULT_ARTBOARD, UPM)
-    expect(size).toBe(Math.floor(Math.min(((DEFAULT_ARTBOARD.width - 50) * UPM) / (maxX - minX), ((DEFAULT_ARTBOARD.height - 50) * UPM) / (maxY - minY))))
+    expect(size).toBe(
+      Math.floor(
+        Math.min(
+          ((DEFAULT_ARTBOARD.width - 50) * UPM) / (maxX - minX),
+          ((DEFAULT_ARTBOARD.height - 50) * UPM) / (maxY - minY),
+        ),
+      ),
+    )
   })
 })
 
@@ -277,7 +305,12 @@ describe('overflow warning', () => {
     // The same placement with a glyph that reaches 30 em to the right, and no layout box: past the edge.
     const wide = scene(polygon([rect(BODY.minX, BODY.minY, BODY.maxX, BODY.maxY), spike(30_000, 350)]))
     expect(textOverflows(wide, layout)).toBe(true)
-    expect(textOverflows(placePolygons(shaped(), () => null), layout)).toBe(false)
+    expect(
+      textOverflows(
+        placePolygons(shaped(), () => null),
+        layout,
+      ),
+    ).toBe(false)
   })
 })
 
@@ -301,7 +334,9 @@ describe('Thorn on a real font, slanted', () => {
       for (const size of [48, 200]) {
         for (const position of POSITIONS) {
           const t = typography({ size, position, freeX: 0.3, freeY: 0.8 })
-          expect(layoutArtboard(spiky, t, DEFAULT_ARTBOARD, upm), `${slant}°, ${position} at ${size}`).toEqual(layoutArtboard(plain, t, DEFAULT_ARTBOARD, upm))
+          expect(layoutArtboard(spiky, t, DEFAULT_ARTBOARD, upm), `${slant}°, ${position} at ${size}`).toEqual(
+            layoutArtboard(plain, t, DEFAULT_ARTBOARD, upm),
+          )
         }
       }
       const fitted = fitTextSize(plain, typography(), DEFAULT_ARTBOARD, upm)

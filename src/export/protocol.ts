@@ -3,7 +3,7 @@
 
 import type { FontSource } from '../font/model'
 import type { GeometryParams, GlyphMetrics, GlyphRef, PolygonGlyph } from '../geometry/types'
-import type { FontExportPlan, FontExportResult, FontExportStage, FontNaming, KnownGlyph } from './fontFile'
+import type { FontExportPlan, FontExportResult, FontExportStage, FontNaming, KnownGlyph } from './fontPlan'
 
 /** Known glyphs (KnownGlyph by source glyph index) as flat arrays. */
 export interface PackedGlyphs {

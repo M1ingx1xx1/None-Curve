@@ -120,7 +120,8 @@ function prepare(outline: Point[][], mesh: WhorlMesh): Prepared {
   }
   const corners = mesh.cornerX.length
   const cornerAngle = new Float64Array(corners)
-  for (let c = 0; c < corners; c++) cornerAngle[c] = Math.atan2(mesh.cornerY[c] - mesh.centre.y, mesh.cornerX[c] - mesh.centre.x)
+  for (let c = 0; c < corners; c++)
+    cornerAngle[c] = Math.atan2(mesh.cornerY[c] - mesh.centre.y, mesh.cornerX[c] - mesh.centre.x)
   const result: Prepared = {
     mesh,
     ring: ringPolygon(mesh.sides),
@@ -151,10 +152,12 @@ function poseOf(p: Prepared, turns: Float64Array): MeshPose {
     out[0][i] = mesh.centre.x + Math.cos(angle) * dx - Math.sin(angle) * dy
     out[1][i] = mesh.centre.y + Math.sin(angle) * dx + Math.cos(angle) * dy
   }
-  for (let c = 0; c < corners; c++) rotate(mesh.cornerX[c], mesh.cornerY[c], turn(mesh.cornerRing[c]), [cornerX, cornerY], c)
+  for (let c = 0; c < corners; c++)
+    rotate(mesh.cornerX[c], mesh.cornerY[c], turn(mesh.cornerRing[c]), [cornerX, cornerY], c)
   const outerX = new Float64Array(p.outer.length)
   const outerY = new Float64Array(p.outer.length)
-  for (let o = 0; o < p.outer.length; o++) rotate(p.preX[p.outer[o]], p.preY[p.outer[o]], turn(mesh.rings), [outerX, outerY], o)
+  for (let o = 0; o < p.outer.length; o++)
+    rotate(p.preX[p.outer[o]], p.preY[p.outer[o]], turn(mesh.rings), [outerX, outerY], o)
   return { prepared: p, turns, cornerX, cornerY, outerX, outerY }
 }
 
@@ -170,15 +173,34 @@ function turnsOf(w: WhorlMotion | undefined, rings: number): Float64Array {
  * corners are shown when `from` is an in-between shape of such a glide; `inBetween`: `from` is an in-between shape
  * (of any glide), which only a pose can continue.
  */
-export function planWhorlMesh(from: PolygonGlyph, to: PolygonGlyph, pose: MeshPose | undefined, inBetween: boolean): MeshGlide | null {
+export function planWhorlMesh(
+  from: PolygonGlyph,
+  to: PolygonGlyph,
+  pose: MeshPose | undefined,
+  inBetween: boolean,
+): MeshGlide | null {
   const a = from.motion?.whorl
   const b = to.motion?.whorl
   const on = b ?? a
   if (!on?.outline) return null
   // Whorl alone, on whichever side it is on; the side without it shows the very letter Whorl turns.
   for (const w of [a, b]) if (w && (!w.last || !w.outline || !sameOutline(w.outline, on.outline))) return null
-  if (!a && !sameOutline(from.contours.map((c) => c.points), on.outline)) return null
-  if (!b && !sameOutline(to.contours.map((c) => c.points), on.outline)) return null
+  if (
+    !a &&
+    !sameOutline(
+      from.contours.map((c) => c.points),
+      on.outline,
+    )
+  )
+    return null
+  if (
+    !b &&
+    !sameOutline(
+      to.contours.map((c) => c.points),
+      on.outline,
+    )
+  )
+    return null
   if (a && b && a.amount === b.amount && a.pinned === b.pinned && !pose) return null
   const meshA = a ? whorlMesh(a) : null
   const meshB = b ? whorlMesh(b) : null
@@ -338,7 +360,14 @@ export function preparedFor(meshKey: string, from: PolygonGlyph | null, to: Poly
 
 /** A mesh pose sent by value (planCodec.ts), back onto this side's prepared letter; null when the mesh differs. */
 export function poseFrom(
-  encoded: { meshKey: string; turns: Float64Array; cornerX: Float64Array; cornerY: Float64Array; outerX: Float64Array; outerY: Float64Array },
+  encoded: {
+    meshKey: string
+    turns: Float64Array
+    cornerX: Float64Array
+    cornerY: Float64Array
+    outerX: Float64Array
+    outerY: Float64Array
+  },
   glyph: PolygonGlyph,
 ): MeshPose | null {
   const p = preparedFor(encoded.meshKey, null, glyph)

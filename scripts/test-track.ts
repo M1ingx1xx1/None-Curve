@@ -138,7 +138,8 @@ function renderStereo(sr: number): [Int16Array, Int16Array] {
     if (i >= 0 && i < m) channel[i] += v
   }
   // 0 → 1 over `ms` after a, 1 → 0 over `ms` before b.
-  const fade = (t: number, a: number, b: number, ms: number) => Math.max(0, Math.min(1, (t - a) / (ms / 1000), (b - t) / (ms / 1000)))
+  const fade = (t: number, a: number, b: number, ms: number) =>
+    Math.max(0, Math.min(1, (t - a) / (ms / 1000), (b - t) / (ms / 1000)))
 
   // 26–32 s: melody, A2 A3 A4 A5 A4 A3, twice; 5 harmonics at 1/h (a band-limited, mellow sawtooth).
   const notes = [110, 220, 440, 880, 440, 220, 110, 220, 440, 880, 440, 220]
@@ -185,7 +186,8 @@ function renderStereo(sr: number): [Int16Array, Int16Array] {
   const limit = Math.round(10 ** (-1 / 20) * 32767)
   const pcm: [Int16Array, Int16Array] = [toPcm(left), toPcm(right)]
   for (const channel of pcm) {
-    for (const v of channel) if (Math.abs(v) > limit) throw new Error(`Test track: peak ${Math.abs(v)} above -1 dBFS (${limit})`)
+    for (const v of channel)
+      if (Math.abs(v) > limit) throw new Error(`Test track: peak ${Math.abs(v)} above -1 dBFS (${limit})`)
   }
   return pcm
 }

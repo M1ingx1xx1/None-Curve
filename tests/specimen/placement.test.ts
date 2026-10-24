@@ -30,7 +30,14 @@ const rect = (minX: number, minY: number, maxX: number, maxY: number): PolygonCo
 
 const polygon = (...contours: PolygonContour[]): PolygonGlyph => ({
   ref: { index: 0, name: '', unicode: null },
-  metrics: { unitsPerEm: UPM, advanceWidth: 700, leftSideBearing: 50, rightSideBearing: 50, ascender: 800, descender: -200 },
+  metrics: {
+    unitsPerEm: UPM,
+    advanceWidth: 700,
+    leftSideBearing: 50,
+    rightSideBearing: 50,
+    ascender: 800,
+    descender: -200,
+  },
   contours,
 })
 
@@ -70,9 +77,11 @@ const LIVE: [PolygonGlyph, PolygonGlyph][] = [
   [H, polygon(rect(50, 0, 250, 700), rect(100, -400, 200, 0))],
 ]
 
-const scene = (s: ShapedSpecimen, [h, i]: [PolygonGlyph, PolygonGlyph]) => placePolygons(s, (index) => ({ polygon: index === 1 ? h : i }))
+const scene = (s: ShapedSpecimen, [h, i]: [PolygonGlyph, PolygonGlyph]) =>
+  placePolygons(s, (index) => ({ polygon: index === 1 ? h : i }))
 /** The sliders' letters with glyph 2 missing, stale (an earlier shape standing in), or failed. */
-const partial = (s: ShapedSpecimen, two: ReturnType<PolygonLookup>) => placePolygons(s, (index) => (index === 1 ? { polygon: H } : two))
+const partial = (s: ShapedSpecimen, two: ReturnType<PolygonLookup>) =>
+  placePolygons(s, (index) => (index === 1 ? { polygon: H } : two))
 
 const typography = (patch: Partial<TypographyParams> = {}): TypographyParams => ({ ...DEFAULT_TYPOGRAPHY, ...patch })
 const POSITIONS: TextPosition[] = [...TEXT_ANCHORS, 'free']
@@ -87,7 +96,7 @@ describe('placementScene', () => {
     expect(placementScene(shown, false, s, null, null)).toBe(shown)
   })
 
-  it('places the block by the sliders\' letters while Sound drives them, so live frames never move it', () => {
+  it("places the block by the sliders' letters while Sound drives them, so live frames never move it", () => {
     for (const slant of [0, 14, -20]) {
       const s = shaped(slant)
       const slider = scene(s, [H, I])
@@ -119,7 +128,7 @@ describe('placementScene', () => {
     expect(placementScene(scene(s, LIVE[1]), true, s, slider, null)).toBe(slider)
   })
 
-  it('keeps the sliders\' letters last set for the same shaped text while new ones are computed', () => {
+  it("keeps the sliders' letters last set for the same shaped text while new ones are computed", () => {
     const s = shaped()
     const last = { shaped: s, scene: scene(s, [H, I]) }
     const live = scene(s, LIVE[2])
@@ -132,7 +141,7 @@ describe('placementScene', () => {
     expect(placementScene(live, true, s, null, last)).toBe(last.scene)
   })
 
-  it('falls back to the live scene with no sliders\' letters for this shaped text', () => {
+  it("falls back to the live scene with no sliders' letters for this shaped text", () => {
     const s = shaped()
     const live = scene(s, LIVE[3])
     const pending = partial(s, null)

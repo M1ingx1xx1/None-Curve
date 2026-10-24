@@ -101,7 +101,9 @@ function FontSummary({ font, busy, onFace }: { font: LoadedFont; busy: boolean; 
           </ul>
           <p className="font-warning">
             {font.instance
-              ? `Outlines use ${Object.entries(font.instance).map(([tag, value]) => `${tag} ${value}`).join(', ')}; other axes stay at their defaults.`
+              ? `Outlines use ${Object.entries(font.instance)
+                  .map(([tag, value]) => `${tag} ${value}`)
+                  .join(', ')}; other axes stay at their defaults.`
               : 'Outlines show the default instance.'}
           </p>
         </div>

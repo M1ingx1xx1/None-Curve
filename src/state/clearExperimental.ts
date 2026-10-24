@@ -38,7 +38,10 @@ const CLEARED: Omit<ExperimentalParams, 'seed'> = Object.fromEntries(
   EFFECTS.map((effect) => [
     effect,
     Object.fromEntries(
-      Object.entries(TEMPLATE[effect]).map(([key, value]) => [key, typeof value === 'boolean' ? false : clearedSliderValue(`experimental.${effect}.${key}`)]),
+      Object.entries(TEMPLATE[effect]).map(([key, value]) => [
+        key,
+        typeof value === 'boolean' ? false : clearedSliderValue(`experimental.${effect}.${key}`),
+      ]),
     ),
   ]),
 ) as unknown as Omit<ExperimentalParams, 'seed'>

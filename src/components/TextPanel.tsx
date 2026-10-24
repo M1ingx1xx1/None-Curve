@@ -58,7 +58,8 @@ export default function TextPanel({
   if (scene) {
     notes.push(`${scene.glyphCount} glyphs in ${scene.lines.length} line${scene.lines.length === 1 ? '' : 's'}`)
     notes.push(scene.kerning ? 'kerning from the font applied' : 'this font has no kerning data')
-    if (scene.failedGlyphs) notes.push(`${scene.failedGlyphs} glyph${scene.failedGlyphs === 1 ? '' : 's'} failed to process`)
+    if (scene.failedGlyphs)
+      notes.push(`${scene.failedGlyphs} glyph${scene.failedGlyphs === 1 ? '' : 's'} failed to process`)
   }
 
   return (

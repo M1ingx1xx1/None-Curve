@@ -60,7 +60,6 @@ export interface ShapedGlyph {
   missing: boolean
 }
 
-
 /** Name table entries copied into an exported font (name IDs 0, 5, 7–14). */
 export type FontNameKey =
   | 'copyright'

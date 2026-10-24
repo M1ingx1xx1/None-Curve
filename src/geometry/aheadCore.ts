@@ -153,7 +153,15 @@ export class AheadCore {
    * Steps `lineage` to commit `seq` (at `mediaMs`) into the glyph `key`/`index`, going on from `parent`'s glide (-1:
    * none). The commit's glyphs are stored before its steps run.
    */
-  step(seq: number, mediaMs: number, lineage: number, parent: number, index: number, key: string, glideMs: number): StepRecord {
+  step(
+    seq: number,
+    mediaMs: number,
+    lineage: number,
+    parent: number,
+    index: number,
+    key: string,
+    glideMs: number,
+  ): StepRecord {
     const stored = this.get(key, index, seq, mediaMs)
     // Unpacked only when a glide is planned into it: an unchanged step costs no polygon.
     let polygon: PolygonGlyph | null | undefined
@@ -165,11 +173,14 @@ export class AheadCore {
     if (parent < 0) return settle(null, { lineage, from: computed, data: null, unchanged: true })
     const prev = this.chains.get(parent)
     // The parent's state or a glyph is gone (a restarted worker, the store's limit): the page pairs this glyph itself.
-    if (!prev || prev.entry === undefined || stored === undefined) return settle(null, { lineage, from: { kind: 'value' }, data: null })
+    if (!prev || prev.entry === undefined || stored === undefined)
+      return settle(null, { lineage, from: { kind: 'value' }, data: null })
     // What the page shows at `mediaMs`, as SceneGlide.shown works it out.
     const q = prev.plan && glideMs > 0 ? easeOut((mediaMs - prev.start) / glideMs) : 1
     const arrived = !prev.plan || q >= GLIDE_LIMITS.arrived
-    const from: PlanFrom = arrived ? { kind: 'computed', key: prev.key } : { kind: 'between', lineage: parent, seq: prev.seq, q }
+    const from: PlanFrom = arrived
+      ? { kind: 'computed', key: prev.key }
+      : { kind: 'between', lineage: parent, seq: prev.seq, q }
     // Not reshaped (arrived at the same stored glyph: one key and glyph id): nothing glides.
     const same = arrived && prev.key === key && prev.index === index
     if (same || glideMs <= 0) {
@@ -184,7 +195,11 @@ export class AheadCore {
     const plan = planMorph(settled, to)
     if (!plan) return settle(null, { lineage, from, data: null })
     const { data } = encodePlan(plan)
-    return settle(plan, { lineage, from, data: settled === shown ? data : { ...data, settled: encodeSettled(settled) } })
+    return settle(plan, {
+      lineage,
+      from,
+      data: settled === shown ? data : { ...data, settled: encodeSettled(settled) },
+    })
   }
 
   /**
@@ -194,7 +209,8 @@ export class AheadCore {
   release(beforeSeq: number) {
     const parents = new Set<number>()
     for (const state of this.chains.values()) if (state.seq >= beforeSeq && state.parent >= 0) parents.add(state.parent)
-    for (const [lineage, state] of this.chains) if (state.seq < beforeSeq && !parents.has(lineage)) this.chains.delete(lineage)
+    for (const [lineage, state] of this.chains)
+      if (state.seq < beforeSeq && !parents.has(lineage)) this.chains.delete(lineage)
     for (const [id, stored] of this.glyphs) {
       if (stored.seq >= beforeSeq) continue
       this.glyphs.delete(id)
@@ -212,6 +228,7 @@ export class AheadCore {
 
 /** The polygon a chain glided into, unpacked once (null: the glyph failed). */
 function targetOf(state: ChainState): PolygonGlyph | null {
-  if (state.polygon === undefined) state.polygon = state.entry && 'packed' in state.entry ? unpackGeometry(state.entry.packed).polygon : null
+  if (state.polygon === undefined)
+    state.polygon = state.entry && 'packed' in state.entry ? unpackGeometry(state.entry.packed).polygon : null
   return state.polygon
 }

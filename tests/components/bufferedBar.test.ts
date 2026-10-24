@@ -26,7 +26,13 @@ describe('buffered bar shares', () => {
 
   it('gives the plan and the ready spans as shares, clamped and without empty spans', () => {
     const shares = bufferShares(snapshot(40_000, [0, 10_000, 20_000, 20_000, 90_000, 120_000]))
-    expect(shares).toEqual({ planned: 0.4, ready: [[0, 0.1], [0.9, 1]] })
+    expect(shares).toEqual({
+      planned: 0.4,
+      ready: [
+        [0, 0.1],
+        [0.9, 1],
+      ],
+    })
   })
 })
 
@@ -37,8 +43,12 @@ describe('buffered bar description', () => {
 
   it('names how far the moves are worked out and the ready span around the position', () => {
     const s = snapshot(70_000, [5_000, 35_000])
-    expect(bufferDescription(s, 12_000, format)).toBe('Prepared for smooth playback: moves worked out to 1:10; shapes ready from 0:05 to 0:35.')
-    expect(bufferDescription(s, 50_000, format)).toBe('Prepared for smooth playback: moves worked out to 1:10; shapes not ready here yet.')
+    expect(bufferDescription(s, 12_000, format)).toBe(
+      'Prepared for smooth playback: moves worked out to 1:10; shapes ready from 0:05 to 0:35.',
+    )
+    expect(bufferDescription(s, 50_000, format)).toBe(
+      'Prepared for smooth playback: moves worked out to 1:10; shapes not ready here yet.',
+    )
   })
 
   it('says the whole file once the plan reaches the end', () => {
@@ -58,7 +68,11 @@ describe('buffered bar markup', () => {
 
   it('draws the plan and each ready span as straight rects, hidden from screen readers', () => {
     const store = createBufferStore()
-    store.offer({ durationMs: 100_000, plannedMs: 50_000, ready: Float32Array.from([0, 20_000, 50_000, 75_000]) }, 0, true)
+    store.offer(
+      { durationMs: 100_000, plannedMs: 50_000, ready: Float32Array.from([0, 20_000, 50_000, 75_000]) },
+      0,
+      true,
+    )
     const html = render(store)
     expect(html).toContain('aria-hidden="true"')
     expect(html.match(/<rect /g)).toHaveLength(3)

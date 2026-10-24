@@ -1,6 +1,12 @@
 import { useDeferredValue, useId, useMemo, useState, type CSSProperties } from 'react'
 import { ExportError } from '../export/quantize'
-import { OUTLINE_MITER_LIMIT, outlineStrokeWidth, specimenPaths, type SpecimenPaths, type SvgPathCache } from '../export/svg'
+import {
+  OUTLINE_MITER_LIMIT,
+  outlineStrokeWidth,
+  specimenPaths,
+  type SpecimenPaths,
+  type SvgPathCache,
+} from '../export/svg'
 import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 
@@ -55,7 +61,9 @@ export default function ExportedArtboard({
   // Rounded outlines by polygon: only the glyphs whose shape changed are rounded again. Deferred, so
   // rounding a heavy text never holds up the canvas (while Sound moves the letters, frames may be skipped here).
   const [cache] = useState<SvgPathCache>(() => new WeakMap())
-  const shown = useDeferredValue(useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]))
+  const shown = useDeferredValue(
+    useMemo(() => ({ scene, layout, precision, checked }), [scene, layout, precision, checked]),
+  )
   const outlines = useMemo<SpecimenPaths | { error: string }>(() => {
     try {
       return specimenPaths(shown.scene, shown.layout, shown.precision, cache, shown.checked)
@@ -85,7 +93,13 @@ export default function ExportedArtboard({
               <pattern id={checkerId} patternUnits="userSpaceOnUse" width={checker} height={checker}>
                 <rect width={checker} height={checker} fill={paper} />
                 <rect className="checker-tint" width={checker / 2} height={checker / 2} />
-                <rect className="checker-tint" x={checker / 2} y={checker / 2} width={checker / 2} height={checker / 2} />
+                <rect
+                  className="checker-tint"
+                  x={checker / 2}
+                  y={checker / 2}
+                  width={checker / 2}
+                  height={checker / 2}
+                />
               </pattern>
             )}
             {blur > 0 && (

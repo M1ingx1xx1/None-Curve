@@ -2,11 +2,19 @@
 // cut off flat at its edge, with straight edges only; outlines inside it are left exactly as they are.
 
 import { describe, expect, it } from 'vitest'
-import { FONT_BOX_LIMITS, fitToFontBox, glyphFontBox, type FontBox } from '../../src/export/fitGlyph'
-import { signedArea } from '../../src/geometry/flatten'
+import { fitToFontBox, glyphFontBox, type FontBox } from '../../src/export/fitGlyph'
+import { FONT_BOX_LIMITS } from '../../src/export/fontPlan'
+import { signedArea } from '../../src/geometry/primitives'
 import type { Point, PolygonGlyph } from '../../src/geometry/types'
 
-const METRICS = { unitsPerEm: 2048, advanceWidth: 1200, leftSideBearing: 0, rightSideBearing: 0, ascender: 1900, descender: -500 }
+const METRICS = {
+  unitsPerEm: 2048,
+  advanceWidth: 1200,
+  leftSideBearing: 0,
+  rightSideBearing: 0,
+  ascender: 1900,
+  descender: -500,
+}
 
 function glyph(...contours: [number, number][][]): PolygonGlyph {
   return {
@@ -29,15 +37,36 @@ const allPoints = (polygon: PolygonGlyph) => polygon.contours.flatMap((c) => c.p
 const inBox = (box: FontBox) => (p: Point) => p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY
 
 /** A body from 0 to 1000 with a spike from its right side out to x = 245000, counter-clockwise. */
-const SPIKE: [number, number][] = [[0, 0], [1000, 0], [245000, 500], [1000, 1000], [0, 1000]]
+const SPIKE: [number, number][] = [
+  [0, 0],
+  [1000, 0],
+  [245000, 500],
+  [1000, 1000],
+  [0, 1000],
+]
 
 describe('glyphFontBox', () => {
   it('is the glyph’s own extent when it fits', () => {
-    expect(glyphFontBox(glyph([[10.5, -20], [900, -20], [900, 700]]))).toEqual({ minX: 10.5, minY: -20, maxX: 900, maxY: 700 })
+    expect(
+      glyphFontBox(
+        glyph([
+          [10.5, -20],
+          [900, -20],
+          [900, 700],
+        ]),
+      ),
+    ).toEqual({ minX: 10.5, minY: -20, maxX: 900, maxY: 700 })
   })
 
   it('is 32,766 units across, with whole-number edges, where the glyph reaches further', () => {
-    const box = glyphFontBox(glyph([[-100000, -100000], [100000, -100000], [100000, 100000], [-100000, 100000]]))
+    const box = glyphFontBox(
+      glyph([
+        [-100000, -100000],
+        [100000, -100000],
+        [100000, 100000],
+        [-100000, 100000],
+      ]),
+    )
     expect(box.maxX - box.minX).toBe(FONT_BOX_LIMITS.span)
     expect(box.maxY - box.minY).toBe(FONT_BOX_LIMITS.span)
     for (const v of Object.values(box)) {
@@ -57,7 +86,20 @@ describe('glyphFontBox', () => {
 
 describe('fitToFontBox', () => {
   it('leaves a glyph inside the window exactly as it is', () => {
-    const polygon = glyph([[0, 0], [1000, 0], [1000, 1000], [0, 1000]], [[200, 200], [200, 800], [800, 800], [800, 200]])
+    const polygon = glyph(
+      [
+        [0, 0],
+        [1000, 0],
+        [1000, 1000],
+        [0, 1000],
+      ],
+      [
+        [200, 200],
+        [200, 800],
+        [800, 800],
+        [800, 200],
+      ],
+    )
     const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
     expect(fitted.trimmed).toBe(false)
     expect(fitted.polygon).toBe(polygon)
@@ -75,7 +117,10 @@ describe('fitToFontBox', () => {
     expect(onEdge).toHaveLength(2)
     // The cut runs along the edge, between the spike's two sides where they cross it.
     const t = (box.maxX - 1000) / (245000 - 1000)
-    expect(onEdge.map((p) => p.y).sort((a, b) => a - b)).toEqual([expect.closeTo(500 * t, 6), expect.closeTo(1000 - 500 * t, 6)])
+    expect(onEdge.map((p) => p.y).sort((a, b) => a - b)).toEqual([
+      expect.closeTo(500 * t, 6),
+      expect.closeTo(1000 - 500 * t, 6),
+    ])
     expect(bounds(points)).toEqual({ minX: 0, minY: 0, maxX: box.maxX, maxY: 1000 })
   })
 
@@ -83,14 +128,26 @@ describe('fitToFontBox', () => {
     for (const contour of [SPIKE, SPIKE.slice().reverse()]) {
       const polygon = glyph(contour)
       const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
-      expect(Math.sign(signedArea(fitted.polygon.contours[0].points))).toBe(Math.sign(signedArea(polygon.contours[0].points)))
+      expect(Math.sign(signedArea(fitted.polygon.contours[0].points))).toBe(
+        Math.sign(signedArea(polygon.contours[0].points)),
+      )
       expect(fitted.polygon.contours[0].clockwise).toBe(polygon.contours[0].clockwise)
     }
   })
 
   it('drops a contour entirely outside the window', () => {
-    const square: [number, number][] = [[0, 0], [1000, 0], [1000, 1000], [0, 1000]]
-    const polygon = glyph(square, [[100000, 0], [101000, 0], [101000, 1000], [100000, 1000]])
+    const square: [number, number][] = [
+      [0, 0],
+      [1000, 0],
+      [1000, 1000],
+      [0, 1000],
+    ]
+    const polygon = glyph(square, [
+      [100000, 0],
+      [101000, 0],
+      [101000, 1000],
+      [100000, 1000],
+    ])
     const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
     expect(fitted.trimmed).toBe(true)
     expect(fitted.polygon.contours).toHaveLength(1)
@@ -100,7 +157,15 @@ describe('fitToFontBox', () => {
 
   it('turns a contour around the whole window into the window', () => {
     const box = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
-    const fitted = fitToFontBox(glyph([[-500, -500], [600, -500], [600, 600], [-500, 600]]), box)
+    const fitted = fitToFontBox(
+      glyph([
+        [-500, -500],
+        [600, -500],
+        [600, 600],
+        [-500, 600],
+      ]),
+      box,
+    )
     expect(fitted.trimmed).toBe(true)
     expect(fitted.polygon.contours).toHaveLength(1)
     const points = fitted.polygon.contours[0].points
@@ -111,7 +176,16 @@ describe('fitToFontBox', () => {
 
   it('leaves no edge of no width where a contour leaves the window and comes back', () => {
     // A U whose bottom lies below the window: clipped alone, its two arms would be joined along the edge, there and back.
-    const u: [number, number][] = [[0, -500], [1000, -500], [1000, 1000], [800, 1000], [800, -200], [200, -200], [200, 1000], [0, 1000]]
+    const u: [number, number][] = [
+      [0, -500],
+      [1000, -500],
+      [1000, 1000],
+      [800, 1000],
+      [800, -200],
+      [200, -200],
+      [200, 1000],
+      [0, 1000],
+    ]
     const box = { minX: -5000, minY: 0, maxX: 5000, maxY: 5000 }
     const fitted = fitToFontBox(glyph(u), box)
     expect(fitted.trimmed).toBe(true)
@@ -127,7 +201,11 @@ describe('fitToFontBox', () => {
   })
 
   it('makes straight, finite, closed contours only', () => {
-    const polygon = glyph(SPIKE, [[-300000, 400], [-200, 400], [-200, 600]])
+    const polygon = glyph(SPIKE, [
+      [-300000, 400],
+      [-200, 400],
+      [-200, 600],
+    ])
     const fitted = fitToFontBox(polygon, glyphFontBox(polygon))
     for (const p of allPoints(fitted.polygon)) expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true)
     const box = glyphFontBox(polygon)

@@ -7,7 +7,6 @@ import {
   freeFromLayout,
   layoutArtboard,
   TEXT_ANCHORS,
-  TYPOGRAPHY_LIMITS,
   type ArtboardParams,
   type TextAlign,
   type TextAnchor,
@@ -55,7 +54,15 @@ const anchorLabels: Record<TextAnchor, string> = {
  * How the text is set on the canvas: size, spacing, slant, and alignment. These change the layout and
  * the SVG/PNG export, not the glyph outlines or the exported font.
  */
-export default function TypographyControls({ params, artboard, font, scene, loadSliderScene, disabled, dispatch }: TypographyControlsProps) {
+export default function TypographyControls({
+  params,
+  artboard,
+  font,
+  scene,
+  loadSliderScene,
+  disabled,
+  dispatch,
+}: TypographyControlsProps) {
   const update = (patch: Partial<TypographyParams>) => dispatch({ type: 'updateParams', group: 'typography', patch })
   const isDefault = (Object.keys(DEFAULT_TYPOGRAPHY) as (keyof TypographyParams)[]).every(
     (k) => k === 'textCase' || params[k] === DEFAULT_TYPOGRAPHY[k],
@@ -68,15 +75,12 @@ export default function TypographyControls({ params, artboard, font, scene, load
       <legend className="visually-hidden">Typography</legend>
       {/* One fixed child: Chrome ends a slider drag when the fieldset's own children change. */}
       <div className="group-body">
-
         <SliderField
+          layout="row"
           id="type-size"
           target="typography.size"
           label="Size"
           value={params.size}
-          min={TYPOGRAPHY_LIMITS.minSize}
-          max={TYPOGRAPHY_LIMITS.maxSize}
-          step={1}
           unit="px"
           valueText={`${params.size} pixels`}
           onChange={(size) => update({ size })}
@@ -100,39 +104,33 @@ export default function TypographyControls({ params, artboard, font, scene, load
           </button>
         </div>
         <SliderField
+          layout="row"
           id="type-tracking"
           target="typography.tracking"
           label="Tracking"
           value={params.tracking}
-          min={TYPOGRAPHY_LIMITS.minTracking}
-          max={TYPOGRAPHY_LIMITS.maxTracking}
-          step={1}
           unit="/1000 em"
           valueText={`${params.tracking} thousandths of an em`}
           onChange={(tracking) => update({ tracking })}
         />
 
         <SliderField
+          layout="row"
           id="type-leading"
           target="typography.lineHeight"
           label="Line height"
           value={params.lineHeight}
-          min={TYPOGRAPHY_LIMITS.minLineHeight}
-          max={TYPOGRAPHY_LIMITS.maxLineHeight}
-          step={0.01}
           unit="×"
           valueText={`${params.lineHeight} times the font's line spacing`}
           onChange={(lineHeight) => update({ lineHeight })}
         />
 
         <SliderField
+          layout="row"
           id="type-slant"
           target="typography.slant"
           label="Slant"
           value={params.slant}
-          min={-TYPOGRAPHY_LIMITS.maxSlant}
-          max={TYPOGRAPHY_LIMITS.maxSlant}
-          step={1}
           unit="°"
           valueText={`${params.slant} degrees`}
           onChange={(slant) => update({ slant })}
@@ -143,7 +141,6 @@ export default function TypographyControls({ params, artboard, font, scene, load
             <span className="field-label" id="type-align-label">
               Align
             </span>
-
           </span>
           <div className="segmented segmented-icons" role="radiogroup" aria-labelledby="type-align-label">
             {aligns.map(([align, label, icon]) => (
@@ -169,7 +166,6 @@ export default function TypographyControls({ params, artboard, font, scene, load
             <span className="field-label" id="type-position-label">
               Position
             </span>
-
           </span>
           <div className="position-control" role="group" aria-labelledby="type-position-label">
             <div className="position-grid">
@@ -198,7 +194,12 @@ export default function TypographyControls({ params, artboard, font, scene, load
                 const home = { position: DEFAULT_TYPOGRAPHY.position, align: DEFAULT_TYPOGRAPHY.align }
                 void loadSliderScene().then((base) => {
                   const start =
-                    font && base ? freeFromLayout(base, layoutArtboard(base, { ...params, ...home }, artboard, font.metrics.unitsPerEm)) : {}
+                    font && base
+                      ? freeFromLayout(
+                          base,
+                          layoutArtboard(base, { ...params, ...home }, artboard, font.metrics.unitsPerEm),
+                        )
+                      : {}
                   update({ position: 'free', align: home.align, ...start })
                 })
               }}

@@ -4,6 +4,7 @@
 // does not push the results of normal editing out of the main one.
 
 import type { LoadedFont } from '../font/model'
+import { paramsKey } from './paramsKey'
 import { deriveGeometry } from './pipeline'
 import type { DerivedGeometry, GeometryParams } from './types'
 
@@ -48,24 +49,8 @@ export function isCached(font: LoadedFont, index: number, key: string): boolean 
   return caches.get(font)?.entries.has(cacheKey) === true || liveCaches.get(font)?.entries.has(cacheKey) === true
 }
 
-/** The cached result for this glyph and key without computing or reordering anything; undefined when none is held. */
-export function cachedGeometry(font: LoadedFont, index: number, key: string): DerivedGeometry | undefined {
-  const cacheKey = `${index}|${key}`
-  const entry = caches.get(font)?.entries.get(cacheKey) ?? liveCaches.get(font)?.entries.get(cacheKey)
-  return entry && 'geometry' in entry ? entry.geometry : undefined
-}
-
 const caches = new WeakMap<LoadedFont, FontCache>()
 const liveCaches = new WeakMap<LoadedFont, FontCache>()
-
-/**
- * Stable key for a parameter set; JSON of a plain object with a fixed key order. Axis values (`variation`) join it
- * only when there are any, so every key without them is what it always was.
- */
-export function paramsKey(params: GeometryParams): string {
-  const groups = [params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion, params.experimental]
-  return JSON.stringify(params.variation ? [...groups, params.variation] : groups)
-}
 
 /**
  * Returns the derived geometry for one glyph, computing it once per (font, glyph, parameters).
@@ -90,7 +75,10 @@ export function glyphGeometry(
   const cacheKey = `${index}|${key}`
   let entry: Entry | undefined
   if (tier === 'ahead') {
-    entry = caches.get(font)?.entries.get(cacheKey) ?? liveCaches.get(font)?.entries.get(cacheKey) ?? derive(font, index, params)
+    entry =
+      caches.get(font)?.entries.get(cacheKey) ??
+      liveCaches.get(font)?.entries.get(cacheKey) ??
+      derive(font, index, params)
   } else if (live) {
     entry = caches.get(font)?.entries.get(cacheKey)
     if (!entry) {
@@ -157,10 +145,13 @@ function derive(font: LoadedFont, index: number, params: GeometryParams): Entry 
     // With axis values, the outline of the font's instance at them (the key holds them too).
     const source = params.variation && font.at ? font.at(params.variation) : font
     const geometry = deriveGeometry(source.getGlyph(index), params)
-    // With Thorn, the result also keeps the letter's click outline.
+    // With Thorn, the result also keeps the letter's click outline; with Whorl, the letter as Whorl received it.
     const click = geometry.polygon.clickOutline
-    const clickPoints = click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
-    return { geometry, points: geometry.vertexCount + clickPoints }
+    const clickPoints =
+      click && click !== geometry.polygon.contours ? click.reduce((n, c) => n + c.points.length, 0) : 0
+    const outline = geometry.polygon.motion?.whorl?.outline
+    const outlinePoints = outline ? outline.reduce((n, points) => n + points.length, 0) : 0
+    return { geometry, points: geometry.vertexCount + clickPoints + outlinePoints }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error), points: 0 }
   }

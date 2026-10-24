@@ -36,35 +36,14 @@
 // instead, in proportion, so the slider runs down to a steady stream without ever cutting the bands finer.
 
 import type { GlyphBudget } from './budget'
+import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { signedArea } from './flatten'
 import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
+import { SLIPSTREAM_LIMITS, slipstreamFade, slipstreamGust, wholeCount } from './limits'
+import { clamp, distanceToSegment, finite, lerp, signedArea } from './primitives'
 import type { Box } from './ripple'
 import type { Point, PolygonGlyph, SlipstreamParams } from './types'
 import { emptyWarpStats, type Warp, type WarpStats } from './warp'
-
-export const SLIPSTREAM_LIMITS = {
-  /** Strength: extra length per unit of distance downwind at a full gust (1 = up to twice as long). */
-  maxStrength: 8,
-  /**
-   * No point moves further than this (× the em), however far downwind it lies: beyond it the letter
-   * is carried along without stretching further. This keeps strong streams and backward gusts within
-   * the coordinates a font file can store.
-   */
-  maxReach: 4,
-  /** Above 1 (the safe range), some gusts blow backwards. */
-  maxGustiness: 2,
-  /** Band (gust) sizes, as fractions of the em; 0: no gusts (see the header). */
-  minGust: 0,
-  maxGust: 0.5,
-  /** The narrowest band: smaller gust sizes keep it and fade Gustiness and Slip out. */
-  smallestGust: 0.06,
-  /** Slip: how far apart the sway bands may slide, as a fraction of the em. Safe at any amount (a shear). */
-  maxSlip: 0.6,
-  /** Cuts and trails per letter. */
-  maxCuts: 8,
-  maxTrails: 8,
-} as const
 
 /** How the slip is laid out, in bands one Gust size wide. */
 const SLIP = {
@@ -144,46 +123,11 @@ export interface SlipstreamStats extends WarpStats {
 
 export const emptySlipstreamStats = (): SlipstreamStats => ({ ...emptyWarpStats(), trails: 0, cuts: 0 })
 
-export function slipstreamIsOn(params: SlipstreamParams): boolean {
-  return (
-    params.enabled &&
-    (finite(params.strength, 0) > 0 || finite(params.slip, 0) * gustFade(params) > 0 || count(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0 || count(params.trails, SLIPSTREAM_LIMITS.maxTrails) > 0)
-  )
-}
-
-/**
- * True when Slipstream goes beyond its safe range (gusts blowing backwards), so the letter can fold onto itself. Only the
- * stretch can fold: without Strength, Slip is a shear and never does.
- */
-export function slipstreamFolds(params: SlipstreamParams): boolean {
-  return slipstreamIsOn(params) && finite(params.strength, 0) > 0 && params.gustiness * gustFade(params) > 1
-}
-
-/** The gust size (× the em), from 0 (no gusts) up. */
-function gustOf(params: SlipstreamParams): number {
-  return clamp(finite(params.gust, 0.12), SLIPSTREAM_LIMITS.minGust, SLIPSTREAM_LIMITS.maxGust)
-}
-
-/** How much of Gustiness and Slip is left: 1 from the smallest band up, falling to 0 at gust size 0. */
-function gustFade(params: SlipstreamParams): number {
-  return Math.min(gustOf(params) / SLIPSTREAM_LIMITS.smallestGust, 1)
-}
-
-/** The band size Slipstream uses (× the em) and how much of Gustiness and Slip is left there (0–1; 0: steady). */
-export function slipstreamBands(params: SlipstreamParams): { gust: number; fade: number } {
-  return { gust: Math.max(gustOf(params), SLIPSTREAM_LIMITS.smallestGust), fade: gustFade(params) }
-}
-
-/** True when Slipstream redraws the outline to make its cuts (see slipstreamTrailsAndCuts). */
-export function slipstreamMerges(params: SlipstreamParams): boolean {
-  return slipstreamIsOn(params) && count(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0
-}
-
 /** The Slipstream warp for a glyph with this ink box, at `scale` × its strength and slip. */
 export function slipstreamWarp(params: SlipstreamParams, seed: number, box: Box, unitsPerEm: number, scale = 1): Warp {
   const { wx, wy } = streamOf(params)
-  const size = Math.max(gustOf(params), SLIPSTREAM_LIMITS.smallestGust) * unitsPerEm
-  const fade = gustFade(params)
+  const size = Math.max(slipstreamGust(params), SLIPSTREAM_LIMITS.smallestGust) * unitsPerEm
+  const fade = slipstreamFade(params)
   const strength = clamp(finite(params.strength, 0), 0, SLIPSTREAM_LIMITS.maxStrength) * scale
   const gustiness = clamp(finite(params.gustiness, 0.6), 0, SLIPSTREAM_LIMITS.maxGustiness) * fade
   const slip = clamp(finite(params.slip, 0), 0, SLIPSTREAM_LIMITS.maxSlip) * fade * unitsPerEm * scale
@@ -219,13 +163,29 @@ export function slipstreamWarp(params: SlipstreamParams, seed: number, box: Box,
       if (rising(i, j)) {
         corners =
           fu >= fv
-            ? [[i, j, 1 - fu], [i + 1, j, fu - fv], [i + 1, j + 1, fv]]
-            : [[i, j, 1 - fv], [i, j + 1, fv - fu], [i + 1, j + 1, fu]]
+            ? [
+                [i, j, 1 - fu],
+                [i + 1, j, fu - fv],
+                [i + 1, j + 1, fv],
+              ]
+            : [
+                [i, j, 1 - fv],
+                [i, j + 1, fv - fu],
+                [i + 1, j + 1, fu],
+              ]
       } else {
         corners =
           fu + fv <= 1
-            ? [[i, j, 1 - fu - fv], [i + 1, j, fu], [i, j + 1, fv]]
-            : [[i + 1, j + 1, fu + fv - 1], [i + 1, j, 1 - fv], [i, j + 1, 1 - fu]]
+            ? [
+                [i, j, 1 - fu - fv],
+                [i + 1, j, fu],
+                [i, j + 1, fv],
+              ]
+            : [
+                [i + 1, j + 1, fu + fv - 1],
+                [i + 1, j, 1 - fv],
+                [i, j + 1, 1 - fu],
+              ]
       }
       for (const [ci, cj, w] of corners) if (w !== 0) d += w * move(ci, cj)
       return { x: p.x + d * wx, y: p.y + d * wy }
@@ -346,7 +306,8 @@ export function slipstreamTrailsAndCuts(
   budget?: GlyphBudget,
 ): { polygon: PolygonGlyph; trails: number; cuts: number; merge: OverlapStats | null } {
   const trailed = addTrails(polygon, params, seed, unitsPerEm)
-  const merge = (glyph: PolygonGlyph, rule: FillRule) => (budget ? budget.merge(glyph, rule) : mergeOverlaps(glyph, rule))
+  const merge = (glyph: PolygonGlyph, rule: FillRule) =>
+    budget ? budget.merge(glyph, rule) : mergeOverlaps(glyph, rule)
   const cut = addCuts(trailed.polygon, params, seed, unitsPerEm, merge)
   return { polygon: cut.polygon, trails: trailed.count, cuts: cut.count, merge: cut.merge }
 }
@@ -371,8 +332,13 @@ interface Ring {
 }
 
 /** Thin streaks growing downwind out of the downwind-facing edges of the letter's outside (see the header). */
-function addTrails(polygon: PolygonGlyph, params: SlipstreamParams, seed: number, unitsPerEm: number): { polygon: PolygonGlyph; count: number } {
-  const wanted = count(params.trails, SLIPSTREAM_LIMITS.maxTrails)
+function addTrails(
+  polygon: PolygonGlyph,
+  params: SlipstreamParams,
+  seed: number,
+  unitsPerEm: number,
+): { polygon: PolygonGlyph; count: number } {
+  const wanted = wholeCount(params.trails, SLIPSTREAM_LIMITS.maxTrails)
   if (wanted === 0) return { polygon, count: 0 }
   const { wx, wy } = streamOf(params)
   const glyph = polygon.ref.index | 0
@@ -460,7 +426,9 @@ function addTrails(polygon: PolygonGlyph, params: SlipstreamParams, seed: number
     if (mine.length === 0) return contour
     const n = contour.points.length
     const gone = new Uint8Array(n)
-    for (const t of mine) for (let v = (t.first + 1) % n, stop = (t.last + 1) % n; t.first !== t.last && v !== stop; v = (v + 1) % n) gone[v] = 1
+    for (const t of mine)
+      for (let v = (t.first + 1) % n, stop = (t.last + 1) % n; t.first !== t.last && v !== stop; v = (v + 1) % n)
+        gone[v] = 1
     const points: Point[] = []
     contour.points.forEach((p, i) => {
       if (!gone[i]) points.push(p)
@@ -503,16 +471,23 @@ function clearOf(
     return Math.min(g, perimeter - g)
   }
   const window = half + 3 * clearance
-  const near = (edge: number) => (root >= ring.at[edge] && root <= ring.at[edge + 1]) || Math.min(cyclic(ring.at[edge] - root), cyclic(ring.at[edge + 1] - root)) <= window
+  const near = (edge: number) =>
+    (root >= ring.at[edge] && root <= ring.at[edge + 1]) ||
+    Math.min(cyclic(ring.at[edge] - root), cyclic(ring.at[edge + 1] - root)) <= window
   // Edges wholly inside the base go.
-  const inner = (edge: number) => base.edge !== end.edge && ((edge - base.edge + n) % n) > 0 && ((edge - base.edge + n) % n) < ((end.edge - base.edge + n) % n)
+  const inner = (edge: number) =>
+    base.edge !== end.edge &&
+    (edge - base.edge + n) % n > 0 &&
+    (edge - base.edge + n) % n < (end.edge - base.edge + n) % n
   // The trail's box, grown by the clearance: segments outside it are clear without measuring.
   const minX = Math.min(...points.map((p) => p.x)) - clearance
   const minY = Math.min(...points.map((p) => p.y)) - clearance
   const maxX = Math.max(...points.map((p) => p.x)) + clearance
   const maxY = Math.max(...points.map((p) => p.y)) + clearance
-  const apart = (a: Point, b: Point) => Math.max(a.x, b.x) < minX || Math.min(a.x, b.x) > maxX || Math.max(a.y, b.y) < minY || Math.min(a.y, b.y) > maxY
-  const meets = (a: Point, b: Point) => edges.every(([p, q]) => !crosses(p, q, a, b)) && middle.every((p) => distanceToSegment(p, a, b) > clearance)
+  const apart = (a: Point, b: Point) =>
+    Math.max(a.x, b.x) < minX || Math.min(a.x, b.x) > maxX || Math.max(a.y, b.y) < minY || Math.min(a.y, b.y) > maxY
+  const meets = (a: Point, b: Point) =>
+    edges.every(([p, q]) => !crosses(p, q, a, b)) && middle.every((p) => distanceToSegment(p, a, b) > clearance)
   const keepsClear = (a: Point, b: Point) => edges.every(([p, q]) => segmentGap(p, q, a, b) > clearance)
   for (const s of segments) {
     if (apart(s.a, s.b)) continue
@@ -523,7 +498,10 @@ function clearOf(
     if (inner(s.edge)) continue
     const parts: [Point, Point][] =
       s.edge === base.edge && s.edge === end.edge
-        ? [[s.a, base.point], [end.point, s.b]]
+        ? [
+            [s.a, base.point],
+            [end.point, s.b],
+          ]
         : s.edge === base.edge
           ? [[s.a, base.point]]
           : s.edge === end.edge
@@ -548,7 +526,8 @@ function pointOn(ring: Ring, distance: number): { point: Point; edge: number } {
     else hi = mid - 1
   }
   const length = ring.at[lo + 1] - ring.at[lo]
-  const point = length > 0 ? lerp(ring.points[lo], ring.points[(lo + 1) % n], (d - ring.at[lo]) / length) : ring.points[lo]
+  const point =
+    length > 0 ? lerp(ring.points[lo], ring.points[(lo + 1) % n], (d - ring.at[lo]) / length) : ring.points[lo]
   return { point, edge: lo }
 }
 
@@ -560,12 +539,17 @@ function addCuts(
   unitsPerEm: number,
   merge: (glyph: PolygonGlyph, rule: FillRule) => { polygon: PolygonGlyph; stats: OverlapStats },
 ): { polygon: PolygonGlyph; count: number; merge: OverlapStats | null } {
-  const wanted = count(params.cuts, SLIPSTREAM_LIMITS.maxCuts)
+  const wanted = wholeCount(params.cuts, SLIPSTREAM_LIMITS.maxCuts)
   if (wanted === 0) return { polygon, count: 0, merge: null }
   // Redrawn by the nonzero rule: the ink winds once (outer contours counter-clockwise, holes clockwise).
   const clean = merge(polygon, 'nonzero')
   // Too complex to merge: the glyph as the budget simplified it for its last try (see GlyphBudget.merge).
-  if (!clean.stats.applied) return { polygon: clean.polygon, count: 0, merge: clean.stats.failed || clean.stats.tooComplex ? clean.stats : null }
+  if (!clean.stats.applied)
+    return {
+      polygon: clean.polygon,
+      count: 0,
+      merge: clean.stats.failed || clean.stats.tooComplex ? clean.stats : null,
+    }
   const { wx, wy } = streamOf(params)
   const glyph = clean.polygon.ref.index | 0
   const contours = clean.polygon.contours.map((c) => c.points)
@@ -619,7 +603,12 @@ function addCuts(
   const contoursWithCuts = [...clean.polygon.contours, ...wedges.map((points) => ({ points, clockwise: true }))]
   const cut = merge({ ...clean.polygon, contours: contoursWithCuts }, 'positive')
   // Without the cuts, the redrawn outline stays; why the cut merge did not apply goes along.
-  if (!cut.stats.applied) return { polygon: clean.polygon, count: 0, merge: { ...clean.stats, failed: cut.stats.failed, tooComplex: cut.stats.tooComplex } }
+  if (!cut.stats.applied)
+    return {
+      polygon: clean.polygon,
+      count: 0,
+      merge: { ...clean.stats, failed: cut.stats.failed, tooComplex: cut.stats.tooComplex },
+    }
   return {
     polygon: cut.polygon,
     count: wedges.length,
@@ -679,20 +668,9 @@ function isOutside(contours: readonly (readonly Point[])[], contour: number): bo
   const p = contours[contour][0]
   let depth = 0
   contours.forEach((other, i) => {
-    if (i !== contour && other.length >= 3 && contains(other, p)) depth++
+    if (i !== contour && other.length >= 3 && insideRing(p, other)) depth++
   })
   return depth % 2 === 0
-}
-
-/** Even-odd point-in-polygon test. */
-function contains(points: readonly Point[], p: Point): boolean {
-  let inside = false
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[i]
-    const b = points[j]
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
-  return inside
 }
 
 /** The shortest distance between segments a1–a2 and b1–b2 (0 when they cross). */
@@ -703,36 +681,16 @@ function segmentGap(a1: Point, a2: Point, b1: Point, b2: Point): number {
   const d3 = side(b1, b2, a1)
   const d4 = side(b1, b2, a2)
   if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return 0
-  return Math.min(distanceToSegment(b1, a1, a2), distanceToSegment(b2, a1, a2), distanceToSegment(a1, b1, b2), distanceToSegment(a2, b1, b2))
+  return Math.min(
+    distanceToSegment(b1, a1, a2),
+    distanceToSegment(b2, a1, a2),
+    distanceToSegment(a1, b1, b2),
+    distanceToSegment(a2, b1, b2),
+  )
 }
 
 /** True when segments a1–a2 and b1–b2 cross at a point inside both. */
 function crosses(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
   const side = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
   return side(a1, a2, b1) * side(a1, a2, b2) < 0 && side(b1, b2, a1) * side(b1, b2, a2) < 0
-}
-
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const length2 = dx * dx + dy * dy
-  const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0
-  return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
-}
-
-function lerp(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-}
-
-/** A whole count from 0 to max (0 when missing, as in older saved settings). */
-function count(value: number, max: number): number {
-  return Math.round(clamp(finite(value, 0), 0, max))
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
-}
-
-function finite(v: number, fallback: number): number {
-  return Number.isFinite(v) ? v : fallback
 }

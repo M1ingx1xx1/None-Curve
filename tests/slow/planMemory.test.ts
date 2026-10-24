@@ -16,7 +16,13 @@ const BASE: GeometryParams = { ...DEFAULTS, distortion: { ...DEFAULTS.distortion
 const HZ = PRECOMPUTE_LIMITS.gridHz
 const SECONDS = 360
 
-const row = (target: string, feature: Mapping['feature']): Mapping => ({ id: `${target} ${feature}`, enabled: true, feature, target, depth: 1 })
+const row = (target: string, feature: Mapping['feature']): Mapping => ({
+  id: `${target} ${feature}`,
+  enabled: true,
+  feature,
+  target,
+  depth: 1,
+})
 
 function letters(count: number): LetterSlots {
   return {
@@ -35,9 +41,27 @@ describe('a six-minute plan', () => {
       const t = (k * 1000) / HZ
       const v = 0.5 + 0.45 * Math.sin(t / 211) * Math.cos(t / 1777)
       const onset = k % 23 === 0 && k > 0
-      return { ...SILENT_FRAME, time: t, level: v, bass: v, mids: 1 - v, treble: v * v, brightness: v, activity: v, beat: onset ? 1 : 0, onset, silent: false, levelDb: -40 + 40 * v }
+      return {
+        ...SILENT_FRAME,
+        time: t,
+        level: v,
+        bass: v,
+        mids: 1 - v,
+        treble: v * v,
+        brightness: v,
+        activity: v,
+        beat: onset ? 1 : 0,
+        onset,
+        silent: false,
+        levelDb: -40 + 40 * v,
+      }
     })
-    const planner = new PlaybackPlanner({ hz: HZ, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
+    const planner = new PlaybackPlanner({
+      hz: HZ,
+      frameCount: () => frames.length,
+      isCovered: () => true,
+      frameAt: (i) => frames[i] ?? null,
+    })
     const inputs: LiveInputs = {
       base: BASE,
       hasFont: true,
@@ -56,7 +80,12 @@ describe('a six-minute plan', () => {
     const near = planner.range(middle - 5000, middle + 5000)
     expect(near.length).toBeGreaterThan(200)
     // Back to the start: planned again there, the same as a plan that never thinned.
-    const fresh = new PlaybackPlanner({ hz: HZ, frameCount: () => frames.length, isCovered: () => true, frameAt: (i) => frames[i] ?? null })
+    const fresh = new PlaybackPlanner({
+      hz: HZ,
+      frameCount: () => frames.length,
+      isCovered: () => true,
+      frameAt: (i) => frames[i] ?? null,
+    })
     fresh.setInputs(inputs)
     fresh.ensure(10_000, Infinity)
     planner.focus(0)

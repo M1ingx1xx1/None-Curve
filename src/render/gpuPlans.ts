@@ -204,7 +204,7 @@ function addContours(box: Box, contours: readonly PolygonContour[]) {
 }
 
 /** The box of a polygon's points (empty glyphs give a zero box at the origin). */
-export function shapeBounds(polygon: PolygonGlyph): Box {
+function shapeBounds(polygon: PolygonGlyph): Box {
   const box = emptyBox()
   addContours(box, polygon.contours)
   return Number.isFinite(box[0]) ? box : [0, 0, 0, 0]
@@ -386,10 +386,16 @@ export interface GpuPlan extends GpuGeometry {
   anchors: WebGLBuffer
   anchorArray: WebGLVertexArrayObject
   /** Mesh plans: the path rows, their vertex array, and where the path pass writes (buffer and texture). */
-  paths: { rows: WebGLBuffer; array: WebGLVertexArrayObject; count: number; positions: WebGLBuffer; texture: WebGLTexture } | null
+  paths: {
+    rows: WebGLBuffer
+    array: WebGLVertexArrayObject
+    count: number
+    positions: WebGLBuffer
+    texture: WebGLTexture
+  } | null
   /** One per distinct progress drawn in a frame (copies of a glyph mid-glide from different starts). */
   slots: GpuSlot[]
-  /** Slots handed out in the current frame. */
+  /** Slots handed out in the current frame: slots[0, used). */
   used: number
 }
 
@@ -505,7 +511,11 @@ export function deleteShape(gl: WebGL2RenderingContext, shape: GpuShape) {
 }
 
 /** A plan: its anchor rows (and path rows), fans and segments; slots are made as frames need them. */
-export function uploadPlan(gl: WebGL2RenderingContext, plan: MorphPlan, data: PlanData): { plan: GpuPlan; bytes: number } {
+export function uploadPlan(
+  gl: WebGL2RenderingContext,
+  plan: MorphPlan,
+  data: PlanData,
+): { plan: GpuPlan; bytes: number } {
   const contours = planContours(data, plan.to)
   const geometry = createGeometry(gl, contours, planBounds(plan, data))
   const rows = anchorRows(data, plan.to)
@@ -540,16 +550,45 @@ export function uploadPlan(gl: WebGL2RenderingContext, plan: MorphPlan, data: Pl
   return { plan: { ...geometry, data, anchors, anchorArray, paths, slots: [], used: 0 }, bytes }
 }
 
-/** The plan's next free slot this frame, made when there is none yet. Its bytes are added to `grew`. */
-export function planSlot(gl: WebGL2RenderingContext, plan: GpuPlan, grew: { bytes: number }): GpuSlot {
-  let slot = plan.slots[plan.used]
+/**
+ * The slot for progress `p` this frame: one handed out this frame at p, else one an earlier frame left at p (moved into
+ * this frame's slots, its positions still valid: only an evaluation writes a slot, and it sets `p`), else the next free
+ * one, made when there is none (`fresh`: p must be evaluated into it). Pure, so `make` stands in for the GPU.
+ */
+export function claimSlot<S extends { p: number }>(
+  plan: { slots: S[]; used: number },
+  p: number,
+  make: () => S,
+): { slot: S; fresh: boolean } {
+  const { slots } = plan
+  for (let i = 0; i < plan.used; i++) if (slots[i].p === p) return { slot: slots[i], fresh: false }
+  for (let i = plan.used; i < slots.length; i++) {
+    if (slots[i].p !== p) continue
+    const slot = slots[i]
+    slots[i] = slots[plan.used]
+    slots[plan.used++] = slot
+    return { slot, fresh: false }
+  }
+  let slot = slots[plan.used]
   if (!slot) {
-    slot = createSlot(gl, plan.points, plan.fan, null)
-    plan.slots.push(slot)
-    grew.bytes += slotBytes(plan.points)
+    slot = make()
+    slots.push(slot)
   }
   plan.used++
-  return slot
+  return { slot, fresh: true }
+}
+
+/** claimSlot on the GPU: a new slot's bytes are added to `grew`. */
+export function planSlot(
+  gl: WebGL2RenderingContext,
+  plan: GpuPlan,
+  p: number,
+  grew: { bytes: number },
+): { slot: GpuSlot; fresh: boolean } {
+  return claimSlot(plan, p, () => {
+    grew.bytes += slotBytes(plan.points)
+    return createSlot(gl, plan.points, plan.fan, null)
+  })
 }
 
 export function deletePlan(gl: WebGL2RenderingContext, plan: GpuPlan) {

@@ -1,5 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { canvasFilterWorks, drawArtboard, polygonPaths, touchCanvas, type DrawTarget, type VideoLook } from '../export/drawArtboard'
+import {
+  canvasFilterWorks,
+  drawArtboard,
+  polygonPaths,
+  touchCanvas,
+  type DrawTarget,
+  type VideoLook,
+} from '../export/drawArtboard'
 import { getRecorder, useRecording, type TakeSpec } from '../export/recorder'
 import type { ArtboardLayout, PaletteParams } from '../specimen/artboard'
 import { previewBlur, previewColors, type PreviewLook } from '../specimen/previewLook'
@@ -29,7 +36,16 @@ export default function RecordingCanvas(props: RecordingCanvasProps) {
   return take ? <TakeCanvas {...props} take={take} /> : null
 }
 
-function TakeCanvas({ scene, layout, artboard, palette, previewLook, previewScale, fill, take }: RecordingCanvasProps & { take: TakeSpec }) {
+function TakeCanvas({
+  scene,
+  layout,
+  artboard,
+  palette,
+  previewLook,
+  previewScale,
+  fill,
+  take,
+}: RecordingCanvasProps & { take: TakeSpec }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const targetRef = useRef<DrawTarget<Path2D> | null>(null)
   // Each polygon's outline as a Path2D, built once: repeated letters and unchanged shapes reuse it.
@@ -77,7 +93,9 @@ function TakeCanvas({ scene, layout, artboard, palette, previewLook, previewScal
   }, [scene, layout, artboard, look, take, pathOf])
 
   // Attached but out of sight: a canvas that is not displayed may not be drawn or captured.
-  return <canvas ref={canvasRef} className="recording-canvas" width={take.width} height={take.height} aria-hidden="true" />
+  return (
+    <canvas ref={canvasRef} className="recording-canvas" width={take.width} height={take.height} aria-hidden="true" />
+  )
 }
 
 /** A transparent canvas of the take's size for the glyphs, or null when the browser cannot give one. */

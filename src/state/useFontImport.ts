@@ -71,8 +71,16 @@ export function useFontImport(dispatch: Dispatch<Action>) {
       const { source } = font
       if (source.kind !== 'local') return
       const entry = font.faces?.find((f) => f.index === face)
-      const label = !entry ? `face ${face + 1}` : entry.family === font.familyName ? entry.style : `${entry.family} ${entry.style}`
-      void start({ origin: 'local', label: `Opening ${label}`, run: (signal) => parseFont(font.bytes, { ...source, face }, signal) })
+      const label = !entry
+        ? `face ${face + 1}`
+        : entry.family === font.familyName
+          ? entry.style
+          : `${entry.family} ${entry.style}`
+      void start({
+        origin: 'local',
+        label: `Opening ${label}`,
+        run: (signal) => parseFont(font.bytes, { ...source, face }, signal),
+      })
     },
     [start],
   )

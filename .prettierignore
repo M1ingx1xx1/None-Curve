@@ -1,0 +1,10 @@
+# Formatted by hand: the docs, generated files, and fixtures.
+*.md
+*.yml
+*.json
+dist
+node_modules
+test-audio
+resources
+.claude
+tests/fixtures

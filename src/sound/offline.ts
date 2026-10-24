@@ -23,16 +23,26 @@ export const HIGHPASS_Q_DB = 20 * Math.log10(Math.SQRT1_2)
  * A Web Audio BiquadFilterNode's 'highpass' coefficients (the spec's formulas, Q in dB) at sample rate `sr`: the
  * engine's 20 Hz filter by default.
  */
-export function highpassCoefficients(sr: number, hz: number = SOUND_LIMITS.minFeatureHz, qDb: number = HIGHPASS_Q_DB): BiquadCoefficients {
+export function highpassCoefficients(
+  sr: number,
+  hz: number = SOUND_LIMITS.minFeatureHz,
+  qDb: number = HIGHPASS_Q_DB,
+): BiquadCoefficients {
   const w0 = (2 * Math.PI * hz) / sr
   const alpha = Math.sin(w0) / (2 * Math.pow(10, qDb / 20))
   const cos = Math.cos(w0)
   const a0 = 1 + alpha
-  return { b0: (1 + cos) / 2 / a0, b1: -(1 + cos) / a0, b2: (1 + cos) / 2 / a0, a1: (-2 * cos) / a0, a2: (1 - alpha) / a0 }
+  return {
+    b0: (1 + cos) / 2 / a0,
+    b1: -(1 + cos) / a0,
+    b2: (1 + cos) / 2 / a0,
+    a1: (-2 * cos) / a0,
+    a2: (1 - alpha) / a0,
+  }
 }
 
 /** A biquad in Direct Form I, its state in doubles, as one channel of a BiquadFilterNode. */
-export class Biquad {
+class Biquad {
   private x1 = 0
   private x2 = 0
   private y1 = 0
@@ -72,7 +82,8 @@ export function blackmanWindow(n: number): Float64Array {
   let w = windows.get(n)
   if (!w) {
     w = new Float64Array(n)
-    for (let i = 0; i < n; i++) w[i] = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / n) + 0.08 * Math.cos((4 * Math.PI * i) / n)
+    for (let i = 0; i < n; i++)
+      w[i] = 0.42 - 0.5 * Math.cos((2 * Math.PI * i) / n) + 0.08 * Math.cos((4 * Math.PI * i) / n)
     windows.set(n, w)
   }
   return w
@@ -121,12 +132,12 @@ export interface AnalyserGrid {
 }
 
 /** Media ms of grid frame `k`. */
-export function gridTime(k: number, hz: number): number {
+function gridTime(k: number, hz: number): number {
   return (k * 1000) / hz
 }
 
 /** The sample after the last one grid frame `k`'s window holds (its window is the fftSize samples before it). */
-export function frameEnd(k: number, sr: number, grid: AnalyserGrid): number {
+function frameEnd(k: number, sr: number, grid: AnalyserGrid): number {
   const quantum = grid.quantum ?? 1
   return Math.floor(Math.round((gridTime(k, grid.hz) / 1000) * sr) / quantum) * quantum
 }

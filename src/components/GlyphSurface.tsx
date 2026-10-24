@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react'
 import type { LoadedFont } from '../font/model'
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
@@ -13,7 +24,9 @@ import type { GlideStore } from '../state/useGlide'
 import type { ViewParams } from '../state/types'
 import { gridLines } from './canvasGuides'
 import SpecimenUnderlay from './SpecimenUnderlay'
+import { useDevicePixelRatio } from './useDevicePixelRatio'
 import { usePanZoom } from './usePanZoom'
+import { glyphRefOf, useTextDrag, type MoveText } from './useTextDrag'
 
 interface GlyphSurfaceProps {
   font: LoadedFont
@@ -35,7 +48,8 @@ interface GlyphSurfaceProps {
   onViewChange: (patch: Partial<ViewParams>) => void
   onSelectGlyph: (glyph: GlyphRef) => void
   onClearSelection?: () => void
-  onMoveText?: (dx: number, dy: number) => void
+  /** Free position: called once, on release, with the move in font units (MoveText). */
+  onMoveText?: MoveText
 }
 
 /** From this zoom on, the grid also shows inside the artboard (SpecimenView's GRID_INSIDE_ZOOM). */
@@ -108,10 +122,9 @@ export default function GlyphSurface({
   const edge = useMemo(() => artboardEdgeColor(paper), [paper])
   const darkPaper = isDarkColor(paper)
 
-  const [draggingText, setDraggingText] = useState(false)
-  const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange)
+  const panZoom = usePanZoom(frame, view, onViewChange)
+  const { containerRef, ready, u, visW, visH, box, handlers } = panZoom
   const { left, top } = box
-  const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
   const pxPerEm = unitsPerEm / u
   const showMarkers = pxPerEm >= MARKER_MIN_PX_PER_EM
   const markersHidden = (view.showSkeleton || view.showVertices) && !showMarkers
@@ -188,7 +201,11 @@ export default function GlyphSurface({
   useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const renderer = createRenderer(kind, canvas, { mode: 'full', detailCanvas: detailRef.current, onLost: () => fallBack() })
+    const renderer = createRenderer(kind, canvas, {
+      mode: 'full',
+      detailCanvas: detailRef.current,
+      onLost: () => fallBack(),
+    })
     if (!renderer) {
       fallBack()
       return
@@ -234,21 +251,43 @@ export default function GlyphSurface({
     }
     // themeVersion: the theme changed, so theme.get() resolves again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, themeVersion, ink, highlight, view.outline, view.showFill, view.showSkeleton, view.showVertices, showMarkers, u, unitsPerEm, ascender, descender])
+  }, [
+    theme,
+    themeVersion,
+    ink,
+    highlight,
+    view.outline,
+    view.showFill,
+    view.showSkeleton,
+    view.showVertices,
+    showMarkers,
+    u,
+    unitsPerEm,
+    ascender,
+    descender,
+  ])
 
   // View, style and selection, then a draw: in a layout effect, so the canvas changes with the underlay.
+  const dpr = useDevicePixelRatio()
   useLayoutEffect(() => {
     const renderer = rendererRef.current
     if (!renderer || !ready || !style) return
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
     latest.current.dpr = dpr
     const el = containerRef.current
-    renderer.setView({ kind: 'canvas', left, top, u, cssWidth: el?.clientWidth ?? visW / u, cssHeight: el?.clientHeight ?? visH / u, dpr })
+    renderer.setView({
+      kind: 'canvas',
+      left,
+      top,
+      u,
+      cssWidth: el?.clientWidth ?? visW / u,
+      cssHeight: el?.clientHeight ?? visH / u,
+      dpr,
+    })
     renderer.setStyle(style)
     renderer.setSelected(selectedGlyph?.index ?? null)
     renderer.setFrame(frameNow(), source)
     paint()
-  }, [kind, ready, style, left, top, u, visW, visH, selectedGlyph, source, scene, frameNow, paint, containerRef])
+  }, [kind, ready, style, left, top, u, visW, visH, dpr, selectedGlyph, source, scene, frameNow, paint, containerRef])
 
   // Every frame of Glide, straight to the renderer.
   useEffect(
@@ -264,36 +303,7 @@ export default function GlyphSurface({
 
   // ---- Pointer ----
 
-  const selectRef = (index: number, text: string): GlyphRef => {
-    const cp = text.codePointAt(0)
-    return (
-      font.characters.find((c) => c.index === index && c.unicode === cp) ??
-      font.characters.find((c) => c.index === index) ?? { index, name: '', unicode: null }
-    )
-  }
-
   const freeMove = onMoveText !== undefined
-  const movingRef = useRef<SVGGElement>(null)
-  const textDrag = useRef<{ x: number; y: number; moved: boolean; dx: number; dy: number } | null>(null)
-  const textMoved = useRef(false)
-  const committed = useRef(false)
-  const offset = useRef({ dx: 0, dy: 0 })
-  const dragged = () => wasDrag() || textMoved.current
-  // The underlay's moving group and the renderer move together (SpecimenView's moving <g>).
-  const setOffset = (dx: number, dy: number) => {
-    offset.current = { dx, dy }
-    if (dx || dy) movingRef.current?.setAttribute('transform', `translate(${dx} ${dy})`)
-    else movingRef.current?.removeAttribute('transform')
-    rendererRef.current?.setTextOffset(dx, dy)
-    paint()
-  }
-  useLayoutEffect(() => {
-    if (!committed.current) return
-    committed.current = false
-    setOffset(0, 0)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout])
-
   /** What is under the pointer: a glyph or missing box (the renderer), else the text block (Free position). */
   const hitAt = (clientX: number, clientY: number): RenderHit | null => {
     const el = containerRef.current
@@ -305,7 +315,8 @@ export default function GlyphSurface({
     const hit = renderer.hitTest(x, y)
     if (hit) return hit
     if (!freeMove) return null
-    const shown = frameNow().scene() ?? scene
+    // The block is the layout's (a morph changes outlines, not where the text sits), so no morph is made for it.
+    const shown = frameNow().layout ?? scene
     return hitBlock(shown, left + x * u, -top + y * u, offset.current.dx, offset.current.dy) ? { kind: 'block' } : null
   }
 
@@ -323,80 +334,36 @@ export default function GlyphSurface({
     el.title = hit?.kind === 'glyph' ? hit.text : hit?.kind === 'missing' ? `Missing from the font: ${hit.text}` : ''
   }
 
-  const pointer = {
-    onPointerDown(e: PointerEvent<HTMLDivElement>) {
-      if (freeMove && e.button === 0) {
-        const hit = hitAt(e.clientX, e.clientY)
-        if (hit?.kind === 'glyph' || hit?.kind === 'block') {
-          committed.current = false
-          setOffset(0, 0)
-          textDrag.current = { x: e.clientX, y: e.clientY, moved: false, dx: 0, dy: 0 }
-          return
-        }
-      }
-      handlers.onPointerDown(e)
+  // Pan and zoom, Escape, and Free drag, as SpecimenView; the underlay's moving group and the renderer move together.
+  const { draggingText, movingRef, offset, dragged, pointer, onKeyDown } = useTextDrag({
+    scene,
+    layout,
+    u,
+    panZoom,
+    onMoveText,
+    onClearSelection,
+    startsOnText: (e) => {
+      const hit = hitAt(e.clientX, e.clientY)
+      return hit?.kind === 'glyph' || hit?.kind === 'block'
     },
-    onPointerMove(e: PointerEvent<HTMLDivElement>) {
-      const d = textDrag.current
-      if (!d) {
-        handlers.onPointerMove(e)
-        if (e.buttons === 0) showHover(hitAt(e.clientX, e.clientY))
-        return
-      }
-      if (!d.moved) {
-        if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3) return
-        d.moved = true
-        try {
-          e.currentTarget.setPointerCapture(e.pointerId)
-        } catch {
-          // Capture is a convenience; the drag still works while the pointer stays on the canvas.
-        }
-        setDraggingText(true)
-      }
-      // Screen pixels to font units (both axes point down in the scene), stopped at the artboard edges.
-      // Along an axis where the text is larger than the artboard it does not move (see moveFreeText).
-      const block = textBox(scene)
-      const along = (delta: number, low: number, high: number) => (low <= high ? Math.min(high, Math.max(low, delta)) : 0)
-      d.dx = along((e.clientX - d.x) * u, layout.x - block.minX, layout.x + layout.width - block.minX - block.width)
-      d.dy = along((e.clientY - d.y) * u, layout.y - block.minY, layout.y + layout.height - block.minY - block.height)
-      setOffset(d.dx, d.dy)
+    onOffset: (dx, dy) => {
+      rendererRef.current?.setTextOffset(dx, dy)
+      paint()
     },
-    onPointerUp() {
-      const d = textDrag.current
-      textMoved.current = d?.moved ?? false
-      textDrag.current = null
-      if (d?.moved) {
-        committed.current = true
-        onMoveText?.(d.dx, d.dy)
-        setDraggingText(false)
-      }
-      handlers.onPointerUp()
+    onHover: (e) => {
+      if (e.buttons === 0) showHover(hitAt(e.clientX, e.clientY))
     },
-    onPointerCancel() {
-      if (textDrag.current?.moved) setDraggingText(false)
-      textDrag.current = null
-      textMoved.current = false
-      setOffset(0, 0)
-      handlers.onPointerCancel()
-    },
-    onPointerLeave() {
-      if (!textDrag.current) showHover(null)
-    },
-  }
+    onLeave: () => showHover(null),
+  })
+  const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
 
   // A click on a glyph selects it; one on empty space (or a missing box, or the block) clears the highlight; neither
   // after a drag.
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
     if (dragged()) return
     const hit = hitAt(e.clientX, e.clientY)
-    if (hit?.kind === 'glyph') onSelectGlyph(selectRef(hit.index, hit.text))
+    if (hit?.kind === 'glyph') onSelectGlyph(glyphRefOf(font, hit.index, hit.text))
     else onClearSelection?.()
-  }
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && e.target === e.currentTarget && onClearSelection) {
-      e.preventDefault()
-      onClearSelection()
-    } else handlers.onKeyDown(e)
   }
 
   return (

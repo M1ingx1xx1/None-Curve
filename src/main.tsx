@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
 import { getSoundEngine } from './sound/engine'
 import { mappingStore } from './sound/mappingStore'
 import { loadSession } from './state/persist'
@@ -19,6 +20,9 @@ if (restored.session) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App restored={restored} />
+    {/* The last line of defence: a throw no panel's own boundary caught shows a message, not a blank page. */}
+    <ErrorBoundary label="None-Curve">
+      <App restored={restored} />
+    </ErrorBoundary>
   </StrictMode>,
 )

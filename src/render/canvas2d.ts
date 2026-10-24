@@ -15,8 +15,19 @@ import { sourceGlyphSkeleton } from '../geometry/sourcePath'
 import type { PolygonGlyph, SourceGlyph } from '../geometry/types'
 import type { SpecimenScene } from '../specimen/scene'
 import { hitScene } from './hitTest'
-import { apply, glyphMatrix, IDENTITY, multiply, traceSource, tracePolygon, type CurveSink, type Matrix } from './strokes'
+import { apply, glyphMatrix, IDENTITY, traceSource, tracePolygon, type CurveSink, type Matrix } from './strokes'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
+import {
+  artboardMatrix,
+  canvasCull,
+  canvasMatrix,
+  hitOptions,
+  scenePoint,
+  sizeBackingStore,
+  type CanvasBacking,
+} from './view'
+
+export type { CanvasBacking } from './view'
 
 export type Canvas2DMode = 'full' | 'detail' | 'artboard'
 
@@ -39,12 +50,6 @@ export interface Context2D<P> {
   lineJoin: string
   miterLimit: number
   globalAlpha: number
-}
-
-/** The canvas element's backing store. */
-export interface CanvasBacking {
-  width: number
-  height: number
 }
 
 /** Outline strokes, in CSS px (styles.css: .outline-stroke, .compare-source, .strip-missing, .skeleton-*). */
@@ -90,21 +95,18 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
 
   /** A renderer on a real canvas, or null when it gives no 2D context. */
   static create(canvas: HTMLCanvasElement, mode: Canvas2DMode): Canvas2DRenderer<Path2D> | null {
-    let ctx: CanvasRenderingContext2D | null = null
+    let ctx: CanvasRenderingContext2D | null
     try {
       ctx = canvas.getContext('2d', { alpha: true, desynchronized: false })
     } catch {
       ctx = null
     }
     if (!ctx) return null
-    return new Canvas2DRenderer<Path2D>(canvas, ctx as unknown as Context2D<Path2D>, mode, () => new Path2D())
+    return new Canvas2DRenderer<Path2D>(canvas, ctx, mode, () => new Path2D())
   }
 
   setView(view: RenderView) {
-    const width = Math.max(1, Math.round(view.cssWidth * view.dpr))
-    const height = Math.max(1, Math.round(view.cssHeight * view.dpr))
-    if (this.canvas.width !== width) this.canvas.width = width
-    if (this.canvas.height !== height) this.canvas.height = height
+    sizeBackingStore(this.canvas, view)
     this.view = view
     this.dirty = true
   }
@@ -148,21 +150,9 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
     if (!view || view.kind !== 'canvas' || !style || !frame) return null
     const scene = frame.scene()
     if (!scene) return null
-    return hitScene(scene, view.left + x * view.u, -view.top + y * view.u, {
-      outline: style.outline,
-      fill: style.fill,
-      showSkeleton: style.showSkeleton,
-      showVertices: style.showVertices,
-      showMarkers: style.showMarkers,
-      markerRadius: style.markerRadius,
-      u: view.u,
-      ascender: style.ascender,
-      descender: style.descender,
-      freeMove: false,
-      offsetX: this.offsetX,
-      offsetY: this.offsetY,
-      source: this.source,
-    })
+    // The scene is the one drawn (draw() evaluates it every frame), so this costs no morph of its own.
+    const [sx, sy] = scenePoint(view, x, y)
+    return hitScene(scene, sx, sy, hitOptions(view, style, this.offsetX, this.offsetY, this.source))
   }
 
   draw(): boolean {
@@ -190,11 +180,7 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
   /** The preview: drawArtboard's placement, the canvas stretched over the artboard; filled, or a scaling outline. */
   private drawArtboard(scene: SpecimenScene, view: Extract<RenderView, { kind: 'artboard' }>, style: RenderStyle) {
     const { ctx } = this
-    const { layout, artboard } = view
-    const kx = this.canvas.width / artboard.width
-    const ky = this.canvas.height / artboard.height
-    const s = 1 / layout.unitsPerPx
-    const base: Matrix = [kx * s, 0, 0, ky * s, -layout.x * kx * s, -layout.y * ky * s]
+    const base = artboardMatrix(this.canvas.width, this.canvas.height, view.artboard, view.layout)
     const stroke = !style.fill
     if (stroke) {
       ctx.strokeStyle = style.colors.ink
@@ -217,30 +203,31 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
 
   /** The main canvas: SpecimenView's glyph layers, culled as it culls them. */
   private drawCanvas(scene: SpecimenScene, view: Extract<RenderView, { kind: 'canvas' }>, style: RenderStyle) {
-    const { u, dpr, left, top } = view
+    const { u, dpr } = view
     const k = dpr / u
-    // Scene units (y down) to device pixels, then the Free drag.
-    const base = multiply([k, 0, 0, k, -left * k, top * k], [1, 0, 0, 1, this.offsetX, this.offsetY])
-    const right = left + view.cssWidth * u
-    const sceneTop = -top
-    const sceneBottom = -top + view.cssHeight * u
-    const margin = style.unitsPerEm
-    const { ascender, descender } = style
-    const inView = (b: { minX: number; maxX: number; minY: number; maxY: number } | null) =>
-      b !== null && b.maxX >= left && b.minX <= right && b.maxY >= sceneTop && b.minY <= sceneBottom
+    const base = canvasMatrix(view, this.offsetX, this.offsetY)
+    const cull = canvasCull(view, style)
+    const { ascender } = style
     let occurrence = 0
     for (const line of scene.lines) {
-      const band = line.baseline - ascender - margin <= sceneBottom && line.baseline - descender + margin >= sceneTop
-      if (!band && !inView(line.ink)) {
+      const band = cull.band(line.baseline)
+      if (!band && !cull.ink(line.ink)) {
         occurrence += line.glyphs.length
         continue
       }
       for (const g of line.glyphs) {
         const occ = occurrence++
-        const near = band && g.x + g.advance + margin >= left && g.x - margin <= right
-        if (!near && !inView(g.ink)) continue
+        if (!cull.glyph(g, band)) continue
         if (g.missing) {
-          this.drawMissing(base, g.x + g.advance * 0.1, g.y - ascender * 0.7, g.advance * 0.8, ascender * 0.7, dpr, style)
+          this.drawMissing(
+            base,
+            g.x + g.advance * 0.1,
+            g.y - ascender * 0.7,
+            g.advance * 0.8,
+            ascender * 0.7,
+            dpr,
+            style,
+          )
           continue
         }
         const source = this.source ? this.source(g.index) : null
@@ -252,7 +239,15 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
     }
   }
 
-  private drawGlyph(m: Matrix, polygon: PolygonGlyph | null, source: SourceGlyph | null, color: string, dpr: number, k: number, style: RenderStyle) {
+  private drawGlyph(
+    m: Matrix,
+    polygon: PolygonGlyph | null,
+    source: SourceGlyph | null,
+    color: string,
+    dpr: number,
+    k: number,
+    style: RenderStyle,
+  ) {
     const detail = this.mode === 'detail'
     const hasPolygon = polygon !== null && polygon.contours.length > 0
     if (style.outline === 'source' && source) {

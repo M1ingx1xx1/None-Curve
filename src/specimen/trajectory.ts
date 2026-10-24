@@ -57,7 +57,10 @@ export interface Trajectory {
    */
   path(sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base?: Uint8Array): TrackPath
   /** Whorl's sweep as data (planData.ts): the plan's centres and Sides, and each contour's arrays (`path` runs on them). */
-  whorl?: { params: WhorlPlanParams; arrays(sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base?: Uint8Array): WhorlArrays }
+  whorl?: {
+    params: WhorlPlanParams
+    arrays(sx: Float64Array, sy: Float64Array, tx: Float64Array, ty: Float64Array, base?: Uint8Array): WhorlArrays
+  }
 }
 
 export interface TrajectoryModel {
@@ -129,7 +132,12 @@ export function turnAtSize(w: WhorlMotion | undefined, size: number): number {
  * turn, along the normal of the side the point faced then. So the size is the one that, turned back by its own turn,
  * agrees with itself: r · facing(φ − turn(size)) = size, which lies between r · cos(π/Sides) and r (found by halving).
  */
-export function whorlPreimage(w: WhorlMotion, dx: number, dy: number, ring: RingPolygon = ringPolygon(w.sides)): { size: number; turn: number } {
+function whorlPreimage(
+  w: WhorlMotion,
+  dx: number,
+  dy: number,
+  ring: RingPolygon = ringPolygon(w.sides),
+): { size: number; turn: number } {
   const r = Math.hypot(dx, dy)
   if (!(r > 0)) return { size: 0, turn: turnAtSize(w, 0) }
   const angle = Math.atan2(dy, dx)
@@ -191,7 +199,13 @@ function outlineDistance(w: WhorlMotion): ((x: number, y: number) => number) | n
  * outline shows), then the one nearest `near` (from the centre) or else the ring-by-ring estimate (whorlPreimage);
  * that estimate where no mesh triangle holds the point.
  */
-export function whorlUnturn(w: WhorlMotion, dx: number, dy: number, ring: RingPolygon = ringPolygon(w.sides), near?: Point): Point {
+export function whorlUnturn(
+  w: WhorlMotion,
+  dx: number,
+  dy: number,
+  ring: RingPolygon = ringPolygon(w.sides),
+  near?: Point,
+): Point {
   const estimate = whorlPreimage(w, dx, dy, ring).turn
   const cos = Math.cos(-estimate)
   const sin = Math.sin(-estimate)
@@ -267,10 +281,13 @@ export function along(
 }
 
 /** A Whorl track's arrays, worked out once per contour (planData.ts WhorlTrack without the pairs). */
-export type WhorlArrays = Pick<WhorlTrack, 'a0' | 'turn' | 'sizeA' | 'sizeB' | 'ox' | 'oy' | 'ex' | 'ey' | 'rx' | 'ry' | 'mx' | 'my'>
+export type WhorlArrays = Pick<
+  WhorlTrack,
+  'a0' | 'turn' | 'sizeA' | 'sizeB' | 'ox' | 'oy' | 'ex' | 'ey' | 'rx' | 'ry' | 'mx' | 'my'
+>
 
 /** The centres and Sides a Whorl plan sweeps by: from the old outline's Whorl (or the new one's) to the new one's. */
-export function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlanParams {
+function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlanParams {
   return { startX: start.x, startY: start.y, endX: end.x, endY: end.y, sidesA: start.sides, sidesB: end.sides }
 }
 
@@ -279,7 +296,7 @@ export function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlan
  * anchor's start angle and turn, its ring sizes, where the sweep starts and ends (from the moving centre), the straight
  * rest of the way and, with Sides changed, where the two halves meet. `from` or `to` may be missing, not both.
  */
-export function whorlTrackData(
+function whorlTrackData(
   from: WhorlMotion | undefined,
   to: WhorlMotion | undefined,
   sx: Float64Array,

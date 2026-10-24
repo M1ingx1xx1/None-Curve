@@ -15,19 +15,31 @@ export const exp = (patch: Partial<GeometryParams['experimental']>, seed = 1): G
 })
 export const whorl = (amount: number, patch: Partial<GeometryParams['experimental']['whorl']> = {}) =>
   exp({ whorl: { ...BASE.experimental.whorl, enabled: true, amount, ...patch } })
-export const burst = (seed: number) => exp({ thorn: { ...BASE.experimental.thorn, enabled: true, burst: true, canvasReach: 0.05, canvasEm: 30 } }, seed)
+export const burst = (seed: number) =>
+  exp({ thorn: { ...BASE.experimental.thorn, enabled: true, burst: true, canvasReach: 0.05, canvasEm: 30 } }, seed)
 export const thorny = (amount: number, reach: number) =>
-  exp({ whorl: { ...BASE.experimental.whorl, enabled: true, amount }, thorn: { ...BASE.experimental.thorn, enabled: true, canvasReach: reach, canvasEm: 30 } })
+  exp({
+    whorl: { ...BASE.experimental.whorl, enabled: true, amount },
+    thorn: { ...BASE.experimental.thorn, enabled: true, canvasReach: reach, canvasEm: 30 },
+  })
 export const dissolve = (seed: number) => exp({ dissolve: { ...BASE.experimental.dissolve, enabled: true } }, seed)
 
 /** The polygon of the `k`th glyph of `text` in `font` under `params`. */
-export async function glyphOf(font: FixtureFont, text: string, k: number, params: GeometryParams): Promise<PolygonGlyph> {
+export async function glyphOf(
+  font: FixtureFont,
+  text: string,
+  k: number,
+  params: GeometryParams,
+): Promise<PolygonGlyph> {
   const loaded = await loadFixture(font)
   const index = shapeSpecimen(loaded, text).indices[k]
   return deriveGeometry(loaded.getGlyph(index), params).polygon
 }
 
-const contour = (points: [number, number][], clockwise = false): PolygonContour => ({ points: points.map(([x, y]) => ({ x, y })), clockwise })
+const contour = (points: [number, number][], clockwise = false): PolygonContour => ({
+  points: points.map(([x, y]) => ({ x, y })),
+  clockwise,
+})
 const made = (...contours: PolygonContour[]): PolygonGlyph => ({
   ref: { index: 1, unicode: null, name: null } as unknown as PolygonGlyph['ref'],
   metrics: { unitsPerEm: 1000 } as PolygonGlyph['metrics'],
@@ -82,7 +94,11 @@ export async function planCases(): Promise<PlanCase[]> {
   const ring = made(square(0, 0, 300), square(100, 100, 100, true))
   const island = made(square(0, 0, 300), square(500, 500, 40))
   cases.push({ name: 'grow and shrink', from: ring, to: island })
-  cases.push({ name: 'still and moved', from: made(square(0, 0, 100), square(300, 0, 100)), to: made(square(0, 0, 100), square(320, 10, 100)) })
+  cases.push({
+    name: 'still and moved',
+    from: made(square(0, 0, 100), square(300, 0, 100)),
+    to: made(square(0, 0, 100), square(320, 10, 100)),
+  })
   return cases
 }
 

@@ -1,3 +1,4 @@
+import type { SliderRange } from '../state/sliderScales'
 import NumberField, { decimals } from './NumberField'
 
 interface SliderNumberProps {
@@ -21,22 +22,49 @@ interface SliderNumberProps {
 const clean = (n: number) => Number(n.toPrecision(12))
 
 /**
+ * A number box for a value shown `scale` times larger (a share in percent): the box's value, range and step in the
+ * shown unit, and `commit`, which turns a typed number back into the value, on the value's own step.
+ */
+export function scaledBox(
+  value: number,
+  { min, max, step }: SliderRange,
+  scale = 1,
+  onCommit: (value: number) => void,
+) {
+  const shownStep = clean(step * scale)
+  return {
+    value: Number((value * scale).toFixed(decimals(shownStep))),
+    min: clean(min * scale),
+    max: clean(max * scale),
+    step: shownStep,
+    onCommit: (v: number) => onCommit(Number((v / scale).toFixed(decimals(step)))),
+  }
+}
+
+/** The number box's name: "<label> (<unit>)", or the label alone. */
+export const boxLabel = (label: string, unit?: string) => (unit ? `${label} (${unit})` : label)
+
+/**
  * The number box in a slider's head, where its readout was: the value in the readout's unit, typed exactly and
  * committed on Enter or blur (see NumberField). The slider beside it keeps its own range, curve and live marker.
  */
-export default function SliderNumber({ value, min, max, step, scale = 1, unit, label, disabled, onCommit }: SliderNumberProps) {
-  const shownStep = clean(step * scale)
-  const shown = (v: number) => Number((v * scale).toFixed(decimals(shownStep)))
+export default function SliderNumber({
+  value,
+  min,
+  max,
+  step,
+  scale,
+  unit,
+  label,
+  disabled,
+  onCommit,
+}: SliderNumberProps) {
   return (
     <span className="slider-number">
       <NumberField
-        value={shown(value)}
-        min={clean(min * scale)}
-        max={clean(max * scale)}
-        step={shownStep}
+        {...scaledBox(value, { min, max, step }, scale, onCommit)}
         disabled={disabled}
-        aria-label={unit ? `${label} (${unit})` : label}
-        onCommit={(v) => onCommit(Number((v / scale).toFixed(decimals(step))))}
+        aria-label={boxLabel(label, unit)}
       />
       {unit && <span className="unit">{unit}</span>}
     </span>

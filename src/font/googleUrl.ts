@@ -25,7 +25,9 @@ const SUPPORTED_FORMS =
 
 /** True when the input should be treated as a URL rather than a family name. */
 export function looksLikeUrl(input: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(input.trim()) || /^(www\.)?fonts\.(google|googleapis)\.com\//i.test(input.trim())
+  return (
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(input.trim()) || /^(www\.)?fonts\.(google|googleapis)\.com\//i.test(input.trim())
+  )
 }
 
 function cleanFamily(raw: string): string {
@@ -51,11 +53,16 @@ export function parseFontInput(input: string): ParseResult {
   } catch {
     return { ok: false, error: `This is not a valid URL. ${SUPPORTED_FORMS}` }
   }
-  if (url.protocol !== 'https:') return { ok: false, error: `Only https:// Google Fonts URLs are accepted. ${SUPPORTED_FORMS}` }
-  if (url.username || url.password || url.port) return { ok: false, error: `URLs with credentials or ports are not accepted. ${SUPPORTED_FORMS}` }
+  if (url.protocol !== 'https:')
+    return { ok: false, error: `Only https:// Google Fonts URLs are accepted. ${SUPPORTED_FORMS}` }
+  if (url.username || url.password || url.port)
+    return { ok: false, error: `URLs with credentials or ports are not accepted. ${SUPPORTED_FORMS}` }
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
   if (!ALLOWED_HOSTS.includes(host)) {
-    return { ok: false, error: `Only fonts.google.com and fonts.googleapis.com URLs are accepted, not ${url.hostname}. ${SUPPORTED_FORMS}` }
+    return {
+      ok: false,
+      error: `Only fonts.google.com and fonts.googleapis.com URLs are accepted, not ${url.hostname}. ${SUPPORTED_FORMS}`,
+    }
   }
 
   if (host === 'fonts.google.com') {
@@ -81,11 +88,13 @@ export function parseFontInput(input: string): ParseResult {
 
   // fonts.googleapis.com
   const path = url.pathname.replace(/\/$/, '')
-  if (path !== '/css2' && path !== '/css') return { ok: false, error: `Unsupported fonts.googleapis.com path “${url.pathname}”. ${SUPPORTED_FORMS}` }
+  if (path !== '/css2' && path !== '/css')
+    return { ok: false, error: `Unsupported fonts.googleapis.com path “${url.pathname}”. ${SUPPORTED_FORMS}` }
   const families = url.searchParams.getAll('family').flatMap((f) => (path === '/css' ? f.split('|') : [f]))
   if (!families.length || !families[0]) return { ok: false, error: 'The URL has no family parameter.' }
   const notes: string[] = []
-  if (families.length > 1) notes.push(`The URL lists ${families.length} families; only “${cleanFamily(families[0].split(':')[0])}” is loaded.`)
+  if (families.length > 1)
+    notes.push(`The URL lists ${families.length} families; only “${cleanFamily(families[0].split(':')[0])}” is loaded.`)
   const ignored = [...new Set([...url.searchParams.keys()].filter((k) => k !== 'family'))]
   if (ignored.length) notes.push(`Ignored URL parameters: ${ignored.join(', ')}.`)
 
@@ -93,12 +102,20 @@ export function parseFontInput(input: string): ParseResult {
   const family = cleanFamily(rawName)
   if (!validFamily(family)) return { ok: false, error: 'The URL does not contain a valid family name.' }
   const parsed = path === '/css2' ? parseCss2Spec(spec) : parseCss1Spec(spec)
-  return { ok: true, request: { family, ...parsed, notes: [...notes, ...parsed.notes], source: path === '/css2' ? 'css2' : 'css' } }
+  return {
+    ok: true,
+    request: { family, ...parsed, notes: [...notes, ...parsed.notes], source: path === '/css2' ? 'css2' : 'css' },
+  }
 }
 
 /** css2 axis spec, e.g. "ital,wght@0,400;1,700", "wght@300..700", or "opsz,wght@8..144,400". */
 function parseCss2Spec(spec: string): Pick<ParsedFontRequest, 'weight' | 'italic' | 'unsupportedAxes' | 'notes'> {
-  const result = { weight: null as number | null, italic: null as boolean | null, unsupportedAxes: [] as string[], notes: [] as string[] }
+  const result = {
+    weight: null as number | null,
+    italic: null as boolean | null,
+    unsupportedAxes: [] as string[],
+    notes: [] as string[],
+  }
   if (!spec) return result
   const [axesPart, valuesPart = ''] = spec.split('@')
   const axes = axesPart.split(',').map((a) => a.trim())
@@ -124,12 +141,19 @@ function parseCss2Spec(spec: string): Pick<ParsedFontRequest, 'weight' | 'italic
 
 /** Legacy css spec, e.g. "400,700italic" or "300i". */
 function parseCss1Spec(spec: string): Pick<ParsedFontRequest, 'weight' | 'italic' | 'unsupportedAxes' | 'notes'> {
-  const result = { weight: null as number | null, italic: null as boolean | null, unsupportedAxes: [] as string[], notes: [] as string[] }
+  const result = {
+    weight: null as number | null,
+    italic: null as boolean | null,
+    unsupportedAxes: [] as string[],
+    notes: [] as string[],
+  }
   if (!spec) return result
   const variants = spec.split(',').filter(Boolean)
   if (variants.length > 1) result.notes.push(`The URL requests ${variants.length} styles; the first one is used.`)
   const first = variants[0].toLowerCase()
-  const match = /^(\d{3})?(italic|i)?$/.exec(first) ?? (first === 'bold' ? ['', '700', undefined] : first === 'regular' ? ['', '400', undefined] : null)
+  const match =
+    /^(\d{3})?(italic|i)?$/.exec(first) ??
+    (first === 'bold' ? ['', '700', undefined] : first === 'regular' ? ['', '400', undefined] : null)
   if (match) {
     if (match[1]) result.weight = Number(match[1])
     result.italic = Boolean(match[2])

@@ -29,7 +29,14 @@ import { PRESETS } from '../../src/sound/presets'
 import { NO_SHAPING, ShapingTracker } from '../../src/sound/shaping'
 import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame } from '../../src/sound/types'
 import { undoHistory, type Snapshot } from '../../src/state/history'
-import { parseConfig, readSession, serializeConfig, serializeSession, parseSession, type Session } from '../../src/state/persist'
+import {
+  parseConfig,
+  readSession,
+  serializeConfig,
+  serializeSession,
+  parseSession,
+  type Session,
+} from '../../src/state/persist'
 import { DEFAULT_SETTINGS } from '../../src/state/reset'
 import { BASE } from '../helpers/params'
 
@@ -40,7 +47,14 @@ const base: GeometryParams = { ...BASE, distortion: { ...BASE.distortion, amount
 const spec = targetById(AMOUNT)!
 const basePosition = spec.toSlider(spec.get(base))
 
-const row = (patch: Partial<Mapping> = {}): Mapping => ({ id: 'm1', enabled: true, feature: 'level', target: AMOUNT, depth: 0.5, ...patch })
+const row = (patch: Partial<Mapping> = {}): Mapping => ({
+  id: 'm1',
+  enabled: true,
+  feature: 'level',
+  target: AMOUNT,
+  depth: 0.5,
+  ...patch,
+})
 
 /** A frame at `time` (ms) with every continuous feature at `value` (Pan too), and an onset when `onset`. */
 const frameAt = (time: number, value: number, onset = false): FeatureFrame => ({
@@ -82,7 +96,9 @@ function noise(seed: number) {
 /** The slider position modulate gives `mapping` on each frame, through a ShapingTracker. */
 function positions(mapping: Mapping, input: readonly FeatureFrame[]): number[] {
   const tracker = new ShapingTracker()
-  return input.map((f) => modulate(base, f, [mapping], undefined, undefined, tracker.advance(f, [mapping]).values).positions.get(AMOUNT)!)
+  return input.map((f) =>
+    modulate(base, f, [mapping], undefined, undefined, tracker.advance(f, [mapping]).values).positions.get(AMOUNT)!,
+  )
 }
 
 /** The shaped value of `mapping` on each frame. */
@@ -119,7 +135,11 @@ describe('shaping at its defaults', () => {
 
   it('leaves modulate exactly as without shaping, the same object when nothing moves', () => {
     const tracker = new ShapingTracker()
-    const mappings = [row({ id: 'a' }), row({ id: 'b', feature: 'pan', depth: -0.3 }), row({ id: 'c', feature: 'beat', target: SEED, depth: 1 })]
+    const mappings = [
+      row({ id: 'a' }),
+      row({ id: 'b', feature: 'pan', depth: -0.3 }),
+      row({ id: 'c', feature: 'beat', target: SEED, depth: 1 }),
+    ]
     const response = { ...NEUTRAL_RESPONSE, melody: 0.2, strength: 1.5 }
     for (const f of input) {
       const values = tracker.advance(f, mappings).values
@@ -132,12 +152,17 @@ describe('shaping at its defaults', () => {
   })
 
   it('leaves the jumps exactly as without shaping', () => {
-    for (const mapping of [row({ feature: 'beat', target: SEED, depth: 0.5 }), row({ feature: 'level', target: SEED, depth: 0.7 })]) {
+    for (const mapping of [
+      row({ feature: 'beat', target: SEED, depth: 0.5 }),
+      row({ feature: 'level', target: SEED, depth: 0.7 }),
+    ]) {
       const shaping = new ShapingTracker()
       const a = new JumpTracker()
       const b = new JumpTracker()
       for (const f of input) {
-        expect(a.advance(f, [mapping], base, 1, shaping.advance(f, [mapping]))).toEqual(b.advance(f, [mapping], base, 1))
+        expect(a.advance(f, [mapping], base, 1, shaping.advance(f, [mapping]))).toEqual(
+          b.advance(f, [mapping], base, 1),
+        )
       }
     }
   })
@@ -246,7 +271,10 @@ describe('Range', () => {
   })
 
   it('takes the outer edges of the spans on one slider, and reports them as sharedRange does', () => {
-    const m = [row({ id: 'a', depth: 0.6, rangeMin: 0, rangeMax: 0.2 }), row({ id: 'b', depth: 0.6, rangeMin: 0.1, rangeMax: 0.4 })]
+    const m = [
+      row({ id: 'a', depth: 0.6, rangeMin: 0, rangeMax: 0.2 }),
+      row({ id: 'b', depth: 0.6, rangeMin: 0.1, rangeMax: 0.4 }),
+    ]
     const out = modulate(base, frameAt(10, 1), m)
     expect(out.bounds?.get(AMOUNT)).toEqual([0, 0.4])
     expect(sharedRange(m, AMOUNT)).toEqual([0, 0.4])
@@ -254,7 +282,9 @@ describe('Range', () => {
     // Two narrow spans apart give the whole slider between them; a row switched off or at Depth 0 takes no part.
     const apart = [row({ id: 'a', rangeMin: 0, rangeMax: 0.2 }), row({ id: 'b', rangeMin: 0.8, rangeMax: 1 })]
     expect(sharedRange(apart, AMOUNT)).toEqual([0, 1])
-    expect(sharedRange([...apart, row({ id: 'c', enabled: false, rangeMin: 0.5, rangeMax: 0.6 })], AMOUNT)).toEqual([0, 1])
+    expect(sharedRange([...apart, row({ id: 'c', enabled: false, rangeMin: 0.5, rangeMax: 0.6 })], AMOUNT)).toEqual([
+      0, 1,
+    ])
     expect(sharedRange([apart[0], { ...apart[1], depth: 0 }], AMOUNT)).toEqual([0, 0.2])
     expect(sharedRange(apart, SEED)).toBeUndefined()
   })
@@ -267,13 +297,17 @@ describe('Range', () => {
 
   it('does nothing on a seed', () => {
     const input = frames(3, () => 0.8)
-    expect(jumpCount(row({ target: SEED, depth: 1, rangeMin: 0.4, rangeMax: 0.5 }), input)).toBe(jumpCount(row({ target: SEED, depth: 1 }), input))
+    expect(jumpCount(row({ target: SEED, depth: 1, rangeMin: 0.4, rangeMax: 0.5 }), input)).toBe(
+      jumpCount(row({ target: SEED, depth: 1 }), input),
+    )
   })
 })
 
 describe('Trigger', () => {
   // Level rises past 0.5 at 200 ms and 1200 ms, each for 100 ms, with noise around the gate in between.
-  const bursts = frames(2, (t) => ((t > 200 && t < 300) || (t > 1200 && t < 1300) ? 0.9 : t > 600 && t < 900 ? (Math.round(t) % 3 ? 0.48 : 0.52) : 0))
+  const bursts = frames(2, (t) =>
+    (t > 200 && t < 300) || (t > 1200 && t < 1300) ? 0.9 : t > 600 && t < 900 ? (Math.round(t) % 3 ? 0.48 : 0.52) : 0,
+  )
 
   it('fires once per rise past the gate; noise around it fires once', () => {
     const tracker = new ShapingTracker()
@@ -288,7 +322,13 @@ describe('Trigger', () => {
   it('re-arms at Gate 0 when the feature dips but never reaches 0', () => {
     // Three loud bursts over a floor of 0.02 (never 0), with noise around SHAPING_LIMITS.minFire in between.
     const floor = frames(2, (t) =>
-      (t > 200 && t < 300) || (t > 800 && t < 900) || (t > 1400 && t < 1500) ? 0.6 : t > 1000 && t < 1300 ? (Math.round(t) % 3 ? 0.09 : 0.11) : 0.02,
+      (t > 200 && t < 300) || (t > 800 && t < 900) || (t > 1400 && t < 1500)
+        ? 0.6
+        : t > 1000 && t < 1300
+          ? Math.round(t) % 3
+            ? 0.09
+            : 0.11
+          : 0.02,
     )
     for (const mode of ['trigger', 'toggle'] as const) {
       const tracker = new ShapingTracker()
@@ -371,7 +411,12 @@ describe('determinism and restarts', () => {
     return input.map((f) => {
       const s = shaping.advance(f, mappings)
       const j = jumps.advance(f, mappings, base, 1, s)
-      return JSON.stringify([[...s.values], [...s.rises], [...j], modulate(base, f, mappings, j, NEUTRAL_RESPONSE, s.values).positions.get(AMOUNT)])
+      return JSON.stringify([
+        [...s.values],
+        [...s.rises],
+        [...j],
+        modulate(base, f, mappings, j, NEUTRAL_RESPONSE, s.values).positions.get(AMOUNT),
+      ])
     })
   }
 
@@ -419,7 +464,14 @@ describe('determinism and restarts', () => {
 })
 
 describe('shaping kept', () => {
-  const SHAPED: Partial<Shaping> = { rangeMin: 0.1, rangeMax: 0.6, curve: -0.35, smoothMs: 250, gate: 0.2, mode: 'trigger' }
+  const SHAPED: Partial<Shaping> = {
+    rangeMin: 0.1,
+    rangeMax: 0.6,
+    curve: -0.35,
+    smoothMs: 250,
+    gate: 0.2,
+    mode: 'trigger',
+  }
   const session = (mappings: Mapping[]): Session => ({
     params: DEFAULT_SETTINGS,
     view: readSession({})!.view,
@@ -448,15 +500,36 @@ describe('shaping kept', () => {
   it('clamps damaged shaping to its limits, and drops what is not a value', () => {
     const read = readSession({
       version: 2,
-      mappings: [{ enabled: true, feature: 'bass', target: AMOUNT, depth: 0.5, rangeMin: 0.8, rangeMax: 0.2, curve: 7, smoothMs: 1e9, gate: 'x', mode: 'loop' }],
+      mappings: [
+        {
+          enabled: true,
+          feature: 'bass',
+          target: AMOUNT,
+          depth: 0.5,
+          rangeMin: 0.8,
+          rangeMax: 0.2,
+          curve: 7,
+          smoothMs: 1e9,
+          gate: 'x',
+          mode: 'loop',
+        },
+      ],
     })!.mappings[0]
-    expect(shapingOf(read)).toEqual({ rangeMin: 0.8, rangeMax: 0.81, curve: 1, smoothMs: SHAPING_LIMITS.smoothMs.max, gate: 0, mode: 'follow' })
+    expect(shapingOf(read)).toEqual({
+      rangeMin: 0.8,
+      rangeMax: 0.81,
+      curve: 1,
+      smoothMs: SHAPING_LIMITS.smoothMs.max,
+      gate: 0,
+      mode: 'follow',
+    })
     expect(read).not.toHaveProperty('gate')
     expect(read).not.toHaveProperty('mode')
   })
 
   it('can be written into a preset row, and every preset keeps the defaults', () => {
-    for (const preset of PRESETS) for (const m of preset.mappings) expect(shapingOf(m), preset.id).toEqual(DEFAULT_SHAPING)
+    for (const preset of PRESETS)
+      for (const m of preset.mappings) expect(shapingOf(m), preset.id).toEqual(DEFAULT_SHAPING)
   })
 
   describe('in the store, with undo', () => {
@@ -486,18 +559,34 @@ describe('shaping kept', () => {
       undoHistory.endGesture()
       mappingStore.update(id, { rangeMin: 0.5 })
       const m = mappingStore.getState().mappings[0]
-      expect(shapingOf(m)).toEqual({ ...DEFAULT_SHAPING, gate: SHAPING_LIMITS.gate.max, mode: 'toggle', rangeMin: 0.29, rangeMax: 0.3 })
+      expect(shapingOf(m)).toEqual({
+        ...DEFAULT_SHAPING,
+        gate: SHAPING_LIMITS.gate.max,
+        mode: 'toggle',
+        rangeMin: 0.29,
+        rangeMax: 0.3,
+      })
       expect(undoHistory.undo()).toBe(true)
-      expect(shapingOf(mappingStore.getState().mappings[0])).toEqual({ ...DEFAULT_SHAPING, gate: SHAPING_LIMITS.gate.max, mode: 'toggle', rangeMax: 0.3 })
+      expect(shapingOf(mappingStore.getState().mappings[0])).toEqual({
+        ...DEFAULT_SHAPING,
+        gate: SHAPING_LIMITS.gate.max,
+        mode: 'toggle',
+        rangeMax: 0.3,
+      })
       undoHistory.undo()
       undoHistory.undo()
-      expect(shapingOf(mappingStore.getState().mappings[0])).toEqual({ ...DEFAULT_SHAPING, gate: SHAPING_LIMITS.gate.max })
+      expect(shapingOf(mappingStore.getState().mappings[0])).toEqual({
+        ...DEFAULT_SHAPING,
+        gate: SHAPING_LIMITS.gate.max,
+      })
       undoHistory.undo()
       expect(mappingStore.getState().mappings[0]).not.toHaveProperty('gate')
     })
 
-    it('keeps a preset row\'s shaping on Load, clamped', () => {
-      mappingStore.replace([{ enabled: true, feature: 'bass', target: AMOUNT, depth: 0.5, smoothMs: 333, mode: 'trigger' }])
+    it("keeps a preset row's shaping on Load, clamped", () => {
+      mappingStore.replace([
+        { enabled: true, feature: 'bass', target: AMOUNT, depth: 0.5, smoothMs: 333, mode: 'trigger' },
+      ])
       const m = mappingStore.getState().mappings[0]
       expect(m.smoothMs).toBe(330)
       expect(m.mode).toBe('trigger')

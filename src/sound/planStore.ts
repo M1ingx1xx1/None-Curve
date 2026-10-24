@@ -253,10 +253,12 @@ export class PlanStore {
     let compacted: PlannedCommit['commit'] = inner
     if (inner && inner.params) {
       const sharedKey = commit.jobs[0]?.key
-      const params = sharedKey !== undefined ? this.internParams(t, inner.params, this.intern(t, sharedKey)) : inner.params
+      const params =
+        sharedKey !== undefined ? this.internParams(t, inner.params, this.intern(t, sharedKey)) : inner.params
       const letters = inner.letters ? this.internLetters(t, inner.letters) : null
       const look = inner.look ? this.internLook(t, inner.look) : null
-      if (params !== inner.params || letters !== inner.letters || look !== inner.look) compacted = { params, letters, look }
+      if (params !== inner.params || letters !== inner.letters || look !== inner.look)
+        compacted = { params, letters, look }
     }
     return {
       ...commit,

@@ -1,24 +1,22 @@
 import { memo, type Dispatch } from 'react'
-import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geometry/constraints'
+import { type ConstraintStats, type FallbackReason } from '../geometry/constraints'
+import { ANGLE_STEPS } from '../geometry/limits'
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface GridControlsProps {
   params: GridParams
   stats: ConstraintStats | null
-  unitsPerEm: number | null
   pending: boolean
   disabled: boolean
   dispatch: Dispatch<Action>
 }
 
-export const DEFAULT_GRID: GridParams = { snap: false, size: 10, angleLock: false, angleStep: 45 }
+const DEFAULT_GRID: GridParams = { snap: false, size: 10, angleLock: false, angleStep: 45 }
 
 const stepLabels: Record<number, string> = {
   90: '90° — horizontal and vertical',
@@ -50,7 +48,7 @@ function describeFallbacks(stats: ConstraintStats, step: 'snap' | 'angle'): stri
   return parts.join('; ')
 }
 
-function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }: GridControlsProps) {
+function GridControls({ params, stats, disabled, dispatch }: GridControlsProps) {
   const update = (patch: Partial<GridParams>) => dispatch({ type: 'updateParams', group: 'grid', patch })
   const snapOn = params.snap && params.size > 0
   const snapFallback = stats ? describeFallbacks(stats, 'snap') : null
@@ -78,37 +76,24 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
         </HintText>
 
         <div className="field field-toggle">
-          <input id="grid-snap" type="checkbox" checked={params.snap} onChange={(e) => update({ snap: e.target.checked })} />
+          <input
+            id="grid-snap"
+            type="checkbox"
+            checked={params.snap}
+            onChange={(e) => update({ snap: e.target.checked })}
+          />
           <label htmlFor="grid-snap">Snap to grid</label>
         </div>
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="grid-size">Grid size</label>
-
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['grid.size']}
-              value={params.size}
-              unit="u"
-              label="Grid size"
-              disabled={!params.snap}
-              onCommit={(size) => update({ size })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="grid-size"
-              type="range"
-              {...SLIDER_RANGES['grid.size']}
-              value={params.size}
-              disabled={!params.snap}
-              aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
-              onChange={(e) => update({ size: Number(e.target.value) })}
-            />
-            <LiveMarker target="grid.size" />
-          </span>
-        </div>
+        <SliderField
+          id="grid-size"
+          target="grid.size"
+          label="Grid size"
+          value={params.size}
+          unit="u"
+          valueText={params.size > 0 ? `${params.size} font units` : 'Off'}
+          disabled={!params.snap}
+          onChange={(size) => update({ size })}
+        />
         {stats?.snapApplied && (
           <p className="field-hint">
             Largest move {stats.snapMaxShift.toFixed(2)} u · {stats.snapMerged} merged{' '}
@@ -121,7 +106,11 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
             without collapsing or crossing.
           </p>
         )}
-        {snapFallback && <p className="font-warning">Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.</p>}
+        {snapFallback && (
+          <p className="font-warning">
+            Snapping skipped for: {snapFallback}. Those contours keep their unsnapped points.
+          </p>
+        )}
 
         <div className="field field-toggle">
           <input
@@ -151,10 +140,10 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
             ))}
           </select>
           <HintText hint={angleHint}>
-            Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal; an
-            exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their length,
-            so the contour closes again, and it is fitted back to its original size and place. Where that would change
-            the letter too much, its edges become fine stair steps instead.
+            Edges turn to the nearest of {allowedAngles(params.angleStep)}, measured counter-clockwise from horizontal;
+            an exact tie picks the counter-clockwise angle. Edge lengths are then adjusted, in proportion to their
+            length, so the contour closes again, and it is fitted back to its original size and place. Where that would
+            change the letter too much, its edges become fine stair steps instead.
           </HintText>
         </div>
         {stats?.angleApplied && <p className="field-hint">Largest move {stats.angleMaxShift.toFixed(2)} u.</p>}
@@ -165,7 +154,9 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
           </p>
         )}
         {angleFallback && (
-          <p className="font-warning">Angle lock skipped for: {angleFallback}. Those contours keep their previous points.</p>
+          <p className="font-warning">
+            Angle lock skipped for: {angleFallback}. Those contours keep their previous points.
+          </p>
         )}
 
         {snapOn && params.angleLock && (
@@ -174,7 +165,12 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
           </p>
         )}
 
-        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update(DEFAULT_GRID)}>
+        <button
+          type="button"
+          className="button-small"
+          disabled={disabled || isDefault}
+          onClick={() => update(DEFAULT_GRID)}
+        >
           <Icon name="reset" />
           Reset grid &amp; angles
         </button>

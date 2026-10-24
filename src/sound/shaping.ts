@@ -16,7 +16,16 @@
 // pulse, toggle) when a mapping first drives, when its Mode or Feature changes, and after reset(): Sound stopped
 // driving (pause, Drive letters off) or the file was sought (LiveScheduler.seeked).
 
-import { curveValue, featureById, featureValue, gateValue, SHAPING_LIMITS, shapingOf, targetById, type Mapping } from './mapping'
+import {
+  curveValue,
+  featureById,
+  featureValue,
+  gateValue,
+  SHAPING_LIMITS,
+  shapingOf,
+  targetById,
+  type Mapping,
+} from './mapping'
 import { SILENT_FRAME, type FeatureFrame } from './types'
 
 /** One frame's shaping: the shaped value of every enabled mapping, and the mappings that rose past their Gate. */
@@ -102,7 +111,10 @@ export class ShapingTracker {
         if (shaping.mode === 'toggle' && rose) state.toggled = 1 - state.toggled
         const target = shaping.mode === 'toggle' ? state.toggled : gateValue(raw, shaping.gate)
         // Smooth 0: the value itself, bit for bit (no smoothing arithmetic at the default).
-        state.smooth = shaping.smoothMs > 0 ? state.smooth + (target - state.smooth) * (1 - Math.exp(-dt / shaping.smoothMs)) : target
+        state.smooth =
+          shaping.smoothMs > 0
+            ? state.smooth + (target - state.smooth) * (1 - Math.exp(-dt / shaping.smoothMs))
+            : target
         value = state.smooth
       }
       values.set(mapping.id, curveValue(value, shaping.curve))

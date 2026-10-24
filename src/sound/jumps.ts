@@ -79,10 +79,18 @@ export class JumpTracker {
       const event = featureById(mapping.feature)?.event
       const step =
         (mapping.mode ?? 'follow') !== 'follow'
-          ? shaped.rises.has(mapping.id) ? rate : 0
+          ? shaped.rises.has(mapping.id)
+            ? rate
+            : 0
           : event
-            ? frame[event] === true ? rate : 0
-            : (rate * Math.abs(shaped.values.get(mapping.id) ?? shapeStateless(mapping, frame)) * JUMP_LIMITS.maxRate * dt) / 1000
+            ? frame[event] === true
+              ? rate
+              : 0
+            : (rate *
+                Math.abs(shaped.values.get(mapping.id) ?? shapeStateless(mapping, frame)) *
+                JUMP_LIMITS.maxRate *
+                dt) /
+              1000
       let sum = (this.progress.get(mapping.id) ?? 0) + step
       const whole = Math.floor(sum + EPSILON)
       if (whole >= 1) {

@@ -1,6 +1,6 @@
 name: Test
 
-# The fast test suite and the build on every pull request into develop and every push to it.
+# Lint, the format check, the fast test suite and the build on every pull request into develop and every push to it.
 # The slow suite (npm run test:slow) runs locally only.
 on:
   pull_request:
@@ -25,5 +25,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm test
       - run: npm run build

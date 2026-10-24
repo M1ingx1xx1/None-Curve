@@ -59,7 +59,17 @@ describe('clearedExperimental', () => {
     // (Turn, Direction) and Whorl's signed Amount sit at 0, Ripple's centre in the middle.
     expect(cleared).toEqual({
       crumple: { enabled: false, amount: 0, facet: 0, turn: 0 },
-      ripple: { enabled: false, amount: 0, wavelength: 0, sides: 3, centerX: 0.5, centerY: 0.5, fade: 0, petals: 0, reverse: false },
+      ripple: {
+        enabled: false,
+        amount: 0,
+        wavelength: 0,
+        sides: 3,
+        centerX: 0.5,
+        centerY: 0.5,
+        fade: 0,
+        petals: 0,
+        reverse: false,
+      },
       whorl: { enabled: false, amount: 0, rings: 2, sides: 3, pinned: false },
       slipstream: { enabled: false, direction: 0, strength: 0, gust: 0, gustiness: 0, slip: 0, cuts: 0, trails: 0 },
       thorn: {
@@ -76,7 +86,15 @@ describe('clearedExperimental', () => {
         spikes: 0,
         dent: 0,
       },
-      dissolve: { enabled: false, amount: 0, grain: SLIDER_RANGES['experimental.dissolve.grain'].min, spread: 0, specks: 0, curl: 0, facets: 0 },
+      dissolve: {
+        enabled: false,
+        amount: 0,
+        grain: SLIDER_RANGES['experimental.dissolve.grain'].min,
+        spread: 0,
+        specks: 0,
+        curl: 0,
+        facets: 0,
+      },
     })
     expect(cleared.dissolve.grain).toBe(0.15)
   })
@@ -103,7 +121,10 @@ describe('isClearedExperimental', () => {
     for (const effect of EFFECTS) {
       for (const [key, value] of Object.entries(cleared[effect])) {
         const changed = typeof value === 'boolean' ? !value : value + 1
-        expect(isClearedExperimental({ ...cleared, [effect]: { ...cleared[effect], [key]: changed } }), `${effect}.${key}`).toBe(false)
+        expect(
+          isClearedExperimental({ ...cleared, [effect]: { ...cleared[effect], [key]: changed } }),
+          `${effect}.${key}`,
+        ).toBe(false)
       }
     }
   })
@@ -127,22 +148,42 @@ describe.each(FIXTURE_FONTS)('cleared values in the pipeline: %s', (fontName) =>
 
   /** Each effect switched on at the cleared values, all of them at once, then with the slider that gives it strength raised. */
   const CASES: [string, Partial<ExperimentalParams>][] = [
-    ...EFFECTS.map((effect): [string, Partial<ExperimentalParams>] => [`${effect} on`, { [effect]: { ...cleared[effect], enabled: true } }]),
+    ...EFFECTS.map((effect): [string, Partial<ExperimentalParams>] => [
+      `${effect} on`,
+      { [effect]: { ...cleared[effect], enabled: true } },
+    ]),
     ['every effect on', Object.fromEntries(EFFECTS.map((effect) => [effect, { ...cleared[effect], enabled: true }]))],
-    ['burst and every effect on', { ...Object.fromEntries(EFFECTS.map((effect) => [effect, { ...cleared[effect], enabled: true }])), thorn: { ...cleared.thorn, enabled: true, burst: true } }],
+    [
+      'burst and every effect on',
+      {
+        ...Object.fromEntries(EFFECTS.map((effect) => [effect, { ...cleared[effect], enabled: true }])),
+        thorn: { ...cleared.thorn, enabled: true, burst: true },
+      },
+    ],
     ['crumple amount', { crumple: { ...cleared.crumple, enabled: true, amount: 0.7 } }],
     ['ripple amount', { ripple: { ...cleared.ripple, enabled: true, amount: 0.5 } }],
     ['whorl amount', { whorl: { ...cleared.whorl, enabled: true, amount: 0.6 } }],
     ['slipstream strength', { slipstream: { ...cleared.slipstream, enabled: true, strength: 0.5 } }],
     ['thorn reach', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1 } }],
     ['thorn reach, one anchor', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, count: 1 } }],
-    ['thorn reach, one anchor, refraction', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, count: 1, refraction: 1 } }],
+    [
+      'thorn reach, one anchor, refraction',
+      { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, count: 1, refraction: 1 } },
+    ],
     ['thorn reach, reverse', { thorn: { ...cleared.thorn, enabled: true, canvasReach: 0.1, reverse: true } }],
     ['burst on', { thorn: { ...cleared.thorn, enabled: true, burst: true } }],
     ['burst reach', { thorn: { ...cleared.thorn, enabled: true, burst: true, canvasReach: 0.1 } }],
-    ['burst reach, one spike', { thorn: { ...cleared.thorn, enabled: true, burst: true, canvasReach: 0.1, spikes: 1 } }],
+    [
+      'burst reach, one spike',
+      { thorn: { ...cleared.thorn, enabled: true, burst: true, canvasReach: 0.1, spikes: 1 } },
+    ],
     ['ripple petals', { ripple: { ...cleared.ripple, enabled: true, amount: 4, petals: 3 } }],
-    ['slipstream at full', { slipstream: { ...cleared.slipstream, enabled: true, strength: 8, gustiness: 2, slip: 0.6, cuts: 8, trails: 8 } }],
+    [
+      'slipstream at full',
+      {
+        slipstream: { ...cleared.slipstream, enabled: true, strength: 8, gustiness: 2, slip: 0.6, cuts: 8, trails: 8 },
+      },
+    ],
     ['dissolve amount', { dissolve: { ...cleared.dissolve, enabled: true, amount: 0.5 } }],
   ]
 
@@ -161,7 +202,8 @@ describe.each(FIXTURE_FONTS)('cleared values in the pipeline: %s', (fontName) =>
       const base = baseline.get(g.index)!
       const folds = derived.experimental.folds
       if (cross > 0 && base.cross === 0 && base.contacts === 0) problems.push(`${label}: ${cross} new crossings`)
-      if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex) problems.push(`${label}: ${cross} crossings after a merge`)
+      if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex)
+        problems.push(`${label}: ${cross} crossings after a merge`)
     }
     expect(problems).toEqual([])
   })

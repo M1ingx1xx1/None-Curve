@@ -2,11 +2,9 @@ import { memo, type Dispatch } from 'react'
 import { ANCHOR_LIMITS, type AnchorStats } from '../geometry/anchors'
 import type { AnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface AnchorControlsProps {
@@ -36,8 +34,6 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
   const spacingOn = params.spacing > 0
   const reductionOn = params.simplify > 0
   const introHint = useHint()
-  const spacingHint = useHint()
-  const simplifyHint = useHint()
 
   return (
     <fieldset className="group anchors" disabled={disabled}>
@@ -51,70 +47,39 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
           original curves.
         </HintText>
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="anchor-spacing">Anchor spacing</label>
-              <HintButton hint={spacingHint} topic="Anchor spacing" />
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['anchors.spacing']}
-              value={params.spacing}
-              unit="u"
-              label="Anchor spacing"
-              onCommit={(spacing) => update({ spacing })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="anchor-spacing"
-              type="range"
-              {...SLIDER_RANGES['anchors.spacing']}
-              value={params.spacing}
-              aria-valuetext={spacingOn ? `${params.spacing} font units` : 'Off'}
-              aria-describedby={spacingHint.id}
-              onChange={(e) => update({ spacing: Number(e.target.value) })}
-            />
-            <LiveMarker target="anchors.spacing" />
-          </span>
-          <HintText hint={spacingHint}>
-            Splits every polygon edge so no edge is longer than this{spacingOn ? emPercent(params.spacing, unitsPerEm) : ''}.
-            New points sit on the existing edges, so the shape does not change. 0 turns it off.
-          </HintText>
-        </div>
+        <SliderField
+          id="anchor-spacing"
+          target="anchors.spacing"
+          label="Anchor spacing"
+          value={params.spacing}
+          unit="u"
+          valueText={spacingOn ? `${params.spacing} font units` : 'Off'}
+          hint={
+            <>
+              Splits every polygon edge so no edge is longer than this
+              {spacingOn ? emPercent(params.spacing, unitsPerEm) : ''}. New points sit on the existing edges, so the
+              shape does not change. 0 turns it off.
+            </>
+          }
+          onChange={(spacing) => update({ spacing })}
+        />
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="anchor-simplify">Anchor reduction</label>
-              <HintButton hint={simplifyHint} topic="Anchor reduction" />
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['anchors.simplify']}
-              value={params.simplify}
-              unit="u"
-              label="Anchor reduction"
-              onCommit={(simplify) => update({ simplify })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="anchor-simplify"
-              type="range"
-              {...SLIDER_RANGES['anchors.simplify']}
-              value={params.simplify}
-              aria-valuetext={reductionOn ? `${params.simplify} font units` : 'Off'}
-              aria-describedby={simplifyHint.id}
-              onChange={(e) => update({ simplify: Number(e.target.value) })}
-            />
-            <LiveMarker target="anchors.simplify" />
-          </span>
-          <HintText hint={simplifyHint}>
-            Ramer–Douglas–Peucker: removes vertices that lie within this distance of the simplified outline
-            {reductionOn ? emPercent(params.simplify, unitsPerEm) : ''}. Larger values remove more points and can erase
-            small details, corners, and thin features. 0 turns it off.
-          </HintText>
-        </div>
+        <SliderField
+          id="anchor-simplify"
+          target="anchors.simplify"
+          label="Anchor reduction"
+          value={params.simplify}
+          unit="u"
+          valueText={reductionOn ? `${params.simplify} font units` : 'Off'}
+          hint={
+            <>
+              Ramer–Douglas–Peucker: removes vertices that lie within this distance of the simplified outline
+              {reductionOn ? emPercent(params.simplify, unitsPerEm) : ''}. Larger values remove more points and can
+              erase small details, corners, and thin features. 0 turns it off.
+            </>
+          }
+          onChange={(simplify) => update({ simplify })}
+        />
 
         <button
           type="button"
@@ -129,8 +94,16 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
         {stats && (
           <dl className="pipeline-steps" aria-live="polite" aria-busy={pending}>
             <Step label="Flattened" value={stats.flattenedVertices} active />
-            <Step label="Spacing" value={stats.spacingApplied ? stats.spacedVertices : 'off'} active={stats.spacingApplied} />
-            <Step label="Reduction" value={stats.reductionApplied ? stats.finalVertices : 'off'} active={stats.reductionApplied} />
+            <Step
+              label="Spacing"
+              value={stats.spacingApplied ? stats.spacedVertices : 'off'}
+              active={stats.spacingApplied}
+            />
+            <Step
+              label="Reduction"
+              value={stats.reductionApplied ? stats.finalVertices : 'off'}
+              active={stats.reductionApplied}
+            />
           </dl>
         )}
         {stats?.reductionApplied && (
@@ -160,9 +133,10 @@ function AnchorControls({ params, stats, unitsPerEm, pending, disabled, dispatch
         )}
         {stats && stats.reductionFallbacks > 0 && (
           <p className="font-warning">
-            {stats.reductionFallbacks} contour{stats.reductionFallbacks === 1 ? '' : 's'} could not be reduced safely (the
-            result collapsed, flipped direction, crossed itself, or moved across another contour) and {stats.reductionFallbacks === 1 ? 'keeps' : 'keep'}{' '}
-            {stats.reductionFallbacks === 1 ? 'its' : 'their'} unreduced points.
+            {stats.reductionFallbacks} contour{stats.reductionFallbacks === 1 ? '' : 's'} could not be reduced safely
+            (the result collapsed, flipped direction, crossed itself, or moved across another contour) and{' '}
+            {stats.reductionFallbacks === 1 ? 'keeps' : 'keep'} {stats.reductionFallbacks === 1 ? 'its' : 'their'}{' '}
+            unreduced points.
           </p>
         )}
       </div>

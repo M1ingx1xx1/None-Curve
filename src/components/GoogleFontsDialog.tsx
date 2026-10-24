@@ -80,8 +80,11 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
         let note: string | null = null
         if (requested && (requested.weight !== null || requested.italic !== null)) {
           const asked = `${requested.weight ?? ''}${requested.italic ? ' italic' : ''}`.trim() || 'regular'
-          const matched = (requested.weight === null || requested.weight === useWeight) && (requested.italic === null || requested.italic === useItalic)
-          if (!matched) note = `The URL asks for ${asked}, which this family does not have; ${useWeight}${useItalic ? ' italic' : ''} will be loaded.`
+          const matched =
+            (requested.weight === null || requested.weight === useWeight) &&
+            (requested.italic === null || requested.italic === useItalic)
+          if (!matched)
+            note = `The URL asks for ${asked}, which this family does not have; ${useWeight}${useItalic ? ' italic' : ''} will be loaded.`
         }
         setItalic(useItalic)
         setWeight(useWeight)
@@ -200,19 +203,20 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                   </button>
                 </li>
               )}
-              {!typedIsUrl && matches.map((f) => (
-                <li key={f.family}>
-                  <button
-                    type="button"
-                    className="gf-family"
-                    aria-pressed={family === f.family}
-                    onClick={() => chooseCurated(f.family)}
-                  >
-                    {f.family}
-                    <span className="gf-category">{f.category}</span>
-                  </button>
-                </li>
-              ))}
+              {!typedIsUrl &&
+                matches.map((f) => (
+                  <li key={f.family}>
+                    <button
+                      type="button"
+                      className="gf-family"
+                      aria-pressed={family === f.family}
+                      onClick={() => chooseCurated(f.family)}
+                    >
+                      {f.family}
+                      <span className="gf-category">{f.category}</span>
+                    </button>
+                  </li>
+                ))}
               {typed && !typedIsUrl && !typedIsCurated && parsed?.ok && (
                 <li>
                   <button
@@ -225,9 +229,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                   </button>
                 </li>
               )}
-              {typed && !typedIsUrl && parsed && !parsed.ok && (
-                <li className="gf-invalid">{parsed.error}</li>
-              )}
+              {typed && !typedIsUrl && parsed && !parsed.ok && <li className="gf-invalid">{parsed.error}</li>}
             </ul>
           </div>
 
@@ -263,8 +265,8 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                 )}
                 {requested && requested.unsupportedAxes.length > 0 && (
                   <p className="font-warning">
-                    The URL sets axes this app cannot apply ({requested.unsupportedAxes.join(', ')}). They are ignored and
-                    stay at their defaults.
+                    The URL sets axes this app cannot apply ({requested.unsupportedAxes.join(', ')}). They are ignored
+                    and stay at their defaults.
                   </p>
                 )}
                 {requested?.notes.map((note) => (
@@ -291,9 +293,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                     disabled={info.weights.italic.length === 0 || info.weights.normal.length === 0}
                     onChange={(e) => changeItalic(e.target.checked)}
                   />
-                  <label htmlFor="gf-italic">
-                    Italic{info.weights.italic.length === 0 ? ' (not available)' : ''}
-                  </label>
+                  <label htmlFor="gf-italic">Italic{info.weights.italic.length === 0 ? ' (not available)' : ''}</label>
                 </div>
                 <div className="field">
                   <label htmlFor="gf-subset">Character subset</label>

@@ -152,14 +152,23 @@ export class SceneGlide {
     const tween = this.tween
     if (!tween) return false
     if (tween.pending > 0) return true
-    return tween.glyphs.some((g) => g !== null && g.plan && now < g.start + tween.duration) || now < tween.start + tween.duration
+    return (
+      tween.glyphs.some((g) => g !== null && g.plan && now < g.start + tween.duration) ||
+      now < tween.start + tween.duration
+    )
   }
 
   /** Shows `scene` from `now`: glides into it from what is shown at `now`, or shows it at once (see the top of the file). */
   retarget(scene: SpecimenScene | null, now: number, options: GlideTarget): void {
     if (scene === this.target && options.key === this.key) return
     const shown = this.shown(now)
-    const glide = options.glide && options.durationMs > 0 && scene !== null && shown !== null && options.key === this.key && sameGlyphs(shown, scene)
+    const glide =
+      options.glide &&
+      options.durationMs > 0 &&
+      scene !== null &&
+      shown !== null &&
+      options.key === this.key &&
+      sameGlyphs(shown, scene)
     const before = this.tween
     this.target = scene
     this.key = options.key
@@ -181,7 +190,8 @@ export class SceneGlide {
       const q = easeOut((now - start) / tween.duration)
       const polygon = q >= GLIDE_LIMITS.arrived ? plan.to : morphAt(plan, q)
       // A worker's chain may go on from this shape: it is told by what it was drawn from.
-      if (glide.chain && polygon !== plan.to) this.chainTags.set(polygon, { lineage: glide.chain.lineage, seq: glide.chain.seq, q })
+      if (glide.chain && polygon !== plan.to)
+        this.chainTags.set(polygon, { lineage: glide.chain.lineage, seq: glide.chain.seq, q })
       shared.set(plan, { start, polygon })
       return polygon
     }
@@ -230,12 +240,26 @@ export class SceneGlide {
           continue
         }
         moves = true
-        const glide: GlyphGlide = { from: a.polygon, to: b.polygon, plan: reshaped ? undefined : null, start: now, fromX: a.x, fromY: a.y }
+        const glide: GlyphGlide = {
+          from: a.polygon,
+          to: b.polygon,
+          plan: reshaped ? undefined : null,
+          start: now,
+          fromX: a.x,
+          fromY: a.y,
+        }
         if (reshaped && source && chain!.lineage && k < chain!.lineage.length) {
           // The worker's plan for this glyph's lineage, when it starts from the shape on screen.
           const lineage = chain!.lineage[k]
           const fromKey = this.sources.keyOf?.(a.polygon!) ?? null
-          const plan = source.chained(lineage, chain!.seq, a.polygon!, b.polygon!, this.chainTags.get(a.polygon!) ?? null, fromKey)
+          const plan = source.chained(
+            lineage,
+            chain!.seq,
+            a.polygon!,
+            b.polygon!,
+            this.chainTags.get(a.polygon!) ?? null,
+            fromKey,
+          )
           if (plan !== undefined) {
             glide.plan = plan
             if (plan) glide.chain = { lineage, seq: chain!.seq }
@@ -314,7 +338,7 @@ export class SceneGlide {
         const made: PlanAsk = { cancel: () => {} }
         byTarget.set(to, (ask = made))
         let answered = false
-        made.cancel = source.request({ from, to, toRef: null }, (plan) => {
+        made.cancel = source.request({ from, to }, (plan) => {
           answered = true
           made.plan = plan
           let cached = this.plans.get(from)

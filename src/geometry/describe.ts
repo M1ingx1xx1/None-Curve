@@ -1,12 +1,21 @@
 import { reachPercent, reachReadout } from '../state/sliderScales'
-import { crumpleIsOn, crumpleLattice } from './crumple'
-import { dissolveIsOn } from './dissolve'
-import { experimentalFolds } from './experimental'
-import { rippleIsOn, rippleRings } from './ripple'
-import { slipstreamBands, slipstreamIsOn } from './slipstream'
-import { BURST_REACH, THORN_FALLBACK, THORN_LIMITS, thornFlutes, thornIsOn } from './thorn'
+import {
+  BURST_REACH,
+  crumpleIsOn,
+  crumpleLattice,
+  dissolveIsOn,
+  experimentalFolds,
+  rippleIsOn,
+  rippleRings,
+  slipstreamBands,
+  slipstreamIsOn,
+  THORN_FALLBACK,
+  THORN_LIMITS,
+  thornFlutes,
+  thornIsOn,
+  whorlIsOn,
+} from './limits'
 import type { GeometryParams } from './types'
-import { whorlIsOn } from './whorl'
 
 /** Human-readable list of the active pipeline steps, in pipeline order. */
 export function describePipeline(params: GeometryParams): string[] {
@@ -24,7 +33,8 @@ export function describePipeline(params: GeometryParams): string[] {
           ? `${flatten.segmentsPerCurve} segments/merged curve (${merge.replace('merged, ', '')})`
           : `${flatten.segmentsPerCurve} segments/curve`,
   ]
-  if (squaring.amount > 0) steps.push(`squaring ${Math.round(squaring.amount * 100)}%${squaring.scope === 'all' ? ' (all contours)' : ''}`)
+  if (squaring.amount > 0)
+    steps.push(`squaring ${Math.round(squaring.amount * 100)}%${squaring.scope === 'all' ? ' (all contours)' : ''}`)
   if (anchors.spacing > 0) steps.push(`spacing ${anchors.spacing} u`)
   if (anchors.simplify > 0) steps.push(`reduction ${anchors.simplify} u`)
   if (grid.snap && grid.size > 0) steps.push(`grid ${grid.size} u`)
@@ -38,7 +48,9 @@ export function describePipeline(params: GeometryParams): string[] {
     const c = experimental.crumple
     // As drawn: below the finest facet the lattice keeps that size and the movement fades out.
     const { facet, fade } = crumpleLattice(c)
-    steps.push(`crumple ${Math.round(c.amount * fade * 100)}%, facets ${Math.round(facet * 100)}% em${c.turn ? `, turn ${Math.round(c.turn)}°` : ''}, seed ${experimental.seed}`)
+    steps.push(
+      `crumple ${Math.round(c.amount * fade * 100)}%, facets ${Math.round(facet * 100)}% em${c.turn ? `, turn ${Math.round(c.turn)}°` : ''}, seed ${experimental.seed}`,
+    )
   }
   if (rippleIsOn(experimental.ripple)) {
     const r = experimental.ripple
@@ -52,18 +64,24 @@ export function describePipeline(params: GeometryParams): string[] {
   }
   if (whorlIsOn(experimental.whorl)) {
     const c = experimental.whorl
-    steps.push(`whorl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`)
+    steps.push(
+      `whorl ${Math.round(c.amount * 100)}% (${c.pinned ? 'pinned' : 'whole'}), ${c.rings} rings, ${c.sides} sides`,
+    )
   }
   if (slipstreamIsOn(experimental.slipstream)) {
     const w = experimental.slipstream
     const pct = (v: number) => `${Math.round(v * 100)}%`
     // Older saved settings have no slip, cuts or trails.
     const slip = Number.isFinite(w.slip) ? w.slip : 0
-    const count = (n: number, word: string) => (n >= 0.5 ? `${Math.round(n)} ${word}${Math.round(n) === 1 ? '' : 's'}` : '')
+    const count = (n: number, word: string) =>
+      n >= 0.5 ? `${Math.round(n)} ${word}${Math.round(n) === 1 ? '' : 's'}` : ''
     const marks = [count(w.cuts, 'cut'), count(w.trails, 'trail')].filter(Boolean).join(', ')
     // As drawn: below the smallest band the bands keep that size and Slip and Gustiness fade out; at 0 it is steady.
     const { gust, fade } = slipstreamBands(w)
-    const gusts = fade > 0 ? `slip ${pct(slip * fade)} em, gusts ${pct(gust)} em, gustiness ${pct(w.gustiness * fade)}` : 'steady, no gusts'
+    const gusts =
+      fade > 0
+        ? `slip ${pct(slip * fade)} em, gusts ${pct(gust)} em, gustiness ${pct(w.gustiness * fade)}`
+        : 'steady, no gusts'
     steps.push(
       `slipstream ${pct(w.strength)} toward ${Math.round(w.direction)}°, ${gusts}${marks ? `, ${marks}` : ''}, seed ${experimental.seed}`,
     )
@@ -82,7 +100,10 @@ export function describePipeline(params: GeometryParams): string[] {
     if (s.burst === true) {
       // Burst: its own spike count and Dent, no roots; its longest spike is BURST_REACH of Reach's length.
       const spikes = s.spikes ?? THORN_FALLBACK.spikes
-      const longest = s.canvasEm !== undefined ? ` (longest about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm) * BURST_REACH)} em)` : ''
+      const longest =
+        s.canvasEm !== undefined
+          ? ` (longest about ${reachReadout(s.canvasReach * Math.min(s.canvasEm, THORN_LIMITS.maxReachEm) * BURST_REACH)} em)`
+          : ''
       steps.push(
         `thorn burst ×${spikes}${s.reverse === true ? ', reversed' : ''}, reach ${reachPercent(s.canvasReach)}% canvas${longest}, dent ${pct(s.dent ?? THORN_FALLBACK.dent)}, spread ${pct(s.spread)}, width ${pct(s.width)}${glass}, seed ${experimental.seed}`,
       )

@@ -1,14 +1,14 @@
 import { memo, useState, type Dispatch } from 'react'
-import { RANDOM_ANCHOR_LIMITS, type RandomAnchorStats } from '../geometry/randomAnchors'
+import { RANDOM_ANCHOR_LIMITS } from '../geometry/limits'
+import { type RandomAnchorStats } from '../geometry/randomAnchors'
 import type { RandomAnchorParams } from '../geometry/types'
 import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
 import LiveSeed from './LiveSeed'
+import NumberField from './NumberField'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface RandomAnchorControlsProps {
@@ -19,7 +19,7 @@ interface RandomAnchorControlsProps {
   dispatch: Dispatch<Action>
 }
 
-export const DEFAULT_RANDOM: RandomAnchorParams = { enabled: false, density: 12, randomness: 1, keepCorners: true, seed: 1 }
+const DEFAULT_RANDOM: RandomAnchorParams = { enabled: false, density: 12, randomness: 1, keepCorners: true, seed: 1 }
 const HISTORY_LENGTH = 6
 
 /** A fresh seed for the Shuffle button. Only the UI picks seeds at random; the geometry stays deterministic. */
@@ -42,7 +42,6 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
   // At 0% randomness the anchors are evenly spaced, so the seed has nothing to choose.
   const seedOff = off || params.randomness === 0
   const introHint = useHint()
-  const densityHint = useHint()
   const seedHint = useHint()
   // The statistics come from the letters as shown, so while Sound moves the seed on they belong to its live seed.
   const shownSeed = useLiveSeed('random.seed') ?? params.seed
@@ -89,73 +88,32 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           />
           <span className="field-title">
             <label htmlFor="random-enabled">Use random anchors</label>
-
           </span>
         </div>
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="random-density">Density</label>
-              <HintButton hint={densityHint} topic="Density" />
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['random.density']}
-              value={params.density}
-              unit="/1000 u"
-              label="Density"
-              disabled={off}
-              onCommit={(density) => update({ density })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="random-density"
-              type="range"
-              {...SLIDER_RANGES['random.density']}
-              value={params.density}
-              disabled={off}
-              aria-valuetext={`${params.density} anchors per 1000 font units`}
-              aria-describedby={densityHint.id}
-              onChange={(e) => update({ density: Number(e.target.value) })}
-            />
-            <LiveMarker target="random.density" />
-          </span>
-          <HintText hint={densityHint}>
-            About how many anchors per 1000 font units of outline. Low values give rough, faceted letters; every contour
-            keeps at least 3 anchors.
-          </HintText>
-        </div>
+        <SliderField
+          id="random-density"
+          target="random.density"
+          label="Density"
+          value={params.density}
+          unit="/1000 u"
+          valueText={`${params.density} anchors per 1000 font units`}
+          disabled={off}
+          hint="About how many anchors per 1000 font units of outline. Low values give rough, faceted letters; every contour keeps at least 3 anchors."
+          onChange={(density) => update({ density })}
+        />
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="random-randomness">Randomness</label>
-
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['random.randomness']}
-              value={params.randomness}
-              scale={100}
-              unit="%"
-              label="Randomness"
-              disabled={off}
-              onCommit={(randomness) => update({ randomness })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="random-randomness"
-              type="range"
-              {...SLIDER_RANGES['random.randomness']}
-              value={params.randomness}
-              disabled={off}
-              aria-valuetext={`${percent} percent`}
-              onChange={(e) => update({ randomness: Number(e.target.value) })}
-            />
-            <LiveMarker target="random.randomness" />
-          </span>
-        </div>
+        <SliderField
+          id="random-randomness"
+          target="random.randomness"
+          label="Randomness"
+          value={params.randomness}
+          scale={100}
+          unit="%"
+          valueText={`${percent} percent`}
+          disabled={off}
+          onChange={(randomness) => update({ randomness })}
+        />
 
         <div className="field field-toggle">
           <input
@@ -167,7 +125,6 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           />
           <span className="field-title">
             <label htmlFor="random-corners">Keep sharp corners</label>
-
           </span>
         </div>
 
@@ -177,23 +134,25 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
             <HintButton hint={seedHint} topic="Seed" />
           </span>
           <div className="seed-row">
-            <input
+            <NumberField
               id="random-seed"
-              type="number"
+              plain
               min={0}
               max={RANDOM_ANCHOR_LIMITS.maxSeed}
               step={1}
               value={params.seed}
               disabled={seedOff}
               aria-describedby={seedHint.id}
-              onChange={(e) => {
-                const value = Math.trunc(Number(e.target.value))
-                // Typed seeds skip the history; a seed enters it once Shuffle or a previous seed replaces it.
-                if (Number.isFinite(value)) update({ seed: Math.min(RANDOM_ANCHOR_LIMITS.maxSeed, Math.max(0, value)) })
-              }}
+              // Typed seeds skip the history; a seed enters it once Shuffle or a previous seed replaces it.
+              onCommit={(seed) => update({ seed })}
             />
             <LiveSeed target="random.seed" />
-            <button type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(pickSeed(params.seed))}>
+            <button
+              type="button"
+              className="button-small"
+              disabled={seedOff}
+              onClick={() => setSeed(pickSeed(params.seed))}
+            >
               <Icon name="shuffle" />
               Shuffle
             </button>
@@ -208,14 +167,21 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
             </p>
           ) : (
             <HintText hint={seedHint}>
-              Shuffle picks a new random seed. To reproduce a result, type its seed here with the same settings and font.
+              Shuffle picks a new random seed. To reproduce a result, type its seed here with the same settings and
+              font.
             </HintText>
           )}
           {history.length > 0 && (
             <div className="seed-history" role="group" aria-label="Previous seeds">
               <span className="field-label">Previous</span>
               {history.map((seed) => (
-                <button key={seed} type="button" className="button-small" disabled={seedOff} onClick={() => setSeed(seed)}>
+                <button
+                  key={seed}
+                  type="button"
+                  className="button-small"
+                  disabled={seedOff}
+                  onClick={() => setSeed(seed)}
+                >
                   {seed}
                 </button>
               ))}
@@ -252,7 +218,12 @@ function RandomAnchorControls({ params, stats, pending, disabled, dispatch }: Ra
           </p>
         )}
 
-        <button type="button" className="button-small" disabled={disabled || isDefault} onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}>
+        <button
+          type="button"
+          className="button-small"
+          disabled={disabled || isDefault}
+          onClick={() => update({ ...DEFAULT_RANDOM, seed: params.seed })}
+        >
           <Icon name="reset" />
           Reset random anchors
         </button>

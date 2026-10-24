@@ -1,0 +1,4 @@
+# Commits git blame skips (git config blame.ignoreRevsFile .git-blame-ignore-revs): formatting only.
+
+# Run Prettier over the code (NOCUR-89)
+9646d4333c584d93fbd1314e9231a40ecd615f72
