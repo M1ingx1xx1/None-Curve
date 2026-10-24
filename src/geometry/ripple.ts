@@ -32,6 +32,7 @@
 // wavelength (shortestWavelength) the rings keep that spacing and the waves fade out instead, in proportion, so the
 // slider runs down to nothing without ever packing the rings closer together.
 
+import { clamp } from './primitives'
 import type { Point, PolygonGlyph, RippleParams } from './types'
 import type { Warp } from './warp'
 
@@ -315,10 +316,6 @@ function barycentric(s: number, x: number, t1: Corner, t2: Corner, t3: Corner): 
   const w2 = ((s - t1[0]) * (t3[1] - t1[1]) - (t3[0] - t1[0]) * (x - t1[1])) / area
   const w3 = ((t2[0] - t1[0]) * (x - t1[1]) - (s - t1[0]) * (t2[1] - t1[1])) / area
   return [1 - w2 - w3, w2, w3]
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
 }
 
 function finite(v: number, fallback: number): number {

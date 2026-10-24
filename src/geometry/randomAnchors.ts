@@ -8,7 +8,8 @@
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { hashInts } from './distortion'
-import { evaluate, signedArea, type FlattenResult } from './flatten'
+import { evaluate, type FlattenResult } from './flatten'
+import { clamp, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph, RandomAnchorParams, SourceContour, SourceGlyph } from './types'
 
 export const RANDOM_ANCHOR_LIMITS = {
@@ -296,10 +297,6 @@ function unit(a: Point, b: Point): Point | null {
 
 function dist(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y)
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
 }
 
 function finite(v: number, fallback: number): number {

@@ -36,9 +36,10 @@
 // instead, in proportion, so the slider runs down to a steady stream without ever cutting the bands finer.
 
 import type { GlyphBudget } from './budget'
+import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { signedArea } from './flatten'
 import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
+import { clamp, distanceToSegment, lerp, signedArea } from './primitives'
 import type { Box } from './ripple'
 import type { Point, PolygonGlyph, SlipstreamParams } from './types'
 import { emptyWarpStats, type Warp, type WarpStats } from './warp'
@@ -679,20 +680,9 @@ function isOutside(contours: readonly (readonly Point[])[], contour: number): bo
   const p = contours[contour][0]
   let depth = 0
   contours.forEach((other, i) => {
-    if (i !== contour && other.length >= 3 && contains(other, p)) depth++
+    if (i !== contour && other.length >= 3 && insideRing(p, other)) depth++
   })
   return depth % 2 === 0
-}
-
-/** Even-odd point-in-polygon test. */
-function contains(points: readonly Point[], p: Point): boolean {
-  let inside = false
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[i]
-    const b = points[j]
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
-  return inside
 }
 
 /** The shortest distance between segments a1–a2 and b1–b2 (0 when they cross). */
@@ -712,25 +702,9 @@ function crosses(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
   return side(a1, a2, b1) * side(a1, a2, b2) < 0 && side(b1, b2, a1) * side(b1, b2, a2) < 0
 }
 
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const length2 = dx * dx + dy * dy
-  const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0
-  return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
-}
-
-function lerp(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-}
-
 /** A whole count from 0 to max (0 when missing, as in older saved settings). */
 function count(value: number, max: number): number {
   return Math.round(clamp(finite(value, 0), 0, max))
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
 }
 
 function finite(v: number, fallback: number): number {

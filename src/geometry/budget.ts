@@ -18,8 +18,8 @@
 
 import { rdpChain } from './anchors'
 import { countSelfCrossings, lazy } from './crossings'
-import { signedArea } from './flatten'
 import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
+import { signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { breakRuns, WARP_LIMITS } from './warp'
 

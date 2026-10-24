@@ -19,7 +19,7 @@
 
 import { relate } from './contourLayout'
 import { findRingCrossings, findSelfCrossings, insideRing, RingIndex, ringBox, SegmentSweep } from './crossings'
-import { signedArea } from './flatten'
+import { distanceToSegment, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { curveLikeRuns, WARP_LIMITS } from './warp'
 
@@ -845,14 +845,6 @@ function dropStraight(points: Point[]): Point[] {
   return out
 }
 
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const length2 = dx * dx + dy * dy
-  const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0
-  return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
-}
-
 /**
  * True when a disk of `radius` fits in what the ring encloses, tried `radius` in from the middle of each edge: a
  * sliver has no such room, while a letter whose long thin thorns make it narrow on average has it in its body.
@@ -868,6 +860,8 @@ function hasRoom(points: readonly Point[], radius: number): boolean {
     const a = points[i]
     const b = points[(i + 1) % n]
     const length = Math.hypot(b.x - a.x, b.y - a.y)
+    // A zero-length edge has no inward direction (it would divide by zero); the edges beside it are tried instead.
+    if (length === 0) continue
     const centre = { x: (a.x + b.x) / 2 - (inward * (b.y - a.y)) / length, y: (a.y + b.y) / 2 + (inward * (b.x - a.x)) / length }
     let clear = true
     for (let j = 0; j < n && clear; j++) if (j !== i) clear = distanceToSegment(centre, points[j], points[(j + 1) % n]) >= clearance

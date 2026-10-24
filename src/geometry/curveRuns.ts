@@ -6,6 +6,7 @@
 // segment, so the result stays smooth. Merging joins consecutive curve segments that meet smoothly
 // into one run and samples the whole run with N edges, spaced evenly by arc length.
 
+import { distanceToSegment, lerp } from './primitives'
 import type { Point, SourceContour } from './types'
 
 /** Where a run of joined curves is broken. */
@@ -229,10 +230,6 @@ function extremaParams(c: Curve, axis: 'x' | 'y'): number[] {
   return [(-b + s) / (2 * a), (-b - s) / (2 * a)]
 }
 
-function lerp(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-}
-
 function evaluate(curve: readonly Point[], t: number): Point {
   let pts = curve.slice()
   while (pts.length > 1) {
@@ -290,12 +287,4 @@ function isAxisAligned(t: Point | null): boolean {
   if (!t) return false
   const limit = Math.sin((EXTREMUM_JOINT_DEGREES * Math.PI) / 180)
   return Math.abs(t.x) < limit || Math.abs(t.y) < limit
-}
-
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSq = dx * dx + dy * dy
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
 }
