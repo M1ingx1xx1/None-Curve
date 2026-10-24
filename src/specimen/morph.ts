@@ -628,7 +628,7 @@ function attachPairs(r: Ring, r2: Ring, hosts: Ring[], hosts2: Ring[], entering:
 export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonly TrajectoryModel[]): MorphPlan | null {
   // Whorl on its own glides by its mesh (whorlGlide.ts).
   if ((models ?? TRAJECTORY_MODELS).includes(WHORL_MODEL)) {
-    const mesh = planWhorlMesh(from, to, meshPoses.get(from)?.(), keptAnchors.has(from))
+    const mesh = planWhorlMesh(from, to, poseOf(from) ?? undefined, keptAnchors.has(from))
     if (mesh) {
       if (mesh.points > MORPH_LIMITS.maxPoints) return null
       const data: PlanData = { version: PLAN_DATA_VERSION, trajectory: 'whorl-mesh', points: mesh.points, longest: mesh.points, whorl: null, mesh: mesh.data, tracks: [], settled: null }
@@ -775,20 +775,58 @@ function runPlan(data: PlanData, from: PolygonGlyph, to: PolygonGlyph, mesh?: Me
 
 /** An in-between glyph's side tables (which anchors the new outline brought, and the mesh pose), to send it by value. */
 export function sideTablesOf(glyph: PolygonGlyph): { kept: Uint8Array[] | null; pose: MeshPose | null } {
-  return { kept: keptAnchors.get(glyph) ?? null, pose: meshPoses.get(glyph)?.() ?? null }
+  return { kept: keptAnchors.get(glyph) ?? null, pose: poseOf(glyph) }
 }
 
 /** Gives a glyph received by value its side tables back, so it settles and glides on as the one it was made from. */
 export function registerSideTables(glyph: PolygonGlyph, kept: Uint8Array[] | null, pose: MeshPose | null) {
   if (kept) keptAnchors.set(glyph, kept)
-  if (pose) meshPoses.set(glyph, () => pose)
+  if (pose) meshPoses.set(glyph, { mesh: null, p: 0, pose })
 }
 
 /** Which in-between anchors belong to the new outline, by in-between glyph (settleInBetween). */
 const keptAnchors = new WeakMap<PolygonGlyph, Uint8Array[]>()
 
 /** Where Whorl's mesh stands in an in-between glyph of a mesh glide, for a glide that goes on from it. */
-const meshPoses = new WeakMap<PolygonGlyph, () => MeshPose>()
+const meshPoses = new WeakMap<PolygonGlyph, PoseAt>()
+
+/** The mesh's pose at `p`, worked out the first time a glide goes on from the glyph (most never do). */
+interface PoseAt {
+  mesh: MeshGlide | null
+  p: number
+  pose: MeshPose | null
+}
+
+function poseOf(glyph: PolygonGlyph): MeshPose | null {
+  const at = meshPoses.get(glyph)
+  if (!at) return null
+  if (!at.pose && at.mesh) at.pose = at.mesh.pose(at.p)
+  return at.pose
+}
+
+/**
+ * The kept flags of a plan's in-between glyphs: the same for every p (the mesh's contours all ones, then each track's),
+ * so made once per plan and shared. Nothing writes to them (settleWithin copies before it marks).
+ */
+const planKept = new WeakMap<MorphPlan, Uint8Array[]>()
+
+function keptOf(plan: MorphPlan): Uint8Array[] {
+  let kept = planKept.get(plan)
+  if (kept) return kept
+  kept = []
+  if (plan.mesh) for (const { n } of plan.mesh.contours) kept.push(new Uint8Array(n).fill(1))
+  for (const track of plan.tracks) kept.push(track.kept)
+  planKept.set(plan, kept)
+  return kept
+}
+
+/**
+ * The last in-between glyph of each plan, by p: a frame drawn again at the same progress (a paused glide, a hover, a
+ * pan, a hit test) gets the same glyph back instead of every anchor anew. In-between glyphs are never changed once made,
+ * and they outlive the frame (a glide goes on from one; outline caches key on them), so the anchors cannot be reused
+ * across different p.
+ */
+const lastMorph = new WeakMap<MorphPlan, { p: number; glyph: PolygonGlyph }>()
 
 /**
  * The glyph at progress `p` (eased, 0–1) of `plan`: the old outline itself at 0, the new one itself at 1, and in
@@ -797,22 +835,21 @@ const meshPoses = new WeakMap<PolygonGlyph, () => MeshPose>()
 export function morphAt(plan: MorphPlan, p: number): PolygonGlyph {
   if (!(p > 0)) return plan.from
   if (p >= 1) return plan.to
+  const last = lastMorph.get(plan)
+  if (last && last.p === p) return last.glyph
   const { xs, ys, mesh } = plan
   const contours: PolygonContour[] = []
-  const kept: Uint8Array[] = []
   if (mesh) {
     mesh.at(p, xs, ys)
     for (const { start, n, clockwise } of mesh.contours) {
       const points: Point[] = new Array(n)
       for (let i = 0; i < n; i++) points[i] = { x: xs[start + i], y: ys[start + i] }
       contours.push({ points, clockwise })
-      kept.push(new Uint8Array(n).fill(1))
     }
   }
   for (const track of plan.tracks) {
     if (!track.path) {
       contours.push(track.still!)
-      kept.push(track.kept)
       continue
     }
     const n = track.sx.length
@@ -820,14 +857,14 @@ export function morphAt(plan: MorphPlan, p: number): PolygonGlyph {
     const points: Point[] = new Array(n)
     for (let i = 0; i < n; i++) points[i] = { x: xs[i], y: ys[i] }
     contours.push({ points, clockwise: track.clockwise })
-    kept.push(track.kept)
   }
   const glyph: PolygonGlyph = { ...plan.to, contours }
   const motion = motionAt(plan.from.motion, plan.to.motion, p)
   if (motion) glyph.motion = motion
   else delete glyph.motion
-  keptAnchors.set(glyph, kept)
-  if (mesh) meshPoses.set(glyph, () => mesh.pose(p))
+  keptAnchors.set(glyph, keptOf(plan))
+  if (mesh) meshPoses.set(glyph, { mesh, p, pose: null })
+  lastMorph.set(plan, { p, glyph })
   return glyph
 }
 
@@ -836,10 +873,11 @@ function motionAt(from: GlyphMotion | undefined, to: GlyphMotion | undefined, p:
   const a = from?.whorl
   const b = to?.whorl
   if (!a || !b) return to
-  const lerp = (x: number, y: number) => x + (y - x) * p
-  const turns = a.turns.length === b.turns.length ? b.turns.map((t, k) => lerp(a.turns[k], t)) : b.turns
-  return { ...to, whorl: { ...b, x: lerp(a.x, b.x), y: lerp(a.y, b.y), amount: lerp(a.amount, b.amount), radius: lerp(a.radius, b.radius), turns } }
+  const turns = a.turns.length === b.turns.length ? b.turns.map((t, k) => lerp(a.turns[k], t, p)) : b.turns
+  return { ...to, whorl: { ...b, x: lerp(a.x, b.x, p), y: lerp(a.y, b.y, p), amount: lerp(a.amount, b.amount, p), radius: lerp(a.radius, b.radius, p), turns } }
 }
+
+const lerp = (x: number, y: number, p: number) => x + (y - x) * p
 
 /**
  * An in-between glyph (morphAt) ready to glide on from towards `next`: the anchors only the old outline brought are

@@ -4,6 +4,7 @@
 // Straight segments only (moveTo, lineTo, closePath). No DOM: the canvas comes in as a Painter.
 
 import type { PolygonGlyph } from '../geometry/types'
+import { artboardMatrix } from '../render/view'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import { OUTLINE_MITER_LIMIT, outlineStrokeWidth } from './svg'
@@ -90,10 +91,8 @@ export function drawArtboard<P>(
   }
 
   // The SVG group's `scale(1/unitsPerPx) translate(-x -y)`, stretched from the artboard to the canvas.
-  const kx = width / artboard.width
-  const ky = height / artboard.height
-  const s = 1 / layout.unitsPerPx
-  glyphs.setTransform(kx * s, 0, 0, ky * s, -layout.x * kx * s, -layout.y * ky * s)
+  const [a, b, c, d, e, f] = artboardMatrix(width, height, artboard, layout)
+  glyphs.setTransform(a, b, c, d, e, f)
   if (look.outlineOnly) {
     // Set under the group transform, as the SVG's stroke-width on the glyph group: in font units.
     glyphs.strokeStyle = look.ink
@@ -122,7 +121,7 @@ export function drawArtboard<P>(
   if (blurred) {
     // As the SVG's filter on an untransformed group: the blur is in artboard pixels, stretched with the canvas.
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.filter = `blur(${(look.blur * (kx + ky)) / 2}px)`
+    ctx.filter = `blur(${(look.blur * (width / artboard.width + height / artboard.height)) / 2}px)`
     ctx.drawImage(layer.image, 0, 0)
     ctx.filter = 'none'
   }

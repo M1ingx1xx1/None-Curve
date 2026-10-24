@@ -7,6 +7,7 @@ import type { GlideFrame, GlyphRenderer, RenderStyle } from '../render/types'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { GlideStore } from '../state/useGlide'
+import { useDevicePixelRatio } from './useDevicePixelRatio'
 
 /** Checkerboard squares for a transparent background, in screen pixels (as ExportedArtboard's). */
 const CHECKER_PX = 16
@@ -161,15 +162,15 @@ export default function PreviewSurface({
     [ink, paper, outlineOnly, layout.unitsPerPx],
   )
 
+  const dpr = useDevicePixelRatio()
   useLayoutEffect(() => {
     const renderer = rendererRef.current
     if (!renderer || cssWidth <= 0 || cssHeight <= 0) return
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
     renderer.setView({ kind: 'artboard', layout, artboard: { width, height }, cssWidth, cssHeight, dpr })
     renderer.setStyle(style)
     renderer.setFrame(frameNow(), null)
     paint()
-  }, [kind, hasCanvas, layout, width, height, cssWidth, cssHeight, style, scene, frameNow, paint])
+  }, [kind, hasCanvas, layout, width, height, cssWidth, cssHeight, dpr, style, scene, frameNow, paint])
 
   useEffect(
     () =>

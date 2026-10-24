@@ -1,8 +1,8 @@
-import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react'
 import type { LoadedFont } from '../font/model'
 import { contoursToPath } from '../geometry/sourcePath'
 import type { GlyphRef, PolygonGlyph, SourceGlyph } from '../geometry/types'
-import { artboardViewFrame, textBox, type ArtboardLayout } from '../specimen/artboard'
+import { artboardViewFrame, type ArtboardLayout } from '../specimen/artboard'
 import { measureDraw, probeOn, reportFrame } from '../render/probe'
 import { artboardEdgeColor, highlightColor, isDarkColor } from '../specimen/color'
 import type { Extent, SpecimenScene } from '../specimen/scene'
@@ -12,6 +12,7 @@ import GlyphLayers from './GlyphLayers'
 import { sharedOutlines } from './sharedOutlines'
 import SpecimenUnderlay from './SpecimenUnderlay'
 import { usePanZoom } from './usePanZoom'
+import { glyphRefOf, useTextDrag, type MoveText } from './useTextDrag'
 
 interface SpecimenViewProps {
   font: LoadedFont
@@ -32,8 +33,8 @@ interface SpecimenViewProps {
   onSelectGlyph: (glyph: GlyphRef) => void
   /** A click on empty space (not on a glyph) or Escape: hides the selection highlight. */
   onClearSelection?: () => void
-  /** Free position: dragging the text moves it. Called once, on release, with the move in font units. */
-  onMoveText?: (dx: number, dy: number) => void
+  /** Free position: dragging the text moves it. Called once, on release, with the move in font units (MoveText). */
+  onMoveText?: MoveText
 }
 
 interface SpecimenGlyphProps {
@@ -147,13 +148,21 @@ export default function SpecimenView({
   // shadow (elevation, styled in .artboard-frame) is dark on a light background and light on a dark one.
   const edge = useMemo(() => artboardEdgeColor(paper), [paper])
   const darkPaper = isDarkColor(paper)
-  const block = textBox(scene)
   // Slant around each glyph's baseline: skewX in y-down space leans right for a positive angle.
   const skew = scene.slant ? ` skewX(${-scene.slant})` : ''
 
-  // True while the text is being dragged (Free position); the grid then shows inside the artboard.
-  const [draggingText, setDraggingText] = useState(false)
-  const { containerRef, ready, u, visW, visH, box, handlers, wasDrag } = usePanZoom(frame, view, onViewChange)
+  const panZoom = usePanZoom(frame, view, onViewChange)
+  const { containerRef, ready, u, visW, visH, box, handlers } = panZoom
+  // Free position: a drag that starts on a glyph or the text block moves the text; anywhere else it pans as usual.
+  const { freeMove, draggingText, movingRef, dragged, pointer, onKeyDown } = useTextDrag({
+    scene,
+    layout,
+    u,
+    panZoom,
+    onMoveText,
+    onClearSelection,
+    startsOnText: (e) => (e.target as Element).closest('.specimen-glyph, .text-block-hit') !== null,
+  })
   const { left, right, top, bottom } = box
   const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
   const pxPerEm = unitsPerEm / u
@@ -173,101 +182,18 @@ export default function SpecimenView({
     return sources.get(index) ?? null
   }
 
-  const selectRef = (index: number, text: string): GlyphRef => {
-    const cp = text.codePointAt(0)
-    return (
-      font.characters.find((c) => c.index === index && c.unicode === cp) ??
-      font.characters.find((c) => c.index === index) ?? { index, name: '', unicode: null }
-    )
-  }
-
   // One stable click handler for every glyph (so unchanged glyphs skip re-rendering); it reads the
   // latest state through a ref.
   const select = useRef<(index: number, text: string) => void>(() => {})
   select.current = (index, text) => {
-    if (!dragged()) onSelectGlyph(selectRef(index, text))
+    if (!dragged()) onSelectGlyph(glyphRefOf(font, index, text))
   }
   const onGlyphSelect = useCallback((index: number, text: string) => select.current(index, text), [])
-
-  // Free position: a drag that starts on the text moves the text; anywhere else it pans as usual.
-  // While dragging, only the text group's transform changes (nothing re-renders, so it follows the
-  // pointer smoothly however long the text); the new position is committed once, on release, and the
-  // transform is cleared when that position arrives back as a new layout.
-  const freeMove = onMoveText !== undefined
-  const movingRef = useRef<SVGGElement>(null)
-  const textDrag = useRef<{ x: number; y: number; moved: boolean; dx: number; dy: number } | null>(null)
-  const textMoved = useRef(false)
-  const committed = useRef(false)
-  const dragged = () => wasDrag() || textMoved.current
-  const setOffset = (dx: number, dy: number) => {
-    if (dx || dy) movingRef.current?.setAttribute('transform', `translate(${dx} ${dy})`)
-    else movingRef.current?.removeAttribute('transform')
-  }
-  useLayoutEffect(() => {
-    if (!committed.current) return
-    committed.current = false
-    setOffset(0, 0)
-  }, [layout])
-  const pointer = {
-    onPointerDown(e: PointerEvent<HTMLDivElement>) {
-      if (freeMove && e.button === 0 && (e.target as Element).closest('.specimen-glyph, .text-block-hit')) {
-        committed.current = false
-        setOffset(0, 0)
-        textDrag.current = { x: e.clientX, y: e.clientY, moved: false, dx: 0, dy: 0 }
-        return
-      }
-      handlers.onPointerDown(e)
-    },
-    onPointerMove(e: PointerEvent<HTMLDivElement>) {
-      const d = textDrag.current
-      if (!d) return handlers.onPointerMove(e)
-      if (!d.moved) {
-        if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3) return
-        d.moved = true
-        try {
-          e.currentTarget.setPointerCapture(e.pointerId)
-        } catch {
-          // Capture is a convenience; the drag still works while the pointer stays on the canvas.
-        }
-        setDraggingText(true)
-      }
-      // Screen pixels to font units (both axes point down in the scene), stopped at the artboard edges.
-      // Along an axis where the text is larger than the artboard it does not move (see moveFreeText).
-      const along = (delta: number, low: number, high: number) => (low <= high ? Math.min(high, Math.max(low, delta)) : 0)
-      d.dx = along((e.clientX - d.x) * u, layout.x - block.minX, layout.x + layout.width - block.minX - block.width)
-      d.dy = along((e.clientY - d.y) * u, layout.y - block.minY, layout.y + layout.height - block.minY - block.height)
-      setOffset(d.dx, d.dy)
-    },
-    onPointerUp() {
-      const d = textDrag.current
-      textMoved.current = d?.moved ?? false
-      textDrag.current = null
-      if (d?.moved) {
-        committed.current = true
-        onMoveText?.(d.dx, d.dy)
-        setDraggingText(false)
-      }
-      handlers.onPointerUp()
-    },
-    onPointerCancel() {
-      if (textDrag.current?.moved) setDraggingText(false)
-      textDrag.current = null
-      textMoved.current = false
-      setOffset(0, 0)
-      handlers.onPointerCancel()
-    },
-  }
 
   // A click that lands on empty space (not on a glyph, and not the end of a drag) clears the highlight.
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
     if (dragged() || (e.target as Element).closest('.specimen-glyph')) return
     onClearSelection?.()
-  }
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && e.target === e.currentTarget && onClearSelection) {
-      e.preventDefault()
-      onClearSelection()
-    } else handlers.onKeyDown(e)
   }
 
   // Visible band in scene coordinates (y down).
