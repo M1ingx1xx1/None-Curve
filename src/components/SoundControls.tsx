@@ -53,7 +53,17 @@ import BufferedBar from './BufferedBar'
 import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import Knob from './Knob'
-import { cancelMapDrag, clearMark, pressMeter, setDropHandler, startPick, targetName, useMarked, type DropOutcome } from './mapDrag'
+import {
+  cancelMapDrag,
+  clearMark,
+  pressMeter,
+  setDropHandler,
+  startPick,
+  TARGET_GROUPS,
+  targetName,
+  useMarked,
+  type DropOutcome,
+} from './mapDrag'
 import RangeControl from './RangeControl'
 import { RecordGroup } from './RecordControls'
 
@@ -1152,14 +1162,6 @@ const targetOption = (t: TargetSpec) => (
   </option>
 )
 
-/** The groups of the target select, by tab; the switches (checkboxes) of every tab have a group of their own. */
-const TARGET_GROUPS: readonly { label: string; targets: readonly TargetSpec[] }[] = [
-  { label: 'Geometry', targets: TARGETS.filter((t) => t.tab === 'geometry' && t.kind !== 'switch') },
-  { label: 'Experimental', targets: TARGETS.filter((t) => t.tab === 'experimental' && t.kind !== 'switch') },
-  { label: 'Switches', targets: TARGETS.filter((t) => t.kind === 'switch') },
-  { label: 'Typography', targets: TARGETS.filter((t) => t.tab === 'typography') },
-  { label: 'Color', targets: TARGETS.filter((t) => t.tab === 'color') },
-]
 const targetGroups = TARGET_GROUPS.map(({ label, targets }) => (
   <optgroup key={label} label={label}>
     {targets.map(targetOption)}

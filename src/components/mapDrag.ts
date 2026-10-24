@@ -1,5 +1,6 @@
 // Drag to map (docs/SOUND_PLAN.md §5): a feature is dragged from its meter in the Sound tab's Input box and dropped on
-// any control Sound can drive, which maps that feature to it. Pointer events, not HTML drag and drop, so a small
+// any control Sound can drive, or on its entry in the drop palette that opens beside the panel while dragging
+// (MapDragLayer), which maps that feature to it. Pointer events, not HTML drag and drop, so a small
 // chip follows the pointer exactly. Every control a mapping can drive is a drop zone: its live marker (LiveMarker,
 // LiveSeed, LiveSwitch, LiveColor, LiveAxis) renders a MapTarget anchor, which marks the control's field with
 // data-map-zone="<target id>". While a drag (or the keyboard's pick mode) runs, <html data-map-dragging> outlines
@@ -24,6 +25,80 @@ export const MAP_DRAG_LIMITS = {
 
 /** The element a target anchor marks as its drop zone: the field it sits in (or a variable axis's row). */
 export const ZONE_SELECTOR = '.field, li'
+
+/**
+ * The groups of the targets, by tab, as the Sound tab's target select and the drop palette list them; the switches
+ * (checkboxes) of every tab have a group of their own. The font's variable axes (axisTargets) come after them.
+ */
+export const TARGET_GROUPS: readonly { label: string; targets: readonly TargetSpec[] }[] = [
+  { label: 'Geometry', targets: TARGETS.filter((t) => t.tab === 'geometry' && t.kind !== 'switch') },
+  { label: 'Experimental', targets: TARGETS.filter((t) => t.tab === 'experimental' && t.kind !== 'switch') },
+  { label: 'Switches', targets: TARGETS.filter((t) => t.kind === 'switch') },
+  { label: 'Typography', targets: TARGETS.filter((t) => t.tab === 'typography') },
+  { label: 'Color', targets: TARGETS.filter((t) => t.tab === 'color') },
+]
+
+// ---- The drop palette (MapDragLayer) ----
+
+/** One block of the palette: a heading and its targets (each named by its label alone, under its section). */
+export interface PaletteBlock {
+  /** The group (tab) it opens, shown over its first block only. */
+  group: string | null
+  title: string
+  targets: readonly { id: string; name: string }[]
+}
+
+/** The palette's blocks: every target in the target select's order, one block per section (one for the switches). */
+export function paletteBlocks(): PaletteBlock[] {
+  const groups = [...TARGET_GROUPS]
+  const axes = axisTargets()
+  if (axes.length) groups.push({ label: 'Variable axes', targets: axes })
+  const blocks: PaletteBlock[] = []
+  for (const { label, targets } of groups) {
+    const whole = label === 'Switches' || label === 'Variable axes'
+    const sections = new Map<string, TargetSpec[]>()
+    for (const t of targets) {
+      const key = whole ? label : t.section
+      sections.set(key, [...(sections.get(key) ?? []), t])
+    }
+    let first = true
+    for (const [title, specs] of sections) {
+      blocks.push({
+        group: first && !whole ? label : null,
+        title,
+        targets: specs.map((t) => ({ id: t.id, name: whole ? targetName(t) : t.label })),
+      })
+      first = false
+    }
+  }
+  return blocks
+}
+
+/** A palette column's width with its gap (px; .map-palette-column in styles.css). */
+export const PALETTE_COLUMN = 162
+
+/** A block's height in entries: its targets, its title, and its group's heading. */
+const blockHeight = (block: PaletteBlock) => block.targets.length + (block.group ? 2.5 : 1.5)
+
+/**
+ * The blocks in order down `count` columns of about the same height: a column takes blocks until the next would take
+ * it further past its share than stopping short does, so the groups read down one column after another.
+ */
+export function intoColumns(blocks: readonly PaletteBlock[], count: number): PaletteBlock[][] {
+  const share = blocks.reduce((sum, block) => sum + blockHeight(block), 0) / count
+  const columns: PaletteBlock[][] = [[]]
+  let height = 0
+  for (const block of blocks) {
+    const h = blockHeight(block)
+    if (height > 0 && height + h / 2 > share && columns.length < count) {
+      columns.push([])
+      height = 0
+    }
+    columns[columns.length - 1].push(block)
+    height += h
+  }
+  return columns
+}
 
 /** A target as the Sound tab names it: "Distortion · Noise amplitude", or the label alone when both are the same ("Seed"). */
 export function targetName(target: Pick<TargetSpec, 'section' | 'label'>): string {
@@ -117,6 +192,17 @@ function zoneOf(target: string): HTMLElement | null {
 }
 
 const visible = (el: HTMLElement | null): el is HTMLElement => el !== null && el.getClientRects().length > 0
+
+/** The class of the drop palette (MapDragLayer): its entries are drop zones too, beside the controls' own. */
+export const PALETTE_CLASS = 'map-palette'
+
+/** The control's own zone of a target when it is on view (not its entry in the drop palette), else null. */
+function controlZone(target: string): HTMLElement | null {
+  for (const zone of document.querySelectorAll<HTMLElement>(`[data-map-zone="${CSS.escape(target)}"]`)) {
+    if (!zone.closest(`.${PALETTE_CLASS}`) && visible(zone)) return zone
+  }
+  return null
+}
 
 let overZone: HTMLElement | null = null
 
@@ -265,7 +351,8 @@ export function pressMeter(feature: FeatureId, event: PointerEvent) {
     setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0)
     const zone = zoneAt(e.clientX, e.clientY)
     const target = zone?.getAttribute('data-map-zone')
-    const rect = rectOf(zone)
+    // Dropped on the palette, the confirmation goes under the control when it is on view, else where the entry was.
+    const rect = rectOf((target && controlZone(target)) || zone)
     end()
     if (target && e.type === 'pointerup') drop(feature, target, rect)
     else set({ announcement: 'Mapping cancelled.' })
