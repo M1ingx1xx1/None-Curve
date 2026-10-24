@@ -80,7 +80,7 @@ export function createGeometryWorker(
           flush(key)
           return post({ type: 'done', requestId, stopped: true })
         }
-        post({ type: 'glyph', requestId, key, index })
+        post({ type: 'glyph', requestId, lane: 'canvas', fontId, key, index })
         // A result from the cache took no time: it says nothing of what the glyph costs to compute.
         const cached = isCached(font, index, key)
         const begun = performance.now()
@@ -195,7 +195,7 @@ export function createGeometryWorker(
         } else if (kept) {
           results.push({ index, error: kept.error })
         } else {
-          post({ type: 'glyph', requestId, key, index })
+          post({ type: 'glyph', requestId, lane: 'ahead', fontId, key, index })
           const begun = performance.now()
           try {
             const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, true, 'ahead')

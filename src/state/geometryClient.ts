@@ -106,7 +106,14 @@ interface Slot {
   /** When the worker last sent anything (or started). */
   lastHeard: number
   /** The glyph (and its font, settings and lane) the worker said it started, while nothing has been heard since. */
-  current: { requestId: number; fontId: string | undefined; key: string; index: number; at: number; lane: Lane } | null
+  current: {
+    requestId: number
+    fontId: string
+    key: string
+    index: number
+    at: number
+    lane: Exclude<Lane, 'plan'>
+  } | null
   /** The font was sent again after the worker said it did not have it (once per font). */
   resentFont: boolean
   /** Out of the pool until the next font: it could not start. */
@@ -999,16 +1006,9 @@ export class GeometryClient {
     const now = performance.now()
     slot.lastHeard = now
     if (message.type === 'glyph') {
-      const ahead = slot.ahead?.id === message.requestId
-      const fontId = ahead ? (this.fontId ?? undefined) : this.requests.get(message.requestId)?.fontId
-      slot.current = {
-        requestId: message.requestId,
-        fontId,
-        key: message.key,
-        index: message.index,
-        at: now,
-        lane: ahead ? 'ahead' : 'canvas',
-      }
+      // The worker names the lane and font: a glyph of a superseded ahead request is still an ahead glyph.
+      const { requestId, lane, fontId, key, index } = message
+      slot.current = { requestId, fontId, key, index, at: now, lane }
       return
     }
     if (message.type !== 'font-error') slot.current = null

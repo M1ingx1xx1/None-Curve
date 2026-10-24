@@ -155,7 +155,7 @@ describe('geometry client lanes', () => {
     client.setAheadListener({ results: () => {}, plans: () => {}, ended: (stopped) => ended.push(stopped) })
     client.requestPlan(shape(1), shape(2), (d) => answers.push(d))
     client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7, 8])])
-    first.reply({ type: 'glyph', requestId: aheadOf(first)!.requestId, key: 'k', index: 7 })
+    first.startsGlyph(aheadOf(first)!.requestId, 'k', 7)
     await vi.advanceTimersByTimeAsync(4_000)
     expect(workers).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(1_500)
@@ -175,7 +175,7 @@ describe('geometry client lanes', () => {
     // Glyph 7 is pinned to workers[1] (7 % 2), which says it started it.
     client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7])])
     const busy = workers[1]
-    busy.reply({ type: 'glyph', requestId: aheadOf(busy)!.requestId, key: 'k', index: 7 })
+    busy.startsGlyph(aheadOf(busy)!.requestId, 'k', 7)
     await vi.advanceTimersByTimeAsync(1_000)
     // Static settings that do not ask for it: the worker stays (its caches, ahead store and chains with it).
     client.compute(font('f'), BASE, 'other', [3])
@@ -185,6 +185,21 @@ describe('geometry client lanes', () => {
     client.compute(font('f'), BASE, 'k', [7])
     expect(workers[0].lastRequest.jobs).toEqual([{ params: BASE, key: 'k', indices: [7] }])
     expect(busy.received.some((m) => m.type === 'compute' && m.jobs.some((j) => j.key === 'k'))).toBe(false)
+  })
+
+  it('never replaces a worker on a glyph of a superseded ahead request', async () => {
+    pool(2)
+    client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7])])
+    const busy = workers[1]
+    const old = aheadOf(busy)!.requestId
+    // A newer window replaces the request while the worker is still on its glyph.
+    client.sendAhead('f', 1, 0, 0, [glyphs(2, 'k', [7, 9])])
+    expect(aheadOf(busy)!.requestId).not.toBe(old)
+    busy.startsGlyph(old, 'k', 7)
+    await vi.advanceTimersByTimeAsync(1_000)
+    client.compute(font('f'), BASE, 'other', [3])
+    expect(busy.terminated).toBe(false)
+    expect(workers).toHaveLength(2)
   })
 
   it('checks whether ahead glyphs are held without turning them into objects', () => {

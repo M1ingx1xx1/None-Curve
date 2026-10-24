@@ -69,6 +69,8 @@ describe('geometry worker core', async () => {
     expect(messages.filter((m) => m.type === 'glyph').map((m) => (m as { index: number }).index)).toEqual(
       glyphs.slice(0, 12),
     )
+    // Each heartbeat names its lane and font, so the page knows it even for a request it has since replaced.
+    expect(messages.find((m) => m.type === 'glyph')).toMatchObject({ lane: 'canvas', fontId: 'roboto' })
     const results = messages.flatMap((m) => (m.type === 'results' ? m.results : []))
     expect(results.map((r) => r.index)).toEqual(glyphs.slice(0, 12))
     expect(results.every((r) => 'packed' in r)).toBe(true)
