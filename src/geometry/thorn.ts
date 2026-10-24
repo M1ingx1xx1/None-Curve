@@ -823,6 +823,8 @@ const BURST = {
   steep: 1.5,
   /** The stroke's thickness is measured at most this far into the ink (× the em). */
   maxThickness: 0.3,
+  /** The edges are looked up in cells half that thickness, at most this many across the glyph (see EdgeGrid). */
+  gridCells: 256,
   /**
    * Between two spikes, the dent keeps the outline's sharp corners (an arm, a crossbar: turning more than
    * WARP_LIMITS.curveTurn) all; its gentle bends while they lie farther from the straight line between their neighbours
@@ -922,21 +924,45 @@ class EdgeGrid {
   private readonly edges: [Point, Point][] = []
   private readonly seen: Uint32Array
   private stamp = 0
-  /** The rightmost column any edge reaches. */
+  private readonly cell: number
+  /** The columns and rows any edge reaches: a ray or a row is looked up within them only. */
+  private left = Infinity
   private right = -Infinity
+  private bottom = Infinity
+  private top = -Infinity
 
-  constructor(
-    contours: readonly (readonly Point[])[],
-    private readonly cell: number,
-  ) {
+  /**
+   * Cells of `cell`, or larger on a glyph more than `maxCells` of them across (a huge letter), so lookups stay bounded
+   * whatever its size. The cell size changes only the speed: every lookup covers every cell an edge it counts may lie in.
+   */
+  constructor(contours: readonly (readonly Point[])[], cell: number, maxCells: number) {
+    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
+    for (const points of contours) {
+      for (const p of points) {
+        minX = Math.min(minX, p.x)
+        minY = Math.min(minY, p.y)
+        maxX = Math.max(maxX, p.x)
+        maxY = Math.max(maxY, p.y)
+      }
+    }
+    const span = Math.max(maxX - minX, maxY - minY)
+    this.cell = Number.isFinite(span) ? Math.max(cell, span / maxCells) : cell
     for (const points of contours) {
       for (let i = 0; i < points.length; i++) {
         const a = points[i]
         const b = points[(i + 1) % points.length]
         const e = this.edges.push([a, b]) - 1
-        this.right = Math.max(this.right, this.index(Math.max(a.x, b.x)))
-        for (let x = this.index(Math.min(a.x, b.x)); x <= this.index(Math.max(a.x, b.x)); x++) {
-          for (let y = this.index(Math.min(a.y, b.y)); y <= this.index(Math.max(a.y, b.y)); y++) {
+        const x0 = this.index(Math.min(a.x, b.x))
+        const x1 = this.index(Math.max(a.x, b.x))
+        const y0 = this.index(Math.min(a.y, b.y))
+        const y1 = this.index(Math.max(a.y, b.y))
+        if (!(x1 >= x0 && y1 >= y0)) continue
+        this.left = Math.min(this.left, x0)
+        this.right = Math.max(this.right, x1)
+        this.bottom = Math.min(this.bottom, y0)
+        this.top = Math.max(this.top, y1)
+        for (let x = x0; x <= x1; x++) {
+          for (let y = y0; y <= y1; y++) {
             const key = this.key(x, y)
             const list = this.cells.get(key)
             if (list) list.push(e)
@@ -961,8 +987,10 @@ class EdgeGrid {
     const end = { x: p.x + d.x * limit, y: p.y + d.y * limit }
     let best = limit
     this.stamp++
-    for (let x = this.index(Math.min(p.x, end.x)); x <= this.index(Math.max(p.x, end.x)); x++) {
-      for (let y = this.index(Math.min(p.y, end.y)); y <= this.index(Math.max(p.y, end.y)); y++) {
+    const x1 = Math.min(this.index(Math.max(p.x, end.x)), this.right)
+    const y1 = Math.min(this.index(Math.max(p.y, end.y)), this.top)
+    for (let x = Math.max(this.index(Math.min(p.x, end.x)), this.left); x <= x1; x++) {
+      for (let y = Math.max(this.index(Math.min(p.y, end.y)), this.bottom); y <= y1; y++) {
         for (const e of this.cells.get(this.key(x, y)) ?? []) {
           if (this.seen[e] === this.stamp) continue
           this.seen[e] = this.stamp
@@ -983,7 +1011,7 @@ class EdgeGrid {
     let w = 0
     const y = this.index(p.y)
     this.stamp++
-    for (let x = this.index(p.x); x <= this.right; x++) {
+    for (let x = Math.max(this.index(p.x), this.left); x <= this.right; x++) {
       for (const e of this.cells.get(this.key(x, y)) ?? []) {
         if (this.seen[e] === this.stamp) continue
         this.seen[e] = this.stamp
@@ -1125,7 +1153,7 @@ function burstOutline(
   // A step off the outline, to tell which side the ink is on, and the least distance a ray counts as leaving it.
   const step = 1e-3 * unitsPerEm
   const thickness = BURST.maxThickness * unitsPerEm
-  const grid = new EdgeGrid(contours, thickness / 2)
+  const grid = new EdgeGrid(contours, thickness / 2, BURST.gridCells)
   const shown = arcs.map((arc) =>
     arc && arc.perimeter > 0 && Number.isFinite(arc.perimeter)
       ? showing(arc, grid, step, BURST.piece * unitsPerEm)
