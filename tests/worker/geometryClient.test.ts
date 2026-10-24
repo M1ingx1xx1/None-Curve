@@ -467,6 +467,25 @@ describe('geometry client', () => {
     expect(client.lookup('a', 1)?.entry).toEqual({ geometry: geometry(1) })
   })
 
+  it('an ensure for a font the canvas has left gives up rather than switching back to it', async () => {
+    const a = font('a')
+    const b = font('b')
+    const pending = client.ensure(a, BASE, 'k', [1])
+    client.compute(b, BASE, 'k', [1])
+    await Promise.resolve()
+    worker().reply({ type: 'done', requestId: worker().lastRequest.requestId })
+    const settled = pending.then(
+      () => 'resolved',
+      (error: unknown) => (error as Error).name,
+    )
+    await Promise.resolve()
+    client.compute(b, BASE, 'k', [2])
+    // Before: a, b, a, b, each switch dropping every result and the ahead window.
+    const fonts = worker().received.flatMap((m) => (m.type === 'font' ? [m.fontId] : []))
+    expect(fonts).toEqual(['a', 'b'])
+    expect(await Promise.race([settled, Promise.resolve('pending')])).toBe('AbortError')
+  })
+
   it('a result of a request it does not remember does not stand in for the glyph', () => {
     client.compute(font('f'), BASE, 'a', [5])
     worker().reply({
