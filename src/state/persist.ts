@@ -32,7 +32,7 @@ import type { OutlineView, SettingsParams, ViewToggles } from './types'
 const SESSION_KEY = 'none-curve:session'
 /** Set while settings restored from the last visit are first drawn; still set on the next start means that visit never finished. */
 const RESTORING_KEY = 'none-curve:restoring'
-export const SESSION_VERSION = 3
+export const SESSION_VERSION = 4
 /** Characters of text saved at most. */
 export const MAX_SAVED_TEXT = 10_000
 /** Wait this long after a change before saving (changes during a slider drag are saved once). */
@@ -200,8 +200,17 @@ function fromV2(raw: Raw): Raw {
   return { ...raw, mappings, version: 3 }
 }
 
+/**
+ * Version 4 raises Strength's default from 1 to 1.5 (NOCUR-91): a session saved at the old default takes the new one,
+ * so the letters answer the music as strongly as in a fresh session. Any other Strength was chosen and stays.
+ */
+function fromV3(raw: Raw): Raw {
+  const sound = isObject(raw.sound) && raw.sound.strength === 1 ? { ...raw.sound, strength: 1.5 } : raw.sound
+  return { ...raw, sound, version: 4 }
+}
+
 /** Steps from each older version to the next; the last one reaches SESSION_VERSION. */
-const MIGRATIONS: Record<number, (raw: Raw) => Raw> = { 0: fromUnversioned, 1: fromV1, 2: fromV2 }
+const MIGRATIONS: Record<number, (raw: Raw) => Raw> = { 0: fromUnversioned, 1: fromV1, 2: fromV2, 3: fromV3 }
 
 function migrate(raw: Raw): Raw {
   let version = typeof raw.version === 'number' && Number.isInteger(raw.version) ? raw.version : 0

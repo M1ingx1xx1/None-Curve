@@ -13,7 +13,7 @@ const ExportBody = lazyWithRetry(() => import('./ExportBody'))
  * the geometry results and describes the pipeline, is mounted only while it is open, so a closed dialog does no work.
  */
 function ExportDialog(props: ExportDialogProps) {
-  const { open, onClose, font } = props
+  const { open, onClose, font, openOn } = props
   const dialogRef = useRef<HTMLDialogElement>(null)
   const firstRef = useRef<HTMLInputElement>(null)
   const [chosen, setFormat] = useState<Format>('svg')
@@ -40,11 +40,12 @@ function ExportDialog(props: ExportDialogProps) {
     const dialog = dialogRef.current
     if (!dialog) return
     if (open && !dialog.open) {
+      if (openOn) setFormat(openOn)
       dialog.showModal()
       firstRef.current?.focus()
     }
     if (!open && dialog.open) dialog.close()
-  }, [open])
+  }, [open, openOn])
 
   // New font: suggest a derived name (many licenses require renaming modified fonts).
   useEffect(() => {

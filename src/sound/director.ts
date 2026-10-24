@@ -121,13 +121,16 @@ const AHEAD_SHARE = 0.8
 /** Frames slower than this get no background planning while following (ms). */
 const FAST_FRAME_MS = 20
 
-/** The same inputs for planning: Glide's time only changes how frames are shown, so it does not count. */
+/**
+ * The same inputs for planning: Glide's time only changes how frames are shown, so it does not count; whether Glide is
+ * on does, since then large changes carry keyframes (keyframes.ts).
+ */
 function sameInputs(a: LiveInputs | null, b: LiveInputs): boolean {
   if (!a) return false
   const r = a.response
   const s = b.response
-  const sameResponse = (Object.keys(r) as (keyof ResponseSettings)[]).every(
-    (key) => key === 'glideMs' || r[key] === s[key],
+  const sameResponse = (Object.keys(r) as (keyof ResponseSettings)[]).every((key) =>
+    key === 'glideMs' ? r.glideMs > 0 === s.glideMs > 0 : r[key] === s[key],
   )
   return (
     a.base === b.base &&
@@ -888,6 +891,20 @@ function idleLater(run: (budgetMs: number) => void, delayMs: number): () => void
   }
 }
 
+/** What a video render reads (export/videoEncode.ts): the file, its measured features, and the planner's inputs now. */
+export interface RenderSource {
+  file: Blob
+  timeline: FeatureTimeline
+  inputs: LiveInputs
+}
+
+let renderSource: (() => RenderSource | null) | null = null
+
+/** The file a video can be rendered from (precomputed, playing or paused), or null (the microphone, none, too long). */
+export function getRenderSource(): RenderSource | null {
+  return renderSource?.() ?? null
+}
+
 /** While paused with nothing left to do, the idle loop looks again this often (ms). */
 const IDLE_CHECK_MS = 250
 
@@ -1043,7 +1060,12 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
       )
     }),
   ]
+  renderSource = () =>
+    held && timeline.isLoaded() && engine.getState().source === 'file'
+      ? { file: held, timeline, inputs: scheduler.inputs() }
+      : null
   return () => {
+    renderSource = null
     for (const unsubscribe of off) unsubscribe()
     if (hasWindow) {
       for (const type of ['pointerdown', 'pointerup', 'pointercancel'] as const)

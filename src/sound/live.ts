@@ -43,6 +43,7 @@ import { connectDirector } from './director'
 import { getSoundEngine, subscribeStateKeys } from './engine'
 import { FLASH_LIMITS, FlashBudget } from './flash'
 import { JumpTracker } from './jumps'
+import { keyframesBetween, type Keyframe } from './keyframes'
 import {
   assignLevels,
   buildLetterFrame,
@@ -164,6 +165,8 @@ type Shown = {
   holds: Holds | null
   isBase: boolean
   differs: boolean
+  /** The shared parameters it shows (missing: the sliders' own), which the next frame's keyframes start from. */
+  params?: DrivenParams | null
 }
 /** A frame waiting to be committed to React: its glyphs are being computed. `turn`: the Thorn turns it shows. */
 type Next = {
@@ -172,6 +175,7 @@ type Next = {
   letters: LetterFrame | null
   look: LookChanges | null
   turn: number
+  keyframes: readonly Keyframe[] | null
 }
 
 /**
@@ -426,6 +430,11 @@ export interface LiveCommit {
   letters: LetterFrame | null
   /** The typography and colours sound moved from the sliders' (null: none). */
   look: LookChanges | null
+  /**
+   * With Glide on, the in-between shapes a large change passes through on screen (keyframes.ts), oldest first; their
+   * glyphs are computed with the frame's. Missing or null: the frame is glided into directly.
+   */
+  keyframes?: readonly Keyframe[] | null
   /** Counts commits, so each one renders and its render can be recognised. */
   seq: number
   /** Set by the director for planned commits. */
@@ -686,7 +695,8 @@ export class LiveScheduler {
 
   /**
    * The mappings, Drive letters, and the Response group's settings (Strength, Motion contrast, Pitch reactive, Melody
-   * tracking; Glide only changes how the canvas shows the frames, so the scheduler never reads it).
+   * tracking). Of Glide it reads only whether it is on: then a large change carries keyframes (keyframes.ts); its time
+   * only changes how the canvas shows the frames.
    */
   setMappings(mappings: readonly Mapping[], drive: boolean, response: ResponseSettings = NEUTRAL_RESPONSE) {
     this.mappings = mappings
@@ -1144,10 +1154,15 @@ export class LiveScheduler {
     const params = isBase ? null : latest.modulated.params
     const letters = isBase ? null : latest.letters
     const look = isBase ? null : latest.look
+    shown.params = params
+    // With Glide on, a large change passes through keyframes from the shared parameters on screen (keyframes.ts).
+    const base = this.base!
+    const keyframes =
+      this.response.glideMs > 0 ? keyframesBetween(this.committed?.params ?? base, params ?? base) : null
     this.awaiting = {
       seq: ++this.seq,
       at: now,
-      next: { shown, params, letters, look, turn: latest.turn },
+      next: { shown, params, letters, look, turn: latest.turn, keyframes },
       committedAt: now,
       rendered: false,
     }
@@ -1158,8 +1173,12 @@ export class LiveScheduler {
     // every glyph shown (with Thorn turns, those of letters that show it), then the glyphs of the other sets.
     const shared: FrameJob | null = params && { params, key: latest.sharedKey }
     if (shared && letters?.sharedGlyphs) shared.within = letters.sharedGlyphs
-    const jobs: FrameJob[] | null = shared ? [shared, ...(letters?.jobs ?? [])] : null
-    if (!jobs || !this.deps.request(jobs)) this.finish()
+    // The keyframes' glyphs last: the shared set's glyphs at each.
+    const between: FrameJob[] = (keyframes ?? []).map(({ params: p, key }) =>
+      letters?.sharedGlyphs ? { params: p, key, within: letters.sharedGlyphs } : { params: p, key },
+    )
+    const jobs: FrameJob[] | null = shared ? [shared, ...(letters?.jobs ?? []), ...between] : between
+    if (jobs.length === 0 || !this.deps.request(jobs)) this.finish()
   }
 
   /**
@@ -1204,7 +1223,11 @@ export class LiveScheduler {
       const delay = now - next.shown.frame.time
       this.latency = this.latency === null ? delay : this.latency + SMOOTHING * (delay - this.latency)
     }
-    this.deps.commit({ params: next.params, letters: next.letters, look: next.look, seq: awaiting.seq })
+    this.deps.commit(
+      next.keyframes
+        ? { params: next.params, letters: next.letters, look: next.look, keyframes: next.keyframes, seq: awaiting.seq }
+        : { params: next.params, letters: next.letters, look: next.look, seq: awaiting.seq },
+    )
   }
 
   /**
@@ -1349,6 +1372,8 @@ export interface LiveView {
   look: LookChanges | null
   /** When a planned commit (director.ts) is shown, for Glide (useSceneGlide); null on the live path. */
   timing: CommitTiming | null
+  /** The keyframes Glide passes through on the way to this frame (LiveCommit.keyframes); null for none. */
+  keyframes: readonly Keyframe[] | null
 }
 
 /**
@@ -1373,7 +1398,8 @@ export function useLiveFrame(base: DrivenParams, hasFont = true): LiveView {
   const letters = commit?.params ? commit.letters : null
   const look = commit?.params ? commit.look : null
   const timing = commit?.timing ?? null
-  return useMemo(() => ({ params, letters, look, timing }), [params, letters, look, timing])
+  const keyframes = commit?.keyframes ?? null
+  return useMemo(() => ({ params, letters, look, timing, keyframes }), [params, letters, look, timing, keyframes])
 }
 
 /**

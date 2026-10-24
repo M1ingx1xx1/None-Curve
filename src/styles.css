@@ -3713,3 +3713,18 @@ html[data-map-dragging] .map-palette-entry[data-map-zone][data-map-over] {
   font-size: 0.7rem;
   font-weight: 600;
 }
+
+/* Export → Video for an audio file: Start and End side by side, each a label, a number field and its unit. */
+.video-range {
+  gap: 16px;
+}
+
+.video-range-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.video-range-field input {
+  width: 7em;
+}

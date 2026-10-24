@@ -303,7 +303,10 @@ export interface ResponseSettings {
    * neutral.
    */
   plain: number
-  /** How long each beat shows the effects while Return to plain is on, 50–1000 ms. */
+  /**
+   * How long each beat shows the effects while Return to plain is on, 0–3000 ms. Below SHAPING_LIMITS.pulseMs (0
+   * included) each beat shows them for that shortest pulse.
+   */
   holdMs: number
 }
 
@@ -314,7 +317,7 @@ export const RESPONSE_LIMITS = {
   melody: { min: 0, max: 2, step: 0.01 },
   glideMs: { min: 0, max: 1000, step: 10 },
   plain: { min: 0, max: 1, step: 1 },
-  holdMs: { min: 50, max: 1000, step: 10 },
+  holdMs: { min: 0, max: 3000, step: 10 },
   /** Melody tracking 1 adds this × Melody to a slider mapping's feature (capped at 1). */
   melodyBoost: 0.5,
 } as const
@@ -330,10 +333,11 @@ export const NEUTRAL_RESPONSE: ResponseSettings = {
 }
 
 /**
- * The Response group's defaults: neutral, with Glide at 150 ms, about five live frames at their fastest, so the letters
- * move smoothly from the start while still following the beat closely.
+ * The Response group's defaults: neutral, but with Strength at 1.5, so the letters answer the music strongly from the
+ * start (NOCUR-91), and Glide at 150 ms, about five live frames at their fastest, so they move smoothly while still
+ * following the beat closely.
  */
-export const DEFAULT_RESPONSE: ResponseSettings = { ...NEUTRAL_RESPONSE, glideMs: 150 }
+export const DEFAULT_RESPONSE: ResponseSettings = { ...NEUTRAL_RESPONSE, strength: 1.5, glideMs: 150 }
 
 /**
  * Thorn turns (letters.ts, live.ts): while Sound drives the letters with Thorn on, their thorns change a few letters

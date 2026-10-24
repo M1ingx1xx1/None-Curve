@@ -53,6 +53,7 @@ import { DEFAULT_RESET_EXTRAS, resetHistory } from './state/reset'
 import type { AppState, EditorParams, SettingsParams, ViewToggles } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
+import { onExportRequest } from './state/exportRequest'
 import { useSceneGlide } from './state/useGlide'
 
 /** Every parameter group but the canvas view: what undo restores and the session saves (never Thorn's derived canvasEm). */
@@ -161,12 +162,8 @@ export default function App({ restored }: AppProps) {
   )
   // Without a font there are no letters to move: Sound does not drive.
   const live = useLiveFrame(drivenBase, font !== null)
-  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } = useGeometry(
-    state,
-    displayText,
-    baseParams,
-    live,
-  )
+  const { derived, scene, keyframes, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } =
+    useGeometry(state, displayText, baseParams, live)
   // The colours as shown and recorded: Sound's over the sliders'. Exports keep the sliders' own.
   const livePalette = live.look?.palette
   const shownPalette = useMemo(() => (livePalette ? { ...palette, ...livePalette } : palette), [palette, livePalette])
@@ -179,7 +176,7 @@ export default function App({ restored }: AppProps) {
   useLiveLetters(letterSlots)
   // Glide: while Sound moves the letters, the canvas, the preview and the video glide into each new shape (useGlide.ts).
   const driving = useLiveDriving()
-  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing)
+  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing, keyframes)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.
@@ -269,8 +266,21 @@ export default function App({ restored }: AppProps) {
 
   const [googleOpen, setGoogleOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  // The format the dialog opens on when asked from elsewhere (the Sound tab's Export video…); null: the last one.
+  const [exportOn, setExportOn] = useState<'video' | null>(null)
   const openGoogleFonts = useCallback(() => setGoogleOpen(true), [])
-  const openExport = useCallback(() => setExportOpen(true), [])
+  const openExport = useCallback(() => {
+    setExportOn(null)
+    setExportOpen(true)
+  }, [])
+  useEffect(
+    () =>
+      onExportRequest((format) => {
+        setExportOn(format)
+        setExportOpen(true)
+      }),
+    [],
+  )
 
   const [showAllHints, setShowAllHints] = useShowAllHints()
 
@@ -780,6 +790,7 @@ export default function App({ restored }: AppProps) {
         precision={precision}
         onPrecisionChange={setPrecision}
         readConfig={readSessionNow}
+        openOn={exportOn}
       />
       {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
       <Glided store={glide} scene={scene}>

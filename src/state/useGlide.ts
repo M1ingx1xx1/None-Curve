@@ -55,6 +55,8 @@ export interface ShowOptions {
   at?: number
   /** A precomputed commit's place in the plan chain (its timing): worker plans chained ahead are used when they fit. */
   chain?: Pick<CommitTiming, 'lineage' | 'seq' | 'prevSeq'> | null
+  /** The scenes the glide passes through on its way (keyframes, sound/keyframes.ts), oldest first. */
+  keyframes?: readonly SpecimenScene[] | null
 }
 
 export interface GlideClock {
@@ -75,6 +77,8 @@ export class GlideStore {
   private listeners = new Set<() => void>()
   private handle: number | null = null
   private lastLive = false
+  /** The keyframes last shown: a scene that comes later with the same ones (a glyph arriving late) skips them. */
+  private lastKeyframes: ShowOptions['keyframes'] = null
 
   /** `sources`: where plans come from besides pairing on the page (none: every glyph is paired here, as in tests). */
   constructor(
@@ -104,11 +108,14 @@ export class GlideStore {
     const glide = options.live || this.lastLive
     this.lastLive = options.live
     const now = options.at ?? this.clock.now()
+    const keyframes = options.keyframes !== this.lastKeyframes ? options.keyframes : null
+    this.lastKeyframes = options.keyframes ?? null
     this.glide.retarget(scene, now, {
       durationMs: options.durationMs,
       glide,
       key: options.key,
       chain: options.chain ?? null,
+      keyframes,
     })
     // The frame already asked for would run tick a second time: one chain of frames at most.
     this.stop()
@@ -143,13 +150,15 @@ function glideMs(): number {
 /**
  * The page's Glide store for `scene` (call once, in App): `live` while Sound drives the letters; `key` names the text and
  * font the scene sets; `timing`, a precomputed commit's (the director's), starts the glide at the commit's time and
- * lets it use the plans the workers chained ahead. Views draw from it with <Glided>.
+ * lets it use the plans the workers chained ahead; `keyframes`, the scenes a large change passes through on its way.
+ * Views draw from it with <Glided>.
  */
 export function useSceneGlide(
   scene: SpecimenScene | null,
   live: boolean,
   key: string,
   timing?: CommitTiming | null,
+  keyframes?: readonly SpecimenScene[] | null,
 ): GlideStore {
   const [store] = useState(
     () =>
@@ -161,7 +170,7 @@ export function useSceneGlide(
   )
   const durationMs = useSyncExternalStore(mappingStore.subscribe, glideMs)
   const latest = useRef<ShowOptions>({ durationMs, live, key })
-  latest.current = { durationMs, live, key, at: timing?.wallMs, chain: timing ?? null }
+  latest.current = { durationMs, live, key, at: timing?.wallMs, chain: timing ?? null, keyframes }
   useLayoutEffect(() => store.show(scene, latest.current), [store, scene])
   return store
 }

@@ -2,7 +2,7 @@
 
 [English](SOUND_PLAN.md) · **中文**
 
-**状态：** 第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、闪烁限制、Freeze）已完成。第 3 阶段部分完成（会跳变的种子、10 个特征中的 Pitch 和立体声 Pan、紧凑的电平表、自动打开所需设置的目标、预设，以及重做后的 Experimental 效果的目标和预设）；Step 映射和实时 SVG 重绘测量尚待完成。此后又加入了：Beat 的能量门（第 4 节）、滑块和种子共用一个闪烁预算（第 10 节）、映射在两次访问之间保存并可撤销（第 5 节），以及自动测试（第 12 节）。H 阶段已完成：Response 分组（Strength、Motion contrast、Release、Pitch reactive、Melody tracking，以及 Sensitivity；第 5.1 节）、每个字母按自己的幅度响应（第 5.2 节）、Melody 特征和音高置信度（第 4 节）、Sound 设置的保存与撤销（第 5 节），以及实时视频录制（第 9 节）。H 阶段之后：Sound 驱动字母时文字块保持不动（第 8 节）；Thorn 打开时，它的设置每次只传到少数字母（Thorn 轮换，第 5.3 节）  
+**状态：** 第 1 阶段（声音来源、特征、电平表）和第 2 阶段（连续映射、实时调度、实时值标记、闪烁限制、Freeze）已完成。第 3 阶段部分完成（会跳变的种子、10 个特征中的 Pitch 和立体声 Pan、紧凑的电平表、自动打开所需设置的目标、预设，以及重做后的 Experimental 效果的目标和预设）；Step 映射和实时 SVG 重绘测量尚待完成。此后又加入了：Beat 的能量门（第 4 节）、滑块和种子共用一个闪烁预算（第 10 节）、映射在两次访问之间保存并可撤销（第 5 节），以及自动测试（第 12 节）。H 阶段已完成：Response 分组（Strength、Motion contrast、Release、Pitch reactive、Melody tracking，以及 Sensitivity；第 5.1 节）、每个字母按自己的幅度响应（第 5.2 节）、Melody 特征和音高置信度（第 4 节）、Sound 设置的保存与撤销（第 5 节），以及实时视频录制（第 9 节）。H 阶段之后：Sound 驱动字母时文字块保持不动（第 8 节）；Thorn 打开时，它的设置每次只传到少数字母（Thorn 轮换，第 5.3 节）。NOCUR-91：Return to plain 的 Hold 改为 0–3000 ms（第 5.5 节），Strength 默认 150%（第 5.1 节），Glide 打开时大变化经过关键帧（第 5.4 节），音频文件的视频改在 Export 里离线渲染（第 9 节）  
 **范围：** 在 **Geometry** 和 **Experimental** 旁边新增 **Sound** 标签页。实时声音（本地音频文件或麦克风）驱动两个标签页里已有的参数，让字母随音乐而动：锚点踩着节拍跳动，声音变响时轮廓被揉皱，低音响起时花瓣张开。
 
 ## 1. 目标
@@ -14,7 +14,7 @@
 - 实时运行，帧率随设置的计算量自动调整。
 - 音频只留在浏览器里：在本地解码和分析，从不上传。
 - 关闭 Sound 后，滑块的值完全恢复原样。
-- 运动中的字母可以连同声音实时录成视频（第 9 节）。
+- 运动中的字母可以连同声音存成视频：音频文件按它的计划离线渲染，麦克风实时录制（第 9 节）。
 
 这取代了之前"由声音驱动的雕刻字形"方向（PRD 第 11 节）。那个方向计划了新的雕刻操作、时间轴、把音频分布到一段文字的各个字母上，以及配方导出；这些都不再做。
 
@@ -106,16 +106,16 @@ Response 设置决定字母如何回应声音，作用于所有映射。它的�
 | 控件 | 范围、步长 | 默认值 | 作用 |
 |---|---|---|---|
 | **Sensitivity** | −24 到 +24 dB，1 dB | 0 dB | 测量前对输入的增益（第 4 节） |
-| **Strength** | 0–400%，1% | 100% | 在截断之前，把每个滑块目标的偏移总和乘上它，所以 200% 让字母移动两倍远，直到滑块尽头。它也乘上每个种子的 Rate，Rate 仍以 100% 为上限。为 0% 时 Sound 停止驱动，和 Pause 一样：完全恢复，种子回到输入框的值，不显示标记，Mappings 分组显示 "Strength is 0%: the letters hold still." |
+| **Strength** | 0–400%，1% | 150% | 在截断之前，把每个滑块目标的偏移总和乘上它，所以 200% 让字母移动两倍远，直到滑块尽头。它也乘上每个种子的 Rate，Rate 仍以 100% 为上限。为 0% 时 Sound 停止驱动，和 Pause 一样：完全恢复，种子回到输入框的值，不显示标记，Mappings 分组显示 "Strength is 0%: the letters hold still." |
 | **Motion contrast** | 0–100%，1% | 0% | 每个字母按自己的幅度响应（第 5.2 节） |
 | **Release** | 20–1000 ms，1 ms | 150 ms | 读数回落得多慢（第 4 节） |
 | **Pitch reactive** | 0–200%，1% | 0% | 近来旋律中的低音让左边的字母动得更多，高音让右边的字母动得更多；需要清晰的单个音符（第 5.2 节） |
 | **Melody tracking** | 0–200%，1% | 0% | 给每个滑块映射的特征加上 0.5 × Melody tracking × Melody 脉冲（上限为 1），Pan 行和读 Melody 的行除外。种子不受影响。所以即使响度不变，字母也会在每个新音符上动起来。 |
 | **Glide** | 0–1000 ms，10 ms | 150 ms | 只影响显示（第 5.4 节）：每个新的实时形状在这段时间内到达，而不是立刻出现。默认值不是中性值，但它不改变任何计算出的形状，所以固定的哈希不变；`NEUTRAL_RESPONSE` 保持 0 ms，`DEFAULT_RESPONSE` 是中性值加上 150 ms。 |
 
-- 默认值是中性的：Sound 的表现和 H 阶段之前完全一样，所以已保存的会话和预设看起来不变；只有 Thorn 打开时例外：它的设置现在按轮换传到字母（第 5.3 节），这有意改变了 Flare 的实时帧。`tests/sound/neutral.test.ts` 对照 4a54e5d 锁定了这一点，其调度器哈希不含 Flare（第 12 节）。
+- 中性值（`NEUTRAL_RESPONSE`，Strength 100%）下 Sound 的表现和 H 阶段之前完全一样，所以已保存的会话和预设看起来不变；只有 Thorn 打开时例外：它的设置现在按轮换传到字母（第 5.3 节），这有意改变了 Flare 的实时帧。`tests/sound/neutral.test.ts` 对照 4a54e5d 锁定了这一点，其调度器哈希不含 Flare（第 12 节）。默认值（`DEFAULT_RESPONSE`）是中性值加上 Strength 150%（NOCUR-91，让字母对音乐反应更强）和 Glide 150 ms。
 - `ResponseSettings`、`RESPONSE_LIMITS` 和 `NEUTRAL_RESPONSE` 在 `src/sound/types.ts` 中；Strength 和 Melody tracking 在 `modulate` 和 `JumpTracker.advance` 中生效，Motion contrast 和 Pitch reactive 在 `src/sound/letters.ts` 和调度器中生效。
-- **保存：** 会话保存全部七个值（`Session.sound`）。读取时，每个值必须是有限的数字，会被截断到它的范围并取整到它的步长，否则读作默认值。H 阶段之前保存的会话读到的是默认值；会话版本号不变。
+- **保存：** 会话保存全部七个值（`Session.sound`）。读取时，每个值必须是有限的数字，会被截断到它的范围并取整到它的步长，否则读作默认值。H 阶段之前保存的会话读到的是默认值。会话版本 4（NOCUR-91）把按旧默认值保存的 Strength（正好 100%）改成新的 150%；其他选过的 Strength 保持不变。
 - **撤销：** 每次拖动是一步（撤销键为 `sound:` 加字段名）；Reset sound 用一步把七个值都恢复为默认，已经是默认值时它不可用。
 - 预设的 Load 不动这七个值（第 7 节）。
 
@@ -157,16 +157,17 @@ Sound 驱动字母且 Thorn 打开时，会移动刺的设置每次只传到少�
 
 ### 5.4 Glide（NOCUR-74）
 
-- **是什么：** 在实时形状之间做显示时的补间。实时调度、它的缓存、闪烁限制、标记、状态、Freeze 和导出都看不到它；只有画布、预览和录制绘制中间场景。`SceneGlide`（`src/specimen/glide.ts`）是纯的，时钟由外部传入；`GlideStore` 和 `useSceneGlide`（`src/state/useGlide.ts`）在 `requestAnimationFrame` 上运行它，没有东西在动时停止循环；`<Glided>`（`src/components/Glided.tsx`）每帧只重新渲染这三个视图。
+- **是什么：** 在实时形状之间做显示时的补间。实时调度、它的缓存、闪烁限制、标记、状态、Freeze 和导出都看不到它；只有画布、预览和视频绘制中间场景。`SceneGlide`（`src/specimen/glide.ts`）是纯的，时钟由外部传入；`GlideStore` 和 `useSceneGlide`（`src/state/useGlide.ts`）在 `requestAnimationFrame` 上运行它，没有东西在动时停止循环；`<Glided>`（`src/components/Glided.tsx`）每帧只重新渲染这三个视图。
 - **何时：** 声音驱动字母时（`useLiveDriving`），以及停止时显示的那个场景再滑一次。字体或文字改变（字形序列不同）时立刻显示。Glide 为 0 或 `prefers-reduced-motion` 时每个场景都立刻显示，和以前完全一样。缓动是 Glide 时长内的三次缓出；滑行途中到来的形状从屏幕上的样子开始，已完成至少 99% 的滑行（`GLIDE_LIMITS.arrived`）算作已到达。
 - **对应关系**（`src/specimen/morph.ts`）：闭合路径按质心距离除以尺寸、再加上面积之比的对数贪心配对，外轮廓配外轮廓，孔配孔（超过 48 条路径时只尝试最近的 4 条）；相距超过两者尺寸之和一半、或面积相差 4 倍以上的不配对。两边轮廓绕向相反时（按最大的路径判断；Whorl 的 Amount 大于 1 时合并后的绕向相反），先把新轮廓的路径倒过来。没有配对的路径，如果另一边轮廓（所有路径）上的最近点平均在它的尺寸之内，就从这些点长出或缩回到这些点，否则从质心长出或缩回质心。锚点数相同且移动很小（≤ 0.35 × 尺寸，取移动最少的起点错位）时逐点对应；否则把两边锚点的并集按最近点对应到另一条路径上并保持顺序：先找出每个锚点的最近点，保留保持顺序的最长一串（从第一个锚点的最近点开始），其余的按弧长放在前后邻居之间。两端精确：进度 0 和 1 返回旧轮廓和新轮廓本身。只有旧轮廓才有的锚点，若离一段直线不到 0.004 em 就去掉；数量多于新轮廓锚点时，容差逐步加倍，最多到 0.05 em，尺寸或厚度在容差以内的多余路径也去掉，所以多次滑行不会让锚点越积越多。中间形状超过 12,000 个点时立刻切换。
 - **轨迹**（`src/specimen/trajectory.ts`、`whorlGlide.ts`）：刺和 Whorl 以外的所有效果都走直线（从根部笔直长出、笔直缩回）；Whorl 沿由直线组成的路径卷过去。worker 给出的 `PolygonGlyph.motion.whorl` 包含中心、边数、环数、半径、每个环转过的角度、进入 Whorl 之前的轮廓，以及 Whorl 是否是最后一个改变字形的效果。只有 Whorl 的转动改变且它是最后一个时，滑行就是 Whorl 的网格转过一部分：进入 Whorl 之前的轮廓在网格的折线处切开，每个点保留它所在三角形的重心坐标，网格的每个角用 `along` 沿它的环形多边形移动（从多边形的一个角到下一个角分段直线，每段内角度均匀），滑行途中接着走时从屏幕上的角出发；折叠处和最外环以外的区域都完全跟随。其他情况下，只要 Whorl 的设置变了，锚点就在精确撤销 Whorl 转动之后的轮廓上配对（每个网格三角形的逆变换；字母折叠处取离进入 Whorl 之前的轮廓最近的那一层），每个锚点按 Whorl 在它根部（它在配对轮廓上的位置）所在大小处的转动变化量沿多边形转过去，剩下的位移按直线加上，所以 Whorl 之后的效果相对于根部仍走直线。Sides 改变时两个多边形在中途衔接。有自己路径的新效果添加一个 `TrajectoryModel`，并把数据加到 `GlyphMotion`。
+- **关键帧**（NOCUR-91；`src/sound/keyframes.ts`）：Glide 大于 0 时，形状的大变化会经过真实的中间形状，而不是从旧轮廓一次变形到新轮廓。大变化指某个 Experimental 效果打开或关闭（Return to plain 每一拍都这样，第 5.5 节），或某个效果的强度字段移动至少它滑块行程的 25%（`KEYFRAME_LIMITS.minShare`）。这时有两个关键帧，在 1/3 和 2/3 处（`KEYFRAME_LIMITS.count`）：每个效果的强度字段（`KEYFRAME_FIELDS`：Crumple 的 Amount；Ripple 的 Amount、Petals；Whorl 的 Amount；Slipstream 的 Strength、Slip、Cuts、Trails；Thorn 的 Reach、Refraction、Dent；Dissolve 的 Amount、Spread、Specks）走到相应的一部分，正在打开的效果从 0 长出来，正在关闭的效果保持打开、淡到 0，其他所有值已经是新值。几何管线像计算任何一帧那样计算每个关键帧，所以它们也是折面的，只有直线（第 2 节）；它们的字形在这一帧显示之前算好，实时路径（`live.ts` 里的 `LiveCommit.keyframes`）和预计算的计划都是这样。然后 Glide 一段一段地变形（`src/specimen/glide.ts`）：缓动后的进度平均分给各段，每段是一次独立的变形，沿着它的效果的轨迹（见上面的轨迹）。它没有自己的控件；Glide 为 0 就没有关键帧。
 - **开销：** 配对在主线程上进行，每个动画帧最多 6 ms（`GLIDE_LIMITS.planBudgetMs`），从上一帧停下的地方轮流进行，每帧至少一个字形，所以没有字形会一直等下去；还没配对的字形保持屏幕上的形状，配对后开始完整的滑行。配对结果按新旧轮廓缓存（WeakMap），重复的字母每帧共用一个中间形状。在 54 个字形、每 33 ms 一个新形状的情况下测得：重新定目标 0.1–0.5 ms；含配对的帧平均 6–7 ms，只插值的帧 0.1–1.3 ms；单个很大的 Dissolve 字形偶尔一次可达约 50 ms。每个字形（Roboto，Node）：Whorl 网格滑行配对 0.1–0.3 ms、每帧约 11 µs；Whorl 加 Thorn 3 ms、27 µs；Burst 种子 0.8 ms、7 µs；Dissolve 颗粒 4.9 ms、58 µs。
 - **保存：** `glideMs` 属于 `Session.sound`；没有它的会话读作 150 ms。由 `tests/specimen/glide.test.ts`（两端精确、刺走直线、按最近点保持顺序的对应、错开的起点、相反的绕向、分裂的路径从轮廓长出、逐步去掉多余锚点、Whorl 路径分段为直线、精确撤销转动、网格滑行跟随 Whorl 且接着走时不跳、孔的配对、重新定目标时连续、Glide 为 0 和没有声音时完全相同、时间预算及其公平）和 `tests/state/persist.test.ts` 检查。
 
 ### 5.5 Return to plain（NOCUR-87）
 
-- **是什么：** Transport 里的一个开关（`ResponseSettings.plain`，0 或 1）和它的 **Hold** 旋钮（`holdMs`，50–1000 ms，默认 200 ms）。打开时，字母平时停在原字形上（所有 Experimental 效果关闭，Geometry 照常），每一拍让 Experimental 标签页里打开的效果出现 Hold 那么久。它把"节拍触发"的做法（效果停在 0，加一行 Beat 上的 Trigger）变成一个控件，不需要每个效果各配一行。
+- **是什么：** Transport 里的一个开关（`ResponseSettings.plain`，0 或 1）和它的 **Hold** 旋钮（`holdMs`，0–3000 ms，步长 10，默认 200 ms；NOCUR-91 之前是 50–1000 ms）。打开时，字母平时停在原字形上（所有 Experimental 效果关闭，Geometry 照常），每一拍让 Experimental 标签页里打开的效果出现 Hold 那么久；低于 80 ms（包括 0）时，每一拍显示最短的脉冲 80 ms（`SHAPING_LIMITS.pulseMs`）。Glide 打开时，每次开关都经过关键帧（第 5.4 节）。它把"节拍触发"的做法（效果停在 0，加一行 Beat 上的 Trigger）变成一个控件，不需要每个效果各配一行。
 - **怎么做：** `plainPulse`（`mapping.ts`）是一行隐藏的、作用在 Beat 上的 Trigger，Smooth 设为 Hold，和映射行一起塑形（`LiveScheduler.shapedMappings`），id 为 `PLAIN_PULSE_ID`。在 `modulate` 里，`PLAIN_SWITCHES` 中在底板上打开的每个 Use 开关都成为被驱动的开关，除非这个脉冲大于 0，否则被关掉。所以原字形只是开关在翻转：闪烁上限能看到两个边沿，planner 通过同一套调度器输入拿到它，Sound 停止时画布显示的底板仍是滑块自己的值。
 - **Thorn 轮换：** 打开时这些 Use 开关算作脉冲目标（`pulsedTargets(mappings, also)`），所以每个字母一起变化；Thorn 本身关闭会清空轮换，下一拍每个组同时从实时状态开始。
 - **保存和撤销**与 Response 的值一起（`Session.sound`）；没有这两个值的会话读作关闭、200 ms。Reset sound 不动它们。在 `tests/sound/turns.test.ts` 里检查（Return to plain：两拍之间开关关闭、脉冲期间打开；每个字母先是原字形，然后是设计，再回到原字形，一拍接一拍）。
@@ -265,13 +266,16 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - `jumps.ts`：`JumpTracker`，根据测量到的帧累计每个被驱动种子的跳变（每个 Rate 都乘以 Strength），每个跳变帧都从闪烁预算中支取；以及 `JUMP_LIMITS`，其中 `maxRate`（4.8）由 `FLASH_LIMITS` 算出（纯逻辑，无需音频即可测试）。
   - `letters.ts`：文字里的字母（`letterSlots`）、它们的权重、三个级别和带滞后的分配、每个级别的值（`levelPosition`、`levelSets`）、字母在级别之间移动的大小（`switchSwing`），以及一帧额外的任务（`buildLetterFrame`、`levelKeyAt`），见第 5.2 节；还有 Thorn 轮换，见第 5.3 节：轮换目标（`isTurnTarget`）、轮换组（`turnGroups`）、轮换状态（`thornState`、`thornDiffers`、`turnSwing`）、各组的状态（`ThornTurns`），以及每组的各级别参数（`turnSets`）（纯逻辑）。
   - `mappingStore.ts`：一个带 hook 的小型存储，保存映射、Response 的四个值和 Drive letters（驱动字母）开关；页面打开期间跟随 `prefers-reduced-motion` 的变化。它的修改会记入撤销历史（`src/state/history.ts`），映射和 Response 的值随会话一起保存（`src/state/persist.ts`），同时保存的还有音频引擎的 Sensitivity 和 Release；Drive letters 两者都不参与。
+  - `keyframes.ts`：Glide 打开时一次大变化的中间参数组（`keyframes`、`KEYFRAME_LIMITS`、`KEYFRAME_FIELDS`，第 5.4 节；纯函数）。
   - `presets.ts`：预设列表（`PRESETS`，第 7 节），每个预设带有名称、它的 ⓘ 里显示的一行说明、起始值和它的映射；以及 `presetSettings`（纯函数），给出 Load 之后的结果：设置（Geometry 和 Experimental 的每个分组都恢复默认、保留种子，再设上起始值）、改变了的分组，以及提示。
-  - `live.ts`：帧调度（`LiveScheduler`，持有闪烁预算、`FlashLimiter` 和 `JumpTracker`，并给字母分配级别；它的依赖 `LiveDeps` 是注入的，`tests/sound` 用假时钟、假几何客户端和假 React 替换它们；它还把 Thorn 轮换交给各组并为其支取预算，第 5.3 节）、滑块和级别上的闪烁限制（`FlashLimiter`，第 10 节）、提供实时帧（`useLiveFrame`：共享参数和处在其他级别的字母）、文字中的字母（`useLiveLetters`）、实时标记位置、实时种子（`useLiveSeed`）和实时状态的 hook、从一帧到上屏测得的延迟（`liveLatencyMs`，供录制的音频使用），以及 Freeze。标记组件本身是 `src/components/LiveMarker.tsx`，种子输入框旁的实时种子是 `src/components/LiveSeed.tsx`。
+  - `live.ts`：帧调度（`LiveScheduler`，持有闪烁预算、`FlashLimiter` 和 `JumpTracker`，并给字母分配级别；它的依赖 `LiveDeps` 是注入的，`tests/sound` 用假时钟、假几何客户端和假 React 替换它们；它还把 Thorn 轮换交给各组并为其支取预算，第 5.3 节）、滑块和级别上的闪烁限制（`FlashLimiter`，第 10 节）、提供实时帧（`useLiveFrame`：共享参数和处在其他级别的字母）、文字中的字母（`useLiveLetters`）、实时标记位置、实时种子（`useLiveSeed`）和实时状态的 hook、从一帧到上屏测得的延迟（`liveLatencyMs`，供录制的音频使用）、每次提交带的关键帧（`LiveCommit.keyframes`，第 5.4 节），以及 Freeze。标记组件本身是 `src/components/LiveMarker.tsx`，种子输入框旁的实时种子是 `src/components/LiveSeed.tsx`。
 - **`src/export/` 里为视频新增的代码（第 9 节）：**
   - `videoFormat.ts`：要尝试的 MIME 类型、视频尺寸和码率、音频延迟、文件名和计时显示（`VIDEO_LIMITS`；纯逻辑）。
   - `drawArtboard.ts`：按 SVG 导出的排布方式把画板画进 2D 画布，只用直线段（纯逻辑，带一个测试可以伪造的绘制接口）。
   - `recorder.ts`：`RecordingController`，一次录制的状态机，时钟、定时器、浏览器检查、录制器和音频引擎都是注入的；页面唯一的控制器及其 hook（`getRecorder`、`useRecording`、`useRecordingContext`）在文件末尾。
-  - 界面：`src/components/RecordControls.tsx`（Record 分组，以及它和 Export 对话框共用的选项）、`RecordingCanvas.tsx`（一次录制所录的隐藏画布）和 `RecordingIndicator.tsx`（在页头）。
+  - `videoRender.ts`（NOCUR-91）：离线渲染音频文件的视频，按计划好的提交逐帧渲染，Glide 和关键帧走视频自己的时钟，用 `drawArtboard` 绘制（`renderFrames`、`sceneBuilder`、`RENDER_LIMITS`；编码器、计划和几何都是注入的，测试用假依赖）。
+  - `videoEncode.ts`（NOCUR-91）：页面这一侧，只在渲染视频时加载：在文件测得的特征上跑一个自己的规划器，用几何 worker 计算，再通过 Mediabunny 库用 WebCodecs 编码成 MP4 或 WebM，并带上文件同一段的声音。
+  - 界面：`src/components/VideoRender.tsx`（音频文件的 Export → Video：Time range、共用选项、Render video）、`src/components/RecordControls.tsx`（Record 分组，以及它和 Export 对话框共用的选项）、`RecordingCanvas.tsx`（一次录制所录的隐藏画布）和 `RecordingIndicator.tsx`（在页头）。
 - **流程不变；实时请求带 `live` 标记。** 实时参数作为带 `live` 标记的计算请求发给几何 Worker；Worker 本来就会在字形之间丢弃已被取代的请求。这个标记只让实时结果存入单独的实时缓存（见下文），几何的计算方式不变，而且只在 Worker 里计算：页面自己从不计算字形。调度器先向 Worker 要一个实时帧的字形（`geometryClient.prefetchJobs`），等它们全部到达后才把这一帧交给 React，所以每一帧只渲染一次，而且是完整的（第 2 节）。客户端把这一个请求按字形分给它的一组 Worker（2 到 4 个），所有 Worker 的部分都返回后请求才结束，所以仍然只有一帧在计算；打开 Thorn Burst 和 Dissolve 时，一个 200 字符的 Roboto 帧用 4 个 Worker 需要 698 毫秒，用 1 个需要 2334 毫秒（README，几何 Worker）。提交仍然每秒最多 30 次；一次提交如果一直没有渲染，从提交时算起 1 秒后就不再挡住下一次。
 - **每帧一个请求，分成多个任务：** 一个计算请求带有 `jobs`，每个任务是一组参数及其键和字形 id（`src/geometry/types.ts` 中的 `GeometryJob`）。一个实时帧就是一个请求：任务 0 是画布显示的每个字形的共享参数（即 H 阶段之前的那个请求），然后是 strong 级别，再是 quiet 级别，各自只带它的字母的字形 id，每个只出现一次，按阅读顺序。有 Thorn 轮换（第 5.3 节）时，后面再跟各轮换组的参数，各自只带自己字母的字形 id；任务 0 只请求显示共享值的字母的字形和所选字形（`FrameJob.within`，`src/state/geometryClient.ts` 中的 `shownGlyphs`），所以即使一帧的字母用到多达 15 组参数，没有级别时每个字形仍大约只算一次。Worker 按顺序计算各任务及其中的字形，每个任务结束时把结果发出（所以每条 `results` 消息只对应一个键），心跳消息里带上键，最后发一个 `done`；更新的请求仍会在字形之间让它停下。客户端（`computeJobs`、`prefetchJobs`）只发送缺少的（键，字形）对，只有正在处理的请求包含了全部缺少的对时才等它，并且只让任务 0 的结果在其他设置计算期间临时代替字形显示。Response 设置为中性值且 Thorn 关闭时，请求和 H 阶段之前完全相同。
 - **没有字体就不驱动：** 调度器会被告知是否载入了字体。没有字体时，它不提交任何东西，不显示标记和实时种子，不报告实时状态，种子也不跳变；Sound 驱动时字体没了，滑块和种子会完全恢复（第 10 节）。
@@ -323,9 +327,10 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 
 - **Freeze** 把屏幕上的实时值写入滑块，把屏幕上的实时种子写入种子输入框，并让声音暂停（暂停文件或停止收音），所以冻结下来的样子会留在屏幕上。它就成了普通的、可重复的设置，也是一个撤销步骤；按 Play 或 Start listening 可以继续。只要声音在驱动字母，它就可用（不会随节拍闪烁）；如果按下时共享的实时值正好和滑块与种子一致（例如两次鼓点之间），它只会暂停声音。它写入的是共享值（第 5.2 节）：处在 quiet 或 strong 级别的字母也随之取这些值，显示着较早 Thorn 设置的轮换组也一样（第 5.3 节）。因为它改变了滑块，文字块那时可能移动一次（第 8 节）。录制视频期间 Freeze 不可用。
 - SVG、PNG 和 OTF 导出始终使用滑块值，从不使用实时音频。Sound 实时运行时，Export 对话框会说明这一点，并指向 Freeze（选 Video 时不显示这条说明）。
-- 实时输出取决于时机，不可重复；冻结后的设置可以重复。视频留下的是一次表演（见下文）。
-- **视频**（H 阶段已完成）：实时录下随声音运动的画布，每个字母都在自己的级别上（Thorn 打开时再配上所在轮换组的状态），并带上声音。文字块停在滑块字母决定的位置（第 8 节），所以视频不会晃动。
-  - **开始：** 在 Sound 标签页的 Record 分组按 Record，或在 Export 对话框里选 Video，它的 Record 会在同一次点击中关闭对话框并开始录制。如果来源没有在运行，录制会启动文件（从当前的 Position 开始）或麦克风，等声音和第一帧画好后才开始录，结束时只有当来源是 Record 自己启动的，才会暂停它或停止收音。Whole file 从头播放文件，录制期间关闭 Loop，结束后恢复 Loop，除非用户在录制中改过它。
+- 实时输出取决于时机，不可重复；冻结后的设置可以重复。录下的麦克风视频留下的是一次表演；音频文件渲染出的视频每次都一样（见下文）。
+- **音频文件的视频**（NOCUR-91，Export → **Video — sound**；`videoRender.ts`、`videoEncode.ts`、`VideoRender.tsx`）：离线渲染，而不是录制。选定的 **Time range**（Start 和 End，以秒计，步长 0.1 s；默认整个文件，最长 10 分钟，最短 0.1 s）按预计算的计划逐帧渲染，和播放用的是同一份计划：媒体时间 t 处的每一帧显示的就是播放到 t 被听到时显示的内容（到 t 为止计划好的提交，按画布的方式组成场景，字母在各自的级别上，文字块由滑块字母放置），用 Glide 的时间和关键帧（第 5.4 节）在视频自己的时钟上滑行过去，再用 `drawArtboard` 绘制。所以它比实时快，不管效果多重都流畅，而且每次都完全一样。它通过 Mediabunny 库用 WebCodecs 编码成 MP4，写不了 MP4 时用 WebM（"This browser cannot write MP4: saved as WebM."），打开 Include audio 时带上文件同一段的声音（无法编码声音时提示 "This browser cannot encode the sound: the video has none."）。和 Record 共用的选项：Format、Frame rate、Include audio、Use the preview look；没有 Length，长度由 Time range 决定。尺寸和码率同下文。长于 6 分钟（预计算的上限）的文件无法渲染。对话框显示这一段和它的长度，渲染时有进度条和 Cancel（"Cancelled: nothing was saved."），完成后显示保存的文件和这一段。关闭对话框会停止渲染。
+- **麦克风的视频**（H 阶段为两种来源完成；NOCUR-91 起只有麦克风实时录制，因为它没有文件可渲染）：实时录下随声音运动的画布，每个字母都在自己的级别上（Thorn 打开时再配上所在轮换组的状态），并带上声音。文字块停在滑块字母决定的位置（第 8 节），所以视频不会晃动。
+  - **开始：** 在 Sound 标签页的 Record 分组按 Record，或在 Export 对话框里选 Video（来源是麦克风时那里显示实时 Record），它的 Record 会在同一次点击中关闭对话框并开始录制。来源是音频文件时，Record 分组显示一句简短说明和 **Export video…**，它打开 Export 并选中 Video。如果来源没有在运行，录制会启动文件（从当前的 Position 开始）或麦克风，等声音和第一帧画好后才开始录，结束时只有当来源是 Record 自己启动的，才会暂停它或停止收音。Whole file 从头播放文件，录制期间关闭 Loop，结束后恢复 Loop，除非用户在录制中改过它。
   - **帧：** 一块隐藏的画布（`RecordingCanvas`）在每一帧显示时重画画板（`drawArtboard`，非零填充，只用直线段）。一个按这次录制的 **Frame rate**（24、25、30、50 或 60 fps；默认 30）运行的帧时钟，把画布当时的样子取为一帧（`captureStream(0)` 加 `requestFrame`；没有 `requestFrame` 时改为按这个帧率采集），每一帧都排在第一帧之后整数帧的位置；时钟落后时跳过错过的帧。请求的帧要等画布下一次变化时才被取下，所以时钟每一拍都在同一个任务里先“碰一下”画布（把一个像素复制到它自己身上），这一帧就在下一次渲染更新时取下；什么都没画时，上一次画的内容就重复一帧。帧率大约等于选好的值，尽力而为：帧落在渲染更新上，所以 60 Hz 屏幕上的 60 fps 可能丢帧，而且文件是可变帧率的（`MediaRecorder` 没有帧率设置）。没有 `requestFrame` 时不运行帧时钟：浏览器按这个帧率采集，在画布变化时取帧。画面按实时帧率变化，每秒最多 30 次。
   - **外观：** 画布按它的 Color 设置；勾选 Use the preview look 时，用右下角预览的颜色和模糊。浏览器不能模糊画布时，录制不带模糊，并会说明。视频没有透明：背景色总是画上去。
   - **尺寸：** 画布尺寸乘以它的导出倍率（和 PNG 一样），缩小到长边不超过 3840 px、面积不超过 3840 × 2160，取偶数。视频码率在 30 fps 时为每像素每秒 4.5 比特，随帧率按比例变化，限制在 2–12 Mbps 之间（从大约 1080p、30 fps 起就到了上限，所以那时 50 和 60 fps 的码率和 30 fps 差不多）（无论帧率多少，10 分钟最多约 0.9 GB，保存在内存中）；音频 128 kbps。
@@ -379,13 +384,14 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - 变慢的提示，低于约 8 fps 时显示："Too slow to follow the sound: try fewer effects or a shorter text."；Motion contrast 或 Pitch reactive 大于 0 时改为 "Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive."。
 - **Response**（取代原来的 Analysis 分组）：依次是 Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking 和 Glide（第 5.1 节），每个都是带数值（dB、% 或 ms）和通俗 ⓘ 说明的滑块；然后是 **Reset sound**，它用一个撤销步骤把七个值都恢复，已经是默认值时不可用。
 - **Record**（第 9 节）：
+  - 来源是音频文件时（NOCUR-91）："Save a video of the audio file, any stretch of it, from Export: it is rendered from the plan, faster than real time. Live recording is for the microphone." 和 **Export video…**，它打开 Export 对话框并选中 Video。来源是麦克风时是下面的实时 Record。
   - **Record**，录制期间变成 **Stop**（图标加文字），已录的时间（"0:12"，设了 Length 时为 "0:12 / 0:30"），以及 "Live · N fps"。
   - 一次录制的选项，与 Export 对话框共用：**Format**（MP4 或 WebM；浏览器不能写的那个会变灰，并显示 "(not supported in this browser)"）、**Length**（Until stopped、5 s、10 s、15 s、30 s、60 s、Whole file；Whole file 需要音频文件）、**Frame rate**（24、25、30、50、60 fps，是一排按钮；默认 30）、**Include audio**（默认打开；用麦克风时，它的声音会进入文件）、**Use the preview look**（默认关闭），以及一行尺寸说明，例如 "1200 × 800 px · 30 fps · MP4"，被缩小时加上 " (scaled down to the 4K limit)"，调色板透明时还有一行说明背景会被画上。录制期间这些选项锁定。
   - Record 不能开始时，原因作为它的提示显示："This browser cannot record video."、"Load a font to record."、"Choose an audio file first." 或 "Opening the sound…"。
-  - 实时帧率太慢时显示 "Too slow for a smooth video: try fewer effects or a shorter text."；Drive letters 关闭、Strength 为 0% 或没有任何映射有 Depth 时显示 "Sound is not moving the letters: the video will be still."。
+  - 实时帧率太慢时显示 "Too slow for a smooth video: try fewer effects or a shorter text."；Drive letters 关闭、Strength 为 0% 或没有任何映射有 Depth 时显示 "Sound is not moving the letters: the video will be still."（Return to plain 打开时不显示，它每一拍都会让字母动）。
   - 上一次录制是怎么结束的（保存的文件、附注或错误）。
 - **页头：** 录制期间显示一个录制指示灯和 "Starting to record…"、"Recording 0:12" 或 "Saving the video…"，以及一个只有图标的 Stop 按钮（名称为 "Stop recording"）。录制结束后，它显示这次录制是怎么结束的，直到被关闭（一个只有图标的关闭按钮，名称为 "Dismiss"）或下一次录制开始。屏幕阅读器只读出开始和结束。Export 按钮的标题为 "Export SVG, PNG, a font file or a video"。
-- **Export 对话框：** 第四种格式 **Video — live sound**（"Records the canvas as it moves with the sound, in real time, with its audio."）。它显示同样的选项和一个 **Record** 按钮，在同一次点击中关闭对话框并开始录制；录制期间再次打开对话框时提供 Stop，结束后显示这次录制是怎么结束的。选 Video 时，不显示“导出使用滑块值”和“参数仍在更新”这两条说明。
+- **Export 对话框：** 第四种格式 **Video — sound**（"An audio file: any stretch of it, rendered with its sound. The microphone: the canvas recorded live."；NOCUR-91 之前是 **Video — live sound**，两种来源都实时录制）。来源是音频文件时，它显示 Time range、不含 Length 的共用选项和 **Render video**（第 9 节）。来源是麦克风时，它显示和 Record 分组同样的选项和一个 **Record** 按钮，在同一次点击中关闭对话框并开始录制；录制期间再次打开对话框时提供 Stop，结束后显示这次录制是怎么结束的。选 Video 时，不显示“导出使用滑块值”和“参数仍在更新”这两条说明。
 - **状态栏：** Sound 驱动字母时显示 "Live · N fps"（没有载入字体时从不显示）。N 计的是完整的帧，所有级别都算在内。它是几何计算的速率，而不是读取声音的频率（声音每个动画帧读取一次，第 8 节）。
 - **被驱动的滑块：** 显示实时值标记。**被驱动的种子输入框：** 在输入框旁以标记的颜色显示实时种子。
 
@@ -416,6 +422,7 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
   - 页面能保留两帧各 15 组参数，最多 `LIVE_KEPT_KEYS` 组，帧变小后又只保留 6 组（`tests/worker/geometryClient.test.ts`）。
 - **静止的文字块**（已检查，`tests/specimen/placement.test.ts`）：没有 Sound 时文字块按显示的场景放置，和以前一样；Sound 驱动字母时按滑块字母放置，所以那些本会移动它的实时帧（三种倾斜角度、每个锚定位置和 Free、三种字号）让它分毫不动；滑块值下计算失败的字形算作已计算；滑块字母计算期间，由同一段已排版文字上一次完整放置的滑块字母代替；这段文字没有滑块字母时，用实时场景。
 - **视频**（已检查，用假依赖，不碰 DOM）：MIME 候选按优先顺序排列，从 MP4 回退到 WebM，尺寸限制（偶数，至少 2 × 2），码率（随帧率变化）、音频延迟（加半帧）、可选的帧率、文件名和计时显示；`drawArtboard` 先画纸色，在 Roboto 的默认文字上把字形放在和 SVG 导出完全相同的位置，只给倾斜的文字加斜切，用每次出现自己的多边形填充每次出现，把字形作为一层整体模糊、不能模糊时就不带模糊绘制，只用直线段构建路径，`touchCanvas` 不改动画布其他部分；录制器等声音和第一帧，在 Length、上限、标签页隐藏或出错时停止（保存已有的部分），0 字节时什么都不保存，关闭 Loop 播放整个文件并恢复 Loop，尝试下一个 MIME 类型，声音无法分接时录无声视频，按实时延迟延后音频，只暂停自己启动的来源，没有 `requestFrame` 时按这次录制的帧率采集、这时不运行帧时钟，无论画布怎么画，每种帧率下时钟每拍请求一帧（每一拍都碰一下画布，没有变化时就重复上一次画的内容），按 Stop 时立即请求画布当时的样子，跳过落后的时钟错过的帧，录制结束后不再请求帧，锁定选项，并说明 Record 为什么不能开始。
+- **关键帧与离线视频**（NOCUR-91，已检查，`tests/sound/keyframes.test.ts`、`tests/specimen/glide.test.ts`、`tests/export/videoRender.test.ts`，用假依赖）：只有大变化才有关键帧（一次开关，或强度移动至少滑块的四分之一）；正在打开的效果从无长出，正在关闭的效果全程保持打开、淡出，Whorl 经过它的中性值 0，Thorn 按它的 Reach；Glide 打开时调度器把每次开关的关键帧和这一帧一起算好、一起交出，Glide 为 0 时不要任何关键帧；Glide 一段一段地经过每个关键帧（Whorl 上的 Return to plain，每段都是直线段）；时间范围保持在文件和它的限制之内；渲染器在每一帧显示不晚于该时刻的最新计划提交，从每个提交的媒体时间开始滑行过去，等待计划，在 Cancel 时停止，并组出滑块字母、由它们放置的驱动提交以及它们的关键帧。
 - **没有曲线与有效性：** 实时帧里的每个字母都显示一组普通参数（H 阶段起每帧最多三组，第 5.2 节；有 Thorn 轮换时最多 15 组，第 5.3 节），已被现有审计覆盖。此外，记录一段测试音轨经过的参数组，在 Arial、New York 和 Georgia 上跑有效性审计和像曲线的段落审计。第 3 阶段（已检查）：在整段测试音轨上，同时映射到种子和滑块，878 次实时提交中的每一次都是面板能给出的一组值（滑块值落在档位上，种子是范围内的整数），种子每次变化都恰好前进一个。
 - **音频引擎：** 在模拟的 Web Audio 节点上，立体声支路按第 4 节连接，测量用的节点都不通往扬声器，读取错位时会重读或保持。在 Chromium 中连续不断地探测读取，确实出现了错位，经过检查后没有一次传到特征里。
 - **控件：** 面板里每个目标恰好有一个实时值标记（滑块）或实时种子（种子），并按 `TARGETS` 的顺序排列。
@@ -437,6 +444,6 @@ Load 是一个撤销步骤：撤销会恢复它之前的设置和映射，种子
 | 3 | 已完成：作为跳变目标、带 Rate 的种子，它们的闪烁限制，以及输入框旁的实时种子；滑块上的 Beat 脉冲；新增 13 个特征，加上立体声测量支路，之后与最初的特征一起合并成五组共 10 个（第 4 节）；紧凑的电平表；自动打开所需设置的目标，带提示和 Enable；42 秒的立体声测试音轨；十个预设，带 Preset 和 Load，Load 会把 Geometry 和 Experimental 的设置恢复为默认值（保留种子）、设好预设的起始值，并说明关闭了什么；为 Flicker 而设的 Distortion 少数锚点模式；File 作为默认来源、没有 Off，Drive letters 改为开关；为重做后的 Experimental 效果新增七个目标（共 43 个；NOCUR-60 去掉 Crumple 的 Detail 之后为六个，共 42 个），并为它们重新设计 Flare 和 Gale。尚待完成：Step 映射（Allowed directions、Sides、Rings）；实时 SVG 重绘测量 |
 | 4 | Pitch 和立体声（Pan）：已在第 3 阶段和其他新特征一起完成 |
 | H | 已完成：Response 分组（Sensitivity、Strength、Motion contrast、Release（原来的 Smoothing）、Pitch reactive、Melody tracking），可保存、可撤销；每个字母在三个级别上按自己的幅度响应，闪烁限制作用于每个字母，每帧一个请求；Melody 特征和音高置信度；实时视频录制（MP4 或 WebM，带声音），可从 Record 分组、页头和 Export 对话框操作 |
-| H 之后 | 已完成：Sound 不再移动的文字块，按滑块字母放置（第 8 节）；Thorn 轮换，五组字母依次取得 Thorn 的设置，最多每 250 ms 一组，每次轮换都受闪烁限制（第 5.3 节）；Thorn 的锚点在 Distortion 之前挑选，并保持过各次变形（EXPERIMENTAL_PLAN 第 4.8 节） |
+| H 之后 | 已完成：Sound 不再移动的文字块，按滑块字母放置（第 8 节）；Thorn 轮换，五组字母依次取得 Thorn 的设置，最多每 250 ms 一组，每次轮换都受闪烁限制（第 5.3 节）；Thorn 的锚点在 Distortion 之前挑选，并保持过各次变形（EXPERIMENTAL_PLAN 第 4.8 节）；NOCUR-91：Hold 0–3000 ms（第 5.5 节），Strength 默认 150%（第 5.1 节），大变化经过关键帧（第 5.4 节），音频文件的视频在 Export 里离线渲染，实时 Record 留给麦克风（第 9 节） |
 
 阶段 1–4 是本计划自己的编号；H 即 PHASE.md 中的 Phase H。每个阶段都以第 12 节的验证收尾，并单独交付。

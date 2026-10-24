@@ -178,8 +178,12 @@ class PlanPass {
         generation: this.generation,
         seq: this.generation * SEQ_SPAN + ordinal + 1,
         mediaMs,
-        commit: commit ? { params: commit.params, letters: commit.letters, look: commit.look } : null,
-        jobs: commit?.params ? jobs : [],
+        commit: commit
+          ? commit.keyframes
+            ? { params: commit.params, letters: commit.letters, look: commit.look, keyframes: commit.keyframes }
+            : { params: commit.params, letters: commit.letters, look: commit.look }
+          : null,
+        jobs: commit?.params || commit?.keyframes ? jobs : [],
         keys,
         indices: slots.index,
         adopted: scheduler.plannedState(),

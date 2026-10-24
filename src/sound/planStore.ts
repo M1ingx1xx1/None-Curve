@@ -258,7 +258,7 @@ export class PlanStore {
       const letters = inner.letters ? this.internLetters(t, inner.letters) : null
       const look = inner.look ? this.internLook(t, inner.look) : null
       if (params !== inner.params || letters !== inner.letters || look !== inner.look)
-        compacted = { params, letters, look }
+        compacted = inner.keyframes ? { params, letters, look, keyframes: inner.keyframes } : { params, letters, look }
     }
     return {
       ...commit,
