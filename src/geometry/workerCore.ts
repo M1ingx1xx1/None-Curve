@@ -33,6 +33,8 @@ export function createGeometryWorker(
   post: (message: WorkerResponse, transfer?: Transferable[]) => void,
 ): (message: WorkerRequest) => void {
   const fonts = new Map<string, Promise<LoadedFont>>()
+  /** Fonts that could not be opened: sent again, they are opened again. */
+  const failedFonts = new WeakSet<Promise<LoadedFont>>()
   /** Each lane's latest request (0: none, or cancelled). Plans run each to its end unless cancelled. */
   const latest: Record<Exclude<Lane, 'plan'>, number> = { canvas: 0, ahead: 0 }
   /** Requests running in each lane, for the priority between them. */
@@ -78,7 +80,7 @@ export function createGeometryWorker(
           flush(key)
           return post({ type: 'done', requestId, stopped: true })
         }
-        post({ type: 'glyph', requestId, key, index })
+        post({ type: 'glyph', requestId, lane: 'canvas', fontId, key, index })
         // A result from the cache took no time: it says nothing of what the glyph costs to compute.
         const cached = isCached(font, index, key)
         const begun = performance.now()
@@ -193,7 +195,7 @@ export function createGeometryWorker(
         } else if (kept) {
           results.push({ index, error: kept.error })
         } else {
-          post({ type: 'glyph', requestId, key, index })
+          post({ type: 'glyph', requestId, lane: 'ahead', fontId, key, index })
           const begun = performance.now()
           try {
             const { source: _source, ...geometry } = glyphGeometry(font, index, params, key, true, 'ahead')
@@ -256,8 +258,16 @@ export function createGeometryWorker(
   return (message) => {
     if (message.type === 'font') {
       shareCacheLimits(message.workers ?? 1)
-      const loading = parseFont(message.bytes, message.source, new AbortController().signal)
-      loading.catch((error) => post({ type: 'font-error', fontId: message.fontId, message: errorText(error) }))
+      // A font sent again (the page switched back to it) stays open with its cache: a font id names one load
+      // (src/font/parse.ts), so its bytes are the same. Only one that failed to open is opened again.
+      const kept = fonts.get(message.fontId)
+      const loading =
+        kept && !failedFonts.has(kept) ? kept : parseFont(message.bytes, message.source, new AbortController().signal)
+      if (loading !== kept)
+        loading.catch((error) => {
+          failedFonts.add(loading)
+          post({ type: 'font-error', fontId: message.fontId, message: errorText(error) })
+        })
       // A font sent again goes to the back, so the current font is never the one dropped.
       fonts.delete(message.fontId)
       fonts.set(message.fontId, loading)

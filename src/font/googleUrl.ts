@@ -162,3 +162,23 @@ function parseCss1Spec(spec: string): Pick<ParsedFontRequest, 'weight' | 'italic
   }
   return result
 }
+
+/** What Enter in the Google Fonts search field selects: a family, with the request it came from when it was not curated. */
+export interface EnterChoice {
+  family: string
+  request: ParsedFontRequest | null
+}
+
+/**
+ * The family Enter should select for the typed text, never the one picked earlier: a curated name as listed, else the
+ * first curated family that contains the text, else a pasted URL or an uncurated name as parsed. Null when nothing fits.
+ */
+export function enterChoice(typed: string, parsed: ParseResult | null, curated: readonly string[]): EnterChoice | null {
+  const text = typed.trim()
+  if (!text) return null
+  const exact = looksLikeUrl(text) ? undefined : curated.find((name) => name.toLowerCase() === text.toLowerCase())
+  if (exact) return { family: exact, request: null }
+  const first = looksLikeUrl(text) ? undefined : curated.find((name) => name.toLowerCase().includes(text.toLowerCase()))
+  if (first) return { family: first, request: null }
+  return parsed?.ok ? { family: parsed.request.family, request: parsed.request } : null
+}

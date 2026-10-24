@@ -359,9 +359,11 @@ export default function App({ restored }: AppProps) {
     (): Session => ({ ...session.current, mappings: mappingStore.getState().mappings, sound: soundSettings() }),
     [],
   )
-  // Storage full or blocked: the status bar says once that the settings will not be kept.
+  // Storage full or blocked: the status bar says that the settings will not be kept, until a save works again.
   const [saveFailed, setSaveFailed] = useState(false)
-  const [saver] = useState(() => createSessionSaver(readSessionNow, undefined, undefined, () => setSaveFailed(true)))
+  const [saver] = useState(() =>
+    createSessionSaver(readSessionNow, undefined, undefined, (saved) => setSaveFailed(!saved)),
+  )
   useEffect(
     () => saver.schedule(),
     [
@@ -693,8 +695,9 @@ export default function App({ restored }: AppProps) {
               </Glided>
             )
           }
-          textTools={
+          textTools={(fold) => (
             <TextTools
+              {...fold}
               typography={typography}
               palette={palette}
               livePalette={livePalette}
@@ -705,7 +708,7 @@ export default function App({ restored }: AppProps) {
               dispatch={edit}
               onInsertGlyph={insertGlyph}
             />
-          }
+          )}
           input={
             <InputPanel
               text={

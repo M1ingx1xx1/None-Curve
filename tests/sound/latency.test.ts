@@ -45,6 +45,20 @@ describe('output latency', () => {
     for (let i = 1; i < out.length; i++) expect(out[i].time).toBeGreaterThan(out[i - 1].time)
   })
 
+  it('keeps the times non-decreasing when the latency drops mid-play', () => {
+    const held = new FrameDelay()
+    const out: number[] = []
+    let delay = 200
+    for (let now = 1000; now < 1400; now += FRAME_MS) {
+      // Bluetooth to built-in speakers at 1200 ms: new frames would be due 190 ms before the queued ones.
+      if (now >= 1200) delay = 10
+      held.push(frameAt(now), delay)
+      for (let due = held.next(now); due; due = held.next(now)) out.push(due.time)
+    }
+    expect(out.length).toBeGreaterThan(10)
+    for (let i = 1; i < out.length; i++) expect(out[i]).toBeGreaterThanOrEqual(out[i - 1])
+  })
+
   it('sends a frame at once with no latency (the microphone), and keeps it as it is', () => {
     const held = new FrameDelay()
     const frame = frameAt(5)

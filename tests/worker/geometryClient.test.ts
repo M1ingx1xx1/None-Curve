@@ -55,7 +55,7 @@ describe('geometry client', () => {
     expect(worker().received.map((m) => m.type)).toEqual(['font', 'compute'])
     const { requestId } = worker().lastCompute
     expect(client.isComputing()).toBe(true)
-    worker().reply({ type: 'glyph', requestId, key: 'k1', index: 1 })
+    worker().startsGlyph(requestId, 'k1', 1)
     worker().reply({
       type: 'results',
       requestId,
@@ -83,7 +83,7 @@ describe('geometry client', () => {
     client.compute(font('f'), BASE, 'k1', [5, 6])
     const first = worker()
     const { requestId } = first.lastCompute
-    first.reply({ type: 'glyph', requestId, key: 'k1', index: 5 })
+    first.startsGlyph(requestId, 'k1', 5)
     await vi.advanceTimersByTimeAsync(59_000)
     expect(workers).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(1_500)
@@ -103,7 +103,7 @@ describe('geometry client', () => {
     client.compute(font('f'), BASE, 'k1', [1, 2, 3])
     const { requestId } = worker().lastCompute
     for (const index of [1, 2, 3]) {
-      worker().reply({ type: 'glyph', requestId, key: 'k1', index })
+      worker().startsGlyph(requestId, 'k1', index)
       await vi.advanceTimersByTimeAsync(45_000)
     }
     expect(workers).toHaveLength(1)
@@ -120,7 +120,7 @@ describe('geometry client', () => {
     })
     for (let k = 0; k < 4; k++) {
       client.compute(font('f'), BASE, `k${k}`, [k])
-      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: `k${k}`, index: k })
+      worker().startsGlyph(worker().lastCompute.requestId, `k${k}`, k)
       await vi.advanceTimersByTimeAsync(5_001)
       expect(client.lookup(`k${k}`, k)?.entry).toEqual({ error: 'Took longer than 5 s; try lighter settings' })
     }
@@ -149,7 +149,7 @@ describe('geometry client', () => {
   it('replaces a worker stuck on a glyph of superseded settings, without counting a restart', async () => {
     client.compute(font('f'), BASE, 'old', [1])
     const first = worker()
-    first.reply({ type: 'glyph', requestId: first.lastCompute.requestId, key: 'old', index: 1 })
+    first.startsGlyph(first.lastCompute.requestId, 'old', 1)
     await vi.advanceTimersByTimeAsync(800)
     client.compute(font('f'), BASE, 'new', [2])
     expect(first.terminated).toBe(true)
@@ -162,7 +162,7 @@ describe('geometry client', () => {
 
   it('cancels instead while the glyph is young', async () => {
     client.compute(font('f'), BASE, 'old', [1])
-    worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: 'old', index: 1 })
+    worker().startsGlyph(worker().lastCompute.requestId, 'old', 1)
     await vi.advanceTimersByTimeAsync(100)
     client.compute(font('f'), BASE, 'new', [2])
     expect(workers).toHaveLength(1)
@@ -375,7 +375,7 @@ describe('geometry client', () => {
 
     it('blames a stuck glyph under the set the heartbeat names', async () => {
       client.computeJobs(font('f'), [job('a', [1]), job('b', [2])])
-      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: 'b', index: 2 })
+      worker().startsGlyph(worker().lastCompute.requestId, 'b', 2)
       await vi.advanceTimersByTimeAsync(61_000)
       expect(workers).toHaveLength(2)
       expect(client.lookup('b', 2)?.entry).toEqual({ error: STUCK })
@@ -384,7 +384,7 @@ describe('geometry client', () => {
 
     it('keeps a worker busy with a glyph that any set of the new request still needs', async () => {
       client.compute(font('f'), BASE, 'a', [1])
-      worker().reply({ type: 'glyph', requestId: worker().lastCompute.requestId, key: 'a', index: 1 })
+      worker().startsGlyph(worker().lastCompute.requestId, 'a', 1)
       await vi.advanceTimersByTimeAsync(800)
       client.computeJobs(font('f'), [job('b', [2]), job('a', [1])])
       expect(workers).toHaveLength(1)
@@ -465,6 +465,25 @@ describe('geometry client', () => {
       results: [{ index: 1, packed: packGeometry(geometry(1), false).packed }],
     })
     expect(client.lookup('a', 1)?.entry).toEqual({ geometry: geometry(1) })
+  })
+
+  it('an ensure for a font the canvas has left gives up rather than switching back to it', async () => {
+    const a = font('a')
+    const b = font('b')
+    const pending = client.ensure(a, BASE, 'k', [1])
+    client.compute(b, BASE, 'k', [1])
+    await Promise.resolve()
+    worker().reply({ type: 'done', requestId: worker().lastRequest.requestId })
+    const settled = pending.then(
+      () => 'resolved',
+      (error: unknown) => (error as Error).name,
+    )
+    await Promise.resolve()
+    client.compute(b, BASE, 'k', [2])
+    // Before: a, b, a, b, each switch dropping every result and the ahead window.
+    const fonts = worker().received.flatMap((m) => (m.type === 'font' ? [m.fontId] : []))
+    expect(fonts).toEqual(['a', 'b'])
+    expect(await Promise.race([settled, Promise.resolve('pending')])).toBe('AbortError')
   })
 
   it('a result of a request it does not remember does not stand in for the glyph', () => {

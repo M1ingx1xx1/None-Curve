@@ -1,23 +1,12 @@
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react'
+import { useDeferredValue, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { ExportError } from '../export/quantize'
 import { outlineStrokeWidth, specimenPaths, type SvgPathCache } from '../export/svg'
-import { createRenderer, effectiveOf, fallbackOf } from '../render/createRenderer'
-import { measureDraw, probeOn, reportFrame } from '../render/probe'
-import type { GlideFrame, GlyphRenderer, RenderStyle } from '../render/types'
+import type { RenderStyle } from '../render/types'
 import type { ArtboardLayout } from '../specimen/artboard'
 import type { SpecimenScene } from '../specimen/scene'
 import type { GlideStore } from '../state/useGlide'
 import { useDevicePixelRatio } from './useDevicePixelRatio'
+import { useGlyphRenderer } from './useGlyphRenderer'
 
 /** Checkerboard squares for a transparent background, in screen pixels (as ExportedArtboard's). */
 const CHECKER_PX = 16
@@ -45,11 +34,6 @@ interface PreviewSurfaceProps {
   /** The renderer to start with; it falls back to Canvas2D, then calls onFallback (draw with SVG instead). */
   choice: 'canvas' | 'webgl'
   onFallback: () => void
-}
-
-/** A frame with nothing gliding: the scene as it is. */
-function stillFrame(scene: SpecimenScene): GlideFrame {
-  return { target: scene, layout: scene, morphs: null, scene: () => scene }
 }
 
 /**
@@ -96,64 +80,18 @@ export default function PreviewSurface({
     }
   }, [shown, cache])
 
-  const [kind, setKind] = useState<'canvas' | 'webgl'>(choice)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const rendererRef = useRef<GlyphRenderer | null>(null)
-  const latest = useRef({ scene, still: stillFrame(scene) })
-  const still = useMemo(() => stillFrame(scene), [scene])
-  latest.current = { scene, still }
-  const frameNow = useCallback((): GlideFrame => {
-    const snapshot = glide.getSnapshot()
-    return snapshot.target === latest.current.scene ? snapshot.frame : latest.current.still
-  }, [glide])
-
-  /** Gives the renderer up (fallBack, below): set once fallBack is made. */
-  const broke = useRef<() => void>(() => {})
-  const paint = useCallback(() => {
-    const renderer = rendererRef.current
-    if (!renderer || renderer.broken) return
-    const start = performance.now()
-    let drew: boolean
-    try {
-      drew = renderer.draw()
-    } catch (error) {
-      // A renderer that throws is given up like a lost one: the next renderer draws from here on.
-      console.error('The glyph renderer failed; falling back', error)
-      broke.current()
-      return
-    }
-    if (!drew) return
-    const end = performance.now()
-    measureDraw('preview', start, end)
-    if (probeOn) reportFrame('preview', effectiveOf(renderer), end - start, () => null, 0)
-  }, [])
-
-  const fallBack = useCallback(() => {
-    rendererRef.current?.dispose()
-    rendererRef.current = null
-    const next = fallbackOf(kind)
-    if (next === 'svg') onFallback()
-    else setKind(next)
-  }, [kind, onFallback])
-  broke.current = fallBack
-
   const hasCanvas = error === null
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const renderer = createRenderer(kind, canvas, { mode: 'artboard', onLost: () => fallBack() })
-    if (!renderer) {
-      fallBack()
-      return
-    }
-    rendererRef.current = renderer
-    return () => {
-      renderer.dispose()
-      if (rendererRef.current === renderer) rendererRef.current = null
-    }
-    // fallBack changes with kind only, which already re-runs this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, hasCanvas])
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { kind, generation, rendererRef, frameNow, paint } = useGlyphRenderer(choice, canvasRef, {
+    mode: 'artboard',
+    scene,
+    glide,
+    source: null,
+    onFallback,
+    probe: 'preview',
+    // A new canvas after an error.
+    remount: hasCanvas,
+  })
 
   const cssWidth = width * ppap
   const cssHeight = height * ppap
@@ -182,18 +120,22 @@ export default function PreviewSurface({
     renderer.setStyle(style)
     renderer.setFrame(frameNow(), null)
     paint()
-  }, [kind, hasCanvas, layout, width, height, cssWidth, cssHeight, dpr, style, scene, frameNow, paint])
-
-  useEffect(
-    () =>
-      glide.subscribe(() => {
-        const renderer = rendererRef.current
-        if (!renderer) return
-        renderer.setFrame(frameNow(), null)
-        paint()
-      }),
-    [glide, frameNow, paint, kind],
-  )
+  }, [
+    kind,
+    generation,
+    hasCanvas,
+    layout,
+    width,
+    height,
+    cssWidth,
+    cssHeight,
+    dpr,
+    style,
+    scene,
+    frameNow,
+    paint,
+    rendererRef,
+  ])
 
   if (error !== null) return <p className="text-preview-empty font-warning">Export would fail: {error}</p>
 

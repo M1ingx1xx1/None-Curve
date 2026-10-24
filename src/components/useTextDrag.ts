@@ -16,6 +16,26 @@ export function glyphRefOf(font: LoadedFont, index: number, text: string): Glyph
   )
 }
 
+/** The canvas's keys, for its aria-label (SpecimenView and GlyphSurface). */
+export const CANVAS_KEYS =
+  'Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph, or press Shift with the left or right arrow, to select a glyph; click empty space or press Escape to clear the highlight.'
+
+/**
+ * The occurrence (reading order, every line) that Shift+→ (`step` 1) or Shift+← (−1) selects: the next letter that is
+ * in the font, is not a space, and is not the glyph selected now (its every copy is highlighted already). It steps from
+ * `from` when that occurrence is of the selected glyph, else from the selected glyph's first occurrence, else (nothing
+ * selected) from the start or the end. Null at the end of the text.
+ */
+export function stepGlyph(scene: SpecimenScene, selected: number | null, from: number | null, step: 1 | -1) {
+  const glyphs = scene.lines.flatMap((line) => line.glyphs)
+  const selectable = (i: number) => !glyphs[i].missing && glyphs[i].text.trim() !== '' && glyphs[i].index !== selected
+  let at = from !== null && selected !== null && glyphs[from]?.index === selected ? from : -1
+  if (at < 0 && selected !== null) at = glyphs.findIndex((g) => g.index === selected && !g.missing)
+  if (at < 0) at = step > 0 ? -1 : glyphs.length
+  for (let i = at + step; i >= 0 && i < glyphs.length; i += step) if (selectable(i)) return i
+  return null
+}
+
 /**
  * Free position's move: called once, on release, with the move in font units. It may return a promise of whether the
  * text moved; on false (or a failure) the drag's offset is cleared at once instead of when the new layout arrives.
@@ -38,12 +58,14 @@ interface TextDragOptions {
   onHover?: (e: PointerEvent<HTMLDivElement>) => void
   /** The pointer left while the text is not dragged. */
   onLeave?: () => void
+  /** Keyboard selection (Shift+← / Shift+→, Enter): the glyph highlighted now (null: none) and how to select one. */
+  selection?: { font: LoadedFont; selected: GlyphRef | null; onSelect: (glyph: GlyphRef) => void }
 }
 
 /**
  * The canvas's pointer and keys, shared by the SVG view (SpecimenView) and the canvas renderers' (GlyphSurface): pan and
- * zoom (usePanZoom), Escape to clear the selection, and Free position's text drag. A drag that starts on the text moves
- * it; anywhere else it pans. While dragging, only the moving group's transform (and `onOffset`) changes, so nothing
+ * zoom (usePanZoom), Shift+← / Shift+→ (and Enter) to select a letter, Escape to clear the selection, and Free
+ * position's text drag. A drag that starts on the text moves it; anywhere else it pans. While dragging, only the moving group's transform (and `onOffset`) changes, so nothing
  * re-renders however long the text; the move is committed once, on release, and the offset is cleared when that
  * position arrives back as a new layout, or at once when the move changed nothing.
  */
@@ -151,12 +173,36 @@ export function useTextDrag(options: TextDragOptions) {
     },
   }
 
+  // The occurrence last selected with the keyboard, to step on from (another copy of the same glyph comes later), and
+  // what the live region says about it.
+  const stepped = useRef<number | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  const stepTo = (step: 1 | -1) => {
+    const { selection } = options
+    if (!selection) return false
+    const at = stepGlyph(scene, selection.selected?.index ?? null, stepped.current, step)
+    if (at === null) return true
+    const glyph = scene.lines.flatMap((line) => line.glyphs)[at]
+    stepped.current = at
+    selection.onSelect(glyphRefOf(selection.font, glyph.index, glyph.text))
+    setAnnouncement(`Selected ${glyph.text}`)
+    return true
+  }
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && e.target === e.currentTarget && onClearSelection) {
+    const own = e.target === e.currentTarget
+    const step =
+      e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey ? { ArrowLeft: -1, ArrowRight: 1 }[e.key] : undefined
+    if (own && step !== undefined && stepTo(step as 1 | -1)) e.preventDefault()
+    else if (own && e.key === 'Enter' && options.selection && !options.selection.selected) {
+      e.preventDefault()
+      stepTo(1)
+    } else if (e.key === 'Escape' && own && onClearSelection) {
       e.preventDefault()
       onClearSelection()
+      setAnnouncement('Selection cleared')
     } else handlers.onKeyDown(e)
   }
 
-  return { freeMove, draggingText, movingRef, offset, dragged, pointer, onKeyDown }
+  return { freeMove, draggingText, movingRef, offset, dragged, pointer, onKeyDown, announcement }
 }

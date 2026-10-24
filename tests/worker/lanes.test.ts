@@ -76,6 +76,11 @@ describe('worker lanes', async () => {
     expect(w.sent[w.index(doneOf(1))]).not.toHaveProperty('stopped')
     const results = w.sent.flatMap((m) => (m.type === 'ahead-results' ? m.results.map((r) => r.index) : []))
     expect(results).toEqual(glyphs.slice(0, 30))
+    // Its heartbeats name the ahead lane, as the canvas request's name the canvas.
+    const lane = (requestId: number) =>
+      w.sent.find((m) => m.type === 'glyph' && m.requestId === requestId) as { lane: string; fontId: string }
+    expect(lane(1)).toMatchObject({ lane: 'ahead', fontId: 'roboto' })
+    expect(lane(2)).toMatchObject({ lane: 'canvas', fontId: 'roboto' })
   })
 
   it('posts the window’s glyphs packed, their arrays transferred, and keeps a copy only with Glide (NOCUR-85)', async () => {

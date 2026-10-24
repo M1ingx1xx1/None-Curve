@@ -16,6 +16,13 @@ import type {
 /** Angle lock's steps, in degrees (constraints.ts). */
 export const ANGLE_STEPS = [90, 45, 30, 15] as const
 
+export const ANCHOR_LIMITS = {
+  /** Spacing below this (font units) is raised to it. */
+  minSpacing: 1,
+  /** Spacing is skipped for a glyph if it would produce more vertices than this. */
+  maxVertices: 50_000,
+} as const
+
 export const DISTORTION_LIMITS = {
   maxAmount: 200,
   minFrequency: 0.5,

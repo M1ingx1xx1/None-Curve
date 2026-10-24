@@ -34,7 +34,7 @@ Everything happens inside your web browser. Your font and audio files are never 
 
 ## 3. A tour of the screen
 
-The screen is split into two rows and five areas:
+The screen is split into two columns and five areas:
 
 ```text
 ┌────────────────────────╥─────────────────────────────────────────────────────┐
@@ -42,16 +42,17 @@ The screen is split into two rows and five areas:
 │   Import               ║   your text, rebuilt live                           │
 │   Font information     ║                                                     │
 │   Shaping controls     ║                                                     │
-╞════════════════════════╩═╦══════════════════════════╦════════════════════════╡
-│ ③ Typography,            ║ ④ Text input             ║ ⑤ Preview              │
-│   Glyphs & Color tabs    ║   type here              ║   small copy of ②,     │
-│                          ║                          ║   with Blur & Invert   │
-└──────────────────────────╨──────────────────────────╨────────────────────────┘
+╞════════════════════════╣                                                     │
+│ ③ Typography,          ╠══════════════════════════╦══════════════════════════╡
+│   Glyphs & Color tabs  ║ ④ Text input             ║ ⑤ Preview                │
+│   (fold down to        ║   type here              ║   small copy of ②,       │
+│   their tabs)          ║                          ║   with Blur & Invert     │
+└────────────────────────╨──────────────────────────╨──────────────────────────┘
 ```
 
-1. **Tools (top left)** — the **Import** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control.
-2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the label in the canvas corner says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
-3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours.
+1. **Tools (top left)** — the **Import** button, information about the loaded font, and three tabs: **Geometry** and **Experimental** hold the controls that shape the letters, and **Sound** listens to an audio file or the microphone and can move the letters with it. Scroll to see every control; the tab names stay at the top while you scroll.
+2. **Result canvas (top right)** — the big preview. It shows the canvas (a page of fixed size) with the text you typed, rebuilt with your current settings. The page that gets exported sits in the middle with a soft shadow, as if it lay slightly above the background. Around it, the background is a little darker and has a light grid, so the page itself stays clean and looks exactly like the export. The grid also appears on the page while you drag the text or when you zoom in to 200 % or more, to help you line things up. After you change a setting, the letters update in the background one after another — the app stays responsive meanwhile, and the status bar at the bottom of the window says "Updating…" until all of them are done. The **Canvas size** bar at its bottom opens the size settings.
+3. **Typography, Glyphs, and Color (bottom left)** — three tabs. **Typography** sets the size, spacing, slant, alignment, and position of the text. **Glyphs** lists every letter, number, and symbol in the font: click one to type it into the text box — handy for symbols that are hard to type, like `©`, `→`, or accented letters. **Color** sets the text and background colours. The arrow at the right end of these tabs folds the area down to just its tabs, so the shaping controls above get the whole left column; click a tab or the arrow again to open it. The app remembers whether it is folded.
 4. **Text input** — type the text you want to see on the canvas.
 5. **Preview** — a small picture of exactly what an SVG export would save: all your text on the canvas (filled, or as outlines when **Fill** is off), with its own **Blur** slider and **Invert** button.
 
@@ -72,9 +73,9 @@ What stays: the light or dark look, the size of the areas, and the tabs you had 
 
 **Changing the size of the areas.** The double lines in the picture are the thin grey lines between the areas; you can drag them:
 
-- between the **top and bottom rows** — drag up or down to give the canvas or the bottom row more height;
 - between the **tools and the canvas** — drag left or right;
-- between the **Typography / Glyphs / Color tabs and the text input** — drag left or right;
+- between the **shaping controls and the Typography / Glyphs / Color tabs** — drag up or down to give either more height;
+- between the **canvas and the text input** — drag up or down;
 - between the **text input and the preview** — drag left or right.
 
 Whatever one side gains, the other side loses, so everything always fits in the window exactly — the page never needs scrolling. Each area keeps a minimum size. Double-click a line to put it back where it started. The app remembers your choices the next time you open it.
@@ -200,6 +201,7 @@ If a new font fails to load, the previous font stays on screen.
 
 - Click a letter on the canvas to select it (clicking anywhere in the letter's own space is enough). It changes colour wherever it appears. The colour is worked out from your text and background colours so that it stands out and is still easy to read — for black text on cream paper it is a vermilion red. Pointing at a letter colours it the same way. Inserting a character from the Glyphs list selects it too.
 - Thorns (see Thorn in the Experimental tab) are not part of a letter's space: clicking a thorn where it reaches out of its letter is the same as clicking whatever lies behind it, such as another letter or, most often, the empty canvas. Click the letter itself. While Thorn is on, a letter is clicked by its own space and its original shape from the font, so other parts that effects drew far out of it, such as Slipstream's trails, do not select it either.
+- **With the keyboard:** click the canvas (or reach it with Tab), then hold Shift and press the right or left arrow key to select the next or previous letter of your text. Spaces, letters missing from the font, and other copies of the letter already selected are skipped. If nothing is selected, Enter selects the first letter. A screen reader says which letter is selected. The arrow keys without Shift still move the canvas around.
 - Click an empty part of the canvas, or press Escape, to remove the highlight. Dragging the canvas around does not remove it.
 - The numbers in the shaping controls (vertices, curves, and so on) describe the selected letter — or, after you removed the highlight, the letter you selected last. The **Statistics** line at the top of each tab always says which letter that is, for example "Statistics: l U+006C".
 - The preview never shows the highlight, because it shows exactly what will be exported.

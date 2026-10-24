@@ -19,6 +19,15 @@ export class FakeWorker {
   reply(message: WorkerResponse) {
     this.onmessage?.({ data: message } as MessageEvent<WorkerResponse>)
   }
+  /** The worker says it starts a glyph of this request (compute or ahead), naming the request's lane and font. */
+  startsGlyph(requestId: number, key: string, index: number) {
+    const request = this.received.find(
+      (m): m is Extract<WorkerRequest, { type: 'compute' | 'ahead' }> =>
+        (m.type === 'compute' || m.type === 'ahead') && m.requestId === requestId,
+    )
+    const lane = request?.type === 'ahead' ? 'ahead' : 'canvas'
+    this.reply({ type: 'glyph', requestId, lane, fontId: request?.fontId ?? '', key, index })
+  }
   /** The newest compute request it was sent. */
   get lastRequest() {
     return this.received.filter((m) => m.type === 'compute').at(-1) as Extract<WorkerRequest, { type: 'compute' }>

@@ -1,5 +1,6 @@
 import { memo, type Dispatch } from 'react'
-import { ANCHOR_LIMITS, type AnchorStats } from '../geometry/anchors'
+import type { AnchorStats } from '../geometry/anchors'
+import { ANCHOR_LIMITS } from '../geometry/limits'
 import type { AnchorParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'

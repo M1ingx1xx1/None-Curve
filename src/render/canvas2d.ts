@@ -14,16 +14,21 @@ import { polygonPaths } from '../export/drawArtboard'
 import { sourceGlyphSkeleton } from '../geometry/sourcePath'
 import type { PolygonGlyph, SourceGlyph } from '../geometry/types'
 import type { SpecimenScene } from '../specimen/scene'
-import { hitScene } from './hitTest'
+import { hitFrame, hitScene } from './hitTest'
 import { apply, glyphMatrix, IDENTITY, traceSource, tracePolygon, type CurveSink, type Matrix } from './strokes'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
 import {
   artboardMatrix,
   canvasCull,
   canvasMatrix,
+  COMPARE_ALPHA,
   hitOptions,
+  MITER_LIMIT,
+  missingBox,
+  OUTLINE_PX,
   scenePoint,
   sizeBackingStore,
+  VERTEX_SCALE,
   type CanvasBacking,
 } from './view'
 
@@ -52,19 +57,25 @@ export interface Context2D<P> {
   globalAlpha: number
 }
 
-/** Outline strokes, in CSS px (styles.css: .outline-stroke, .compare-source, .strip-missing, .skeleton-*). */
-const OUTLINE_PX = 1.5
+/** Skeleton strokes, in CSS px (styles.css: .skeleton-*); the outline's is view.ts's OUTLINE_PX. */
 const SKELETON_PX = 1.25
 const HANDLE_PX = 1
 const ANCHOR_STROKE_PX = 1
-const MITER_LIMIT = 4
-/** Vertex dots are this share of the marker radius (GlyphLayers' VERTEX_SCALE). */
-const VERTEX_SCALE = 0.4
 
 /** True when the 'detail' layer has anything to draw for this style and scene. */
 export function needsDetail(style: RenderStyle, scene: SpecimenScene | null): boolean {
   if (style.outline !== 'flattened' || style.showSkeleton || (style.showVertices && style.showMarkers)) return true
   return scene !== null && scene.missingCharacters.length > 0
+}
+
+/**
+ * True when the mode draws the polygons (frame.scene(), with every morph evaluated): the preview, the flattened and
+ * Compare views, and vertex markers. The font's outlines, the skeleton and missing boxes need only the layout.
+ */
+function drawsPolygons(mode: Canvas2DMode, view: RenderView, style: RenderStyle): boolean {
+  if (view.kind === 'artboard') return true
+  const vertices = style.showVertices && style.showMarkers
+  return mode === 'detail' ? vertices : style.outline !== 'source' || vertices
 }
 
 export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRenderer {
@@ -148,11 +159,12 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
   hitTest(x: number, y: number): RenderHit | null {
     const { view, style, frame } = this
     if (!view || view.kind !== 'canvas' || !style || !frame) return null
-    const scene = frame.scene()
-    if (!scene) return null
-    // The scene is the one drawn (draw() evaluates it every frame), so this costs no morph of its own.
     const [sx, sy] = scenePoint(view, x, y)
-    return hitScene(scene, sx, sy, hitOptions(view, style, this.offsetX, this.offsetY, this.source))
+    const o = hitOptions(view, style, this.offsetX, this.offsetY, this.source)
+    // The scene drawn costs no morph of its own (draw() evaluated it); without it, only the outlines near the point.
+    if (!drawsPolygons(this.mode, view, style)) return hitFrame(frame, sx, sy, o)
+    const scene = frame.scene()
+    return scene ? hitScene(scene, sx, sy, o) : null
   }
 
   draw(): boolean {
@@ -165,7 +177,8 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
     this.drewSomething = false
     if (this.mode === 'detail' && !needsDetail(style, frame.layout)) return true
-    const scene = frame.scene()
+    // The in-between polygons are made only when they are drawn: the layout places every glyph as well.
+    const scene = drawsPolygons(this.mode, view, style) ? frame.scene() : frame.layout
     if (!scene) return true
     if (view.kind === 'artboard') this.drawArtboard(scene, view, style)
     else this.drawCanvas(scene, view, style)
@@ -219,15 +232,8 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
         const occ = occurrence++
         if (!cull.glyph(g, band)) continue
         if (g.missing) {
-          this.drawMissing(
-            base,
-            g.x + g.advance * 0.1,
-            g.y - ascender * 0.7,
-            g.advance * 0.8,
-            ascender * 0.7,
-            dpr,
-            style,
-          )
+          const box = missingBox(g, ascender)
+          this.drawMissing(base, box.x, box.y, box.width, box.height, dpr, style)
           continue
         }
         const source = this.source ? this.source(g.index) : null
@@ -258,7 +264,7 @@ export class Canvas2DRenderer<P extends RenderPath = Path2D> implements GlyphRen
       else this.strokePolygon(m, polygon, color, dpr)
     } else if (style.outline === 'compare') {
       if (!detail && hasPolygon) {
-        if (style.fill) this.fillPolygon(m, polygon, color, 0.35)
+        if (style.fill) this.fillPolygon(m, polygon, color, COMPARE_ALPHA)
         this.strokePolygon(m, polygon, color, dpr)
       }
       if (source) this.strokeSource(m, source, style.colors.accent, OUTLINE_PX * dpr, [5 * dpr, 3 * dpr])

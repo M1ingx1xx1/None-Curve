@@ -811,6 +811,12 @@ const InputGroup = memo(function InputGroup({ engine, settings }: { engine: Soun
   const releaseHint = useHint()
   const metersHint = useHint()
   const releaseMs = Math.round(settings.releaseMs)
+  // Only the open state and id change the button (toggle works on the latest state), so the memoised strip keeps its element.
+  const metersHintButton = useMemo(
+    () => <HintButton hint={metersHint} topic="the meters" />,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [metersHint.id, metersHint.open],
+  )
 
   return (
     <SoundBox legend="Input" className="sound-input">
@@ -844,7 +850,7 @@ const InputGroup = memo(function InputGroup({ engine, settings }: { engine: Soun
             onChange={(next) => setSetting(engine, settings, 'releaseMs', next)}
           />
         </div>
-        <MeterStrip hintButton={<HintButton hint={metersHint} topic="the meters" />} hintId={metersHint.id} />
+        <MeterStrip hintButton={metersHintButton} hintId={metersHint.id} />
       </div>
       <HintText hint={sensitivityHint}>
         Sensitivity boosts or cuts the input before measuring, for quiet or loud sources.

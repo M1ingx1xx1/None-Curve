@@ -38,8 +38,8 @@
     -apple-system,
     'Segoe UI',
     sans-serif;
-  /* Every other text size is in rem, so this one value scales the whole interface (was 14px). */
-  font-size: 12px;
+  /* Every other text size is in rem, so this one value scales the whole interface (75% of the browser's size, 12px by default; was 14px). */
+  font-size: 75%;
   line-height: 1.5;
 }
 
@@ -49,6 +49,75 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+}
+
+/* Browsers without light-dark() get the same tokens as plain values (a custom property accepts the function and fails
+   only where it is used). */
+@supports not (color: light-dark(red, blue)) {
+  :root {
+    --bg: #f4f4f2;
+    --surface: #ffffff;
+    --canvas: #fbfbfa;
+    --text: #111110;
+    --muted: #5f5e5a;
+    --subtle: #6f6e69;
+    --faint: #9a9994;
+    --border: #d6d5d0;
+    --border-strong: #111110;
+    --accent: #1f4fd1;
+    --guide: #c9c8c2;
+    --grid: rgba(17, 17, 16, 0.05);
+    --danger: #b42318;
+    --control: #c2410c;
+    --vertex: #0f8a5f;
+    --primary-edge: #3fae8f;
+    --primary-strong: #0f7a5c;
+    --primary-glow: rgba(63, 174, 143, 0.55);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0e0e0d;
+      --surface: #171716;
+      --canvas: #121211;
+      --text: #f2f1ed;
+      --muted: #a8a7a1;
+      --subtle: #868580;
+      --faint: #6e6d68;
+      --border: #2e2d2a;
+      --border-strong: #f2f1ed;
+      --accent: #7ea2ff;
+      --guide: #3a3936;
+      --grid: rgba(242, 241, 237, 0.05);
+      --danger: #ff8a7a;
+      --control: #ff9a5c;
+      --vertex: #3ddc97;
+      --primary-edge: #adfce7;
+      --primary-strong: #adfce7;
+      --primary-glow: rgba(173, 252, 231, 0.6);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --bg: #0e0e0d;
+    --surface: #171716;
+    --canvas: #121211;
+    --text: #f2f1ed;
+    --muted: #a8a7a1;
+    --subtle: #868580;
+    --faint: #6e6d68;
+    --border: #2e2d2a;
+    --border-strong: #f2f1ed;
+    --accent: #7ea2ff;
+    --guide: #3a3936;
+    --grid: rgba(242, 241, 237, 0.05);
+    --danger: #ff8a7a;
+    --control: #ff9a5c;
+    --vertex: #3ddc97;
+    --primary-edge: #adfce7;
+    --primary-strong: #adfce7;
+    --primary-glow: rgba(173, 252, 231, 0.6);
+  }
 }
 
 * {
@@ -219,23 +288,16 @@ input[type='range']:disabled {
 }
 
 .workspace {
-  /* Two rows that always fill the space between the header and the status bar. The split is set
-     inline by Workspace; the rows always add up to the same height. */
+  /* Two columns that always fill the space between the header and the status bar. The split is set
+     inline by Workspace; the columns always add up to the same width. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 1px minmax(0, var(--rows-bottom, 38fr));
+  grid-template-columns: minmax(0, var(--side-width, 30fr)) 1px minmax(0, var(--canvas-width, 70fr));
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
 
-/* Top row: tools + parameters | handle | canvas. */
-.workspace-top {
-  display: grid;
-  grid-template-columns: minmax(0, var(--side-width, 30fr)) 1px minmax(0, var(--canvas-width, 70fr));
-  min-width: 0;
-  min-height: 0;
-}
-
+/* Left column: tools, then the parameters and the text tools (with their own handle). */
 .workspace-side {
   display: flex;
   flex-direction: column;
@@ -243,10 +305,28 @@ input[type='range']:disabled {
   min-height: 0;
 }
 
-/* Bottom row: glyphs | handle | text input and preview (with their own handle). */
-.workspace-bottom {
+.workspace-panels {
+  flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, var(--glyphs-width, 30fr)) 1px minmax(0, var(--input-width, 70fr));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--side-top, 62fr)) 1px minmax(0, var(--side-bottom, 38fr));
+  min-height: 0;
+}
+
+/* Text tools folded down to their tabs: the parameters take the rest of the column. */
+.workspace-panels[data-collapsed] {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.workspace-panels[data-collapsed] > .workspace-glyphs {
+  border-top: 1px solid var(--border);
+}
+
+/* Right column: canvas | handle | text input and preview (with their own handle). */
+.workspace-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--rows-top, 62fr)) 1px minmax(0, var(--rows-bottom, 38fr));
   min-width: 0;
   min-height: 0;
 }
@@ -270,7 +350,6 @@ input[type='range']:disabled {
 }
 
 .workspace-geometry {
-  flex: 1;
   overflow-y: auto;
 }
 
@@ -389,9 +468,36 @@ input[type='range']:disabled {
   height: 100%;
 }
 
-.text-tools .tool-tabs {
+/* The tabs, then the button that folds the text tools down to them. */
+.text-tools-head {
   flex: none;
-  padding: 4px 14px 0;
+  display: flex;
+  align-items: stretch;
+  padding: 4px 6px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.text-tools .tool-tabs {
+  flex: 1;
+  border-bottom: 0;
+}
+
+.text-tools-fold {
+  flex: none;
+  align-self: center;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.text-tools-fold:hover {
+  color: var(--text);
+}
+
+/* Down: folds the panel down. Up while folded: opens it again. */
+.text-tools-fold[aria-expanded='false'] .icon {
+  transform: rotate(180deg);
 }
 
 .text-tools-panel {
@@ -1277,6 +1383,11 @@ input[type='range']:disabled {
 .geometry-tabs {
   margin: -8px -16px 0;
   padding: 0 16px;
+  /* The tabs stay in view while a long tab (Experimental, Sound) scrolls below them. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
 }
 
 .geometry-tab-panel {
@@ -1555,11 +1666,30 @@ input.number-field {
 
 .statusbar > .statusbar-view {
   flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--subtle);
+}
+
+/* The View line's parts keep their full text (and their spaces); only the method gives way, with an
+   ellipsis. The whole line is in the tooltip. */
+.statusbar-view-part {
+  flex: none;
+  white-space: pre;
+}
+
+.statusbar-view-method {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: right;
-  color: var(--subtle);
+}
+
+/* Glyphs still being computed in the background. */
+.statusbar-updating {
+  color: var(--primary-strong);
 }
 
 /* Reset all settings, then light / dark interface: the last items of the status bar (bottom right), close
@@ -1962,11 +2092,6 @@ input.number-field {
   stroke-dasharray: none;
 }
 
-.metric-lines .metric-advance {
-  stroke: var(--faint);
-  stroke-dasharray: 2 4;
-}
-
 .metric-lines text {
   fill: var(--artboard-ink, var(--faint));
   fill-opacity: 0.55;
@@ -2227,22 +2352,6 @@ input.number-field {
 
 .legend-source {
   border-top: 2px dashed var(--accent);
-}
-
-.canvas-updating {
-  color: var(--primary-strong);
-}
-
-.canvas-badge {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  font-size: 0.75rem;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 2px 8px;
-  pointer-events: none;
 }
 
 /* Above the bottom row, where a regular note (left) and the legend (right) may show: a one-line note

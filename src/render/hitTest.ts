@@ -16,6 +16,7 @@ import { morphAt, type MorphPlan } from '../specimen/morph'
 import type { SpecimenScene } from '../specimen/scene'
 import { planBounds, type Box } from './gpuPlans'
 import type { GlideFrame, GlyphMorph, RenderHit, SourceLookup } from './types'
+import { missingBox, OUTLINE_PX, VERTEX_SCALE } from './view'
 
 export interface HitOptions {
   outline: 'source' | 'flattened' | 'compare'
@@ -39,10 +40,7 @@ export interface HitOptions {
 }
 
 /** Half the outline's 1.5 px stroke, plus as much again so a thin outline is easy to hit (CSS px). */
-export const STROKE_HIT_PX = 0.75 + 1.5 / 2
-
-/** Vertex dots are this share of the marker radius (GlyphLayers' VERTEX_SCALE). */
-const VERTEX_SCALE = 0.4
+export const STROKE_HIT_PX = 0.75 + OUTLINE_PX / 2
 
 /** Nonzero winding number of `contours` around (x, y). */
 function windingAt(contours: readonly (readonly Point[])[], x: number, y: number): number {
@@ -132,8 +130,69 @@ function flattenSource(source: SourceGlyph): Point[][] {
 
 const pointsOf = (contours: readonly PolygonContour[]) => contours.map((c) => c.points)
 
+const polygonBoxes = new WeakMap<readonly PolygonContour[], Box>()
+const sourceBoxes = new WeakMap<SourceGlyph, Box>()
+
+function grow(box: Box, p: Point) {
+  if (p.x < box[0]) box[0] = p.x
+  if (p.y < box[1]) box[1] = p.y
+  if (p.x > box[2]) box[2] = p.x
+  if (p.y > box[3]) box[3] = p.y
+}
+
+/** The box of the contours' points. */
+function polygonBox(contours: readonly PolygonContour[]): Box {
+  let box = polygonBoxes.get(contours)
+  if (box) return box
+  box = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const { points } of contours) for (const p of points) grow(box, p)
+  polygonBoxes.set(contours, box)
+  return box
+}
+
+/** The box of the source outline's points and controls: its curves, handles and markers' centres stay inside it. */
+function sourceBox(source: SourceGlyph): Box {
+  let box = sourceBoxes.get(source)
+  if (box) return box
+  box = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const contour of source.contours) {
+    grow(box, contour.start)
+    for (const seg of contour.segments) {
+      if (seg.type === 'quad') grow(box, seg.control)
+      else if (seg.type === 'cubic') {
+        grow(box, seg.control1)
+        grow(box, seg.control2)
+      }
+      grow(box, seg.to)
+    }
+  }
+  sourceBoxes.set(source, box)
+  return box
+}
+
+const near = (b: Box, x: number, y: number, r: number) =>
+  x >= b[0] - r && x <= b[2] + r && y >= b[1] - r && y <= b[3] + r
+
+/**
+ * Whether (x, y) in the glyph's own units comes near enough to what it draws that hitsLayers could hit it: within
+ * `reach` (hitScene's) of the polygon's box, or within the stroke band or a marker of the source outline's box. A cheap
+ * rejection: hitsLayers is never true where this is false.
+ */
+export function nearLayers(
+  polygon: readonly PolygonContour[] | null,
+  source: SourceGlyph,
+  x: number,
+  y: number,
+  o: HitOptions,
+  reach: number,
+): boolean {
+  if (polygon && (o.outline !== 'source' || o.showVertices) && near(polygonBox(polygon), x, y, reach)) return true
+  if (o.outline === 'flattened' && !o.showSkeleton) return false
+  return near(sourceBox(source), x, y, Math.max(STROKE_HIT_PX * o.u, o.markerRadius))
+}
+
 /** Whether a drawn glyph's layers (not its box) cover (x, y) in its own font units (y up). */
-function hitsLayers(
+export function hitsLayers(
   polygon: readonly PolygonContour[] | null,
   source: SourceGlyph,
   x: number,
@@ -226,9 +285,8 @@ export function hitScene(
       occurrence--
       const g = glyphs[i]
       if (g.missing) {
-        const bx = g.x + g.advance * 0.1
-        const by = g.y - o.ascender * 0.7
-        if (x >= bx && x <= bx + g.advance * 0.8 && y >= by && y <= by + o.ascender * 0.7)
+        const box = missingBox(g, o.ascender)
+        if (x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height)
           return { kind: 'missing', text: g.text }
         continue
       }
@@ -244,11 +302,12 @@ export function hitScene(
       const polygon = morph ? morphNear(morph, gx, gy, reach) : g.polygon
       const thorned = polygon?.clickOutline
       if (thorned) {
-        if (windingAt(pointsOf(thorned), gx, gy) !== 0)
+        if (near(polygonBox(thorned), gx, gy, 0) && windingAt(pointsOf(thorned), gx, gy) !== 0)
           return { kind: 'glyph', index: g.index, text: g.text, occurrence }
         continue
       }
-      if (source && hitsLayers(polygon?.contours ?? null, source, gx, gy, o))
+      const contours = polygon?.contours ?? null
+      if (source && nearLayers(contours, source, gx, gy, o, reach) && hitsLayers(contours, source, gx, gy, o))
         return { kind: 'glyph', index: g.index, text: g.text, occurrence }
     }
   }

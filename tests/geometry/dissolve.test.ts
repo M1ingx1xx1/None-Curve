@@ -5,18 +5,22 @@
 // facet length, no run of gentle turns along short edges bends like an arc, and small specks have few corners.
 
 import { describe, expect, it } from 'vitest'
-import { applyDissolve } from '../../src/geometry/dissolve'
+import { insideRing } from '../../src/geometry/crossings'
+import { applyDissolve, parents } from '../../src/geometry/dissolve'
 import { DISSOLVE_LIMITS, dissolveIsOn, EXPERIMENTAL_LIMITS } from '../../src/geometry/limits'
+import { signedArea } from '../../src/geometry/primitives'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { DerivedGeometry, DissolveParams, GeometryParams, Point } from '../../src/geometry/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
 import {
   allFinite,
+  boundsOf,
   contoursOf,
   outlineCrossings,
   polygonOf,
   rect,
   sameContours,
+  seededRandom,
   signedArea2,
   winding,
 } from '../helpers/outline'
@@ -144,6 +148,95 @@ describe('applyDissolve', () => {
     const empty = polygonOf([])
     expect(applyDissolve(empty, DISSOLVE, 1, 1000).polygon).toBe(empty)
     expect(applyDissolve(square, { ...DISSOLVE, enabled: false }, 1, 1000).polygon).toBe(square)
+  })
+})
+
+/**
+ * Loops nested at random, never crossing: stars and squares, each with up to a few children inside its inner radius,
+ * listed in random order, some clockwise, each starting at a random vertex. With every loop's true parent.
+ */
+function nestedLoops(seed: number): { loops: Point[][]; truth: number[] } {
+  const random = seededRandom(seed)
+  const loops: Point[][] = []
+  const truth: number[] = []
+  const add = (cx: number, cy: number, r: number, parent: number, depth: number) => {
+    let loop: Point[]
+    let inner: number
+    if (random() < 0.3) {
+      const h = r * 0.7
+      loop = rect(cx - h, cy - h, cx + h, cy + h)
+      inner = h
+    } else {
+      const m = 3 + Math.floor(random() * 9)
+      const turn = random() * 2 * Math.PI
+      loop = Array.from({ length: m }, (_, i) => {
+        const a = turn + (i / m) * 2 * Math.PI
+        const rho = r * (0.8 + 0.2 * random())
+        return { x: cx + rho * Math.cos(a), y: cy + rho * Math.sin(a) }
+      })
+      inner = r * 0.8 * Math.cos(Math.PI / m)
+    }
+    if (random() < 0.5) loop.reverse()
+    const start = Math.floor(random() * loop.length)
+    loops.push([...loop.slice(start), ...loop.slice(0, start)])
+    truth.push(parent)
+    const self = loops.length - 1
+    if (depth >= 4) return
+    const placed: { x: number; y: number; r: number }[] = []
+    const children = Math.floor(random() * 5)
+    for (let tries = 0; placed.length < children && tries < 40; tries++) {
+      const rc = inner * (0.1 + 0.3 * random())
+      const a = random() * 2 * Math.PI
+      const d = (inner * 0.95 - rc) * Math.sqrt(random())
+      const c = { x: cx + d * Math.cos(a), y: cy + d * Math.sin(a), r: rc }
+      if (placed.some((o) => Math.hypot(o.x - c.x, o.y - c.y) < o.r + c.r)) continue
+      placed.push(c)
+      add(c.x, c.y, c.r, self, depth + 1)
+    }
+  }
+  // Side by side, some on the same rows, so rays from one cross its neighbours too.
+  for (let k = 0; k < 6; k++) add(k * 1000, Math.round(random() * 3) * 100, 450, -1, 0)
+  const order = loops.map((_, k) => k)
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  const at = new Map(order.map((k, i) => [k, i]))
+  return { loops: order.map((k) => loops[k]), truth: order.map((k) => (truth[k] < 0 ? -1 : at.get(truth[k])!)) }
+}
+
+/** The search parents() replaced: every loop against every other, by box, area and one vertex. */
+function bruteForceParents(loops: Point[][]): number[] {
+  const boxes = loops.map((loop) => boundsOf([loop])!)
+  const areas = loops.map((loop) => Math.abs(signedArea(loop)))
+  const byLeft = loops.map((_, k) => k).sort((a, b) => boxes[a].minX - boxes[b].minX || a - b)
+  return loops.map((loop, k) => {
+    const box = boxes[k]
+    let best = -1
+    for (const d of byLeft) {
+      const outer = boxes[d]
+      if (outer.minX > box.minX) break
+      if (d === k || areas[d] <= areas[k] || outer.maxX < box.maxX || outer.minY > box.minY || outer.maxY < box.maxY)
+        continue
+      if ((best < 0 || areas[d] < areas[best]) && insideRing(loop[0], loops[d])) best = d
+    }
+    return best
+  })
+}
+
+describe('parents', () => {
+  it('finds the smallest loop around each, as the search over every pair did, on random nested loops', () => {
+    let nested = 0
+    for (let seed = 1; seed <= 40; seed++) {
+      const { loops, truth } = nestedLoops(seed)
+      const found = parents(loops)
+      expect(found, `seed ${seed}`).toEqual(truth)
+      expect(found, `seed ${seed}`).toEqual(bruteForceParents(loops))
+      nested += truth.filter((p) => p >= 0 && truth[p] >= 0).length
+    }
+    // Loops three deep or more, so parents are told from grandparents.
+    expect(nested).toBeGreaterThan(200)
+    expect(parents([])).toEqual([])
   })
 })
 

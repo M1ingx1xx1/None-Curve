@@ -1005,6 +1005,8 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
   }
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', sync)
   let loading = 0
+  // The file the timeline holds, so choosing File again after the microphone resumes it instead of measuring it anew.
+  let held: Blob | null = null
   const off = [
     // Only what sync reads: not the position, which changes about 4 times a second while a file plays.
     subscribeStateKeys(engine, ['source', 'playing'], sync),
@@ -1012,6 +1014,17 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
       const token = ++loading
       failed = false
       director.reset()
+      if (event.type === 'suspend') {
+        timeline.pause()
+        sync()
+        return
+      }
+      if (event.type === 'load' && event.file === held && timeline.isLoaded()) {
+        timeline.resume()
+        sync()
+        return
+      }
+      held = null
       // A file longer than precompute keeps in memory is not even decoded: it plays on the live path.
       const { duration } = engine.getState()
       if (event.type === 'unload' || !(duration <= PRECOMPUTE_LIMITS.maxSeconds)) {
@@ -1020,6 +1033,8 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
         return
       }
       // Measured from the start, in order: the plan is made from the start too.
+      held = event.file
+      timeline.resume()
       timeline.load(event.file, event.decode, engine.getState().settings, 0).then(
         () => {
           if (token === loading) sync()

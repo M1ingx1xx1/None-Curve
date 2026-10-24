@@ -1,11 +1,12 @@
-import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react'
+import { memo, Suspense, useEffect, useRef, useState } from 'react'
 import type { FontNaming, GlyphSet } from '../export/fontPlan'
 import type { BuiltFont, ExportDialogProps, Format, Kept } from './ExportBody'
 import ErrorBoundary from './ErrorBoundary'
 import Icon from './Icon'
+import { lazyWithRetry } from './lazyWithRetry'
 
 // The body and the export code load on the first opening, not with the page.
-const ExportBody = lazy(() => import('./ExportBody'))
+const ExportBody = lazyWithRetry(() => import('./ExportBody'))
 
 /**
  * The dialog's shell stays mounted (showModal keeps its focus handling); its body, which plans the font export, follows
@@ -86,7 +87,7 @@ function ExportDialog(props: ExportDialogProps) {
 
         {open && (
           <ErrorBoundary resetKey={font?.id ?? ''} label="The export options">
-            <Suspense fallback={null}>
+            <Suspense fallback={<p className="field-hint">Loading export options…</p>}>
               <ExportBody {...props} kept={kept} firstRef={firstRef} />
             </Suspense>
           </ErrorBoundary>

@@ -14,7 +14,7 @@ export const BASE: GeometryParams = { flatten, random, squaring, anchors, grid, 
 export const EFFECTS = ['crumple', 'ripple', 'whorl', 'slipstream', 'thorn', 'dissolve'] as const
 export type Effect = (typeof EFFECTS)[number]
 
-type EffectPatch = Partial<Pick<ExperimentalParams, Effect>>
+export type EffectPatch = Partial<Pick<ExperimentalParams, Effect>>
 
 /** The effect switched on with its default settings, changed by `patch`. */
 export function on<E extends Effect>(effect: E, patch: Partial<ExperimentalParams[E]> = {}): EffectPatch {

@@ -10,6 +10,8 @@ import { placePolygons, shapeSpecimen, type SpecimenScene } from '../../src/spec
 import { chooseTrajectory, ringPolygon, STRAIGHT, whorlTrajectory, whorlUnturn } from '../../src/specimen/trajectory'
 import { whorlMotion, whorlWarp } from '../../src/geometry/whorl'
 import { GlideStore, type GlideClock } from '../../src/state/useGlide'
+import { canvasCull } from '../../src/render/view'
+import type { CanvasView } from '../../src/render/types'
 import { loadFixture } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
 
@@ -725,5 +727,62 @@ describe('the page store', () => {
   it('arrives early enough that a glide nearly done is not glided again', () => {
     expect(easeOut(1)).toBe(1)
     expect(GLIDE_LIMITS.arrived).toBeLessThan(1)
+  })
+})
+
+describe('a line on its way, as the canvases cull it', () => {
+  /** One line of two glyphs on `baseline`, each with its ink. */
+  const lineAt = (baseline: number): SpecimenScene => {
+    const glyphs = [0, 600].map((x) => ({
+      index: 1,
+      text: 'a',
+      x,
+      y: baseline,
+      advance: 600,
+      missing: false,
+      polygon: glyph(square(0, 0, 500)),
+      error: null,
+      ink: { minX: x, minY: baseline - 500, maxX: x + 500, maxY: baseline },
+    }))
+    return {
+      lines: [{ glyphs, width: 1200, baseline, ink: { minX: 0, minY: baseline - 500, maxX: 1100, maxY: baseline } }],
+      lineHeight: 1200,
+      ascender: 800,
+      descender: -200,
+      capHeight: 700,
+      ink: null,
+      body: null,
+      blockWidth: 1200,
+      textTop: baseline - 800,
+      textBottom: baseline + 200,
+      slant: 0,
+      missingCharacters: [],
+      failedGlyphs: 0,
+      pendingGlyphs: 0,
+      glyphCount: 2,
+      truncated: false,
+      kerning: false,
+    }
+  }
+
+  it('slides out with its glyphs instead of vanishing when its target lands far outside a zoomed-in view', () => {
+    const glide = new SceneGlide(() => 0)
+    const options = { durationMs: 150, glide: true, key: 'k' }
+    glide.retarget(lineAt(0), 0, options)
+    glide.retarget(lineAt(4000), 0, options)
+    // Zoomed in on the line's first place: scene y −300 … 300.
+    const view: CanvasView = { kind: 'canvas', left: -100, top: 300, u: 1, cssWidth: 800, cssHeight: 600, dpr: 1 }
+    const cull = canvasCull(view, { unitsPerEm: 1000, ascender: 800, descender: -200 })
+    const early = glide.frameInfo(1).layout!.lines[0]
+    expect(early.glyphs[0].y).toBeLessThan(300)
+    expect(early.baseline).toBe(early.glyphs[0].y)
+    expect(cull.band(early.baseline)).toBe(true)
+    expect(early.glyphs.every((g) => cull.glyph(g, true))).toBe(true)
+    expect(early.ink!.maxY).toBeCloseTo(early.baseline)
+    expect(early.glyphs[1].ink!.minY).toBeCloseTo(early.glyphs[1].y - 500)
+    // Once past the view it is culled, and at the end it is the target's own line.
+    const late = glide.frameInfo(140).layout!.lines[0]
+    expect(cull.band(late.baseline) || cull.ink(late.ink)).toBe(false)
+    expect(glide.frameInfo(1000).layout!.lines[0].baseline).toBe(4000)
   })
 })
