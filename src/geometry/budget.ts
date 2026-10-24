@@ -23,7 +23,7 @@ import { signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { breakRuns, WARP_LIMITS } from './warp'
 
-export const BUDGET_LIMITS = {
+const BUDGET_LIMITS = {
   /**
    * A warp may make at most this many times the vertex limit, before it is simplified back. Beyond that (a long tangle
    * through a fine mesh), the warp is left out of the glyph (see applyWarp).
@@ -48,7 +48,7 @@ export interface BudgetStats {
   before: number
 }
 
-export const emptyBudgetStats = (): BudgetStats => ({ applied: false, tolerance: 0, before: 0 })
+const emptyBudgetStats = (): BudgetStats => ({ applied: false, tolerance: 0, before: 0 })
 
 const countVertices = (contours: readonly PolygonContour[]) => contours.reduce((n, c) => n + c.points.length, 0)
 
@@ -127,7 +127,7 @@ export class GlyphBudget {
  * drift limit until the glyph fits (see BUDGET_LIMITS.maxDoublings), and contours no larger than the tolerance left
  * out, but never all of them. Unchecked: the outlines may cross afterwards.
  */
-export function reduceToLimit(polygon: PolygonGlyph, limit: number, unitsPerEm: number): { polygon: PolygonGlyph; tolerance: number } {
+function reduceToLimit(polygon: PolygonGlyph, limit: number, unitsPerEm: number): { polygon: PolygonGlyph; tolerance: number } {
   if (countVertices(polygon.contours) <= limit) return { polygon, tolerance: 0 }
   let last: Reduction | null = null
   for (const reduction of reductions(polygon, unitsPerEm)) {

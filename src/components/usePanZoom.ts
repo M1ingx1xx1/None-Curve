@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import type { PanZoom, ViewParams } from '../state/types'
 
-export const MIN_ZOOM = 0.25
-export const MAX_ZOOM = 40
+const MIN_ZOOM = 0.25
+const MAX_ZOOM = 40
 export const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
 
 /** What zoom 1 shows, in font units with y up. */

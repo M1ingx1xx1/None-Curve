@@ -17,7 +17,7 @@ import { clamp, finite, signedArea } from './primitives'
 import type { DistortionParams, Point, PolygonContour, PolygonGlyph } from './types'
 
 /** Few anchors: which vertices may move, how many do, and how far. */
-export const SPARSE_LIMITS = {
+const SPARSE_LIMITS = {
   /** A vertex where the outline turns by more than this many degrees is a corner and stays put. */
   cornerAngle: 30,
   /** Every vertex of a contour with fewer vertices than this stays put (dots, small counters). */

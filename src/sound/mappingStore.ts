@@ -172,7 +172,7 @@ class MappingStore {
 }
 
 /** The shaping fields of a Mapping. */
-export const SHAPING_KEYS: readonly (keyof Shaping)[] = ['rangeMin', 'rangeMax', 'curve', 'smoothMs', 'gate', 'mode']
+const SHAPING_KEYS: readonly (keyof Shaping)[] = ['rangeMin', 'rangeMax', 'curve', 'smoothMs', 'gate', 'mode']
 
 /** The shaping fields a mapping sets, clamped (clampShaping); the ones it leaves out stay out. */
 function clampedShaping(mapping: Partial<Shaping>): Partial<Shaping> {

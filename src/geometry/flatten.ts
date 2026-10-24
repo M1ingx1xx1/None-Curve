@@ -13,7 +13,7 @@ import { distanceToSegment, lerp, signedArea } from './primitives'
 import type { FlattenParams, Point, PolygonContour, PolygonGlyph, SourceContour, SourceGlyph } from './types'
 
 /** Hard limits that keep pathological input (huge or degenerate curves) from running away. */
-export const FLATTEN_LIMITS = {
+const FLATTEN_LIMITS = {
   minTolerance: 0.01,
   maxTolerance: 1000,
   minSegments: 1,
@@ -66,7 +66,7 @@ export interface FlattenResult {
   stats: FlattenStats
 }
 
-export class GeometryError extends Error {
+class GeometryError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'GeometryError'
@@ -367,7 +367,7 @@ function flattenFixed(curve: Bezier, n: number, push: (p: Point) => void, stats:
  * its control points; for a quadratic the bound is half the control point's distance from the chord,
  * for a cubic three quarters of the larger control distance.
  */
-export function flatnessBound(curve: Bezier): number {
+function flatnessBound(curve: Bezier): number {
   const a = curve[0]
   const b = curve[curve.length - 1]
   if (curve.length === 3) return distanceToLine(curve[1], a, b) / 2

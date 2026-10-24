@@ -15,7 +15,7 @@ export interface RingUniform {
   cosHalf: number
 }
 
-export function ringUniform(sides: number): RingUniform {
+function ringUniform(sides: number): RingUniform {
   const ring = ringPolygon(sides)
   return { first: ring.first, step: ring.step, cosHalf: ring.cosHalf }
 }
@@ -50,7 +50,7 @@ export function planUniforms(data: PlanData): PlanUniforms {
 }
 
 /** The shaders' along(): trajectory.ts `along`, with the ring as uniforms. Writes into `out`. */
-export function alongRef(
+function alongRef(
   ring: RingUniform,
   size: number,
   a0: number,

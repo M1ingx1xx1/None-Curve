@@ -204,7 +204,7 @@ function addContours(box: Box, contours: readonly PolygonContour[]) {
 }
 
 /** The box of a polygon's points (empty glyphs give a zero box at the origin). */
-export function shapeBounds(polygon: PolygonGlyph): Box {
+function shapeBounds(polygon: PolygonGlyph): Box {
   const box = emptyBox()
   addContours(box, polygon.contours)
   return Number.isFinite(box[0]) ? box : [0, 0, 0, 0]

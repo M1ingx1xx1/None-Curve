@@ -49,13 +49,6 @@ export function isCached(font: LoadedFont, index: number, key: string): boolean 
   return caches.get(font)?.entries.has(cacheKey) === true || liveCaches.get(font)?.entries.has(cacheKey) === true
 }
 
-/** The cached result for this glyph and key without computing or reordering anything; undefined when none is held. */
-export function cachedGeometry(font: LoadedFont, index: number, key: string): DerivedGeometry | undefined {
-  const cacheKey = `${index}|${key}`
-  const entry = caches.get(font)?.entries.get(cacheKey) ?? liveCaches.get(font)?.entries.get(cacheKey)
-  return entry && 'geometry' in entry ? entry.geometry : undefined
-}
-
 const caches = new WeakMap<LoadedFont, FontCache>()
 const liveCaches = new WeakMap<LoadedFont, FontCache>()
 

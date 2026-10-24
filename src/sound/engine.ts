@@ -62,7 +62,7 @@ const CLOCK_PULL = 0.1
  * The element's position (currentTime, which some browsers update only every few tens of ms) as a smooth clock: it
  * runs on page time from an anchor, pulled a little towards each new reading, and never goes back while playing.
  */
-export class MediaClock {
+class MediaClock {
   private anchorMedia = 0
   private anchorWall = 0
   private lastRaw = Number.NaN

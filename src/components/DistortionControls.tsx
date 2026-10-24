@@ -20,7 +20,7 @@ interface DistortionControlsProps {
   dispatch: Dispatch<Action>
 }
 
-export const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1, sparse: false }
+const DEFAULT_DISTORTION: DistortionParams = { amount: 0, frequency: 8, normalBias: 0.7, seed: 1, sparse: false }
 
 function DistortionControls({
   params,

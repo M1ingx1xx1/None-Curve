@@ -16,7 +16,7 @@ interface GridControlsProps {
   dispatch: Dispatch<Action>
 }
 
-export const DEFAULT_GRID: GridParams = { snap: false, size: 10, angleLock: false, angleStep: 45 }
+const DEFAULT_GRID: GridParams = { snap: false, size: 10, angleLock: false, angleStep: 45 }
 
 const stepLabels: Record<number, string> = {
   90: '90° — horizontal and vertical',

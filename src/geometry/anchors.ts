@@ -121,7 +121,7 @@ function predictSpacedCount(points: readonly Point[], spacing: number): number {
  * Splits every edge, including the closing edge back to the start, into equal parts no longer than
  * `spacing`. New points lie on the original edge; the start point stays first and is not repeated.
  */
-export function subdivide(points: readonly Point[], spacing: number): Point[] {
+function subdivide(points: readonly Point[], spacing: number): Point[] {
   const out: Point[] = []
   for (let i = 0; i < points.length; i++) {
     const a = points[i]

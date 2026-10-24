@@ -732,7 +732,7 @@ function axisTarget(tag: string): TargetSpec | undefined {
 }
 
 /** A seed moved on by `jumps` (a whole number), wrapped past the target's largest seed to 0; 0 jumps keep it exactly. */
-export function seedAfter(spec: TargetSpec, seed: number, jumps: number): number {
+function seedAfter(spec: TargetSpec, seed: number, jumps: number): number {
   if (jumps === 0) return seed
   const count = spec.max + 1
   return (((Math.trunc(seed) + Math.trunc(jumps)) % count) + count) % count
@@ -942,7 +942,7 @@ export function sharedRange(mappings: readonly Mapping[], targetId: string): rea
 const NO_VALUES: ReadonlyMap<string, number> = new Map()
 
 /** A switch mapping in Toggle or Follow flips its switch while its shaped value is at least this. */
-export const SWITCH_LEVEL = 0.5
+const SWITCH_LEVEL = 0.5
 
 /**
  * Whether a switch mapping fires now, from its shaped value (ShapingTracker): in Trigger while its pulse lasts (Smooth,
@@ -958,7 +958,7 @@ export function switchFires(mapping: Mapping, shaped: number): boolean {
 const drives = (mapping: Mapping) => mapping.enabled && mapping.depth !== 0 && Number.isFinite(mapping.depth)
 
 /** The id of Return to plain's beat pulse among the shaped values (no mapping row has it: theirs are m1, m2 and so on). */
-export const PLAIN_PULSE_ID = 'plain'
+const PLAIN_PULSE_ID = 'plain'
 
 /** The Experimental effects' Use switches: Return to plain turns those switched on off between beats. */
 export const PLAIN_SWITCHES: readonly TargetSpec[] = TARGETS.filter((spec) => /^experimental\.\w+\.enabled$/.test(spec.id))

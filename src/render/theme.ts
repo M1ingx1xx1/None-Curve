@@ -6,7 +6,7 @@
 import type { RenderColors } from './types'
 
 /** The tokens read from the stylesheet, by RenderColors field. Ink and highlight come from the palette instead. */
-export const THEME_TOKENS = {
+const THEME_TOKENS = {
   accent: '--accent',
   control: '--control',
   vertex: '--vertex',

@@ -45,7 +45,7 @@ export const STROKE_HIT_PX = 0.75 + 1.5 / 2
 const VERTEX_SCALE = 0.4
 
 /** Nonzero winding number of `contours` around (x, y). */
-export function windingAt(contours: readonly (readonly Point[])[], x: number, y: number): number {
+function windingAt(contours: readonly (readonly Point[])[], x: number, y: number): number {
   let wn = 0
   for (const pts of contours) {
     const n = pts.length
@@ -72,7 +72,7 @@ function segmentDistance2(ax: number, ay: number, bx: number, by: number, x: num
 }
 
 /** True when (x, y) lies within `d` of a side of the closed contours. */
-export function nearOutline(contours: readonly (readonly Point[])[], x: number, y: number, d: number): boolean {
+function nearOutline(contours: readonly (readonly Point[])[], x: number, y: number, d: number): boolean {
   const d2 = d * d
   for (const pts of contours) {
     const n = pts.length
@@ -91,7 +91,7 @@ const CURVE_STEPS = 16
 const flatSources = new WeakMap<SourceGlyph, Point[][]>()
 
 /** The original outline as polylines, for hit testing only: the canvas draws the curves themselves. */
-export function flattenSource(source: SourceGlyph): Point[][] {
+function flattenSource(source: SourceGlyph): Point[][] {
   let flat = flatSources.get(source)
   if (flat) return flat
   flat = source.contours.map((contour) => {

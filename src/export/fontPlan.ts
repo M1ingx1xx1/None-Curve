@@ -16,7 +16,7 @@ export const FONT_BOX_LIMITS = {
   span: 32766,
 } as const
 
-export const MAX_EXPORT_GLYPHS = 5000
+const MAX_EXPORT_GLYPHS = 5000
 /** Most outline points in one font file. Dense settings (Anchor spacing 1: thousands of points per
     glyph) would otherwise make files of tens of megabytes and exhaust the page's memory. */
 export const MAX_EXPORT_POINTS = 1_000_000

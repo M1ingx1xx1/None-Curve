@@ -57,7 +57,7 @@ interface CanvasViewportProps {
 
 const SIZE_OPEN_KEY = 'none-curve:canvas-size-open'
 
-export const outlineViews: { value: OutlineView; label: string; description: string }[] = [
+const outlineViews: { value: OutlineView; label: string; description: string }[] = [
   { value: 'source', label: 'Original', description: 'Original font curves' },
   { value: 'flattened', label: 'Flattened', description: 'Final polygon after the whole pipeline (straight edges only)' },
   { value: 'compare', label: 'Compare', description: 'Final polygon with the original curves overlaid' },
@@ -70,7 +70,7 @@ const toggles: { key: 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetric
   { key: 'showMetrics', label: 'Metrics' },
 ]
 
-export function Legend({ view }: { view: ViewToggles }) {
+function Legend({ view }: { view: ViewToggles }) {
   if (!(view.showSkeleton || view.showVertices || view.outline === 'compare')) return null
   return (
     <ul className="skeleton-legend" aria-label="Legend">

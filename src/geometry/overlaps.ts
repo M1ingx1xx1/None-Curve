@@ -23,7 +23,7 @@ import { distanceToSegment, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { curveLikeRuns, WARP_LIMITS } from './warp'
 
-export const OVERLAP_LIMITS = {
+const OVERLAP_LIMITS = {
   /** Grid cells per em, at least: whole font units unless the em has fewer units than this. */
   minGridPerEm: 1000,
   /** Contours smaller than this many square grid cells are too small to show, and are left out. */

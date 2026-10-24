@@ -708,10 +708,6 @@ input[type='range']:disabled {
   background: var(--bg);
 }
 
-.button-block {
-  justify-content: center;
-}
-
 .segmented {
   display: inline-flex;
   border: 1px solid var(--border-strong);
@@ -3321,13 +3317,6 @@ input.number-field {
 }
 
 /* ---- Export ---- */
-
-.section-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
 .export-formats {
   border: 0;

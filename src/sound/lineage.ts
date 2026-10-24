@@ -21,7 +21,7 @@ export const DECIMATION_LEVELS = [1, 2, 3, 4] as const
 const SPACING_SLACK_MS = 1
 
 /** Commits that are always shown: a flash edge, or the sliders' own. */
-export function mandatory(commit: PlannedCommit): boolean {
+function mandatory(commit: PlannedCommit): boolean {
   return commit.commit === null || plannedEdges(commit.adopted).length > 0
 }
 

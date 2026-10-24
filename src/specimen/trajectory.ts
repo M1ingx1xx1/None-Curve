@@ -129,7 +129,7 @@ export function turnAtSize(w: WhorlMotion | undefined, size: number): number {
  * turn, along the normal of the side the point faced then. So the size is the one that, turned back by its own turn,
  * agrees with itself: r · facing(φ − turn(size)) = size, which lies between r · cos(π/Sides) and r (found by halving).
  */
-export function whorlPreimage(w: WhorlMotion, dx: number, dy: number, ring: RingPolygon = ringPolygon(w.sides)): { size: number; turn: number } {
+function whorlPreimage(w: WhorlMotion, dx: number, dy: number, ring: RingPolygon = ringPolygon(w.sides)): { size: number; turn: number } {
   const r = Math.hypot(dx, dy)
   if (!(r > 0)) return { size: 0, turn: turnAtSize(w, 0) }
   const angle = Math.atan2(dy, dx)
@@ -270,7 +270,7 @@ export function along(
 export type WhorlArrays = Pick<WhorlTrack, 'a0' | 'turn' | 'sizeA' | 'sizeB' | 'ox' | 'oy' | 'ex' | 'ey' | 'rx' | 'ry' | 'mx' | 'my'>
 
 /** The centres and Sides a Whorl plan sweeps by: from the old outline's Whorl (or the new one's) to the new one's. */
-export function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlanParams {
+function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlanParams {
   return { startX: start.x, startY: start.y, endX: end.x, endY: end.y, sidesA: start.sides, sidesB: end.sides }
 }
 
@@ -279,7 +279,7 @@ export function whorlPlanParams(start: WhorlMotion, end: WhorlMotion): WhorlPlan
  * anchor's start angle and turn, its ring sizes, where the sweep starts and ends (from the moving centre), the straight
  * rest of the way and, with Sides changed, where the two halves meet. `from` or `to` may be missing, not both.
  */
-export function whorlTrackData(
+function whorlTrackData(
   from: WhorlMotion | undefined,
   to: WhorlMotion | undefined,
   sx: Float64Array,

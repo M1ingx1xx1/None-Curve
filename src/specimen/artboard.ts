@@ -102,7 +102,7 @@ export const DEFAULT_TYPOGRAPHY: TypographyParams = {
 }
 
 /** Space the anchors and Fit text keep between the text and every canvas edge, in canvas pixels. */
-export const EDGE_MARGIN_PX = 25
+const EDGE_MARGIN_PX = 25
 
 export const DEFAULT_ARTBOARD: ArtboardParams = { width: 1200, height: 800, scale: 1 }
 

@@ -225,7 +225,7 @@ const AFTER_THORN = 'experimental.dissolve.'
  * The targets that act on the whole canvas, never on one letter: the Typography sliders and the colours. Every letter
  * shows their shared live values; levels never scale them and turns never carry them.
  */
-export const isCanvasTarget = (id: string): boolean => id.startsWith('typography.') || id.startsWith('palette.')
+const isCanvasTarget = (id: string): boolean => id.startsWith('typography.') || id.startsWith('palette.')
 
 /** A variable font's axes: the turn state does not carry them, so turn groups show them as the shared values do. */
 const isAxisTarget = (id: string): boolean => id.startsWith('axis.')
@@ -499,7 +499,7 @@ export function pulsedTargets(mappings: readonly Mapping[], also: readonly strin
 }
 
 /** `state` with the values at `pulsed` taken from `live` (the same object when they are there already). */
-export function withPulsed(state: ThornState, live: ThornState, pulsed: readonly number[]): ThornState {
+function withPulsed(state: ThornState, live: ThornState, pulsed: readonly number[]): ThornState {
   if (pulsed.every((i) => state.values[i] === live.values[i])) return state
   const values = state.values.slice()
   for (const i of pulsed) values[i] = live.values[i]
@@ -507,7 +507,7 @@ export function withPulsed(state: ThornState, live: ThornState, pulsed: readonly
 }
 
 /** How long a turn group keeps its state before a small difference reaches it too: two rounds of turns. */
-export const THORN_SETTLE_MS = 2 * THORN_TURNS.groups * THORN_TURNS.gapMs
+const THORN_SETTLE_MS = 2 * THORN_TURNS.groups * THORN_TURNS.gapMs
 
 /**
  * Whether a turn group showing `shown` takes the live state at its turn: Thorn switched, another seed or number of

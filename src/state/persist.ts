@@ -36,7 +36,7 @@ export const SESSION_VERSION = 3
 /** Characters of text saved at most. */
 export const MAX_SAVED_TEXT = 10_000
 /** Wait this long after a change before saving (changes during a slider drag are saved once). */
-export const SAVE_DELAY_MS = 500
+const SAVE_DELAY_MS = 500
 
 /** The font to open again: a Google Fonts face is downloaded again; a local file can only be named. */
 export type SavedFont = ({ kind: 'google' } & GoogleFontRequest) | { kind: 'local'; fileName: string }
@@ -323,7 +323,7 @@ const SOUND_RANGES: { [K in keyof SoundSettings]: { min: number; max: number; st
 }
 
 /** The saved Sound settings: each a finite number, clamped to its slider and rounded to its step; otherwise the default. */
-export function readSound(saved: unknown): SoundSettings {
+function readSound(saved: unknown): SoundSettings {
   const source = isObject(saved) ? saved : {}
   const sound = { ...DEFAULT_SOUND_SETTINGS }
   for (const key of Object.keys(SOUND_RANGES) as (keyof SoundSettings)[]) {

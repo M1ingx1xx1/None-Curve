@@ -330,7 +330,7 @@ interface Warped {
  * crease. `marks` flags the input vertices that earlier effects added at creases. Null once the image
  * has more than `maxPoints` points.
  */
-export function warpContour(points: readonly Point[], warp: Warp, marks?: readonly boolean[], maxPoints = Infinity): Warped | null {
+function warpContour(points: readonly Point[], warp: Warp, marks?: readonly boolean[], maxPoints = Infinity): Warped | null {
   const n = points.length
   const images: Point[] = []
   const kinds: Kind[] = []

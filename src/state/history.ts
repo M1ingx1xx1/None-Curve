@@ -207,7 +207,7 @@ export function changedSettings(before: SettingsParams, after: SettingsParams): 
   return paths.length ? paths.sort().join(',') : null
 }
 
-export const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
 /** The undo shortcuts, for hints. */
 export const UNDO_KEYS = IS_MAC ? { undo: '⌘Z', redo: '⇧⌘Z' } : { undo: 'Ctrl+Z', redo: 'Ctrl+Y' }
@@ -215,7 +215,7 @@ export const UNDO_KEYS = IS_MAC ? { undo: '⌘Z', redo: '⇧⌘Z' } : { undo: 'C
 type ShortcutEvent = Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>
 
 /** Undo: ⌘Z on a Mac, Ctrl+Z elsewhere. Redo: the same with Shift, or Ctrl+Y off a Mac. */
-export function undoShortcut(e: ShortcutEvent, mac = IS_MAC): 'undo' | 'redo' | null {
+function undoShortcut(e: ShortcutEvent, mac = IS_MAC): 'undo' | 'redo' | null {
   const command = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
   if (!command || e.altKey) return null
   // The letter as typed; on a layout without Latin letters, the key in the Z or Y position.
@@ -228,7 +228,7 @@ export function undoShortcut(e: ShortcutEvent, mac = IS_MAC): 'undo' | 'redo' | 
 const TEXT_INPUTS = new Set(['text', 'search', 'number', 'email', 'url', 'tel', 'password'])
 
 /** A field with its own undo (a text box, the text area, editable content): the shortcut is left to it. */
-export function editsText(target: EventTarget | null): boolean {
+function editsText(target: EventTarget | null): boolean {
   if (typeof Element === 'undefined' || !(target instanceof Element)) return false
   if (target instanceof HTMLTextAreaElement) return true
   if (target instanceof HTMLInputElement) return TEXT_INPUTS.has(target.type)

@@ -32,7 +32,7 @@ export function highpassCoefficients(sr: number, hz: number = SOUND_LIMITS.minFe
 }
 
 /** A biquad in Direct Form I, its state in doubles, as one channel of a BiquadFilterNode. */
-export class Biquad {
+class Biquad {
   private x1 = 0
   private x2 = 0
   private y1 = 0
@@ -121,12 +121,12 @@ export interface AnalyserGrid {
 }
 
 /** Media ms of grid frame `k`. */
-export function gridTime(k: number, hz: number): number {
+function gridTime(k: number, hz: number): number {
   return (k * 1000) / hz
 }
 
 /** The sample after the last one grid frame `k`'s window holds (its window is the fftSize samples before it). */
-export function frameEnd(k: number, sr: number, grid: AnalyserGrid): number {
+function frameEnd(k: number, sr: number, grid: AnalyserGrid): number {
   const quantum = grid.quantum ?? 1
   return Math.floor(Math.round((gridTime(k, grid.hz) / 1000) * sr) / quantum) * quantum
 }

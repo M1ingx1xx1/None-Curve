@@ -58,7 +58,7 @@ export interface RecordOptions {
   previewLook: boolean
 }
 
-export const DEFAULT_RECORD_OPTIONS: RecordOptions = {
+const DEFAULT_RECORD_OPTIONS: RecordOptions = {
   format: 'mp4',
   length: 'until-stopped',
   fps: DEFAULT_VIDEO_FPS,

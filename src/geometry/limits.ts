@@ -191,7 +191,7 @@ export function whorlIsOn(params: WhorlParams | undefined): boolean {
 }
 
 /** True when Whorl goes beyond its safe range, so the letter folds onto itself. */
-export function whorlFolds(params: WhorlParams | undefined): boolean {
+function whorlFolds(params: WhorlParams | undefined): boolean {
   return whorlIsOn(params) && Math.abs(params!.amount) > 1
 }
 
@@ -251,7 +251,7 @@ export function slipstreamBands(params: SlipstreamParams): { gust: number; fade:
 }
 
 /** True when Slipstream redraws the outline to make its cuts (see slipstreamTrailsAndCuts). */
-export function slipstreamMerges(params: SlipstreamParams): boolean {
+function slipstreamMerges(params: SlipstreamParams): boolean {
   return slipstreamIsOn(params) && wholeCount(params.cuts, SLIPSTREAM_LIMITS.maxCuts) > 0
 }
 

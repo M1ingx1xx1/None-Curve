@@ -48,7 +48,7 @@ export function roundTolerance(tol: number): number {
 }
 
 /** Where a tolerance sits on the Tolerance range input (0–100). */
-export const toleranceToSlider = (tol: number) => (TOLERANCE.slider.max * Math.log(tol / TOLERANCE.min)) / Math.log(TOLERANCE.max / TOLERANCE.min)
+const toleranceToSlider = (tol: number) => (TOLERANCE.slider.max * Math.log(tol / TOLERANCE.min)) / Math.log(TOLERANCE.max / TOLERANCE.min)
 
 /** The tolerance at a position of the Tolerance range input (0–100), rounded by roundTolerance. */
 export const toleranceFromSlider = (pos: number) =>

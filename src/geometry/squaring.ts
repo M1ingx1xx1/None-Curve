@@ -24,9 +24,9 @@ export interface SquaringParams {
 }
 
 /** Mean deviation from the ellipse fitted to the bounding box, below which a contour counts as fully round. */
-export const ROUND_FULL = 0.06
+const ROUND_FULL = 0.06
 /** Mean deviation above which a contour is not treated as round at all. */
-export const ROUND_NONE = 0.16
+const ROUND_NONE = 0.16
 
 export interface SquaringStats {
   applied: boolean
@@ -137,7 +137,7 @@ function boundingBox(points: readonly Point[]): Box | null {
  * O, o, 0), 0 for clearly non-round contours (triangles, stems, S-curves), linear in between. The
  * deviation is the edge-length-weighted mean of |r₂ − 1| in normalized box coordinates.
  */
-export function roundnessWeight(points: readonly Point[], box: Box): number {
+function roundnessWeight(points: readonly Point[], box: Box): number {
   const n = points.length
   let sum = 0
   let total = 0

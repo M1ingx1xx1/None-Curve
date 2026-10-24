@@ -19,7 +19,7 @@ interface RandomAnchorControlsProps {
   dispatch: Dispatch<Action>
 }
 
-export const DEFAULT_RANDOM: RandomAnchorParams = { enabled: false, density: 12, randomness: 1, keepCorners: true, seed: 1 }
+const DEFAULT_RANDOM: RandomAnchorParams = { enabled: false, density: 12, randomness: 1, keepCorners: true, seed: 1 }
 const HISTORY_LENGTH = 6
 
 /** A fresh seed for the Shuffle button. Only the UI picks seeds at random; the geometry stays deterministic. */

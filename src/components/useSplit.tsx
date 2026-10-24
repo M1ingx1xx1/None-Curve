@@ -83,7 +83,7 @@ function fit(values: number[], minShares: number[]): number[] {
  * the user's choice and the shown value is fitted to what fits right now, so a smaller window does
  * not lose the preference.
  */
-export function useSplits<T extends HTMLElement>({ storageKey, defaults, axis, mins, cssVars }: SplitsOptions) {
+function useSplits<T extends HTMLElement>({ storageKey, defaults, axis, mins, cssVars }: SplitsOptions) {
   const containerRef = useRef<T>(null)
   const [values, setValues] = useState(() => readStored(storageKey, defaults))
   const [size, setSize] = useState(0)

@@ -70,7 +70,7 @@ const CSS2_ENDPOINT = 'https://fonts.googleapis.com/css2'
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900]
 
 /** CSS2 URL for these styles of a family (every weight, upright and italic, by default). */
-export function css2Url(family: string, styles = [0, 1].flatMap((ital) => WEIGHTS.map((w) => `${ital},${w}`))): string {
+function css2Url(family: string, styles = [0, 1].flatMap((ital) => WEIGHTS.map((w) => `${ital},${w}`))): string {
   return `${CSS2_ENDPOINT}?family=${encodeURIComponent(family).replace(/%20/g, '+')}:ital,wght@${styles.join(';')}`
 }
 

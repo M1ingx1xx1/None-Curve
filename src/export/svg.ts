@@ -59,7 +59,7 @@ export function outlineStrokeWidth(unitsPerPx: number): number {
 }
 
 /** Removes characters that are not allowed in XML 1.0, then escapes markup characters. */
-export function escapeXml(text: string): string {
+function escapeXml(text: string): string {
   return text
     // The control characters XML 1.0 does not allow.
     // eslint-disable-next-line no-control-regex
