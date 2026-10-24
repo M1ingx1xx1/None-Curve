@@ -1,7 +1,9 @@
 // ESLint flat config: the recommended JavaScript, TypeScript (without type information) and React hooks rules.
-// `npm run lint` checks the whole project; CI runs it before the tests.
+// `npm run lint` checks the whole project; CI runs it before the tests. Layout is Prettier's (`npm run format`), so
+// eslint-config-prettier turns off every rule that would argue with it.
 
 import js from '@eslint/js'
+import prettier from 'eslint-config-prettier'
 import { defineConfig } from 'eslint/config'
 import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
@@ -29,4 +31,5 @@ export default defineConfig(
     files: ['scripts/**', 'tests/**', '*.config.{js,ts}'],
     languageOptions: { globals: { ...globals.node } },
   },
+  prettier,
 )

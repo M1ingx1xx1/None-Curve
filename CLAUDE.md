@@ -63,6 +63,7 @@ When compacting, keep: the current task card, files changed and why, decisions t
 
 - Type-check and build: `npm run build` (also type-checks `tests/` and `scripts/`)
 - Lint: `npm run lint` (ESLint over the whole project; CI runs it before the tests)
+- Format: `npm run format` (Prettier over code and config; docs, YAML and JSON are left alone); CI runs `npm run format:check`
 - Tests: `npm test` (fast suite, well under a minute; CI runs it with lint and the build on PRs into `develop`); `npm run test:slow` (the test track and every glyph of both fixture fonts, about 3 minutes)
 - Test track: `npm run test-track` writes `test-audio/sound-test.wav` (rendered, not committed)
 - Dev server: preview_start `dev` (port 5173), never through Bash
