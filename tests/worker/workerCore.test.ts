@@ -95,6 +95,30 @@ describe('geometry worker core', async () => {
     expect(typeof times(2)[2]).toBe('number')
   })
 
+  it('keeps a font sent again open, with its cache (a switch back to it)', async () => {
+    const w = worker()
+    const times = (requestId: number) => w.of(requestId).flatMap((m) => (m.type === 'results' ? (m.times ?? []) : []))
+    w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
+    w.send(compute(1, glyphs.slice(0, 2)))
+    await w.until(1)
+    w.send({ type: 'font', fontId: 'roboto', bytes: roboto, source: robotoSource })
+    w.send(compute(2, glyphs.slice(0, 2)))
+    await w.until(2)
+    expect(times(2)).toEqual([null, null])
+  })
+
+  it('opens a font sent again after it failed to open', async () => {
+    const w = worker()
+    const junk = new Uint8Array([1, 2, 3, 4])
+    w.send({ type: 'font', fontId: 'f', bytes: junk, source: localSource('junk.ttf', junk) })
+    w.send(compute(1, glyphs.slice(0, 1), BASE, 'f'))
+    await w.until(1)
+    w.send({ type: 'font', fontId: 'f', bytes: roboto, source: robotoSource })
+    w.send(compute(2, glyphs.slice(0, 1), BASE, 'f'))
+    await w.until(2)
+    expect(w.ended(2)?.type).toBe('done')
+  })
+
   it('answers a request for a font it does not have with failed (no-font)', async () => {
     const w = worker()
     w.send(compute(7, glyphs.slice(0, 2)))
