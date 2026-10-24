@@ -18,16 +18,19 @@ import {
   copyToTexture,
   deletePlan,
   deleteShape,
-  fanIndices,
+  fanLength,
   GPU_LIMITS,
   GpuLru,
+  paddedFloats,
   planSlot,
   positionsTexture,
-  segmentIndices,
+  segmentLength,
   shapeContours,
-  texRows,
+  texSize,
   uploadPlan,
   uploadShape,
+  writeFan,
+  writeSegments,
   type Box,
   type GpuPlan,
   type GpuShape,
@@ -38,12 +41,19 @@ import { hitFrame } from './hitTest'
 import { glyphMatrix, type Matrix } from './strokes'
 import { parseColor, type Rgba } from './theme'
 import type { GlideFrame, GlyphRenderer, RenderHit, RenderStyle, RenderView, SourceLookup } from './types'
-import { artboardMatrix, canvasCull, canvasMatrix, hitOptions, NO_CULL, scenePoint, sizeBackingStore } from './view'
+import {
+  artboardMatrix,
+  canvasCull,
+  canvasMatrix,
+  COMPARE_ALPHA,
+  hitOptions,
+  MITER_LIMIT,
+  NO_CULL,
+  OUTLINE_PX,
+  scenePoint,
+  sizeBackingStore,
+} from './view'
 import { COLOR_FS, COVER_VS, DISCARD_FS, EVAL_VS, FILL_VS, PATH_VS, STROKE_VS } from './webglShaders'
-
-const OUTLINE_PX = 1.5
-const MITER_LIMIT = 4
-const COMPARE_ALPHA = 0.35
 
 interface Program {
   program: WebGLProgram
@@ -83,8 +93,11 @@ function compile(
   return { program, uniforms: locations }
 }
 
+/** Colours kept parsed; Sound rewrites the ink every frame, so the cache starts over past this many. */
+const COLOR_CACHE_MAX = 256
+
 /** A colour the theme or palette gave, as numbers; anything parseColor cannot read goes through a 2D canvas. */
-function rgbaOf(color: string, cache: Map<string, Rgba>): Rgba {
+export function rgbaOf(color: string, cache: Map<string, Rgba>): Rgba {
   let rgba = cache.get(color)
   if (rgba) return rgba
   rgba = parseColor(color) ?? undefined
@@ -97,6 +110,7 @@ function rgbaOf(color: string, cache: Map<string, Rgba>): Rgba {
     }
   }
   rgba ??= [0, 0, 0, 1]
+  if (cache.size >= COLOR_CACHE_MAX) cache.clear()
   cache.set(color, rgba)
   return rgba
 }
@@ -113,13 +127,32 @@ interface Item {
   bounds: Box
 }
 
-/** The frame's CPU in-between polygons, uploaded together: positions (and their texture), fans and segments. */
+/** `a` when it holds `n`, else a new array at least twice as long. */
+function grown<T extends Float32Array<ArrayBuffer> | Uint32Array<ArrayBuffer>>(
+  a: T,
+  n: number,
+  make: (n: number) => T,
+): T {
+  return a.length >= n ? a : make(Math.max(n, 2 * a.length))
+}
+
+/**
+ * The frame's CPU in-between polygons, uploaded together: positions (and their texture), fans and segments. The CPU
+ * arrays, the buffers and the texture grow as frames need them and are reused, so a frame allocates nothing once they
+ * are large enough, and uploads only what it fills.
+ */
 class Batch {
   positions: WebGLBuffer
   fan: WebGLBuffer
   segments: WebGLBuffer
   texture: WebGLTexture | null = null
-  rows = 0
+  /** Positions the texture holds. */
+  private capacity = 0
+  private positionData = new Float32Array(0)
+  private fanData = new Uint32Array(0)
+  private segData = new Uint32Array(0)
+  /** Bytes each buffer holds. */
+  private readonly sizes = new Map<WebGLBuffer, number>()
   fill: WebGLVertexArrayObject
   stroke: WebGLVertexArrayObject
 
@@ -146,18 +179,25 @@ class Batch {
   /** Uploads the polygons; returns each one's offsets. */
   upload(polygons: PolygonGlyph[]): Item['batch'][] {
     const { gl } = this
+    const shapes = polygons.map((p) => shapeContours(p.contours))
     let points = 0
-    for (const p of polygons) for (const c of p.contours) points += c.points.length
-    const rows = texRows(points)
-    const positions = new Float32Array(2 * rows * GPU_LIMITS.texWidth)
-    const fans: Uint32Array[] = []
-    const segs: Uint32Array[] = []
-    const offsets: Item['batch'][] = []
-    let base = 0
     let fanTotal = 0
     let segTotal = 0
-    for (const polygon of polygons) {
-      const contours = shapeContours(polygon.contours)
+    for (const contours of shapes) {
+      for (const c of contours) points += c.n
+      fanTotal += fanLength(contours)
+      segTotal += segmentLength(contours)
+    }
+    const floats = paddedFloats(points)
+    const positions = (this.positionData = grown(this.positionData, floats, (n) => new Float32Array(n)))
+    const fans = (this.fanData = grown(this.fanData, Math.max(3, fanTotal), (n) => new Uint32Array(n)))
+    const segs = (this.segData = grown(this.segData, Math.max(4, segTotal), (n) => new Uint32Array(n)))
+    const offsets: Item['batch'][] = []
+    let base = 0
+    let fanEnd = 0
+    let segEnd = 0
+    polygons.forEach((polygon, j) => {
+      const contours = shapes[j]
       let i = 2 * base
       for (const { points: pts } of polygon.contours) {
         for (const p of pts) {
@@ -165,44 +205,45 @@ class Batch {
           positions[i++] = p.y
         }
       }
-      const fan = fanIndices(contours, base)
-      const seg = segmentIndices(contours, base)
-      offsets.push({ fanOffset: fanTotal, fanCount: fan.length, segOffset: segTotal, segCount: seg.length / 4 })
-      fans.push(fan)
-      segs.push(seg)
-      fanTotal += fan.length
-      segTotal += seg.length / 4
+      const fanStart = fanEnd
+      const segStart = segEnd
+      fanEnd = writeFan(fans, fanEnd, contours, base)
+      segEnd = writeSegments(segs, segEnd, contours, base)
+      offsets.push({
+        fanOffset: fanStart,
+        fanCount: fanEnd - fanStart,
+        segOffset: segStart / 4,
+        segCount: (segEnd - segStart) / 4,
+      })
       base += contours.reduce((n, c) => n + c.n, 0)
-    }
-    const fanAll = new Uint32Array(Math.max(3, fanTotal))
-    let k = 0
-    for (const f of fans) {
-      fanAll.set(f, k)
-      k += f.length
-    }
-    const segAll = new Uint32Array(Math.max(4, segTotal * 4))
-    k = 0
-    for (const s of segs) {
-      segAll.set(s, k)
-      k += s.length
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positions)
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.segments)
-    gl.bufferData(gl.ARRAY_BUFFER, segAll, gl.DYNAMIC_DRAW)
+    })
+    this.put(gl.ARRAY_BUFFER, this.positions, positions, floats)
+    this.put(gl.ARRAY_BUFFER, this.segments, segs, Math.max(4, segEnd))
     gl.bindBuffer(gl.ARRAY_BUFFER, null)
     gl.bindVertexArray(this.fill)
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, fanAll, gl.DYNAMIC_DRAW)
+    this.put(gl.ELEMENT_ARRAY_BUFFER, this.fan, fans, Math.max(3, fanEnd))
     gl.bindVertexArray(null)
-    if (rows > this.rows || !this.texture) {
+    if (points > this.capacity || !this.texture) {
       if (this.texture) gl.deleteTexture(this.texture)
-      this.texture = positionsTexture(gl, rows * GPU_LIMITS.texWidth)
-      this.rows = rows
+      this.capacity = Math.max(points, 2 * this.capacity)
+      this.texture = positionsTexture(gl, this.capacity)
     }
+    // A texture made for more positions holds this frame's at the same texels (texSize fits inside it).
+    const [w, h] = texSize(points)
     gl.bindTexture(gl.TEXTURE_2D, this.texture)
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GPU_LIMITS.texWidth, rows, gl.RG, gl.FLOAT, positions)
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RG, gl.FLOAT, positions, 0)
     gl.bindTexture(gl.TEXTURE_2D, null)
     return offsets
+  }
+
+  /** The first `length` values of `data` into `buffer` (bound here; the fan's through the fill array), grown as needed. */
+  private put(target: number, buffer: WebGLBuffer, data: Float32Array | Uint32Array, length: number) {
+    const { gl } = this
+    gl.bindBuffer(target, buffer)
+    if (4 * length > (this.sizes.get(buffer) ?? 0)) {
+      gl.bufferData(target, data, gl.DYNAMIC_DRAW)
+      this.sizes.set(buffer, data.byteLength)
+    } else gl.bufferSubData(target, 0, data, 0, length)
   }
 
   dispose() {
@@ -219,7 +260,7 @@ class Batch {
 export interface WebGLOptions {
   /** The canvas stacked above for the detail layer (Canvas2D), or null to draw none. */
   detailCanvas: HTMLCanvasElement | null
-  /** Called once when the context is lost: the surface should make another renderer. */
+  /** Called once when the context is lost: the surface makes another renderer once it is restored (or another kind). */
   onLost?: () => void
 }
 
@@ -248,7 +289,7 @@ export class WebGL2Renderer implements GlyphRenderer {
   private readonly coverProgram: Program
   private readonly strokeProgram: Program
   private readonly emptyArray: WebGLVertexArrayObject
-  private readonly onLost: () => void
+  private readonly onLost: (e: Event) => void
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -278,7 +319,9 @@ export class WebGL2Renderer implements GlyphRenderer {
     this.feedback = gl.createTransformFeedback()!
     this.blank = positionsTexture(gl, 1)
     this.emptyArray = gl.createVertexArray()!
-    this.onLost = () => {
+    this.onLost = (e: Event) => {
+      // Prevented, so the browser may restore the context (webglcontextrestored): the surface then makes a new renderer.
+      e.preventDefault()
       if (this.broken) return
       this.broken = true
       options.onLost?.()

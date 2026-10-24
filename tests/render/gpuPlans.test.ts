@@ -13,12 +13,14 @@ import {
   GpuLru,
   KIND,
   PATH_STRIDE,
+  paddedFloats,
   pathRows,
   planBounds,
   planContours,
   segmentIndices,
   slotBytes,
   texRows,
+  texSize,
 } from '../../src/render/gpuPlans'
 import { allFixtures, meshFixture, straightFixture, whorlFixture } from './plans'
 
@@ -109,10 +111,19 @@ describe('plan bounds', () => {
 })
 
 describe('the GPU memory LRU', () => {
-  it('sizes position slots by texture rows', () => {
+  it('sizes position slots by their points, full rows only past one', () => {
+    const W = GPU_LIMITS.texWidth
     expect(texRows(1)).toBe(1)
-    expect(texRows(GPU_LIMITS.texWidth + 1)).toBe(2)
-    expect(slotBytes(10)).toBe(2 * GPU_LIMITS.texWidth * 8)
+    expect(texRows(W + 1)).toBe(2)
+    expect(texSize(0)).toEqual([1, 1])
+    expect(texSize(40)).toEqual([40, 1])
+    expect(texSize(W)).toEqual([W, 1])
+    expect(texSize(W + 1)).toEqual([W, 2])
+    expect(paddedFloats(40)).toBe(80)
+    expect(paddedFloats(W + 1)).toBe(4 * W)
+    // A 40-point glyph's buffer and texture: 640 bytes, not 32 KB.
+    expect(slotBytes(40)).toBe(2 * 40 * 8)
+    expect(slotBytes(W + 1)).toBe(2 * 2 * W * 8)
   })
 
   it('drops idle entries, then the oldest until under the byte cap, never one used this frame', () => {

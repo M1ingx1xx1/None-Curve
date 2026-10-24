@@ -22,6 +22,12 @@
 // Glide never decides what is computed or when: the live scheduler, its flash limit and its frame rate work as without
 // it. The flash limit counts how often the shapes change; Glide only softens each change on screen.
 //
+// Keyframes (NOCUR-91, sound/keyframes.ts): a large change can come with in-between scenes, computed like any frame.
+// A glyph whose outline differs at them glides through them leg by leg: the eased progress runs over the legs evenly,
+// each leg a morph of its own (along its effect's path), so the glyph passes through every keyframe's real outline on
+// its way. Such a glyph is always paired here, within the frame budget; when a leg cannot morph (too large), it glides
+// straight from its old outline to its new one, as without keyframes.
+//
 // Plans can come from the geometry workers (a PlanSource, state/aheadGeometry.ts). A precomputed commit names each
 // occurrence's glide lineage: the worker planned that glyph's glide ahead, from the shape it worked out would be on
 // screen, and the plan is used, starting at once, when the shape on screen matches (an in-between shape is told by the
@@ -33,7 +39,7 @@ import type { GlideFrame, GlyphMorph } from '../render/types'
 import type { CommitTiming } from '../sound/timelineTypes'
 import type { ChainTag, PlanSource } from '../state/aheadTypes'
 import { morphAt, planMorph, settleInBetween, type MorphPlan } from './morph'
-import type { PlacedGlyph, SpecimenScene } from './scene'
+import type { Extent, PlacedGlyph, SpecimenScene } from './scene'
 
 export const GLIDE_LIMITS = {
   /**
@@ -62,6 +68,8 @@ export interface GlideTarget {
   key: string
   /** A precomputed commit's glide lineages (per occurrence, reading order) and its place in the chain; none on the live path. */
   chain?: Pick<CommitTiming, 'lineage' | 'seq' | 'prevSeq'> | null
+  /** The scenes to pass through on the way (keyframes, oldest first); one that does not set the same glyphs is skipped. */
+  keyframes?: readonly SpecimenScene[] | null
 }
 
 /** Where SceneGlide gets plans from the workers, and how it tells computed outlines apart. */
@@ -87,6 +95,20 @@ interface GlyphGlide {
   fromY: number
   /** The worker's chained plan this glide runs (its in-between shapes are tagged with it). */
   chain?: { lineage: number; seq: number }
+  /**
+   * Through keyframes: one leg per pair of outlines in a row, from `from` through each keyframe's to `to`, and once
+   * paired, each leg's plan (`plan` is then the last leg's).
+   */
+  legs?: { from: PolygonGlyph; to: PolygonGlyph; plan?: MorphPlan }[]
+}
+
+/** The leg of `glide` at eased progress `q` (0 < q < 1) and how far along it, or the glide's own plan without legs. */
+function legAt(glide: GlyphGlide, plan: MorphPlan, q: number): { plan: MorphPlan; p: number } {
+  const legs = glide.legs
+  if (!legs) return { plan, p: q }
+  const at = q * legs.length
+  const i = Math.min(legs.length - 1, Math.floor(at))
+  return { plan: legs[i].plan!, p: at - i }
 }
 
 /** A plan asked of a worker for one old and new outline (glyphs on the same outlines share it), and its answer. */
@@ -100,6 +122,8 @@ interface Tween {
   start: number
   duration: number
   fromSlant: number
+  /** One per line of the target: where its baseline glides from (with its glyphs, as line height changes). */
+  fromBaselines: number[]
   /** One per glyph of the target, in reading order; null: shown as it is. */
   glyphs: (GlyphGlide | null)[]
   /** Glyphs not paired yet. */
@@ -173,7 +197,10 @@ export class SceneGlide {
     this.target = scene
     this.key = options.key
     this.last = null
-    this.tween = glide ? this.begin(shown!, scene!, now, options.durationMs, options.chain ?? null, before) : null
+    const keyframes = glide ? (options.keyframes ?? []).filter((k) => sameGlyphs(k, scene!)) : []
+    this.tween = glide
+      ? this.begin(shown!, scene!, now, options.durationMs, options.chain ?? null, before, keyframes)
+      : null
     if (before) this.dropAsks(before, this.tween)
   }
 
@@ -185,10 +212,12 @@ export class SceneGlide {
     // Repeated letters on the same glide share one outline, so the next glide pairs them once.
     const shared = new Map<MorphPlan, { start: number; polygon: PolygonGlyph }>()
     const outline = (glide: GlyphGlide, plan: MorphPlan, start: number) => {
-      const known = shared.get(plan)
+      // Through keyframes, the glyph shares its outline with no other (its legs start from its own shape).
+      const known = glide.legs ? undefined : shared.get(plan)
       if (known && known.start === start) return known.polygon
       const q = easeOut((now - start) / tween.duration)
-      const polygon = q >= GLIDE_LIMITS.arrived ? plan.to : morphAt(plan, q)
+      const leg = legAt(glide, plan, q)
+      const polygon = q >= GLIDE_LIMITS.arrived ? plan.to : morphAt(leg.plan, leg.p)
       // A worker's chain may go on from this shape: it is told by what it was drawn from.
       if (glide.chain && polygon !== plan.to)
         this.chainTags.set(polygon, { lineage: glide.chain.lineage, seq: glide.chain.seq, q })
@@ -196,12 +225,13 @@ export class SceneGlide {
       return polygon
     }
     let k = 0
-    const lines = target.lines.map((line) => ({
+    const p = easeOut((now - tween.start) / tween.duration)
+    const lines = target.lines.map((line, l) => ({
       ...line,
+      baseline: tween.fromBaselines[l] + (line.baseline - tween.fromBaselines[l]) * p,
       glyphs: line.glyphs.map((g): PlacedGlyph => {
         const glide = tween.glyphs[k++]
         if (!glide) return g
-        const p = easeOut((now - tween.start) / tween.duration)
         const x = glide.fromX + (g.x - glide.fromX) * p
         const y = glide.fromY + (g.y - glide.fromY) * p
         if (glide.plan === undefined) return { ...g, x, y, polygon: glide.from }
@@ -209,7 +239,6 @@ export class SceneGlide {
         return { ...g, x, y, polygon: outline(glide, glide.plan, glide.start) }
       }),
     }))
-    const p = easeOut((now - tween.start) / tween.duration)
     return { ...target, lines, slant: tween.fromSlant + (target.slant - tween.fromSlant) * p }
   }
 
@@ -220,6 +249,7 @@ export class SceneGlide {
     duration: number,
     chain: GlideTarget['chain'] | null,
     before: Tween | null,
+    keyframes: readonly SpecimenScene[] = [],
   ): Tween | null {
     const glyphs: (GlyphGlide | null)[] = []
     let moves = shown.slant !== scene.slant
@@ -248,7 +278,17 @@ export class SceneGlide {
           fromX: a.x,
           fromY: a.y,
         }
-        if (reshaped && source && chain!.lineage && k < chain!.lineage.length) {
+        if (reshaped && keyframes.length > 0) {
+          // The outlines on the way: the glyph's at each keyframe, each once in a row.
+          const stops: PolygonGlyph[] = [a.polygon!]
+          for (const keyframe of keyframes) {
+            const at = keyframe.lines[l].glyphs[i].polygon
+            if (at && at !== stops[stops.length - 1] && at !== b.polygon) stops.push(at)
+          }
+          stops.push(b.polygon!)
+          if (stops.length > 2) glide.legs = stops.slice(1).map((to, s) => ({ from: stops[s], to }))
+        }
+        if (reshaped && !glide.legs && source && chain!.lineage && k < chain!.lineage.length) {
           // The worker's plan for this glyph's lineage, when it starts from the shape on screen.
           const lineage = chain!.lineage[k]
           const fromKey = this.sources.keyOf?.(a.polygon!) ?? null
@@ -278,7 +318,8 @@ export class SceneGlide {
         glyphs.push(glide)
       }
     }
-    return moves ? { start: now, duration, fromSlant: shown.slant, glyphs, pending, asks } : null
+    const fromBaselines = shown.lines.map((line) => line.baseline)
+    return moves ? { start: now, duration, fromSlant: shown.slant, fromBaselines, glyphs, pending, asks } : null
   }
 
   /** Cancels the plans asked of the workers that the new tween does not wait on. */
@@ -296,7 +337,9 @@ export class SceneGlide {
     const count = tween.glyphs.length
     if (count === 0) return
     const source = this.sources.workerPlans ? (this.sources.plans?.() ?? null) : null
-    if (source) return this.ask(tween, now, source)
+    // Glyphs through keyframes are paired here even with worker plans.
+    if (source) this.ask(tween, now, source)
+    if (tween.pending === 0) return
     const started = this.clock()
     const first = this.cursor % count
     // At least one glyph each frame, however slow, so the glide always moves on.
@@ -304,14 +347,16 @@ export class SceneGlide {
     for (let k = 0; k < count && tween.pending > 0; k++) {
       const index = (first + k) % count
       const glide = tween.glyphs[index]
-      if (!glide || glide.plan !== undefined) continue
-      const known = this.plans.get(glide.from!)?.has(glide.to!)
+      if (!glide || glide.plan !== undefined || (source && !glide.legs)) continue
+      const known = glide.legs
+        ? glide.legs.every((leg) => this.plans.get(leg.from)?.has(leg.to))
+        : this.plans.get(glide.from!)?.has(glide.to!)
       if (!known && planned && this.clock() - started > GLIDE_LIMITS.planBudgetMs) {
         this.cursor = index
         return
       }
       if (!known) planned = true
-      glide.plan = this.planFor(glide.from!, glide.to!)
+      glide.plan = glide.legs ? this.planLegs(glide) : this.planFor(glide.from!, glide.to!)
       glide.start = now
       tween.pending--
       this.cursor = index + 1
@@ -321,7 +366,7 @@ export class SceneGlide {
   /** The worker side of `pair`: answered asks start their glyphs at `now`; glyphs not asked yet are asked. */
   private ask(tween: Tween, now: number, source: PlanSource) {
     for (const glide of tween.glyphs) {
-      if (!glide || glide.plan !== undefined) continue
+      if (!glide || glide.plan !== undefined || glide.legs) continue
       const from = glide.from!
       const to = glide.to!
       const known = this.plans.get(from)
@@ -355,6 +400,23 @@ export class SceneGlide {
         tween.pending--
       }
     }
+  }
+
+  /**
+   * Pairs every leg of `glide` and returns the last one's plan; when a leg cannot morph, the glide goes straight from
+   * its old outline to its new one instead (its legs dropped).
+   */
+  private planLegs(glide: GlyphGlide): MorphPlan | null {
+    const legs = glide.legs!
+    for (const leg of legs) {
+      const plan = this.planFor(leg.from, leg.to)
+      if (!plan) {
+        glide.legs = undefined
+        return this.planFor(glide.from!, glide.to!)
+      }
+      leg.plan = plan
+    }
+    return legs[legs.length - 1].plan!
   }
 
   private planFor(from: PolygonGlyph, to: PolygonGlyph): MorphPlan | null {
@@ -391,8 +453,10 @@ export class SceneGlide {
     const morphs: (GlyphMorph | null)[] = []
     let morphing = false
     let k = 0
-    const lines = target.lines.map((line) => {
-      let changed = false
+    const lines = target.lines.map((line, l) => {
+      // The line's baseline and ink travel with its glyphs, so culling sees the line where it is drawn.
+      const baseline = lerp(tween.fromBaselines[l], line.baseline)
+      let changed = baseline !== line.baseline
       const glyphs = line.glyphs.map((g): PlacedGlyph => {
         const glide = tween.glyphs[k++]
         let morph: GlyphMorph | null = null
@@ -401,11 +465,11 @@ export class SceneGlide {
           if (glide) polygon = glide.from
         } else if (glide.plan) {
           const q = easeOut((now - glide.start) / tween.duration)
-          if (!(q > 0)) polygon = glide.plan.from
+          if (!(q > 0)) polygon = glide.legs ? glide.legs[0].plan!.from : glide.plan.from
           else if (q >= 1) polygon = glide.plan.to
           else {
-            // The target's polygon stays in the layout; the morph is drawn in its place.
-            morph = { plan: glide.plan, p: q }
+            // The target's polygon stays in the layout; the morph (of the leg it is on) is drawn in its place.
+            morph = legAt(glide, glide.plan, q)
             polygon = glide.plan.to
             morphing = true
           }
@@ -416,9 +480,9 @@ export class SceneGlide {
         const y = lerp(glide.fromY, g.y)
         if (polygon === g.polygon && x === g.x && y === g.y) return g
         changed = true
-        return { ...g, x, y, polygon }
+        return { ...g, x, y, polygon, ink: shifted(g.ink, x - g.x, y - g.y) }
       })
-      return changed ? { ...line, glyphs } : line
+      return changed ? { ...line, glyphs, baseline, ink: inkOf(glyphs) } : line
     })
     const layout: SpecimenScene = { ...target, lines, slant: lerp(tween.fromSlant, target.slant) }
     let scene: SpecimenScene | undefined
@@ -431,6 +495,28 @@ export class SceneGlide {
     this.last = { now, frame }
     return frame
   }
+}
+
+/** The box moved by (dx, dy). */
+function shifted(box: Extent | null, dx: number, dy: number): Extent | null {
+  if (!box || (dx === 0 && dy === 0)) return box
+  return { minX: box.minX + dx, minY: box.minY + dy, maxX: box.maxX + dx, maxY: box.maxY + dy }
+}
+
+/** The glyphs' ink together (a line's), or null when none has any. */
+function inkOf(glyphs: readonly PlacedGlyph[]): Extent | null {
+  let ink: Extent | null = null
+  for (const { ink: b } of glyphs) {
+    if (!b) continue
+    if (!ink) ink = { ...b }
+    else {
+      ink.minX = Math.min(ink.minX, b.minX)
+      ink.minY = Math.min(ink.minY, b.minY)
+      ink.maxX = Math.max(ink.maxX, b.maxX)
+      ink.maxY = Math.max(ink.maxY, b.maxY)
+    }
+  }
+  return ink
 }
 
 /** A frame with nothing on its way: the scene as it is. */

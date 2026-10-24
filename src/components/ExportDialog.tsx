@@ -1,18 +1,19 @@
-import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react'
+import { memo, Suspense, useEffect, useRef, useState } from 'react'
 import type { FontNaming, GlyphSet } from '../export/fontPlan'
 import type { BuiltFont, ExportDialogProps, Format, Kept } from './ExportBody'
 import ErrorBoundary from './ErrorBoundary'
 import Icon from './Icon'
+import { lazyWithRetry } from './lazyWithRetry'
 
 // The body and the export code load on the first opening, not with the page.
-const ExportBody = lazy(() => import('./ExportBody'))
+const ExportBody = lazyWithRetry(() => import('./ExportBody'))
 
 /**
  * The dialog's shell stays mounted (showModal keeps its focus handling); its body, which plans the font export, follows
  * the geometry results and describes the pipeline, is mounted only while it is open, so a closed dialog does no work.
  */
 function ExportDialog(props: ExportDialogProps) {
-  const { open, onClose, font } = props
+  const { open, onClose, font, openOn } = props
   const dialogRef = useRef<HTMLDialogElement>(null)
   const firstRef = useRef<HTMLInputElement>(null)
   const [chosen, setFormat] = useState<Format>('svg')
@@ -39,11 +40,12 @@ function ExportDialog(props: ExportDialogProps) {
     const dialog = dialogRef.current
     if (!dialog) return
     if (open && !dialog.open) {
+      if (openOn) setFormat(openOn)
       dialog.showModal()
       firstRef.current?.focus()
     }
     if (!open && dialog.open) dialog.close()
-  }, [open])
+  }, [open, openOn])
 
   // New font: suggest a derived name (many licenses require renaming modified fonts).
   useEffect(() => {
@@ -86,7 +88,7 @@ function ExportDialog(props: ExportDialogProps) {
 
         {open && (
           <ErrorBoundary resetKey={font?.id ?? ''} label="The export options">
-            <Suspense fallback={null}>
+            <Suspense fallback={<p className="field-hint">Loading export options…</p>}>
               <ExportBody {...props} kept={kept} firstRef={firstRef} />
             </Suspense>
           </ErrorBoundary>

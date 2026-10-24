@@ -17,7 +17,7 @@ import ToolHead, { type ConfigNotice } from './components/ToolHead'
 import Workspace from './components/Workspace'
 import { useRecordingContext } from './export/recorder'
 import { RENDERER_CHOICE } from './render/createRenderer'
-import type { LoadedFont } from './font/model'
+import { ARTWORK_CODE_POINT, isArtwork, type LoadedFont } from './font/model'
 import type { GeometryParams, GlyphRef } from './geometry/types'
 import { getSoundEngine } from './sound/engine'
 import { useLiveDriving, useLiveFrame, useLiveLetters } from './sound/live'
@@ -53,6 +53,7 @@ import { DEFAULT_RESET_EXTRAS, resetHistory } from './state/reset'
 import type { AppState, EditorParams, SettingsParams, ViewToggles } from './state/types'
 import { useGeometry } from './state/useDerivedGeometry'
 import { useFontImport } from './state/useFontImport'
+import { onExportRequest } from './state/exportRequest'
 import { useSceneGlide } from './state/useGlide'
 
 /** Every parameter group but the canvas view: what undo restores and the session saves (never Thorn's derived canvasEm). */
@@ -125,8 +126,13 @@ export default function App({ restored }: AppProps) {
   const [previewScale, setPreviewScale] = useState(0)
   const { font, selectedGlyph } = state.document
   const { typography, palette, artboard } = state.params
-  // The text as shown and exported: the typed text with the letter case applied.
-  const displayText = useMemo(() => applyTextCase(text, typography.textCase), [text, typography.textCase])
+  // The text as shown and exported: the typed text with the letter case applied. An SVG artwork shows on its own,
+  // as its one character; the typed text is kept for the next font.
+  const artwork = isArtwork(font)
+  const displayText = useMemo(
+    () => (artwork ? String.fromCodePoint(ARTWORK_CODE_POINT) : applyTextCase(text, typography.textCase)),
+    [artwork, text, typography.textCase],
+  )
   // While Sound drives the letters, the canvas shows live parameters; the sliders (and exports) keep their own.
   const { flatten, random, squaring, anchors, grid, distortion, experimental } = state.params
   // Thorn's Reach is a share of the canvas diagonal: the diagonal in em rides on the geometry parameters, a
@@ -156,12 +162,8 @@ export default function App({ restored }: AppProps) {
   )
   // Without a font there are no letters to move: Sound does not drive.
   const live = useLiveFrame(drivenBase, font !== null)
-  const { derived, scene, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } = useGeometry(
-    state,
-    displayText,
-    baseParams,
-    live,
-  )
+  const { derived, scene, keyframes, layout, placement, scenePending, loadSliderScene, letterSlots, shownFont } =
+    useGeometry(state, displayText, baseParams, live)
   // The colours as shown and recorded: Sound's over the sliders'. Exports keep the sliders' own.
   const livePalette = live.look?.palette
   const shownPalette = useMemo(() => (livePalette ? { ...palette, ...livePalette } : palette), [palette, livePalette])
@@ -174,7 +176,7 @@ export default function App({ restored }: AppProps) {
   useLiveLetters(letterSlots)
   // Glide: while Sound moves the letters, the canvas, the preview and the video glide into each new shape (useGlide.ts).
   const driving = useLiveDriving()
-  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing)
+  const glide = useSceneGlide(scene, driving, `${font?.id ?? ''}\n${displayText}`, live.timing, keyframes)
 
   // The latest state and text, kept up to date between a change and the render that shows it: the undo
   // history reads them, and several changes in one event build on each other.
@@ -264,8 +266,21 @@ export default function App({ restored }: AppProps) {
 
   const [googleOpen, setGoogleOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  // The format the dialog opens on when asked from elsewhere (the Sound tab's Export video…); null: the last one.
+  const [exportOn, setExportOn] = useState<'video' | null>(null)
   const openGoogleFonts = useCallback(() => setGoogleOpen(true), [])
-  const openExport = useCallback(() => setExportOpen(true), [])
+  const openExport = useCallback(() => {
+    setExportOn(null)
+    setExportOpen(true)
+  }, [])
+  useEffect(
+    () =>
+      onExportRequest((format) => {
+        setExportOn(format)
+        setExportOpen(true)
+      }),
+    [],
+  )
 
   const [showAllHints, setShowAllHints] = useShowAllHints()
 
@@ -301,6 +316,11 @@ export default function App({ restored }: AppProps) {
   }, [])
   const insertGlyph = useCallback(
     (glyph: GlyphRef, insert: string) => {
+      // An SVG artwork's one glyph is shown on its own; it is only selected, and the typed text stays as it is.
+      if (isArtwork(current.current.state.document.font)) {
+        dispatch({ type: 'selectGlyph', glyph })
+        return
+      }
       const el = cursorPlaced.current ? textRef.current : null
       const typed = current.current.text
       const start = el ? Math.min(el.selectionStart, typed.length) : typed.length
@@ -359,9 +379,11 @@ export default function App({ restored }: AppProps) {
     (): Session => ({ ...session.current, mappings: mappingStore.getState().mappings, sound: soundSettings() }),
     [],
   )
-  // Storage full or blocked: the status bar says once that the settings will not be kept.
+  // Storage full or blocked: the status bar says that the settings will not be kept, until a save works again.
   const [saveFailed, setSaveFailed] = useState(false)
-  const [saver] = useState(() => createSessionSaver(readSessionNow, undefined, undefined, () => setSaveFailed(true)))
+  const [saver] = useState(() =>
+    createSessionSaver(readSessionNow, undefined, undefined, (saved) => setSaveFailed(!saved)),
+  )
   useEffect(
     () => saver.schedule(),
     [
@@ -693,8 +715,9 @@ export default function App({ restored }: AppProps) {
               </Glided>
             )
           }
-          textTools={
+          textTools={(fold) => (
             <TextTools
+              {...fold}
               typography={typography}
               palette={palette}
               livePalette={livePalette}
@@ -705,7 +728,7 @@ export default function App({ restored }: AppProps) {
               dispatch={edit}
               onInsertGlyph={insertGlyph}
             />
-          }
+          )}
           input={
             <InputPanel
               text={
@@ -767,6 +790,7 @@ export default function App({ restored }: AppProps) {
         precision={precision}
         onPrecisionChange={setPrecision}
         readConfig={readSessionNow}
+        openOn={exportOn}
       />
       {/* Renders only during a take: the canvas the video is captured from, drawn with the shapes as shown. */}
       <Glided store={glide} scene={scene}>

@@ -1,12 +1,26 @@
 // What the canvas renderers (Canvas2D, WebGL2) share about the view: the backing store's size, the base transform from
 // scene units to device pixels (the canvas's, with the Free drag, and the artboard's, which drawArtboard uses too), the
 // culling SpecimenView does (a line or glyph is drawn when its metric box, widened by an em, or its ink is in view), and
-// the hit options a style gives. Pure: no DOM.
+// the hit options a style gives, and the drawing constants both renderers and the hit test share. Pure: no DOM.
 
 import type { PlacedGlyph, Extent } from '../specimen/scene'
 import type { HitOptions } from './hitTest'
 import { multiply, type Matrix } from './strokes'
 import type { CanvasView, RenderStyle, RenderView, SourceLookup } from './types'
+
+/** Outline strokes, in CSS px (styles.css: .outline-stroke, .compare-source, .strip-missing). */
+export const OUTLINE_PX = 1.5
+/** Miter joins up to this many half-widths, bevelled past it (SVG's stroke-miterlimit). */
+export const MITER_LIMIT = 4
+/** Vertex dots are this share of the marker radius (GlyphLayers' VERTEX_SCALE). */
+export const VERTEX_SCALE = 0.4
+/** Compare's polygon fill opacity (styles.css). */
+export const COMPARE_ALPHA = 0.35
+
+/** A missing character's box (scene units, y down, not slanted): 80 % of its advance, 70 % of the ascender tall. */
+export function missingBox(g: { x: number; y: number; advance: number }, ascender: number) {
+  return { x: g.x + g.advance * 0.1, y: g.y - ascender * 0.7, width: g.advance * 0.8, height: ascender * 0.7 }
+}
 
 /** The canvas element's backing store. */
 export interface CanvasBacking {

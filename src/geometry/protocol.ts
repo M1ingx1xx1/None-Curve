@@ -106,9 +106,10 @@ export type WorkerResponse =
     }
   /**
    * Sent before each glyph: the page's watchdog hears the worker is alive, and knows which glyph (under
-   * which settings) to blame if it falls silent.
+   * which settings) to blame if it falls silent. It names its lane and font, so a glyph of a request the page has
+   * since replaced is still known for what it is.
    */
-  | { type: 'glyph'; requestId: number; key: string; index: number }
+  | { type: 'glyph'; requestId: number; lane: Exclude<Lane, 'plan'>; fontId: string; key: string; index: number }
   /** Every compute request ends with one 'done' (all glyphs sent, or `stopped` early by a newer request or a cancel) or one 'failed'. */
   | { type: 'done'; requestId: number; stopped?: boolean }
   | { type: 'failed'; requestId: number; reason: FailureReason; message: string }

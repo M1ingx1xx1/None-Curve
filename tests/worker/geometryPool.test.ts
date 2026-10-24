@@ -205,7 +205,7 @@ describe('geometry worker pool', () => {
     const [stuck, fine] = workers
     const stuckGlyphs = stuck.lastRequest.jobs[0].indices
     const { requestId } = stuck.lastRequest
-    stuck.reply({ type: 'glyph', requestId, key: 'a', index: stuckGlyphs[0] })
+    stuck.startsGlyph(requestId, 'a', stuckGlyphs[0])
     await vi.advanceTimersByTimeAsync(30_000)
     answer(fine)
     // The request waits for the stuck worker.
@@ -297,7 +297,7 @@ describe('geometry worker pool', () => {
     // A new glyph alone goes to the first worker, which starts on it.
     client.compute(font('f'), BASE, 'b', [9])
     expect(first.lastRequest.jobs).toEqual([job('b', [9])])
-    first.reply({ type: 'glyph', requestId: first.lastRequest.requestId, key: 'b', index: 9 })
+    first.startsGlyph(first.lastRequest.requestId, 'b', 9)
     vi.advanceTimersByTime(1000)
     // Asked for again with the others, it stays where it is being computed (not started over on the second worker,
     // and the first is not replaced as if its glyph were not needed).
@@ -313,19 +313,9 @@ describe('geometry worker pool', () => {
     pool(2)
     client.compute(font('f'), BASE, 'a', range(1, 4))
     const [first, second] = workers
-    first.reply({
-      type: 'glyph',
-      requestId: first.lastRequest.requestId,
-      key: 'a',
-      index: first.lastRequest.jobs[0].indices[0],
-    })
+    first.startsGlyph(first.lastRequest.requestId, 'a', first.lastRequest.jobs[0].indices[0])
     vi.advanceTimersByTime(100)
-    second.reply({
-      type: 'glyph',
-      requestId: second.lastRequest.requestId,
-      key: 'a',
-      index: second.lastRequest.jobs[0].indices[0],
-    })
+    second.startsGlyph(second.lastRequest.requestId, 'a', second.lastRequest.jobs[0].indices[0])
     // Not yet: neither has been on its glyph for 750 ms.
     vi.advanceTimersByTime(600)
     client.compute(font('f'), BASE, 'b', range(1, 4))
@@ -350,12 +340,7 @@ describe('geometry worker pool', () => {
     pool(2)
     client.compute(font('f'), BASE, 'a', range(1, 4))
     const [first] = workers
-    first.reply({
-      type: 'glyph',
-      requestId: first.lastRequest.requestId,
-      key: 'a',
-      index: first.lastRequest.jobs[0].indices[0],
-    })
+    first.startsGlyph(first.lastRequest.requestId, 'a', first.lastRequest.jobs[0].indices[0])
     vi.advanceTimersByTime(5000)
     client.computeJobs(font('f'), [job('L', range(1, 4))], true)
     expect(first.terminated).toBe(false)
@@ -368,7 +353,7 @@ describe('geometry worker pool', () => {
     client.subscribeIdle(idle)
     client.compute(font('f'), BASE, 'a', [1, 2])
     const [w] = workers
-    w.reply({ type: 'glyph', requestId: w.lastRequest.requestId, key: 'a', index: 1 })
+    w.startsGlyph(w.lastRequest.requestId, 'a', 1)
     vi.advanceTimersByTime(1000)
     client.compute(font('f'), BASE, 'b', [3])
     expect(w.terminated).toBe(true)
@@ -385,8 +370,7 @@ describe('geometry worker pool', () => {
     client.compute(font('f'), BASE, 'a', range(1, 9))
     const [s1, s2, fine] = workers
     const stuckGlyphs = [s1, s2].map((w) => w.lastRequest.jobs[0].indices[0])
-    for (const w of [s1, s2])
-      w.reply({ type: 'glyph', requestId: w.lastRequest.requestId, key: 'a', index: w.lastRequest.jobs[0].indices[0] })
+    for (const w of [s1, s2]) w.startsGlyph(w.lastRequest.requestId, 'a', w.lastRequest.jobs[0].indices[0])
     answer(fine)
     await vi.advanceTimersByTimeAsync(5_001)
     expect([s1.terminated, s2.terminated, fine.terminated]).toEqual([true, true, false])

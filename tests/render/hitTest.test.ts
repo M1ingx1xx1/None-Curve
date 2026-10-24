@@ -7,7 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import type { LoadedFont } from '../../src/font/model'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, PolygonGlyph } from '../../src/geometry/types'
-import { hitScene, STROKE_HIT_PX, type HitOptions } from '../../src/render/hitTest'
+import { hitScene, hitsLayers, nearLayers, STROKE_HIT_PX, type HitOptions } from '../../src/render/hitTest'
 import type { SpecimenScene } from '../../src/specimen/scene'
 import { loadFixture } from '../helpers/fonts'
 import { winding } from '../helpers/outline'
@@ -193,5 +193,51 @@ describe('the text block with Free position', () => {
 
   it('moves with the drag', () => {
     expect(hitScene(scene, 2500, 1100, plain({ freeMove: true, offsetX: 1000 }))).toEqual({ kind: 'block' })
+  })
+})
+
+describe("the box rejection before a glyph's layers are tested", () => {
+  it('never drops a point the layers would hit, in every outline and marker setting', () => {
+    const variants: [string, GeometryParams][] = [
+      ['g', BASE],
+      ['o', paramsWith({}, on('ripple', { petals: 1.5 }))],
+      ['Q', paramsWith({}, on('whorl'))],
+    ]
+    let tested = 0
+    let hits = 0
+    let rejected = 0
+    for (const [char, params] of variants) {
+      const index = glyphIndex(char)
+      const polygon = deriveGeometry(font.getGlyph(index), params).polygon!
+      const source = fontSource(font)(index)!
+      for (const outline of ['source', 'flattened', 'compare'] as const) {
+        for (const fill of [true, false]) {
+          for (const markers of [false, true]) {
+            const o = options({
+              outline,
+              fill,
+              showSkeleton: markers,
+              showVertices: markers,
+              showMarkers: markers,
+              u: 3,
+            })
+            const reach = Math.max(STROKE_HIT_PX * o.u, markers ? o.markerRadius * 0.4 : 0)
+            for (let x = -300; x <= advanceOf(char) + 300; x += 23) {
+              for (let y = -500; y <= 1200; y += 23) {
+                const hit = hitsLayers(polygon.contours, source, x, y, o)
+                const kept = nearLayers(polygon.contours, source, x, y, o, reach)
+                if (hit) expect(kept, `${char} ${outline} fill=${fill} markers=${markers} at ${x}, ${y}`).toBe(true)
+                tested++
+                if (hit) hits++
+                if (!kept) rejected++
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(hits).toBeGreaterThan(100)
+    // Much of the grid is far from the glyph and never reaches the layer tests.
+    expect(rejected / tested).toBeGreaterThan(0.3)
   })
 })

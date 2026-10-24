@@ -162,10 +162,18 @@ const HELD_FRAME_ROUND_MS = 1000 / 120
  */
 export class FrameDelay {
   private readonly frames: FeatureFrame[] = []
+  /** The time of the last frame pushed: later frames never go below it, so times stay non-decreasing. */
+  private lastTime = -Infinity
 
-  /** Holds a frame measured at frame.time until `delayMs` later; the frame leaves with that time. */
+  /**
+   * Holds a frame measured at frame.time until `delayMs` later; the frame leaves with that time. When the latency
+   * drops (Bluetooth to speakers) a new frame would be due before the queued ones: it waits for them instead, so the
+   * times never run backwards (the shaping tracker reads that as a reset).
+   */
   push(frame: FeatureFrame, delayMs: number): void {
-    this.frames.push(delayMs > 0 ? { ...frame, time: frame.time + delayMs } : frame)
+    const time = Math.max(delayMs > 0 ? frame.time + delayMs : frame.time, this.lastTime)
+    this.lastTime = time
+    this.frames.push(time === frame.time ? frame : { ...frame, time })
   }
   /** The oldest frame due by page time `nowMs`, or null: call until null. */
   next(nowMs: number): FeatureFrame | null {
@@ -177,6 +185,7 @@ export class FrameDelay {
   /** Drops the held frames (the sound stopped, or the file was sought). */
   clear(): void {
     this.frames.length = 0
+    this.lastTime = -Infinity
   }
 }
 
@@ -184,8 +193,10 @@ export class FrameDelay {
 export type TimelineEvent =
   /** A file is loaded and File is the source: `decode` decodes bytes at the context's rate. */
   | { type: 'load'; file: File; decode: (bytes: ArrayBuffer) => Promise<AudioBuffer> }
-  /** The file was let go (a new one is loading, it failed, the microphone took over, or the engine was disposed). */
+  /** The file was let go (a new one is loading, it failed, or the engine was disposed). */
   | { type: 'unload' }
+  /** The microphone is the source: the file stays loaded, its precompute pauses; a `load` of the same file resumes it. */
+  | { type: 'suspend' }
 
 /** A failure with the kind shown in the Sound tab; thrown inside the engine, caught before leaving it. */
 class SoundFailure extends Error {
@@ -290,7 +301,7 @@ export class SoundEngine {
     }
   }
   /**
-   * Calls `listener` when a file is loaded with File as the source, and when it is let go (TimelineEvent); a file
+   * Calls `listener` when a file is loaded with File as the source, and when it is paused or let go (TimelineEvent); a file
    * already loaded is told at once. Returns the unsubscribe function.
    */
   subscribeTimelineEvents(listener: (event: TimelineEvent) => void): () => void {
@@ -329,7 +340,7 @@ export class SoundEngine {
       if (!changed) return
       this.pauseFile()
       this.extractor?.reset()
-      this.emitTimeline({ type: 'unload' })
+      if (this.file) this.emitTimeline({ type: 'suspend' })
       // Choosing Microphone only shows its controls; the microphone opens only from Start listening (SOUND_PLAN §3, §10).
       this.setState({ source, playing: false, listening: false, busy: this.loading, error: null })
       return
@@ -506,7 +517,7 @@ export class SoundEngine {
       return
     }
     this.resumeContext()
-    if (this.state.source === 'file' && this.file) this.emitTimeline({ type: 'unload' })
+    if (this.state.source === 'file' && this.file) this.emitTimeline({ type: 'suspend' })
     const token = ++this.micToken
     this.micPending = true
     this.setState({ source: 'microphone', playing: false, busy: true, error: null })

@@ -5,11 +5,14 @@ import { describe, expect, it } from 'vitest'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, Point, PolygonContour, PolygonGlyph, WhorlMotion } from '../../src/geometry/types'
 import { easeOut, GLIDE_LIMITS, SceneGlide } from '../../src/specimen/glide'
+import { keyframeParams } from '../../src/sound/keyframes'
 import { MORPH_LIMITS, morphAt, planMorph, settleInBetween, type MorphPlan } from '../../src/specimen/morph'
 import { placePolygons, shapeSpecimen, type SpecimenScene } from '../../src/specimen/scene'
 import { chooseTrajectory, ringPolygon, STRAIGHT, whorlTrajectory, whorlUnturn } from '../../src/specimen/trajectory'
 import { whorlMotion, whorlWarp } from '../../src/geometry/whorl'
 import { GlideStore, type GlideClock } from '../../src/state/useGlide'
+import { canvasCull } from '../../src/render/view'
+import type { CanvasView } from '../../src/render/types'
 import { loadFixture } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
 
@@ -488,6 +491,39 @@ describe('Glide on Roboto', async () => {
     })
   }
 
+  it('passes through each keyframe leg by leg: Return to plain on Whorl, every leg in straight pieces', () => {
+    // Whorl switching off, as Return to plain does between beats: its amount fades out through 2/3 and 1/3.
+    const from = whorl(1.2)
+    const to = BASE
+    const k1 = keyframeParams(from, to, 1 / 3)
+    const k2 = keyframeParams(from, to, 2 / 3)
+    expect([k1.experimental.whorl.enabled, k1.experimental.whorl.amount]).toEqual([true, 0.8])
+    expect(k2.experimental.whorl.amount).toBeCloseTo(0.4, 12)
+    const [sa, s1, s2, sb] = [from, k1, k2, to].map(sceneFor)
+    const glide = new SceneGlide(() => 0)
+    glide.retarget(sa, 0, { durationMs: 1000, glide: false, key: 'k' })
+    glide.retarget(sb, 0, { durationMs: 1000, glide: true, key: 'k', keyframes: [s1, s2] })
+    // Paired in the first frame, which starts the glide.
+    expect(glyphsOf(glide.frame(0)!)[0].polygon).toBe(glyphsOf(sa)[0].polygon)
+    // The eased progress runs over the three legs evenly: a sixth in, the first leg (to the first keyframe); a half in,
+    // the second; five sixths in, the third (to the new outline).
+    const at = (q: number) => 1000 * (1 - Math.cbrt(1 - q))
+    const h = 0 // "H"
+    const legTo = [s1, s2, sb].map((scene) => glyphsOf(scene)[h].polygon)
+    for (const [leg, q] of [0.5 / 3, 1.5 / 3, 2.5 / 3].entries()) {
+      const morph = glide.frameInfo(at(q)).morphs![h]!
+      expect(morph.plan.to).toBe(legTo[leg])
+      expect(morph.p).toBeCloseTo(0.5, 6)
+      // Each leg a morph of its own between faceted outlines, along straight pieces.
+      expect(bends(morph.plan).bent).toBeLessThan(0.02)
+    }
+    expect(glide.frame(1000)).toBe(sb)
+    // Without keyframes the same change is one morph.
+    const direct = glideBetween(sa, sb)
+    direct.frame(0)
+    expect(direct.frameInfo(at(0.5)).morphs![h]!.plan.to).toBe(glyphsOf(sb)[h].polygon)
+  })
+
   it('glides Whorl on its own by its mesh: in straight pieces, from the shape shown to the shape computed, folds and all', () => {
     for (const [from, to] of [
       [BASE, whorl(1.5)],
@@ -725,5 +761,62 @@ describe('the page store', () => {
   it('arrives early enough that a glide nearly done is not glided again', () => {
     expect(easeOut(1)).toBe(1)
     expect(GLIDE_LIMITS.arrived).toBeLessThan(1)
+  })
+})
+
+describe('a line on its way, as the canvases cull it', () => {
+  /** One line of two glyphs on `baseline`, each with its ink. */
+  const lineAt = (baseline: number): SpecimenScene => {
+    const glyphs = [0, 600].map((x) => ({
+      index: 1,
+      text: 'a',
+      x,
+      y: baseline,
+      advance: 600,
+      missing: false,
+      polygon: glyph(square(0, 0, 500)),
+      error: null,
+      ink: { minX: x, minY: baseline - 500, maxX: x + 500, maxY: baseline },
+    }))
+    return {
+      lines: [{ glyphs, width: 1200, baseline, ink: { minX: 0, minY: baseline - 500, maxX: 1100, maxY: baseline } }],
+      lineHeight: 1200,
+      ascender: 800,
+      descender: -200,
+      capHeight: 700,
+      ink: null,
+      body: null,
+      blockWidth: 1200,
+      textTop: baseline - 800,
+      textBottom: baseline + 200,
+      slant: 0,
+      missingCharacters: [],
+      failedGlyphs: 0,
+      pendingGlyphs: 0,
+      glyphCount: 2,
+      truncated: false,
+      kerning: false,
+    }
+  }
+
+  it('slides out with its glyphs instead of vanishing when its target lands far outside a zoomed-in view', () => {
+    const glide = new SceneGlide(() => 0)
+    const options = { durationMs: 150, glide: true, key: 'k' }
+    glide.retarget(lineAt(0), 0, options)
+    glide.retarget(lineAt(4000), 0, options)
+    // Zoomed in on the line's first place: scene y −300 … 300.
+    const view: CanvasView = { kind: 'canvas', left: -100, top: 300, u: 1, cssWidth: 800, cssHeight: 600, dpr: 1 }
+    const cull = canvasCull(view, { unitsPerEm: 1000, ascender: 800, descender: -200 })
+    const early = glide.frameInfo(1).layout!.lines[0]
+    expect(early.glyphs[0].y).toBeLessThan(300)
+    expect(early.baseline).toBe(early.glyphs[0].y)
+    expect(cull.band(early.baseline)).toBe(true)
+    expect(early.glyphs.every((g) => cull.glyph(g, true))).toBe(true)
+    expect(early.ink!.maxY).toBeCloseTo(early.baseline)
+    expect(early.glyphs[1].ink!.minY).toBeCloseTo(early.glyphs[1].y - 500)
+    // Once past the view it is culled, and at the end it is the target's own line.
+    const late = glide.frameInfo(140).layout!.lines[0]
+    expect(cull.band(late.baseline) || cull.ink(late.ink)).toBe(false)
+    expect(glide.frameInfo(1000).layout!.lines[0].baseline).toBe(4000)
   })
 })

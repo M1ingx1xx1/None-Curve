@@ -1,5 +1,4 @@
 import {
-  lazy,
   Suspense,
   useEffect,
   useId,
@@ -24,11 +23,12 @@ import FlattenControls from './FlattenControls'
 import GridControls from './GridControls'
 import { HintButton, HintText, useHint } from './Hint'
 import RandomAnchorControls from './RandomAnchorControls'
+import { lazyWithRetry } from './lazyWithRetry'
 import SquaringControls from './SquaringControls'
 
 // Loaded when their tab is first opened, so their code stays out of the startup chunk.
-const ExperimentalControls = lazy(() => import('./ExperimentalControls'))
-const SoundControls = lazy(() => import('./SoundControls'))
+const ExperimentalControls = lazyWithRetry(() => import('./ExperimentalControls'))
+const SoundControls = lazyWithRetry(() => import('./SoundControls'))
 
 interface GeometryPanelProps {
   state: AppState
@@ -127,7 +127,7 @@ export default function GeometryPanel({
 
   return (
     <aside className="panel geometry-panel" aria-label="Shape parameters">
-      <div className="tool-tabs geometry-tabs" role="tablist" aria-label="Shape parameters" onKeyDown={onTabKeyDown}>
+      <div className="tool-tabs geometry-tabs" role="tablist" aria-label="Panels" onKeyDown={onTabKeyDown}>
         {tabs.map((t) => (
           <button
             key={t.id}

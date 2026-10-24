@@ -13,6 +13,7 @@
 | 功能 | 状态 |
 |---|---|
 | 导入本地字体（.ttf / .otf / .woff / .woff2，以及带字面菜单的 .ttc / .otc 字体集合）和 Google Fonts，支持粘贴 Google Fonts 链接 | ✅ 已实现 |
+| 导入 SVG 作品（图标、标志），作为一个图形走同样的流水线、实验效果和声音 | ✅ 已实现 |
 | 字形列表、原始曲线骨架、Original / Flattened / Compare 视图 | ✅ 已实现 |
 | 曲线展平（自适应或固定线段数，可选合并相连曲线） | ✅ 已实现 |
 | 方形化（圆形 O → 方形 O）、锚点间距与简化、网格吸附、角度锁定、确定性扰动 | ✅ 已实现 |
@@ -22,7 +23,7 @@
 | 画布（画板）尺寸、常用画幅比例与 1×–4× 导出倍数；排版（字号、字间距、行距、倾斜、对齐、大小写）；配色预设与自定义颜色 | ✅ 已实现 |
 | 导出画布的 SVG 与 PNG，可选带上预览的模糊与反色 | ✅ 已实现 |
 | 导出 OpenType 字体（CFF，.otf），带原字体的成对字偶距和与画布一致的行距，在后台生成，Cancel 可立即停止，导出后自动校验；伸得太远、字体存不下的轮廓部分（很长的 Thorn 刺尖）会被裁到能存下的范围内 | ✅ 已实现——见[限制](#字体文件) |
-| 画布随声音变化的视频，实时录制并带上声音（MP4；浏览器不能写 MP4 时为 WebM），可从 Export 对话框或 Sound 标签页开始 | 🧪 实验性——见[视频](#视频) |
+| 字母随声音运动的视频，带上声音（MP4；浏览器不能写 MP4 时为 WebM）：音频文件的任意一段在 Export 里离线渲染，麦克风则在 Export 或 Sound 标签页里实时录制 | 🧪 实验性——见[视频](#视频) |
 | 设置、文字、声音映射和 Sound 标签页的 Response 设置保存在浏览器中，下次打开时恢复，也可以导出为配置文件再导入；用键盘撤销与重做；**Reset all**（全部重置）让编辑器回到刚打开时的样子 | ✅ 已实现——见[保存与撤销](#保存与撤销)和[配置文件](#配置文件) |
 | TTF / WOFF / WOFF2 输出；上下文字偶距、附加符号定位及其他 OpenType 排版特性 | ❌ 不支持 |
 | Sound 标签页：本地音频文件或麦克风，实时测量（11 个特征：响度与缓变响度，低音、中音与高音，亮度、音高与旋律（每个新音一次脉冲），节拍脉冲与活跃度，以及文件的立体声声像）并以紧凑的电平表显示；最多 8 个映射实时移动 Geometry 和 Experimental 的滑块、效果的开关、Typography、颜色和可变字体的轴，并让三个种子跳变（锚点随声音跳到新位置），选择目标时会打开它需要的设置；十个可载入的预设；Response 分组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking、Glide）调节动作的幅度，并能让每个字母按自己的幅度反应；声音从不移动文字块，还有 Thorn 轮换（开启 Thorn 时，刺每次只在少数几个字母上变化）；带滑块上的实时值标记、实时种子、实时帧率、闪烁限制、Freeze 和视频录制 | 🧪 实验性——开发中，见[声音](#声音) |
@@ -58,28 +59,29 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 │ 功能区                 ║ 结果画布                                          │
 │ 导入 · 字体信息        ║ 只显示输入的文字                                  │
 │ 几何参数（可滚动）     ║                                                   │
-╞════════════════════════╩═════╦═════════════════════╦═══════════════════════╡
-│ 排版 / 字形 / 颜色           ║ 文字输入            ║ 预览 + 模糊/反色      │
-└──────────────────────────────╨─────────────────────╨───────────────────────┘
+╞════════════════════════╣                                                   │
+│ 排版 / 字形 / 颜色     ╠═════════════════════════╦═════════════════════════╡
+│ （可收起）             ║ 文字输入                ║ 预览 + 模糊/反色        │
+└────────────────────────╨─────────────────────────╨─────────────────────────┘
 ```
 
-双线是拖动手柄。每个手柄只移动两侧区域之间的分界线，两侧加起来的大小始终不变：上下两行始终正好填满标题栏和状态栏之间的窗口高度（页面不会滚动）；功能区和画布平分上面一行的宽度；下面一行的排版 / 字形 / 颜色标签页、文字输入和预览加起来始终等于这一行的宽度（最小宽度依次为 260、180、200 像素）。每个手柄就是那条 1 像素的分隔线本身（和标题栏、状态栏的边线一样用低调的边框色），另有 9 像素宽的隐形拖动区域。可以拖动手柄，或让手柄获得焦点后用方向键调整（Home / End 跳到两端）；双击恢复默认。每个区域都保留最小尺寸，分隔比例会记在浏览器里。上下两行各自独立调整，所以它们的竖向分界线不一定对齐。
+双线是拖动手柄。每个手柄只移动两侧区域之间的分界线，两侧加起来的大小始终不变：左右两列始终正好填满标题栏和状态栏之间的窗口，并分享窗口宽度（左列至少 280 像素，右列至少等于文字输入和预览的最小宽度之和）；左列在功能区下方，由几何标签页和排版 / 字形 / 颜色标签页分享剩下的高度（最小高度依次为 160、140 像素）；右列由画布和输入行分享高度（最小高度依次为 220、160 像素），文字输入和预览分享输入行的宽度（最小宽度依次为 180、200 像素）。每个手柄就是那条 1 像素的分隔线本身（和标题栏、状态栏的边线一样用低调的边框色），另有 9 像素宽的隐形拖动区域。可以拖动手柄，或让手柄获得焦点后用方向键调整（Home / End 跳到两端）；双击恢复默认。每个区域都保留最小尺寸，分隔比例会记在浏览器里。左右两列各自独立调整，所以它们的横向分界线不一定对齐。
 
 - **顶部栏：** 文件状态和 **Export…**。撤销和重做没有按钮，只用键盘快捷键（见[保存与撤销](#保存与撤销)）。录制视频期间，这里显示 “Recording 0:12” 和一个 Stop 按钮，录完后显示这次录制的结果（见[视频](#视频)）。
-- **左上——功能区：** 最上方是 **Import** 和字体信息，下面是 **Geometry（几何）**、**Experimental（实验）** 和 **Sound（声音）** 三个标签页。**Geometry** 按流水线顺序排列全部几何参数（展平、方形化、锚点、网格与角度、扰动），最后是随机锚点；**Experimental** 放在它之后运行、可以同时打开的效果（Crumple、Ripple、Whorl、Slipstream、Thorn）；**Sound** 播放本地音频文件或通过麦克风收音，显示实时电平表，并通过映射让声音移动另外两个标签页的滑块，或让它们的种子跳变，还能录制视频；被驱动的滑块保留自己的值，并用一条细标记显示实时值；被驱动的种子输入框保留自己的种子，并在旁边显示实时种子（见[声音](#声音)）。浏览器会记住当前选中的标签页。参数区的统计数字针对当前选中的字形。当前不起作用的控件会变灰：随机锚点开启时整个曲线展平组变灰；随机程度为 0% 时随机种子变灰。各项说明默认收起在标签旁的 ⓘ 按钮后面（点击展开，因此键盘也能用；收起时文字仍作为控件的读屏描述）；面板内容上方的 **Show all explanations** 可以一次展开全部（包括排版和颜色标签页里的说明），并会记在浏览器里。警告、统计数字以及“为什么这个控件变灰”的说明始终显示。
+- **左上——功能区：** 最上方是 **Import** 和字体信息，下面是 **Geometry（几何）**、**Experimental（实验）** 和 **Sound（声音）** 三个标签页（标签页那一行在标签页内容滚动时始终可见）。**Geometry** 按流水线顺序排列全部几何参数（展平、方形化、锚点、网格与角度、扰动），最后是随机锚点；**Experimental** 放在它之后运行、可以同时打开的效果（Crumple、Ripple、Whorl、Slipstream、Thorn）；**Sound** 播放本地音频文件或通过麦克风收音，显示实时电平表，并通过映射让声音移动另外两个标签页的滑块，或让它们的种子跳变，还能录制视频；被驱动的滑块保留自己的值，并用一条细标记显示实时值；被驱动的种子输入框保留自己的种子，并在旁边显示实时种子（见[声音](#声音)）。浏览器会记住当前选中的标签页。参数区的统计数字针对当前选中的字形。当前不起作用的控件会变灰：随机锚点开启时整个曲线展平组变灰；随机程度为 0% 时随机种子变灰。各项说明默认收起在标签旁的 ⓘ 按钮后面（点击展开，因此键盘也能用；收起时文字仍作为控件的读屏描述）；面板内容上方的 **Show all explanations** 可以一次展开全部（包括排版和颜色标签页里的说明），并会记在浏览器里。警告、统计数字以及“为什么这个控件变灰”的说明始终显示。
 - **右上——结果画布：** 显示画布（画板）及其上输入框里的文字，使用当前字体、全部参数、排版设置和颜色。画布下方的 **Canvas size** 可以展开或收起画布尺寸抽屉（见[画布尺寸](#画布尺寸)），展开状态会被记住。它的轮廓视图与图层开关（Original / Flattened / Compare、Fill、Skeleton、Vertices、Metrics）以及缩放与平移都只影响画布，只有 **Fill** 例外：关闭时，预览以及 SVG、PNG 和视频导出也只画轮廓（见[仅轮廓](#仅轮廓关闭-fill)）；预览始终显示导出结果（见[文字预览](#文字预览)）。每个字形的点击范围是它的字列（字宽 × 上伸到下伸）加上字母本身，所以小字也很容易点中；宽度为零的附加符号（比如组合重音）没有字列，只有字母本身。没有 Thorn 时，字母本身就是当前视图里画出的轮廓。开启 Thorn（Experimental）时，它是字母原始轮廓的一份看不见的副本，按 Curve flattening 展平成直线段，而画出的轮廓（包括刺、Ripple 的花瓣和 Slipstream 的拖尾）从不接收指针：在刺上点击或拖动，都交给它后面的东西，比如另一个字母、开启 Free 位置时的整块文字，或空白画布（在那里拖动就是平移）。所以点离开字母的刺，不会选中这个字母。点击字形即可选中它（统计数字随之切换），并把它在文中的每一处都换成高亮色（鼠标悬停时也一样）。高亮色由文字颜色和背景颜色计算得出：在背景上仍然易读的颜色中（对比度至少等于文字本身的对比度，最高要求 4.5 : 1，最低不低于 3 : 1），选出在色相和色度上与文字颜色差别最大的一个（OKLab），偏向鲜艳的颜色，避免亮度往背景方向褪，并且色相与配色的色相相差不超过 40°（文字本身已经很鲜艳、40° 内拉不开差别时放宽到 90°；先取文字的色相，文字无色时取背景的，都无色时取橙色）。米色纸上的黑字会高亮为朱红；彩色文字会高亮为相邻色相中更鲜艳的颜色。点击画布空白处（拖动结束时不算）或按 Esc 取消高亮；统计数字仍显示最后选中的字形，Geometry 面板顶部的 **Statistics** 一行会写明是哪个字形（字符和编码）。预览从不显示高亮。
-- **左下——文字工具：** 三个标签页（会记在浏览器里，可用方向键切换；始终保持加载，切换时不会丢失局部状态）：**Typography（排版）**——文字在画布上如何排布（见[排版](#排版)）；**Glyphs（字形）**——见下条；**Color（颜色）**——文字与背景的颜色。
+- **左下——文字工具：** 三个标签页（会记在浏览器里，可用方向键切换；始终保持加载，切换时不会丢失局部状态）：**Typography（排版）**——文字在画布上如何排布（见[排版](#排版)）；**Glyphs（字形）**——见下条；**Color（颜色）**——文字与背景的颜色。标签页那一行右端的箭头按钮（`aria-expanded`）可以把这块区域收起到只剩标签，把左列剩下的高度都让给几何标签页；选择任意一个标签页就会重新展开。是否收起会记在浏览器里。
 - **Glyphs 标签页：** 可搜索的字符网格，列出字体映射的所有字符，用作插入器：点击字符会把它插入到文字输入框的光标处（有选中文字时替换选中部分），并选中该字形。输入框从未获得焦点时，字符追加到末尾。没有对应字符的字形（连字、替代字形）和控制字符无法输入，因此不列出。字形列表窄于 280 像素时，格子会缩小并只显示字符本身；超过这个宽度时重新显示 Unicode 编码（编码始终保留在每个格子的悬停提示里）。
 - **右下——输入与预览：** 左边是紧凑的多行文字输入（Text 标题右边的大小写开关 **AA** / **Aa** / **aa**、示例文本菜单、Clear、字符数、字偶距状态、缺字提示）；右边是缩小显示的 SVG 导出结果本身（裁到画布边缘；见[文字预览](#文字预览)），带独立的 **Blur（模糊）** 滑块（0–12 像素，每档 0.1）和 **Invert（反色）** 按钮（交换文字与背景的颜色）。除非勾选 **Export the preview look**，模糊和反色只作用于这个视图，相当于“眯眼看整体字形”。两部分之间有一个拖动手柄，可以移动分界线（默认 40 / 60）。
-- **状态栏：** 字体状态、选中的字形和当前视图（其中有选中字形的顶点数；实验效果的顶点预算简化过这个字形时，后面跟着 “(simplified)”，见[翻折](#实验效果crumpleripplewhorlslipstreamthorn-与-dissolve)）；Sound 驱动字母期间显示 **Live · N fps**（实时帧率）；麦克风收音期间显示 **Microphone on**（在任何标签页都能看到），麦克风自己停止时（被拔出或权限被收回）显示 **No microphone**；最右端是 **Reset all**（全部重置，一个画着回转箭头的图标按钮；见[保存与撤销](#保存与撤销)）和一个小小的界面亮色 / 暗色切换。每次打开都先按系统设置（`prefers-color-scheme`），系统设置改变时也会跟随；在这里的选择只在本次访问有效，不会保存。主题色是 CSS `light-dark()` 值，由 `<html data-theme>` 上的 `color-scheme` 切换。画布在两种主题下都使用颜色设置里的配色。
+- **状态栏：** 字体状态、选中的字形和当前视图（其中有选中字形的顶点数；实验效果的顶点预算简化过这个字形时，后面跟着 “(simplified)”，见[翻折](#实验效果crumpleripplewhorlslipstreamthorn-与-dissolve)；状态栏太窄时只截短设置说明，以省略号结尾，完整内容在悬停提示里；字形还在后台计算时，末尾显示 **Updating N…**）；Sound 驱动字母期间显示 **Live · N fps**（实时帧率）；麦克风收音期间显示 **Microphone on**（在任何标签页都能看到），麦克风自己停止时（被拔出或权限被收回）显示 **No microphone**；最右端是 **Reset all**（全部重置，一个画着回转箭头的图标按钮；见[保存与撤销](#保存与撤销)）和一个小小的界面亮色 / 暗色切换。每次打开都先按系统设置（`prefers-color-scheme`），系统设置改变时也会跟随；在这里的选择只在本次访问有效，不会保存。主题色是 CSS `light-dark()` 值，由 `<html data-theme>` 上的 `color-scheme` 切换。画布在两种主题下都使用颜色设置里的配色。
 - **滑块与数字框：** 每个滑块都带一个数字框，按标签所示的单位（%、°、% em、u、px、ms、dB）显示当前值：在 Geometry 和 Experimental 标签页里位于滑块的标题行，在 Typography 和 Canvas size 里位于滑块旁边，预览的 Blur 也有一个。每个数字框的宽度刚好放下它最宽的值（`widestChars`，即 `styles.css` 中的 `--chars` 宽度），没有上下小箭头，用方向键可以按档位调整。输入的值在按回车或离开数字框时生效（按 Escape 恢复原值），并限制在滑块的范围内、取整到它的档位（`src/components/` 中的 `SliderNumber` 和 `NumberField`）。Sound 标签页的设置则是旋钮，点旋钮下方的数值会打开同样的数字框（见[声音](#声音)）。档位都很细（NOCUR-63）：比例 1%，尺寸为 em 的 1%，角度 1°，距离 1 个字体单位（Anchor reduction 和 Noise frequency 为 0.1），计数为 1；要精确设定某个值就用数字框。Tolerance 和 Thorn 的 Reach 保留各自的对数和立方滑块；它们的数字框直接输入值本身（字体单位，精确到 0.01，并按滑块的方式取整；画布的百分比，精确到 0.01%）。
 - 只面向桌面浏览器：没有手机或窄屏布局。窗口变窄时布局不变：各区域先缩到各自的最小尺寸，再窄就按比例一起缩小。
 
 ### 画布
 
-- 轮廓视图：**Original**（字体原始曲线）、**Flattened**（最终多边形）、**Compare**（最终多边形，叠加原始曲线虚线）。当前视图显示在画布角落和状态栏。
+- 轮廓视图：**Original**（字体原始曲线）、**Flattened**（最终多边形）、**Compare**（最终多边形，叠加原始曲线虚线）。当前视图由按下的按钮和状态栏显示。
 - 图层：**Fill**（关闭后显示描边；预览以及 SVG、PNG 和视频导出都跟随它，字体文件始终是实心的）、**Skeleton**（原始曲线上锚点为方块、曲线外控制点为空心圆，以及控制柄；TrueType 的隐含节点也显示为锚点）、**Vertices**（最终多边形顶点，绿色圆点）、**Metrics**（上伸线、大写高度、x 高度、基线、下伸线、字宽）。
-- 用鼠标滚轮或 `+` / `−` 缩放，拖拽或方向键（画布获得焦点时）平移，`0` 或 **Fit** 复位。右下角的预览始终适配全文，不能交互。
+- 用鼠标滚轮或 `+` / `−` 缩放，拖拽或方向键（画布获得焦点时）平移，`0` 或 **Fit** 复位。画布获得焦点时，Shift+→ / Shift+← 选中文字里的下一个 / 上一个字母（跳过空格、缺失的字形和已选字形的副本），没有选中时 Enter 选中第一个，Escape 取消高亮；选中的字母会被读屏软件播报。右下角的预览始终适配全文，不能交互。
 - 在画布上，所有图层都作用于文字中的每个字形；预览不显示任何图层。只绘制可见范围内的字形；刺伸进可见范围的字形也算在内，所以平移时长刺不会忽隐忽现；每个 em 在屏幕上不小于 48 像素时才显示骨架点和顶点，否则画布提示放大，长文本因此仍可辨认。度量线的文字标签只标在第一条可见行上。
 
 ### 画布尺寸
@@ -127,7 +129,7 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 `src/state/persist.ts`、`src/state/history.ts` 与 `src/state/reset.ts`。
 
 - **在两次访问之间保存**在 `localStorage` 里（键名 `none-curve:session`，带版本号；约 2 KB），每次改动后半秒、以及页面被隐藏或关闭时写入：所有设置（Geometry、Experimental、Typography、Color 和 Canvas size）、画布视图的轮廓和图层按钮（不含缩放和平移）、文字（最多 10,000 个字符）、预览的 Blur 和 Invert、导出精度、声音映射、Sound 标签页的 Response 分组（Sensitivity、Strength、Motion contrast、Release、Pitch reactive、Melody tracking 和 Glide；在它们出现之前保存的记录读作默认值）、选中的字形（只在同一字体族和样式中恢复），以及字体。Google 字体会在页面打开时重新下载；本地文件无法重新打开，所以画布会写出它的名字（“Last font: X. Import it again to continue.”）。读取时，每个值都会对照默认值检查，所以损坏的或旧版本的记录不会让应用出错（旧的效果名和特征名会改成新名字）。当前版本是 2：版本 1 记录里的 Thorn **Reach**（em 的比例）会按该记录保存的字号和画布，换算成同样长度在画布对角线中所占的比例（对角线最多按 256 em 计，与 Thorn 的算法相同），最多 100%，保留 4 位小数；大于 0 的 Reach 换算后不会低于滑块的第一档（0.01%），所以原来长着刺的 Thorn 仍然长刺（`src/state/persist.ts` 中的 `fromV1`）；作用在 Thorn · Reach 上的声音映射保留原来的 Depth。Thorn 用到的“画布对角线有多少 em”由设置算出，从不保存。
-- **不保存：** Drive letters、音频文件或麦克风、声音的实时值、视频录制选项（Format、Length、Frame rate、Include audio、Use the preview look）、打开的对话框，以及亮色 / 暗色主题。（各区域的分隔比例、选中的标签页和 Show all explanations 本来就各自记在浏览器里。）清除网站数据即可从头开始。保存只针对当前浏览器：同时开着两个标签页时，最后保存的那个为准；Safari 在 7 天没有访问后可能会清掉它。
+- **不保存：** Drive letters、音频文件或麦克风、声音的实时值、视频选项（Format、Length、Frame rate、Include audio、Use the preview look）和视频的 Time range、打开的对话框，以及亮色 / 暗色主题。（各区域的分隔比例、选中的标签页和 Show all explanations 本来就各自记在浏览器里。）清除网站数据即可从头开始。保存只针对当前浏览器：同时开着两个标签页时，最后保存的那个为准；Safari 在 7 天没有访问后可能会清掉它。
 - **崩溃保护：** 第一次画出恢复的设置时，会写入一个标记（`none-curve:restoring`）。如果下次启动时标记还在，说明上次访问在绘制时关闭了（可能是崩溃），这次设置和视图就从默认值开始，画布显示 “The last visit closed while drawing, so its settings were not restored.”；文字、映射和字体照常恢复。
 - **撤销与重做：** Mac 上用 ⌘Z 和 ⇧⌘Z；其他系统用 Ctrl+Z，以及 Ctrl+Shift+Z 或 Ctrl+Y（只能用键盘，没有按钮）。所有设置、文字、声音映射和 Sound 标签页的 Response 分组共用一份历史。拖动一次滑块是一步（Response 的滑块也一样）；连续打字在停顿一秒之前算一步；Clear、示例文本和插入的字形各算一步，预设的 Load、Freeze、**Reset sound**、导入配置文件，以及选择目标连同它打开的设置也各算一步。声音的实时帧从不成为撤销步骤。不能撤销的：画布视图、缩放和平移、字形选择、预览的 Blur 和 Invert、导出精度、导入字体、Drive letters，以及视频录制选项。在文字输入框和其他文本框里使用的是输入框自己的撤销；对话框打开时快捷键不起作用。最多 100 步；历史不会在两次访问之间保存，**Reset all** 会把它清空。
 - **Reset all**（全部重置；状态栏里紧挨在亮色 / 暗色切换左边的图标按钮）：不经确认，让编辑器回到刚打开时的样子。字体关闭（正在进行的导入会被放弃），选中的字形也随之消失；上次访问的字体也会被忘掉，下次打开时不会再重新打开它。文字变回示例文本（第一个示例 Lorem ipsum）。所有设置（Geometry、包括种子在内的 Experimental、Typography、Color 和 Canvas size）、Sound 映射（全部移除）和 Response 组恢复为默认值，Drive letters 也重新打开（系统要求减少动态效果时为关闭）。画布视图回到起点：**Flattened** 轮廓，图层和刚打开时一样（Fill 打开，Skeleton、Vertices 和 Metrics 关闭），缩放 100%（完整显示整个画布），没有平移。正在播放的声音文件暂停，麦克风停止收音；已载入的声音文件仍然保留。预览的 Blur 和 Invert 以及导出精度（2）恢复为默认值，关于配置导入或上次访问的提示也会清除。界面主题、各区域的分隔比例和选中的标签页保持不变。它不能撤销：历史所管的部分回到 `START_SNAPSHOT`，同时历史被清空（`src/state/reset.ts` 中的 `resetHistory`，它调用 `UndoHistory.startOver`），所以之后没有可撤销或重做的内容；reducer 的 `resetAll` 动作返回 `initialState`，`src/App.tsx` 中的 `resetAll` 负责历史之外的部分。没有可重置的内容时（`isAtStart`：没有字体、文字是示例文本，所有设置、视图、Sound 的值、Drive letters、Blur、Invert 和导出精度都在起点）按钮不可用，提示文字为 “Everything is as the editor first opens”；否则提示文字为 “Reset all: closes the font and puts the text and every setting back to the start. Cannot be undone.”
@@ -150,6 +152,17 @@ npm test          # 快速测试（约 15 秒）；见下文“测试”
 - **字体集合：** 字体信息里的样式名会变成一个字面菜单（“Face”）。打开集合时显示最接近 Regular 的正体字面（字重 400、正常宽度；相同时取靠前的字面）。macOS 隐藏的系统字面（PostScript 名以点开头）不列出。选中的字面记在字体来源里，所以几何 Worker 打开的是同一个字面。换到同一文件的另一个字面时，画布的缩放和平移保持不变，新字面有当前选中的字符时也保持选中；其他导入会重置缩放和平移，并选一个默认字母。不支持用 WOFF 或 WOFF2 包装的字体集合。
 - 通过 **Import** 选择文件，或直接拖到画布上（拖进来的 `.json` 文件按[配置文件](#配置文件)读取）。文件只在浏览器内读取，不会上传。上限 50 MB，字体集合也一样（Apple Color Emoji 的 `.ttc` 超过这个大小）。
 - 空文件、无法识别的文件和损坏的文件会给出不同的错误提示和 **Retry**；之前载入的字体保持显示。
+
+### SVG 作品
+
+通过 **Import → Local file** 选择或拖到画布上的 `.svg` 文件，会被读成只有一个字形（作品）的字体（`src/font/svgFont.ts`），所以它的轮廓和字母一样经过几何流水线、实验效果、声音、Glide 和各种导出。页面和几何 Worker 用同样的方式读取：`parseFont` 把首个字符（跳过字节顺序标记和空白后）是 `<` 的文件交给 SVG 读取器。
+
+- **能读取的内容**（`src/font/svgDocument.ts`、`src/font/svgPath.ts`；因为 Worker 里没有 `DOMParser`，用的是自写的小型 XML 读取器）：`<path>` 的全部命令（`M L H V C S Q T A Z`，绝对和相对；弧线转成每段最多四分之一圈的三次曲线）、`<rect>`（含圆角）、`<circle>`、`<ellipse>`、`<polygon>`、`<polyline>`、嵌套的 `<g>` 和 `<svg>`、`<use>`（引用元素或 `<symbol>`），以及 `transform` 列表（`matrix`、`translate`、`scale`、`rotate`、`skewX`、`skewY`）。路径数据中途出错时，和浏览器一样保留出错之前的部分。
+- **哪些会填充：** 先看表现属性，再看 `<style>` 中简单选择器（`tag`、`.class`、`#id`、组合、`*`）的规则，最后看 `style` 属性；`fill`、`fill-rule`、`fill-opacity` 和 `visibility` 会继承；`display: none`、`opacity: 0`、`fill="none"` 和 `fill-opacity="0"` 的图形不算。颜色不起作用：每个填充图形都是墨色，所以画在黑色图形上的白色图形也会填充。描边、文字、图片、渐变的外观、剪切路径、蒙版、`<defs>` 和编辑器数据（带前缀的元素，如 `sodipodi:namedview`）都不是轮廓。
+- **填充规则：** 程序按 nonzero 规则填充，所以每个图形的轮廓会被转向，使它在这条规则下填充得一样：`evenodd` 图形按每个轮廓嵌套的深度（外轮廓逆时针、洞顺时针，依此类推；轮廓互不相交时完全准确），`nonzero` 图形在墨色绕向为负时整体反转，这样重叠的图形会相加而不是相互抵消。
+- **摆放：** 画框（根元素的 `viewBox`，没有时用 `width` 和 `height`，再没有时用图形自身的范围）缩放到 1000 单位高（每 em 1000 单位，上伸 1000，下伸 0），底边落在基线上，y 轴朝上；字宽是画框在这个比例下的宽度。
+- **在画布上**作品单独显示，是映射到 U+E000 的一个字形：文本框变灰，并为下一个字体保留已输入的文字；字形列表里的这一项只用于选中作品。导出：SVG、PNG、视频和配置文件；不提供字体文件导出。会话和配置文件像记录本地字体一样记下文件名（“Import it again”）。
+- **限制和错误**（显示为 “SVG could not be used” 并提供 **Retry**）：超过 10 MB、超过 100 000 个元素或 30 000 段的文件会因过大被拒绝；不是格式良好的 XML、根元素不是 `<svg>`、只有描边（并说明如何在 Illustrator、Inkscape 和 Figma 中把描边转为轮廓）、只有文字或没有填充图形，各有各的提示。
 
 ### Google Fonts
 
@@ -316,6 +329,8 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 ### 字体文件
 
+打开 [SVG 作品](#svg-作品) 时不提供。
+
 - 格式：**OpenType CFF 轮廓（`.otf`）**，用 opentype.js 写入（fontkit 只能读取字体）。只在生成字体时加载。
 - 字形范围：当前字形、输入文字中的字符，或字体中所有已映射字符（最多 5000 个字形、1 000 000 个轮廓点——Anchor spacing 1 这类很密的设置、或所有实验效果都开到最大时，导出整套字体会达到点数上限，生成会停止并给出提示），另加一个 `.notdef` 方框。**字形大小：** CFF 中每个坐标都在 ±32 767 以内，相邻两点之间在每个方向上最多相差 32 767 单位，所以每个字形都必须放进一个边长 32 766 字体单位的正方形（每 em 2048 单位时为 16 em，1000 单位时为 32.8 em；`src/export/fitGlyph.ts` 中的 `FONT_BOX_LIMITS`）。在每个方向上，跨度不超过 32 766 单位（且在 ±32 767 以内）的字形保持完整；更宽的字形，正方形在这个方向上取以 em 框为中心的 32 766 单位（横向以字宽的一半为中心，纵向以上伸和下伸的中点为中心），必要时移进字形的范围内，边缘取整数单位。超出正方形的轮廓部分（比如很长的 Thorn 刺尖）会在它的边缘被直线切掉，而不是整个字形被略去（每个轮廓沿正方形的各边裁剪；裁完没有面积的轮廓去掉），对话框会列出这些字形：“Trimmed to fit: a font stores each glyph within a square 32,766 font units across (N em for this font). Outline parts reaching further, such as long Thorn tips, were cut off at its edge in …. Only the font file is trimmed: the canvas, SVG and PNG are not.”。字宽超过 32 767 单位的字形会被略去并写明原因；裁切之后还会再检查一遍坐标限制。对话框会事先估计大小（“About N outline points.”，根据已经算好的字形，其余字形按它们的平均值估算），超过 1 000 000 个点的上限时给出警告，还有很多字形需要计算时提醒生成可能要几分钟。
 - **在后台生成：** 字体在一个专用的 Worker 中生成，每次生成一个（`src/export/fontExport.worker.ts`、`src/export/fontExportClient.ts`），对话框显示进度。画布已经按当前设置算好的字形会直接交过去原样使用，所以文件里的轮廓就是画布上的轮廓；其余字形经过相同的流水线计算。**Cancel** 会立即停止这个 Worker。Worker 60 秒没有任何消息时会被停止，对话框显示 “The export stopped responding.”。无法启动 Worker 时，改在页面上生成，每个字形之间让出页面。
@@ -331,12 +346,14 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 ### 视频
 
-代码在 `src/export/recorder.ts`、`src/export/videoFormat.ts` 和 `src/export/drawArtboard.ts`；控件在 `src/components/RecordControls.tsx`、`RecordingCanvas.tsx` 和 `RecordingIndicator.tsx`。视频实时录下画布随声音变化的样子，并带上声音本身。它是唯一保留实时样子的导出：SVG、PNG 和字体文件使用滑块值。
+代码在 `src/export/recorder.ts`、`src/export/videoFormat.ts` 和 `src/export/drawArtboard.ts`；控件在 `src/components/RecordControls.tsx`、`RecordingCanvas.tsx` 和 `RecordingIndicator.tsx`。视频留住字母随声音运动的样子，并带上声音本身。它是唯一保留实时样子的导出：SVG、PNG 和字体文件使用滑块值。Export → **Video — sound**（“An audio file: any stretch of it, rendered with its sound. The microphone: the canvas recorded live.”）按 Sound 标签页的来源用两种方式之一来做。
 
-- **入口：** Export 对话框中的 **Video — live sound**，它的 **Record** 在同一次点击里关闭对话框并开始录制；以及 Sound 标签页底部的 **Record** 框，里面有 Record / Stop、已录时间（“0:12”，定长录制时为 “0:12 / 0:30”）、“Live · N fps”、各个选项，以及上一次录制的结果。两处设置的是同一组选项（`RecordOptionsFields`）。录制期间，顶部栏先显示 “Starting to record…”，然后是带红点的 “Recording 0:12” 和一个只有图标的 Stop 按钮（“Stop recording”），最后是 “Saving the video…”；录完后显示这次录制的结果，直到你关掉它（只有图标的 “Dismiss” 按钮）或开始下一次录制。顶部栏也会向读屏软件播报开始和结束。录制期间再次打开对话框，它有自己的 Stop。录制期间 Freeze 不可用（“Freeze is off while recording.”）。
+- **音频文件：离线渲染**（NOCUR-91；`src/export/videoRender.ts`、`src/export/videoEncode.ts`、`src/components/VideoRender.tsx`）。对话框显示 **Time range**（Start 和 End，以秒计，每档 0.1 s；默认整个文件，最长 10 分钟）、不含 Length 的共用选项（Format、Frame rate、Include audio、Use the preview look）和 **Render video**。这一段按预计算的计划逐帧渲染，用的就是播放时显示的那些计划提交：媒体时间 t 处的每一帧显示播放到 t 被听到时显示的内容，按画布的方式组成场景（字母层级、由滑块字母放置的文字块），用 Glide 和它的关键帧在视频自己的时钟上滑行过去（见[声音](#声音)），再由 `drawArtboard` 绘制。所以它比实时快，不管效果多重都流畅，而且每次都完全一样。帧通过 [Mediabunny](https://mediabunny.dev) 库用 WebCodecs 编码成 MP4，写不了 MP4 时用 WebM（“This browser cannot write MP4: saved as WebM.”），打开 Include audio 时带上文件同一段的声音（不能编码声音时提示 “This browser cannot encode the sound: the video has none.”）。进度条显示渲染进度，Cancel 会停止它（“Cancelled: nothing was saved.”），关闭对话框也会停止；结束时显示例如 “Saved Roboto-Regular-video.mp4: 0:00.0 to 0:30.0.”。长于 6 分钟（预计算的上限）的文件无法渲染。尺寸、码率、绘制方式和文件名与实时录制相同（见下文）。来源是音频文件时，Sound 标签页的 **Record** 框显示一句简短说明和 **Export video…**，它打开 Export 并选中 Video。
+- **麦克风：实时录制。** 它没有文件可渲染，所以它的视频实时录下运动中的画布；本节其余部分说的就是这种录制。
+- **入口：** Export 对话框中的 **Video — sound**（来源是麦克风时），它的 **Record** 在同一次点击里关闭对话框并开始录制；以及 Sound 标签页底部的 **Record** 框，里面有 Record / Stop、已录时间（“0:12”，定长录制时为 “0:12 / 0:30”）、“Live · N fps”、各个选项，以及上一次录制的结果。两处设置的是同一组选项（`RecordOptionsFields`）。录制期间，顶部栏先显示 “Starting to record…”，然后是带红点的 “Recording 0:12” 和一个只有图标的 Stop 按钮（“Stop recording”），最后是 “Saving the video…”；录完后显示这次录制的结果，直到你关掉它（只有图标的 “Dismiss” 按钮）或开始下一次录制。顶部栏也会向读屏软件播报开始和结束。录制期间再次打开对话框，它有自己的 Stop。录制期间 Freeze 不可用（“Freeze is off while recording.”）。
 - **选项**（只在本次访问有效：不保存、不能撤销，录制期间锁定）：
   - **Format**（格式）：MP4（默认）或 WebM。浏览器写不了的格式会变灰，例如 “MP4 (not supported in this browser)”。
-  - **Length**（时长）：Until stopped（默认）、5 s、10 s、15 s、30 s、60 s 或 Whole file；最长 10 分钟。使用文件时，从当前的 Position 开始录。Whole file（只在载入了音频文件时可选）从头到尾播放整个文件，录制期间关闭 Loop，录完再恢复。
+  - **Length**（时长）：Until stopped（默认）、5 s、10 s、15 s、30 s、60 s 或 Whole file；最长 10 分钟。Whole file 需要音频文件，而文件的视频现在离线渲染（见上），所以麦克风的录制持续到停止，或到设定的时长。
   - **Frame rate**（帧率）：24、25、30（默认）、50 或 60 fps，是一排按钮。录制以这个帧率为目标：字母没有变化时重复上一帧。字母本身每秒最多变化 30 次。这个帧率是尽力而为的：帧在浏览器的渲染更新时取下，所以帧率和屏幕刷新率一样高时（60 Hz 屏幕上的 60 fps）可能丢掉一些帧，而且 `MediaRecorder` 写出的是可变帧率文件，平均大约是选好的帧率。
   - **Include audio**（包含声音，默认打开）：使用麦克风时，它的声音会进入文件（仍然从不回放）。
   - **Use the preview look**（使用预览的样子，默认关闭）：关闭时按画布的 Color 设置录制；打开时录制右下角预览的样子，即它的颜色（Invert 时互换）和 Blur，文件名以 `-video-preview` 结尾。
@@ -360,7 +377,7 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 
 ## 声音
 
-代码在 `src/sound/`，显示在 **Sound** 标签页（`src/components/SoundControls.tsx`）；计划见 [docs/SOUND_PLAN.zh.md](docs/SOUND_PLAN.zh.md)。第 1 阶段负责播放或收音、测量并显示电平表。第 2 阶段在文件播放或麦克风收音期间，让特征移动 Geometry 和 Experimental 标签页的滑块。第 3 阶段已完成一部分：三个种子成为随声音跳变的目标，每个锚点都会落到新的位置；Beat 成为映射可以跟随的特征；选择目标时会打开它需要的设置；十个预设可以设好字母并填好映射。第 4 阶段的 Pitch 和立体声 Pan 也已完成（最初测量的 20 个特征合并成了 10 个；随 Response 分组加入的 Melody 让特征变成 11 个）。**Response** 的旋钮调节声音移动字母的幅度，并能让每个字母按自己的幅度反应；**Record** 框录制视频（见[视频](#视频)）。第 3 阶段还剩 Step 映射（Allowed directions、Sides、Rings）。
+代码在 `src/sound/`，显示在 **Sound** 标签页（`src/components/SoundControls.tsx`）；计划见 [docs/SOUND_PLAN.zh.md](docs/SOUND_PLAN.zh.md)。第 1 阶段负责播放或收音、测量并显示电平表。第 2 阶段在文件播放或麦克风收音期间，让特征移动 Geometry 和 Experimental 标签页的滑块。第 3 阶段已完成一部分：三个种子成为随声音跳变的目标，每个锚点都会落到新的位置；Beat 成为映射可以跟随的特征；选择目标时会打开它需要的设置；十个预设可以设好字母并填好映射。第 4 阶段的 Pitch 和立体声 Pan 也已完成（最初测量的 20 个特征合并成了 10 个；随 Response 分组加入的 Melody 让特征变成 11 个）。**Response** 的旋钮调节声音移动字母的幅度，并能让每个字母按自己的幅度反应；视频能留住动态：音频文件的视频在 Export 里渲染，麦克风的视频在 **Record** 框里实时录制（见[视频](#视频)）。第 3 阶段还剩 Step 映射（Allowed directions、Sides、Rings）。
 
 - **布局**（NOCUR-71）：标签页像合成器插件一样排布，从上到下是五个带边框的框：**Transport**（走带：来源及其控件、Drive letters、Preset 和 Load、Freeze，以及 “Live · N fps”）、**Input**（输入：Sensitivity 和 Release，旁边是电平表）、**Response**（响应：一行四个旋钮，框宽不到 300 px 时由容器查询排成两行两列）、**Modulation**（调制：映射）和 **Record**（录制：标题是一个按钮，带 `aria-expanded`，可以收起这个框；一开始是展开的，只在本次访问内记住）。栏宽为最小的 280 px 时也不会横向滚动。
 - **旋钮**（`src/components/Knob.tsx`）：一个 SVG，十二边形的旋钮体，外圈是 21 条从 −135° 到 +135° 的短直线刻度，亮到当前值（双极旋钮从中间那条刻度开始亮：0 以上是主色薄荷绿，0 以下是 `--control` 橙色），还有一条直线指针；没有圆、圆弧或圆角。每个旋钮都是 `role="slider"`，带 `aria-valuemin`、`aria-valuemax`、`aria-valuenow` 和 `aria-valuetext`，有可见的标签（及其 ⓘ），下方显示数值。上下拖动转动它（拖 160 px 走完整个范围，按住 Shift 细十倍）；方向键调一档，PageUp 和 PageDown 调范围的十分之一，Home 和 End 到两端；双击恢复默认值；点下方的数值，或在旋钮上按 Enter，会打开 `NumberField` 输入数值（按 Enter 或离开数字框生效，按 Escape 保留原值，焦点回到旋钮）。每个旋钮都保留它取代的滑块的范围、档位和（线性）刻度，拖动一次或按住一个键算一步撤销，和滑块一样。
@@ -452,19 +469,21 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - **实时值标记**（`src/components/LiveMarker.tsx`）：每个目标滑块都包在一个 `.live-slider` 里；声音驱动它时，轨道上一条细细的强调色竖线显示实时位置，并与滑块按钮应在的位置对齐。标记每秒最多更新约 15 次，对读屏软件隐藏。滑块本身保留自己的值。（种子则显示实时数字，见上面的“种子”。）
 - **帧率：** 声音驱动字母期间，Transport 框、Record 框和状态栏（在 **Microphone on** 之前）显示 “Live · N fps”，N 是几何计算每秒能跟上的实时结果数（1000 ms ÷ 从发出一帧到它最后一个结果的平滑耗时，包括所有层级，最多 30），所以实时值不变时它也保持稳定。它是几何计算的速率，而不是读取声音的频率（声音每个动画帧读取一次，见下文 `engine.ts`）。连续 2 秒低于 8 fps 时，标签页提示 “Too slow to follow the sound: try fewer effects or a shorter text.”（Motion contrast 或 Pitch reactive 大于 0 时提示 “Too slow to follow the sound: try fewer effects, a shorter text, or less Motion contrast and Pitch reactive.”）。
 - **Freeze**（冻结，在 Transport 里；声音驱动字母时可用；其他时候以及录制视频期间用 `aria-disabled` 变灰，仍保留键盘焦点）：把屏幕上的共享实时值（标记所显示的值）写入滑块、把实时种子写入种子输入框（每个改变了的参数组更新一次，合起来算一步撤销），并让声音暂停（暂停文件或停止收音），所以冻结的样子会留在屏幕上，可以导出。反应更强或更弱的字母，以及所在 Thorn 轮换组还显示较早刺设置的字母，都改用共享值；它们的形状通常已经算好，所以切换是即时的；但有轮换组显示其他刺设置时，一帧只为显示共享值的字母的字形计算共享值，所以其他字形要到那时才计算。如果按下时共享实时值正好和滑块一致（例如两次鼓点之间），它只会暂停声音。SVG、PNG 和字体导出始终使用滑块值；声音驱动字母期间，Export 对话框会说明这一点，并指向 Freeze。视频则录下实时的样子（见[视频](#视频)）。
+- **Return to plain**（回到原字形，Transport 里单独一条横栏上的开关，NOCUR-87）：字母平时停在原字形上（所有 Experimental 效果关闭），每一拍让 Experimental 标签页里打开的效果出现 **Hold** 那么久（0–3000 ms，每档 10 ms，默认 200 ms；NOCUR-91 之前是 50–1000 ms）。低于 80 ms（包括 0）时，每一拍按最短的脉冲 80 ms 显示（`SHAPING_LIMITS.pulseMs`）。详见[声音计划](docs/SOUND_PLAN.zh.md)第 5.5 节。
 - **声音设置**（Sensitivity 和 Release 是 **Input** 框里的旋钮，其余四个是它后面 **Response** 框里的旋钮，标签为 Strength、Contrast、Pitch reactive 和 Melody；`types.ts` 中的 `ResponseSettings` 和 `RESPONSE_LIMITS`）：七个旋钮，各带一个 ⓘ，随会话保存，能像滑块一样撤销，预设不会改动它们：
   - **Sensitivity**（灵敏度，−24 到 +24 dB，每档 1，默认 0）：测量前加到输入上。
-  - **Strength**（强度，0–400%，每档 1%，默认 100%）：把每个映射移动字母的幅度乘以这个倍数（滑块的和与种子的 Rate，见上文）。0% 时字母保持不动（声音停止驱动）；高于 100% 时，闪烁限制会更常压住往回的动作。
+  - **Strength**（强度，0–400%，每档 1%，NOCUR-91 起默认 150%，让字母对音乐的反应更强）：把每个映射移动字母的幅度乘以这个倍数（滑块的和与种子的 Rate，见上文）。0% 时字母保持不动（声音停止驱动）；高于 100% 时，闪烁限制会更常压住往回的动作。100% 是中性值，结果和以前完全一样；按旧默认值（正好 100%）保存的会话在载入时改为 150%（会话版本 4），其他选过的 Strength 保持不变。
   - **Motion contrast**（动作对比，0–100%，每档 1%，默认 0）：让每个字母按自己的幅度反应（见上面的“字母”）。开启 Thorn 时，它不改变 Thorn 轮换目标（见上面的“Thorn 轮换”）。可能降低帧率。
   - **Release**（释放，20–1000 ms，每档 1 ms，默认 150 ms；原来叫 Smoothing）：声音过后读数回落得有多慢；读数上升总是立即的。Beat 和 Melody 脉冲回落的快慢也由它决定。
   - **Pitch reactive**（随音高反应，0–200%，每档 1%，默认 0）：近来旋律中的低音让左边的字母动得更多，高音让右边的字母动得更多（见上面的“字母”）；开启 Thorn 时，它和 Motion contrast 一样不改变 Thorn 轮换目标。它的 ⓘ 写着 “The low notes of the melody move the letters on the left more, its high notes those on the right, so a tune sweeps across the text. Follows the range of the last few seconds of notes. Needs a clear note, such as a voice or one instrument. Can lower the frame rate.”（旋律的低音让左边的字母动得更多，高音让右边的字母动得更多，所以一段曲调会扫过整段文字。跟随最近几秒内音符的音域。需要清晰的音，例如人声或一件乐器。可能降低帧率。）
   - **Melody tracking**（旋律跟随，0–200%，每档 1%，默认 0）：旋律每换到一个新音就加一些动作，即使响度不变；做法是把 Melody 脉冲加到每个滑块映射的特征上（见上面的“调制”）。
-  - **Glide**（滑行，0–1000 ms，每档 10 ms，默认 150 ms）：声音驱动字母时，每个新的实时形状在这段时间内到达（三次缓出），而不是立刻出现；0 ms 与以前完全相同。只影响显示：画布、预览和录制会滑行；计算出的形状、调度、闪烁限制、标记、状态、Freeze 和所有导出在任何取值下都不变。系统要求减少动态效果时它为 0；文字或字体改变（字形或顺序不同）时立刻显示。声音停止时，字母会再滑行一次回到滑块对应的形状。Glide 出现之前保存的会话读作 150 ms。实现方式（`src/specimen/morph.ts`、`trajectory.ts`、`glide.ts`；`src/state/useGlide.ts`；`src/components/Glided.tsx`）：
+  - **Glide**（滑行，0–1000 ms，每档 10 ms，默认 150 ms）：声音驱动字母时，每个新的实时形状在这段时间内到达（三次缓出），而不是立刻出现；0 ms 与以前完全相同。只影响显示：画布、预览和视频会滑行；计算出的形状、调度、闪烁限制、标记、状态、Freeze 和所有导出在任何取值下都不变。系统要求减少动态效果时它为 0；文字或字体改变（字形或顺序不同）时立刻显示。声音停止时，字母会再滑行一次回到滑块对应的形状。Glide 出现之前保存的会话读作 150 ms。实现方式（`src/specimen/morph.ts`、`trajectory.ts`、`glide.ts`；`src/state/useGlide.ts`；`src/components/Glided.tsx`）：
     - **配对：** 新旧轮廓的各个闭合路径按质心距离和面积贪心配对（外轮廓配外轮廓，孔配孔；路径很多时只尝试相近的几条）；相距超过两者尺寸之和一半、或面积相差 4 倍以上的路径不配对。一边的轮廓绕向相反时（Whorl 的 Amount 大于 1 时，折叠的字母会被合并），先把它的路径倒过来读。没有配对的路径，如果另一边轮廓（任意一条路径）上的最近点平均在它的尺寸之内，就从这些最近点长出或缩回到那里，否则从质心长出或缩回质心。锚点数相同且几乎没动的路径逐点对应；否则把两边的锚点合并，每个锚点走到另一条路径上离它最近的点，并保持顺序（取保持顺序的最长一串最近点，其余的在中间补齐），所以新长出的刺从它的根部长出，消失的刺缩回根部。只有旧轮廓才有的锚点，如果几乎落在一段直线上（0.004 em 以内；数量多于新轮廓锚点时，这个容差逐步加倍，最多到 0.05 em，这么小或这么细的多余路径也会去掉），就从中间形状里去掉，免得多次滑行后锚点越积越多。中间形状始终由直线段组成，不做密集重采样。
     - **按效果的路径：** 刺和其他所有效果都走直线；Whorl 沿着由直线组成的路径卷过去。只有 Whorl 的转动改变（Amount、Pinned 或 Whorl 开关）、而且它后面没有效果再改变字形时，滑行就是 Whorl 自己的网格转过一部分（`whorlGlide.ts`）：worker 传出进入 Whorl 之前的字形、Whorl 的中心、环和每个环转过的角度（`PolygonGlyph.motion`）；网格的每个角沿它所在环的正多边形（边数为 Sides）从一个角到下一个角分段直线移动，字形上的每个点跟着它所在三角形的角移动，所以字母按 Whorl 自己的方式卷起来，折叠处也一样，每条边都是直的。其他情况下，只要 Whorl 的设置变了，每个锚点就按 Whorl 在它根部（它在配对轮廓上的位置）的转动变化量沿同一个多边形转过去，剩下的位移走直线，所以卷动的字母上的刺相对于它的根部仍是笔直的。新的效果通过添加一个 `TrajectoryModel` 来定义自己的路径。
+    - **关键帧**（NOCUR-91；`src/sound/keyframes.ts`）：形状的大变化会经过真实的中间形状，而不是从旧到新一次变形。大变化指某个 Experimental 效果打开或关闭（Return to plain 每一拍都这样），或某个效果的强度字段移动至少它滑块行程的 25%。两个关键帧，在 1/3 和 2/3 处：每个效果的强度字段（Crumple 的 Amount；Ripple 的 Amount、Petals；Whorl 的 Amount；Slipstream 的 Strength、Slip、Cuts、Trails；Thorn 的 Reach、Refraction、Dent；Dissolve 的 Amount、Spread、Specks）走到相应的一部分，正在打开的效果从 0 长出来，正在关闭的效果保持打开、淡到 0，其他所有值已经是新值。几何管线像计算任何一帧那样计算每个关键帧，所以它们也是折面的、只有直线，它们的字形在这一帧显示之前算好，实时路径（`live.ts` 里的 `LiveCommit.keyframes`）和预计算的计划都是这样。然后 Glide 一段一段地变形（`glide.ts`）：缓动后的进度平均分给各段，每段是一次独立的变形，沿着它的效果的轨迹。它没有自己的控件；Glide 为 0 就没有关键帧。
     - **时间：** 滑行途中到来的新形状从屏幕上当前的样子接着滑；已完成 99% 的滑行算作已到达。配对在页面上进行，每个动画帧最多 6 ms（`GLIDE_LIMITS.planBudgetMs`），从上一帧停下的字形开始轮流配对，每帧至少一个；还没配对的字形保持屏幕上的样子，配对后再开始滑行。配对结果按新旧轮廓缓存，重复的字母共用。
   - **Reset sound**（在 Response 旋钮下方）用一步撤销把七个值都恢复为默认值；它们都是默认值时按钮变灰。
-- **Record**（录制，位于 Modulation 之后的最后一个框；点标题可以收起）：见[视频](#视频)。
+- **Record**（录制，位于 Modulation 之后的最后一个框；点标题可以收起）：给麦克风实时录制；来源是音频文件时，显示一句说明和 **Export video…**（见[视频](#视频)）。
 - **测试音轨：** `test-audio/sound-test.wav`（42 秒，16 位立体声，44.1 kHz，完全由程序合成）不提交到仓库：`npm run test-track`（`scripts/make-test-track.ts`，渲染 `scripts/test-track.ts`）会生成它，git 会忽略它；`npm run test-track -- out.wav` 写到别的位置。渲染结果是确定的，有一个测试会检查它的校验和。它的每一段对应一种读数。先是居中、左右声道相同的部分：只有底鼓（0–4 秒）、底鼓加踩镲（4–8 秒）、底鼓加一个渐强的和弦（8–12 秒）、静音（12–15.5 秒）、逐渐变弱的完整混音（15.5–21.5 秒）、只有每秒 16 下的踩镲（21.5–26 秒）。然后是每半秒一个音的单音旋律，A2 → A5 再回来（26–32 秒，用于 Pitch）；每半秒在最左和最右之间切换的踩镲，下面是居中的轻柔低音（32–38 秒，用于 Pan，它在约 ±0.5 之间摆动）；以及左右声道互不相关、逐渐减弱的宽声场噪声（38–42 秒；Pan 在这里保持居中）。
 - **实测：** 测量一帧（`FeatureExtractor.process`）在 48 kHz 下约需 90 µs（合并为 10 个特征后、加入 Melody 和音高置信度之前重测，音乐式混音上为 89–93 µs），加入第 3 阶段的特征之前约 35 µs，增加的主要是 Pitch。在几何 Worker 中（Node、Arial、默认文字里的 24 个不同字形），种子跳变一次、重算所有字形约需 2–3.5 ms；滑块实时帧的耗时与以前相同（Level → Distortion · Noise amplitude 约 2.4 ms；Level → Distortion · Noise amplitude、Level → Crumple · Amount 和 Bass → Ripple · Petals 同时使用约 12 ms；所有实验效果都打开时 37–41 ms，24–27 fps）。实验效果的这些数字是重做之前测的，重做让 Slipstream 和 Thorn 变重了（默认设置下每个字形各约 0.7–0.9 ms，其中 Thorn 的数字是 Reach 还按 em 计时测的，见[实验效果](#实验效果crumpleripplewhorlslipstreamthorn-与-dissolve)）。在测试音轨上，Beat → Distortion · Seed 在只有底鼓的一段每秒跳变 1.89 次（等于节拍的速度），在每秒 8 拍的部分被限制在每秒约 4.3–4.5 次。
 - **实测：字母分在几个层级时**（Node、单线程、每帧都重新计算，Roboto 的默认文字：226 个字母、196 个要画、24 个字形编号；每帧耗时的中位数，单位 ms）。多出来的层级让每帧的字形计算从 24 次变成 Motion contrast 100% 时 54 次、Pitch reactive 200% 时 61 次、两者都开时 54 次；把字母分到各层级每帧只需 0.09–0.15 ms。Pitch reactive 这几列是在它跟随旋律音域之前测的（当时它把音高放在 Pitch 的整个刻度上）；之后每帧的计算方式没有变化，只有开启 Thorn 时例外：Thorn 和 Flare 两行是在 Thorn 轮换之前测的，当时层级还会缩放 Thorn 的滑块（现在不再缩放，而轮换组会带来自己的参数组；见上面的“Thorn 轮换”）。这项测量不含闪烁限制，其中的 “Flare” 是该预设的起始值，只带 Reach 那一行映射：
@@ -508,12 +527,12 @@ CSS 预览字体拿不到轮廓数据，因此应用会下载真实的字体文�
 - `mappingStore.ts`：映射列表、响应值（Strength、Motion contrast、Pitch reactive、Melody tracking、Glide）和 Drive letters，放在 React 状态之外的一个小 store 里，用 `useMappingState` 读取（页面打开期间跟随 `prefers-reduced-motion` 的变化；`replace` 载入预设的各行，不动响应值；`restore` 放回保存的或撤销后的映射；`setResponse` 截断取值，每次拖动滑块记录一步撤销；`restoreResponse` 放回保存的或撤销后的值）；`MAPPING_LIMITS`。
 - `src/state/sliderScales.ts`（不在 `src/sound/` 里）：`SLIDER_RANGES`（每个线性滑块的范围和档位，按目标 id 索引）、`sliderRange`、`TOLERANCE` 和它的对数刻度换算，以及 `THORN_REACH` 和 Thorn 的 Reach 的立方换算（`reachToSlider`、`reachFromSlider`、`roundReach`、`reachPercent`、`reachReadout`），控件和 `mapping.ts` 都从这里读取。
 - `presets.ts`：`PRESETS`，每个预设带有名称、它的 ⓘ 里显示的一行说明、起始值和它的映射；以及 `presetSettings`，给出 Load 之后的结果：设置（Geometry 和 Experimental 的每个分组恢复默认、保留种子，再设上起始值）、改变了的分组，以及提示。纯函数式：不依赖 React 和 DOM。
-- `live.ts`：`LiveScheduler`（帧调度、种子的跳变、字母的层级、Thorn 轮换，以及从测量帧到提交的延迟，可通过注入依赖测试）和 `FlashLimiter`（带 `LevelSpread`，即字母所显示的层级）；`useLiveFrame`（页面上的调度器：给画布的实时参数和字母的层级）、`useLiveLetters`（把当前显示的文字的字母告诉调度器）、`liveLatencyMs`（用于视频的音频延迟）、`useLivePosition`（单个目标的标记；只在取整后的位置变化时重新渲染）、`useLiveSeed`（单个种子的实时值，供 `LiveSeed` 使用）、`useLiveStatus`（driving、fps、slow、differs；只在其中之一变化时重新渲染）、`useLiveDriving`（只有 driving）和 `freezeLive`。
+- `live.ts`：`LiveScheduler`（帧调度、种子的跳变、字母的层级、Thorn 轮换、Glide 打开时每次提交带的关键帧，以及从测量帧到提交的延迟，可通过注入依赖测试）和 `FlashLimiter`（带 `LevelSpread`，即字母所显示的层级）；`useLiveFrame`（页面上的调度器：给画布的实时参数和字母的层级）、`useLiveLetters`（把当前显示的文字的字母告诉调度器）、`liveLatencyMs`（用于视频的音频延迟）、`useLivePosition`（单个目标的标记；只在取整后的位置变化时重新渲染）、`useLiveSeed`（单个种子的实时值，供 `LiveSeed` 使用）、`useLiveStatus`（driving、fps、slow、differs；只在其中之一变化时重新渲染）、`useLiveDriving`（只有 driving）和 `freezeLive`。
 - **隐私：** 不联网。文件通过对象 URL 在浏览器中读取，从不上传；麦克风的声音被测量，从不回放，而且只在收音期间打开麦克风。只有在打开 **Include audio** 录制视频时，它才会被录进视频，而这个文件保存在你的电脑上，从不上传。
 
 ## 开发
 
-技术栈：Vite + React + TypeScript；用 [fontkit](https://github.com/foliojs/fontkit) 读取字体，用 [opentype.js](https://github.com/opentypejs/opentype.js) 写入字体（均按需加载）。
+技术栈：Vite + React + TypeScript；用 [fontkit](https://github.com/foliojs/fontkit) 读取字体，用 [opentype.js](https://github.com/opentypejs/opentype.js) 写入字体，用 [Mediabunny](https://mediabunny.dev) 编码音频文件的视频（均按需加载）。
 
 ```text
 src/
@@ -524,7 +543,8 @@ src/
 │                          GlyphPanel / GlyphPicker + ColorControls，右下 InputPanel = TextPanel + TextPreview（含 ExportedArtboard），
 │                          StatusBar + ThemeToggle；共用 GlyphLayers、Icon、Knob、LiveMarker、LiveSeed、usePanZoom、useSplit；
 │                          视频：RecordControls（Sound 标签页的 Record 框和与 Export 对话框共用的选项）、
-│                          RecordingCanvas（录制所用的隐藏画布）
+│                          RecordingCanvas（录制所用的隐藏画布）、
+│                          VideoRender（音频文件的 Export → Video：Time range、Render video）
 ├── font/                  字体加载与解析：本地文件与字体集合、Google Fonts、Google Fonts 链接解析、
 │                          格式识别、fontkit 适配、排版、字偶距（供导出读取）、字形搜索
 ├── state/                 文档与参数状态、reducer、导入（useFontImport）、
@@ -539,7 +559,8 @@ src/
 │                          映射 store、预设、实时调度
 ├── export/                SVG 序列化、精度校验、带 GPOS 字偶距的 OpenType 写入（gpos.ts）、改写（sfnt.ts）、
 │                          把字形裁到字体存得下的范围（fitGlyph.ts）、回读校验、字体导出 Worker 和它的客户端，
-│                          以及视频录制：选项与限制（videoFormat.ts）、把画板画进画布（drawArtboard.ts）和录制器（recorder.ts）
+│                          以及视频录制：选项与限制（videoFormat.ts）、把画板画进画布（drawArtboard.ts）、录制器（recorder.ts），以及音频文件视频的离线渲染
+│                          （videoRender.ts，在 videoEncode.ts 里通过 Mediabunny 用 WebCodecs 编码）
 └── styles.css
 tests/                     Vitest：按领域分的快速测试（geometry、export、font、worker、state、sound、specimen、scripts）、tests/slow 中的慢速测试、
                            辅助函数，以及 OFL 授权的测试字体（STIX Two Text、Roboto）
@@ -560,7 +581,7 @@ npm run test:slow        # 慢速测试，约 5 分钟
 npm run test-track       # 生成 test-audio/sound-test.wav（不提交）
 ```
 
-- **快速测试**（`npm test`）：在测试字体上检查几何不变量（推导从不抛错，坐标有限且结果确定，按 0 位和 2 位小数取整都能成功，没有新增交叉，合并后没有交叉，SVG 路径只用 `M`、`L`、`Z`）；合并（包括达到 256 em 上限的刺、超出网格的字形，以及保留又长又细的刺和裂缝、同时略去发丝般细的细条）、相交扫描、取整和顶点预算的回归测试；Thorn（Reach 作为画布对角线的比例，它的立方滑块及靠近 0 时的细分档位和读数，Thorn 之前的范围和凸包，折射只作用于字母，以及稳定的锚点：经过 Distortion、Crumple 和 Ripple 时保持位置和方向，换种子时重新选择，轮廓重叠的字母也一样：`thorn-anchors.test.ts`）；Dissolve（关闭时字形不变，同一种子给出同样的墨迹，并且在每种设置下墨岛、孔洞和墨点都是可以导出的直边切面：没有相交、相触或夹点，没有短于十分之一个切面的边、短于半个切面的边也几乎没有，没有沿短边的一串平缓转折，小墨点最多六个角，每条边两侧的环绕数都正确，六个效果全部拉到滑块最大值后仍在顶点预算之内：`dissolve.test.ts`）；不计刺的排版（每个锚点和 Free 下的位置、Fit text、超出画布的提示，倾斜时与关闭 Thorn 完全相同）；声音驱动时由滑块值下的字母决定文字块位置（`placement.test.ts`）；字形的点击范围（字列加字母本身，开启 Thorn 时是展平后的原始轮廓，只有直线段，从不包括刺）；把字形放进字体的 32 766 单位正方形；OTF 导出（CFF 轮廓、与原字体相同的字偶距、行距、包围盒、裁掉长刺、略去过宽的字宽）；字体集合；几何 Worker 和它的客户端（看门狗、重启、抢先替换、带几组参数的请求、实时结果按最久没用先丢的方式保留、帧的参数组很多时保留两帧的量）；画板的路径按多边形生成，以及 `placePolygons` 给出的出现序号（`specimenPaths.test.ts`、`occurrence.test.ts`）；会话保存与撤销（包括读取版本 1 的 Reach：像 Thorn 一样设上限，且不会取整成 0；以及 Response 分组的值）；声音（带 Melody、音高置信度和旋律音域的特征、Beat 能量门、字母分在几个层级时的闪烁限制（包括真实音符上的 Pitch reactive）、带 Strength 和 Melody tracking 的映射、Strength 下的种子（`jumps.test.ts`）、字母的层级和 `pitchPlace`（`letters.test.ts`）、Thorn 轮换（`turns.test.ts`：分组、轮换状态、轮换的时间、闪烁限制和重新开始，以及开启和关闭 Thorn 时的调度器，包括默认文字上的 Flare）、实时调度器和测试音轨的校验和）；pull request 的 Jira 同步（`jira-pr-sync.test.ts`，用假的 Jira：pull request 提到的 key、每种事件对应的转换、先核对账号、issue 只往前走，缺少 secret、来自 fork、找不到 issue 和各环节请求被拒的情形，以及像 workflow 那样运行脚本）；以及视频（`videoFormat.test.ts`：尝试的 MIME 类型和 MP4 → WebM 的退回、尺寸、码率、音频延迟和文件名；`drawArtboard.test.ts`：用记录调用的假绘图对象检查绘制；`recorder.test.ts`：一次录制开始和结束的每种情形，时钟、声音引擎、画布和 `MediaRecorder` 都是假的，不会真的下载）。`tests/sound/neutral.test.ts` 用在提交 4a54e5d 时取得的哈希值固定下来：Response 分组为默认值时，输出与之前完全相同（每个预设的 `modulate`、起始设置不开 Thorn 的每个预设的实时调度器请求、提交和 Freeze、分析器的帧，以及 Flicker 下 Roboto 默认文字直到 SVG 的结果）；这些常量只从 4a54e5d 的导出取得，从不为迁就某个改动而修改。调度器的固定值不含 Flare，即唯一一个起始就打开 Thorn 的预设，因为 Thorn 轮换有意改变了它的实时帧（由 `turns.test.ts` 测试）；这个固定值是在不含 Flare 的情况下从 4a54e5d 的导出重新取得的（在 arm64 上；留下的预设哈希的字符串与之前的固定值相同，而 x64 也与之前的固定值一致）。
+- **快速测试**（`npm test`）：在测试字体上检查几何不变量（推导从不抛错，坐标有限且结果确定，按 0 位和 2 位小数取整都能成功，没有新增交叉，合并后没有交叉，SVG 路径只用 `M`、`L`、`Z`，并且在拉丁样本上看起来像曲线的连续短边不比关闭效果时多，Crumple、Ripple、Slipstream 和反向 Thorn 除外）；合并（包括达到 256 em 上限的刺、超出网格的字形，以及保留又长又细的刺和裂缝、同时略去发丝般细的细条）、相交扫描、取整和顶点预算的回归测试；Thorn（Reach 作为画布对角线的比例，它的立方滑块及靠近 0 时的细分档位和读数，Thorn 之前的范围和凸包，折射只作用于字母，以及稳定的锚点：经过 Distortion、Crumple 和 Ripple 时保持位置和方向，换种子时重新选择，轮廓重叠的字母也一样：`thorn-anchors.test.ts`）；Dissolve（关闭时字形不变，同一种子给出同样的墨迹，并且在每种设置下墨岛、孔洞和墨点都是可以导出的直边切面：没有相交、相触或夹点，没有短于十分之一个切面的边、短于半个切面的边也几乎没有，没有沿短边的一串平缓转折，小墨点最多六个角，每条边两侧的环绕数都正确，六个效果全部拉到滑块最大值后仍在顶点预算之内：`dissolve.test.ts`）；不计刺的排版（每个锚点和 Free 下的位置、Fit text、超出画布的提示，倾斜时与关闭 Thorn 完全相同）；声音驱动时由滑块值下的字母决定文字块位置（`placement.test.ts`）；字形的点击范围（字列加字母本身，开启 Thorn 时是展平后的原始轮廓，只有直线段，从不包括刺）；把字形放进字体的 32 766 单位正方形；OTF 导出（CFF 轮廓、与原字体相同的字偶距、行距、包围盒、裁掉长刺、略去过宽的字宽）；字体集合；几何 Worker 和它的客户端（看门狗、重启、抢先替换、带几组参数的请求、实时结果按最久没用先丢的方式保留、帧的参数组很多时保留两帧的量）；画板的路径按多边形生成，以及 `placePolygons` 给出的出现序号（`specimenPaths.test.ts`、`occurrence.test.ts`）；会话保存与撤销（包括读取版本 1 的 Reach：像 Thorn 一样设上限，且不会取整成 0；以及 Response 分组的值）；声音（带 Melody、音高置信度和旋律音域的特征、Beat 能量门、字母分在几个层级时的闪烁限制（包括真实音符上的 Pitch reactive）、带 Strength 和 Melody tracking 的映射、Strength 下的种子（`jumps.test.ts`）、字母的层级和 `pitchPlace`（`letters.test.ts`）、Thorn 轮换（`turns.test.ts`：分组、轮换状态、轮换的时间、闪烁限制和重新开始，以及开启和关闭 Thorn 时的调度器，包括默认文字上的 Flare）、实时调度器和测试音轨的校验和）；pull request 的 Jira 同步（`jira-pr-sync.test.ts`，用假的 Jira：pull request 提到的 key、每种事件对应的转换、先核对账号、issue 只往前走，缺少 secret、来自 fork、找不到 issue 和各环节请求被拒的情形，以及像 workflow 那样运行脚本）；以及视频（`videoFormat.test.ts`：尝试的 MIME 类型和 MP4 → WebM 的退回、尺寸、码率、音频延迟和文件名；`drawArtboard.test.ts`：用记录调用的假绘图对象检查绘制；`recorder.test.ts`：一次录制开始和结束的每种情形，时钟、声音引擎、画布和 `MediaRecorder` 都是假的，不会真的下载）。`tests/sound/neutral.test.ts` 用在提交 4a54e5d 时取得的哈希值固定下来：Response 分组为默认值时，输出与之前完全相同（每个预设的 `modulate`、起始设置不开 Thorn 的每个预设的实时调度器请求、提交和 Freeze、分析器的帧，以及 Flicker 下 Roboto 默认文字直到 SVG 的结果）；这些常量只从 4a54e5d 的导出取得，从不为迁就某个改动而修改。调度器的固定值不含 Flare，即唯一一个起始就打开 Thorn 的预设，因为 Thorn 轮换有意改变了它的实时帧（由 `turns.test.ts` 测试）；这个固定值是在不含 Flare 的情况下从 4a54e5d 的导出重新取得的（在 arm64 上；留下的预设哈希的字符串与之前的固定值相同，而 x64 也与之前的固定值一致）。
 - **慢速测试**（`npm run test:slow`，在 `tests/slow`）：在两种分析器上检查 42 秒测试音轨的每一段（包括旋律段上 Melody 脉冲的次数），以及在两款测试字体的每个字形上检查几何不变量。
 - 测试字体只用 OFL 授权的字体（STIX Two Text 和 Roboto，授权文件放在 `tests/fixtures/fonts` 中各自旁边）。
 - **CI：** `.github/workflows/test.yml` 在每个合并到 `develop` 的 pull request 和每次推送到 `develop` 时运行 `npm test` 和 `npm run build`；部署工作流在构建前先运行 `npm test`。慢速测试只在本地运行。
@@ -577,7 +598,7 @@ npm run test-track       # 生成 test-audio/sound-test.wav（不提交）
 
 ## 后续规划：声音
 
-第 1、2、4 阶段已完成，第 3 阶段完成了一部分：**Sound** 标签页可以播放本地音频文件或通过麦克风收音，实时显示五组共 11 个特征的电平表（响度、频带、带音高和旋律的音色、带节拍脉冲和活跃度的节奏，以及立体声声像），并用最多 8 个映射移动 Geometry 和 Experimental 的滑块、让三个种子跳变，于是锚点踩着节拍跳到新位置。选择目标时会打开它需要的设置，十个预设可以设好字母并填好映射作为起点。Response 分组调节动作的幅度，并能让字母按不同幅度反应。屏幕上的每个字母都是普通、有效、只有直边的结果；**Freeze** 可以留住某一刻用于导出，原先计划以后再做的视频录制也已完成：一次录制会录下运动的字母和它们的声音（见[视频](#视频)）。
+第 1、2、4 阶段已完成，第 3 阶段完成了一部分：**Sound** 标签页可以播放本地音频文件或通过麦克风收音，实时显示五组共 11 个特征的电平表（响度、频带、带音高和旋律的音色、带节拍脉冲和活跃度的节奏，以及立体声声像），并用最多 8 个映射移动 Geometry 和 Experimental 的滑块、让三个种子跳变，于是锚点踩着节拍跳到新位置。选择目标时会打开它需要的设置，十个预设可以设好字母并填好映射作为起点。Response 分组调节动作的幅度，并能让字母按不同幅度反应。屏幕上的每个字母都是普通、有效、只有直边的结果；**Freeze** 可以留住某一刻用于导出，原先计划以后再做的视频也已完成：音频文件的视频按它的计划离线渲染，麦克风的视频实时录制，都带上声音（见[视频](#视频)）。
 
 第 3 阶段中**尚未实现**的部分：
 - **Step** 事件映射：每次 Beat 时换到几个可选值中的下一个，例如 Allowed directions（角度步长）、Sides 或 Rings。

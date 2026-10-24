@@ -268,7 +268,7 @@ Ripple 的各圈一直是正多边形。Petals 把每一圈都弯成一朵花，
 - **无曲线审计：** 平滑段（第 2 节）不增加；三角形检查确认网格里没有三角形翻转。
 - **导出回归：** 由结果生成的 OTF 和 SVG 仍能通过导出检查，失败数为 0。
 - **性能：** 所有效果取默认值时，完整样张的重新计算速度与之前大致相同；所有滑块都在最大值时，顶点预算让普通 Geometry 上的每个字形不超过约 0.6 秒（第 4.10 节）。
-- **自动测试：** `npm test` 在两种测试字体（STIX Two Text 和 Roboto）的拉丁样本上检查几何不变量（不抛错、不新增交叉、两次结果相同、0 位和 2 位小数的导出取整、SVG 只有 `M` / `L` / `Z`），设置包括每个效果和六个效果一起的默认值（也在很密和很重的 Geometry 上）以及 Anchor spacing 1；另外还检查合并的角落情形、以前会栈溢出的梳子形、合并上限、与暴力查找对照的交叉查找、许多轮廓和缠结的导出取整，以及顶点预算：六个效果都在最大值时必须起作用（Thorn 伸到 256 em 时也一样），默认设置、单个效果在最大值（包括伸到 256 em 的 Thorn）以及任何 Sound 预设下都不得起作用（`tests/geometry`）；还检查 Thorn 的画布 Reach 及其滑块（第 4.8 节）、256 em 长的刺的合并，以及被又长又细的刺或裂缝弄得平均宽度很窄的字母和内孔的合并，不计刺的排版和点击范围、会裁掉长刺的字体文件，以及在 Distortion 之前挑选、在 Distortion、Crumple 或 Ripple 改动一档时保持不变的 Thorn 锚点（第 4.8 节）（`tests/geometry`、`tests/export`、`tests/specimen`、`tests/state`）。`npm run test:slow` 在两种字体的全部字形上检查这些不变量（`tests/slow`）。
+- **自动测试：** `npm test` 在两种测试字体（STIX Two Text 和 Roboto）的拉丁样本上检查几何不变量（不抛错、不新增交叉、两次结果相同、0 位和 2 位小数的导出取整、SVG 只有 `M` / `L` / `Z`、看起来像曲线的连续短边不比关闭效果时多，Crumple、Ripple、Slipstream 和反向 Thorn 除外），设置包括每个效果和六个效果一起的默认值（也在很密和很重的 Geometry 上）以及 Anchor spacing 1；另外还检查合并的角落情形、以前会栈溢出的梳子形、合并上限、与暴力查找对照的交叉查找、许多轮廓和缠结的导出取整，以及顶点预算：六个效果都在最大值时必须起作用（Thorn 伸到 256 em 时也一样），默认设置、单个效果在最大值（包括伸到 256 em 的 Thorn）以及任何 Sound 预设下都不得起作用（`tests/geometry`）；还检查 Thorn 的画布 Reach 及其滑块（第 4.8 节）、256 em 长的刺的合并，以及被又长又细的刺或裂缝弄得平均宽度很窄的字母和内孔的合并，不计刺的排版和点击范围、会裁掉长刺的字体文件，以及在 Distortion 之前挑选、在 Distortion、Crumple 或 Ripple 改动一档时保持不变的 Thorn 锚点（第 4.8 节）（`tests/geometry`、`tests/export`、`tests/specimen`、`tests/state`）。`npm run test:slow` 在两种字体的全部字形上检查这些不变量（`tests/slow`）。
 - **浏览器实测：** 在屏幕上逐个检查效果，并和 Geometry 设置一起检查，重点确认没有任何地方看起来像曲线。
 - **文档：** 更新 README、用户指南和 PRD，中英文分开写。
 

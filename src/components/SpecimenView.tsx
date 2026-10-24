@@ -12,7 +12,7 @@ import GlyphLayers from './GlyphLayers'
 import { sharedOutlines } from './sharedOutlines'
 import SpecimenUnderlay from './SpecimenUnderlay'
 import { usePanZoom } from './usePanZoom'
-import { glyphRefOf, useTextDrag, type MoveText } from './useTextDrag'
+import { CANVAS_KEYS, glyphRefOf, useTextDrag, type MoveText } from './useTextDrag'
 
 interface SpecimenViewProps {
   font: LoadedFont
@@ -172,7 +172,7 @@ export default function SpecimenView({
   const panZoom = usePanZoom(frame, view, onViewChange)
   const { containerRef, ready, u, visW, visH, box, handlers } = panZoom
   // Free position: a drag that starts on a glyph or the text block moves the text; anywhere else it pans as usual.
-  const { freeMove, draggingText, movingRef, dragged, pointer, onKeyDown } = useTextDrag({
+  const { freeMove, draggingText, movingRef, dragged, pointer, onKeyDown, announcement } = useTextDrag({
     scene,
     layout,
     u,
@@ -180,6 +180,7 @@ export default function SpecimenView({
     onMoveText,
     onClearSelection,
     startsOnText: (e) => (e.target as Element).closest('.specimen-glyph, .text-block-hit') !== null,
+    selection: { font, selected: selectedGlyph, onSelect: onSelectGlyph },
   })
   const { left, right, top, bottom } = box
   const showGridInside = draggingText || view.zoom >= GRID_INSIDE_ZOOM
@@ -301,8 +302,9 @@ export default function SpecimenView({
       ref={containerRef}
       className="glyph-view specimen-view"
       tabIndex={0}
-      role="img"
-      aria-label={`${label}. Drag or use arrow keys to pan, scroll or +/− to zoom, 0 to fit. Click a glyph to select it; click empty space or press Escape to clear the highlight.${freeMove ? ' Drag the text to move it.' : ''}`}
+      role="application"
+      aria-roledescription="canvas"
+      aria-label={`${label}. ${CANVAS_KEYS}${freeMove ? ' Drag the text to move it.' : ''}`}
       data-free-move={freeMove || undefined}
       {...handlers}
       {...pointer}
@@ -356,6 +358,9 @@ export default function SpecimenView({
           Snap grid {gridSize} u{grid ? '' : ' · too dense to draw at this zoom'}
         </p>
       )}
+      <p className="visually-hidden" aria-live="polite">
+        {announcement}
+      </p>
       {markersHidden && (
         <p className="canvas-note" aria-live="polite">
           Zoom in to see skeleton points and vertices (shown from {MARKER_MIN_PX_PER_EM} px per em).

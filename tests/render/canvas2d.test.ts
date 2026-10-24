@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { Canvas2DRenderer, needsDetail, type Canvas2DMode } from '../../src/render/canvas2d'
 import type { CanvasView, GlideFrame, RenderStyle } from '../../src/render/types'
+import { morphAt, planMorph } from '../../src/specimen/morph'
 import type { SpecimenScene } from '../../src/specimen/scene'
 import { RecordingContext, RecordingPath, sceneOf, square, squareSource, testStyle, type Call } from './fixtures'
 
@@ -197,5 +198,63 @@ describe('the Canvas2D renderer', () => {
     const skew = Math.tan((-10 * Math.PI) / 180)
     const expected = [kx * s, 0, -skew * kx * s, -kx * s, (30 - layout.x) * kx * s, (0 - layout.y) * kx * s]
     m.forEach((v, k) => expect(v).toBeCloseTo(expected[k], 9))
+  })
+})
+
+describe('the in-between polygons of a glide', () => {
+  /** A frame with one glyph mid-glide; `evaluated` counts the morphs scene() makes. */
+  function gliding() {
+    const from = square(0, 0, 400, 400)
+    const to = square(100, 0, 500, 600)
+    const plan = planMorph(from, to)!
+    const layout = sceneOf([[{ index: 1, polygon: to }]])
+    const counter = { evaluated: 0 }
+    let scene: SpecimenScene | null = null
+    const frame: GlideFrame = {
+      target: layout,
+      layout,
+      morphs: [{ plan, p: 0.5 }],
+      scene: () => {
+        if (!scene) {
+          counter.evaluated++
+          const polygon = morphAt(plan, 0.5)
+          scene = { ...layout, lines: [{ ...layout.lines[0], glyphs: [{ ...layout.lines[0].glyphs[0], polygon }] }] }
+        }
+        return scene
+      },
+    }
+    return { frame, counter }
+  }
+
+  function drawGliding(mode: Canvas2DMode, style: RenderStyle) {
+    const { frame, counter } = gliding()
+    const ctx = new RecordingContext()
+    const renderer = new Canvas2DRenderer<RecordingPath>({ width: 0, height: 0 }, ctx, mode, () => new RecordingPath())
+    renderer.setView(VIEW)
+    renderer.setStyle(style)
+    renderer.setFrame(frame, () => squareSource())
+    renderer.draw()
+    renderer.hitTest(10, 10)
+    return { counter, ctx }
+  }
+
+  it('are not made for the detail layer unless it draws vertex markers', () => {
+    for (const style of [
+      testStyle({ outline: 'source' }),
+      testStyle({ outline: 'compare' }),
+      testStyle({ showSkeleton: true, showMarkers: true }),
+    ]) {
+      const { counter, ctx } = drawGliding('detail', style)
+      expect(counter.evaluated).toBe(0)
+      expect(fills(ctx).length + strokes(ctx).length).toBeGreaterThan(0)
+    }
+    expect(drawGliding('detail', testStyle({ showVertices: true, showMarkers: true })).counter.evaluated).toBe(1)
+  })
+
+  it('are made once on the full canvas only where polygons are drawn', () => {
+    expect(drawGliding('full', testStyle({ outline: 'source' })).counter.evaluated).toBe(0)
+    expect(drawGliding('full', testStyle({ outline: 'source', showSkeleton: true })).counter.evaluated).toBe(0)
+    expect(drawGliding('full', testStyle()).counter.evaluated).toBe(1)
+    expect(drawGliding('full', testStyle({ outline: 'compare' })).counter.evaluated).toBe(1)
   })
 })

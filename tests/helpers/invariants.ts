@@ -4,6 +4,9 @@
 // - no proper crossings where the same Geometry with Experimental off has none and nothing touches (fonts may overlap
 //   their own contours, STIX Two Text does in many glyphs; edges that already cross or touch may cross after a warp,
 //   as warp.ts and contourLayout.ts allow), and none at all where the effects merged the outlines;
+// - on the Latin sample, no more vertices in runs of short edges that read as a curve (see curveLikeRuns) than the
+//   same Geometry with Experimental off has, except in configurations marked addsCurves (over every glyph, most warps
+//   still add a few such runs somewhere; NOCUR-90);
 // - deriving again gives the same outline;
 // - rounding for export (quantizePolygon) at 0 and 2 decimals neither throws nor leaves a contour out;
 // - the SVG export of the sample text has path data of M, L and Z only.
@@ -13,7 +16,8 @@ import { quantizePolygon } from '../../src/export/quantize'
 import { specimenToSvg } from '../../src/export/svg'
 import type { LoadedFont } from '../../src/font/model'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import type { DerivedGeometry, GeometryParams } from '../../src/geometry/types'
+import type { DerivedGeometry, GeometryParams, Point } from '../../src/geometry/types'
+import { curveLikeRuns, WARP_LIMITS } from '../../src/geometry/warp'
 import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, layoutArtboard } from '../../src/specimen/artboard'
 import { placePolygons, shapeSpecimen } from '../../src/specimen/scene'
 import { LATIN_SAMPLE, loadFixture, sampleGlyphs, type FixtureFont } from './fonts'
@@ -38,6 +42,12 @@ export interface Config {
   params: GeometryParams
   /** Re-derive every n-th glyph for the determinism check (heavy configurations check fewer). */
   recheckEvery: number
+  /**
+   * Skips the curve-like run check: the warp shortens or splits the input's edges into gentle turns along short edges
+   * on some sample glyphs (the O's bowl, the t's hook, stems a reversed thorn bends), which the warps' tidying does not
+   * undo yet, since it never removes the input's own vertices (NOCUR-90).
+   */
+  addsCurves?: true
 }
 
 export const CONFIGS: Config[] = [
@@ -46,6 +56,7 @@ export const CONFIGS: Config[] = [
     name: `${effect} default`,
     params: paramsWith(GEOMETRY.plain, on(effect)),
     recheckEvery: 3,
+    ...(['crumple', 'ripple', 'slipstream'].includes(effect) ? { addsCurves: true as const } : {}),
   })),
   { name: 'all six default', params: paramsWith(GEOMETRY.plain, ALL_DEFAULT), recheckEvery: 3 },
   { name: 'all six default, dense Geometry', params: paramsWith(GEOMETRY.dense, ALL_DEFAULT), recheckEvery: 6 },
@@ -74,11 +85,17 @@ export const CONFIGS: Config[] = [
     params: paramsWith(GEOMETRY.plain, on('ripple', { ...SLIDER_MAX.ripple.ripple, reverse: true })),
     recheckEvery: 6,
   },
-  { name: 'Thorn reversed', params: paramsWith(GEOMETRY.plain, on('thorn', { reverse: true })), recheckEvery: 3 },
+  {
+    name: 'Thorn reversed',
+    params: paramsWith(GEOMETRY.plain, on('thorn', { reverse: true })),
+    recheckEvery: 3,
+    addsCurves: true,
+  },
   {
     name: 'Thorn at slider max (Reach 100%), reversed',
     params: paramsWith(GEOMETRY.plain, on('thorn', { ...SLIDER_MAX.thorn.thorn, reverse: true })),
     recheckEvery: 6,
+    addsCurves: true,
   },
   // Burst: up to 80 spikes round every contour, crossing the letter and each other, and dents between them, merged.
   { name: 'Thorn burst', params: paramsWith(GEOMETRY.plain, on('thorn', { burst: true })), recheckEvery: 3 },
@@ -109,11 +126,22 @@ export function auditPart(config: Config): 'main' | 'dissolve' | 'dissolve-geome
 }
 
 /** What went wrong with one glyph under one configuration, as readable lines (empty when nothing did). */
-/** What the same glyph has with Experimental off: proper crossings, and places where edges touch or pinch. */
+/**
+ * What the same glyph has with Experimental off: proper crossings, places where edges touch or pinch, and runs of short
+ * edges that read as a curve.
+ */
 interface Baseline {
   cross: number
   contacts: number
+  curves: number
 }
+
+/** How many vertices sit in runs that read as curves (see curveLikeRuns), over every contour. */
+const curveRuns = (contours: Point[][], unitsPerEm: number) =>
+  contours.reduce(
+    (n, c) => n + curveLikeRuns(c, WARP_LIMITS.shortEdge * unitsPerEm).reduce((m, run) => m + run.length, 0),
+    0,
+  )
 
 function checkGlyph(
   font: LoadedFont,
@@ -122,6 +150,7 @@ function checkGlyph(
   config: Config,
   recheck: boolean,
   baseline: Baseline,
+  checkCurves: boolean,
 ): { problems: string[]; derived: DerivedGeometry | null } {
   const problems: string[] = []
   let derived: DerivedGeometry
@@ -138,6 +167,9 @@ function checkGlyph(
     problems.push(`${label}: ${cross} new proper crossings`)
   if (cross > 0 && folds.applied && !folds.failed && !folds.tooComplex)
     problems.push(`${label}: ${cross} proper crossings after a merge`)
+  const curves = checkCurves && !config.addsCurves ? curveRuns(contours, font.metrics.unitsPerEm) : 0
+  if (curves > baseline.curves)
+    problems.push(`${label}: ${curves} vertices in curve-like runs, ${baseline.curves} without effects`)
   if (recheck && !sameContours(contoursOf(deriveGeometry(font.getGlyph(index), config.params).polygon), contours)) {
     problems.push(`${label}: not deterministic`)
   }
@@ -183,7 +215,7 @@ export function geometryInvariants(
   describe(`geometry invariants: ${fontName}${which === 'all' ? ', every glyph' : ''}`, async () => {
     const font = await loadFixture(fontName)
     const glyphs = which === 'all' ? allGlyphs(font) : sampleGlyphs(font)
-    /** Crossings and contacts with Experimental off, by Geometry variant (JSON of the params without the effects) and glyph. */
+    /** Crossings, contacts and curve-like runs with Experimental off, by Geometry variant (JSON of the params without the effects) and glyph. */
     const baselines = new Map<string, Map<number, Baseline>>()
     const baselineOf = (params: GeometryParams) => {
       const off = withoutEffects(params)
@@ -192,10 +224,9 @@ export function geometryInvariants(
       if (!crossings) {
         crossings = new Map(
           glyphs.map((g) => {
-            const { cross, touch, pinch } = outlineCrossings(
-              contoursOf(deriveGeometry(font.getGlyph(g.index), off).polygon),
-            )
-            return [g.index, { cross, contacts: touch + pinch }]
+            const contours = contoursOf(deriveGeometry(font.getGlyph(g.index), off).polygon)
+            const { cross, touch, pinch } = outlineCrossings(contours)
+            return [g.index, { cross, contacts: touch + pinch, curves: curveRuns(contours, font.metrics.unitsPerEm) }]
           }),
         )
         baselines.set(key, crossings)
@@ -221,6 +252,7 @@ export function geometryInvariants(
             config,
             recheck,
             baseline.get(g.index)!,
+            which === 'sample',
           )
           problems.push(...result.problems)
           if (result.derived) polygons.set(g.index, result.derived)

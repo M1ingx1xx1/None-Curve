@@ -179,9 +179,10 @@ describe('saved session', () => {
       plain: 0,
       holdMs: DEFAULT_SOUND_SETTINGS.holdMs,
     })
-    // Return to plain: 0 or 1; its Hold 50–1000 ms in steps of 10.
-    expect(read({ plain: 3, holdMs: 1234 })).toMatchObject({ plain: 1, holdMs: 1000 })
+    // Return to plain: 0 or 1; its Hold 0–3000 ms in steps of 10 (50–1000 before NOCUR-91).
+    expect(read({ plain: 3, holdMs: 3456 })).toMatchObject({ plain: 1, holdMs: 3000 })
     expect(read({ plain: 0.2, holdMs: 147 })).toMatchObject({ plain: 0, holdMs: 150 })
+    expect([1234, 0, -5].map((holdMs) => read({ holdMs })?.holdMs)).toEqual([1230, 0, 0])
     // Glide: 0–1000 ms in steps of 10.
     expect([1234, 147, -5, 0].map((glideMs) => read({ glideMs })?.glideMs)).toEqual([1000, 150, 0, 0])
     // Values saved on the coarser steps are still on the finer ones, so they come back as they were.
@@ -373,6 +374,13 @@ describe('saved session', () => {
       depth: 0.46,
       rangeMax: 0.5,
     })
+  })
+
+  it('raises a version 3 Strength left at its old default, 1, to the new one, 1.5; any other stays', () => {
+    const strength = (value: unknown) => readSession({ version: 3, sound: { strength: value } })!.sound!.strength
+    expect([1, 1.25, 0, 4].map(strength)).toEqual([1.5, 1.25, 0, 4])
+    // A version 4 Strength of 1 was chosen.
+    expect(readSession({ version: 4, sound: { strength: 1 } })!.sound!.strength).toBe(1)
   })
 
   it("round-trips a version 2 Reach, and never saves Thorn's derived canvasEm", () => {
@@ -624,19 +632,29 @@ describe('saved session', () => {
     expect(read).toHaveBeenCalledTimes(2)
   })
 
-  it('tells of the first save the browser refuses, once', () => {
+  it('tells when saving starts to fail and when it works again, once each', () => {
     const storage = new MemoryStorage()
-    const onFailure = vi.fn()
-    const saver = createSessionSaver(changedSession, storage as unknown as Storage, 500, onFailure)
+    const onStatus = vi.fn()
+    const saver = createSessionSaver(changedSession, storage as unknown as Storage, 500, onStatus)
     saver.schedule()
     saver.flush()
-    expect(onFailure).not.toHaveBeenCalled()
+    expect(onStatus).not.toHaveBeenCalled()
     storage.full = true
     for (let k = 0; k < 3; k++) {
       saver.schedule()
       saver.flush()
     }
-    expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(onStatus.mock.calls).toEqual([[false]])
+    storage.full = false
+    for (let k = 0; k < 2; k++) {
+      saver.schedule()
+      saver.flush()
+    }
+    expect(onStatus.mock.calls).toEqual([[false], [true]])
+    storage.full = true
+    saver.schedule()
+    saver.flush()
+    expect(onStatus.mock.calls).toEqual([[false], [true], [false]])
   })
 })
 

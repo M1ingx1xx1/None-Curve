@@ -74,6 +74,7 @@ Load font → Choose glyph → Inspect source skeleton → Set curve-to-line beh
 
 - Load local `.ttf` / `.otf` files by drag and drop or file picker.
 - Open font collections (`.ttc` / `.otc`) on a sensible default face (the upright face closest to Regular), and let the user switch faces from the font summary without losing the view or the selected character.
+- Import an SVG artwork (icons, logos) the same way: its filled shapes become one glyph that goes through the same pipeline, Experimental effects and Sound, shown on its own on the canvas; SVG, PNG, video and config exports apply, the font file does not. Stroke-only, text-only, broken and oversized files are refused with a message that says why and how to fix it.
 - Process font files in the browser; do not upload them to a server.
 - Show the file name, parsing status, and an entry point for glyph selection.
 - Show understandable errors for unreadable or unsupported files.
@@ -242,6 +243,7 @@ The canvas is the primary feedback area and remains visible during editing. Load
 ## 8. Acceptance criteria
 
 - Users can load a valid `.ttf` / `.otf` (or a face of a `.ttc` / `.otc` collection) and choose a glyph; invalid files produce a clear message.
+- Users can import a common SVG icon or logo and rebuild it with every Geometry and Experimental control and Sound; even-odd holes stay holes, and the result is straight segments only.
 - Users can see a live glyph preview immediately after loading, without exporting.
 - Editing controls are on the left; changing lines per curve or other geometry parameters updates the visible canvas result.
 - Users can show the skeleton and identify original anchors, control points, and handles.
@@ -375,6 +377,7 @@ Detailed plan: [SOUND_PLAN.md](SOUND_PLAN.md). This replaces the earlier "sound-
 | Requirement | Status |
 |---|---|
 | P0 Font loading and glyph preview (including WOFF / WOFF2, `.ttc` / `.otc` collections with a face menu, and Google Fonts) | Implemented |
+| SVG artwork import (one glyph; paths, basic shapes, transforms, `<use>`, simple `<style>` rules, fill rules) | Implemented |
 | P0 Source-curve skeleton | Implemented |
 | P0 Curve linearization (adaptive / fixed segments) | Implemented |
 | P0 SVG export (current glyph; specimen SVG as well) | Implemented: `M` / `L` / `Z` only, 0–4 decimal places with contour validation |

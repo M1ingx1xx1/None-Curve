@@ -72,7 +72,9 @@ export default function StatusBar({
   )
   let glyphInfo = '—'
   let advance: number | null = null
-  let viewing = '—'
+  // The View line in three parts: only the method (the settings) is cut short when the bar is too narrow,
+  // so the outline, the glyph count, and the vertex count stay readable. The full line is in the tooltip.
+  let viewing: { before: string; method?: string; after?: string } = { before: '—' }
 
   if (font && selectedGlyph) {
     const code = selectedGlyph.unicode !== null ? formatCodePoint(selectedGlyph.unicode) : 'unmapped'
@@ -89,11 +91,19 @@ export default function StatusBar({
       ? `${geometry.vertexCount} vertices${geometry.experimental.budget.applied ? ' (simplified)' : ''}`
       : 'flattening failed'
     const target = `text (${scene?.glyphCount ?? 0} glyphs)`
-    if (view.outline === 'source') viewing = `Original curves · ${target}`
+    if (view.outline === 'source') viewing = { before: `Original curves · ${target}` }
     else if (view.outline === 'flattened')
-      viewing = `Final polygon (${method}) · ${target} · selected glyph ${vertices}`
-    else viewing = `Compare: final polygon (${method}) over original · ${target} · selected glyph ${vertices}`
+      viewing = { before: 'Final polygon (', method, after: `) · ${target} · selected glyph ${vertices}` }
+    else
+      viewing = {
+        before: 'Compare: final polygon (',
+        method,
+        after: `) over original · ${target} · selected glyph ${vertices}`,
+      }
   }
+  // Glyphs still being computed in the background keep their previous shape meanwhile.
+  const updating = scene && scene.pendingGlyphs > 0 ? ` · Updating ${scene.pendingGlyphs}…` : ''
+  const viewText = `View: ${viewing.before}${viewing.method ?? ''}${viewing.after ?? ''}${updating}`
 
   return (
     <footer className="statusbar">
@@ -103,9 +113,12 @@ export default function StatusBar({
       <span>Glyph: {glyphInfo}</span>
       <span>Advance: {advance ?? '—'}</span>
       <span>UPM: {font?.metrics.unitsPerEm ?? '—'}</span>
-      {/* Truncated to one line on wide screens; the full text is in the tooltip. */}
-      <span className="statusbar-view" title={`View: ${viewing}`}>
-        View: {viewing}
+      {/* One line: the method is cut short first, then the rest; the full text is in the tooltip. */}
+      <span className="statusbar-view" title={viewText}>
+        <span className="statusbar-view-part">View: {viewing.before}</span>
+        {viewing.method !== undefined && <span className="statusbar-view-method">{viewing.method}</span>}
+        {viewing.after !== undefined && <span className="statusbar-view-part">{viewing.after}</span>}
+        {updating && <span className="statusbar-view-part statusbar-updating">{updating}</span>}
       </span>
       {/* While Sound drives the letters. Only "Live" is announced (when it starts), not every change of the frame rate. */}
       <span className={live.driving ? undefined : 'visually-hidden'}>

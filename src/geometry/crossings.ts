@@ -322,7 +322,7 @@ export function insideRing(p: Point, ring: readonly Point[]): boolean {
 }
 
 /** True when the ray from p to the right crosses the edge between a and b (half-open in y). */
-function rayCrosses(p: Point, a: Point, b: Point): boolean {
+export function rayCrosses(p: Point, a: Point, b: Point): boolean {
   return a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x
 }
 

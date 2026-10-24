@@ -28,7 +28,7 @@ export const GPU_LIMITS = {
   maxBytes: 48 * 1024 * 1024,
   /** Plans and shapes not drawn for this long are evicted first. */
   idleMs: 2000,
-  /** Positions textures are this many texels wide (RG32F), with as many rows as needed. */
+  /** Positions textures are at most this many texels wide (RG32F), with as many rows as needed. */
   texWidth: 2048,
 } as const
 
@@ -150,12 +150,23 @@ export function pathRows(data: PlanData): Float32Array<ArrayBuffer> | null {
   return rows
 }
 
-/** Triangle fans for the stencil fill: (s, s + i, s + i + 1), i = 1 … n − 2, for every contour of 3 anchors or more. */
-export function fanIndices(contours: readonly GpuContour[], base = 0): Uint32Array<ArrayBuffer> {
+/** How many fan indices fanIndices gives the contours. */
+export function fanLength(contours: readonly GpuContour[]): number {
   let count = 0
   for (const { n } of contours) if (n >= 3) count += 3 * (n - 2)
-  const out = new Uint32Array(count)
-  let k = 0
+  return count
+}
+
+/** How many segment indices (four per side) segmentIndices gives the contours. */
+export function segmentLength(contours: readonly GpuContour[]): number {
+  let count = 0
+  for (const { n } of contours) if (n >= 2) count += n
+  return 4 * count
+}
+
+/** fanIndices written into `out` from `at`; returns where they end. */
+export function writeFan(out: Uint32Array, at: number, contours: readonly GpuContour[], base = 0): number {
+  let k = at
   for (const { start, n } of contours) {
     if (n < 3) continue
     const s = base + start
@@ -165,15 +176,12 @@ export function fanIndices(contours: readonly GpuContour[], base = 0): Uint32Arr
       out[k++] = s + i + 1
     }
   }
-  return out
+  return k
 }
 
-/** One instance per side: (prev, a, b, next), wrapping within its contour, for every contour of 2 anchors or more. */
-export function segmentIndices(contours: readonly GpuContour[], base = 0): Uint32Array<ArrayBuffer> {
-  let count = 0
-  for (const { n } of contours) if (n >= 2) count += n
-  const out = new Uint32Array(count * 4)
-  let k = 0
+/** segmentIndices written into `out` from `at`; returns where they end. */
+export function writeSegments(out: Uint32Array, at: number, contours: readonly GpuContour[], base = 0): number {
+  let k = at
   for (const { start, n } of contours) {
     if (n < 2) continue
     const s = base + start
@@ -184,6 +192,20 @@ export function segmentIndices(contours: readonly GpuContour[], base = 0): Uint3
       out[k++] = s + ((i + 2) % n)
     }
   }
+  return k
+}
+
+/** Triangle fans for the stencil fill: (s, s + i, s + i + 1), i = 1 … n − 2, for every contour of 3 anchors or more. */
+export function fanIndices(contours: readonly GpuContour[], base = 0): Uint32Array<ArrayBuffer> {
+  const out = new Uint32Array(fanLength(contours))
+  writeFan(out, 0, contours, base)
+  return out
+}
+
+/** One instance per side: (prev, a, b, next), wrapping within its contour, for every contour of 2 anchors or more. */
+export function segmentIndices(contours: readonly GpuContour[], base = 0): Uint32Array<ArrayBuffer> {
+  const out = new Uint32Array(segmentLength(contours))
+  writeSegments(out, 0, contours, base)
   return out
 }
 
@@ -276,8 +298,20 @@ export function planBounds(plan: Pick<MorphPlan, 'from' | 'to'>, data: PlanData)
 /** Texture rows for `n` positions. */
 export const texRows = (n: number) => Math.max(1, Math.ceil(n / GPU_LIMITS.texWidth))
 
+/**
+ * The positions texture for `n` positions, width × height: one row only as wide as `n` below GPU_LIMITS.texWidth (the
+ * shaders' texel i is (i % texWidth, i / texWidth) either way), else full rows.
+ */
+export const texSize = (n: number): [number, number] => [Math.max(1, Math.min(n, GPU_LIMITS.texWidth)), texRows(n)]
+
+/** Floats of a positions buffer padded to its texture (two per RG32F texel), as the copy into the texture reads it. */
+export function paddedFloats(n: number): number {
+  const [w, h] = texSize(n)
+  return 2 * w * h
+}
+
 /** Bytes of a padded positions buffer plus its texture (both RG32F-sized). */
-export const slotBytes = (n: number) => 2 * texRows(n) * GPU_LIMITS.texWidth * 8
+export const slotBytes = (n: number) => 2 * paddedFloats(n) * 4
 
 interface LruEntry<V> {
   value: V
@@ -408,12 +442,13 @@ function buffer(gl: WebGL2RenderingContext, target: number, data: BufferSource |
   return b
 }
 
-/** An RG32F texture GPU_LIMITS.texWidth wide with rows for `n` positions. */
+/** An RG32F texture for `n` positions (texSize). */
 export function positionsTexture(gl: WebGL2RenderingContext, n: number): WebGLTexture {
   const tex = gl.createTexture()
   if (!tex) throw new Error('WebGL texture')
+  const [w, h] = texSize(n)
   gl.bindTexture(gl.TEXTURE_2D, tex)
-  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RG32F, GPU_LIMITS.texWidth, texRows(n))
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RG32F, w, h)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -425,18 +460,28 @@ export function positionsTexture(gl: WebGL2RenderingContext, n: number): WebGLTe
 /** Copies a padded positions buffer into its texture (PIXEL_UNPACK_BUFFER: no trip through the CPU). */
 export function copyToTexture(gl: WebGL2RenderingContext, positions: WebGLBuffer, texture: WebGLTexture, n: number) {
   gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, positions)
+  const [w, h] = texSize(n)
   gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GPU_LIMITS.texWidth, texRows(n), gl.RG, gl.FLOAT, 0)
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RG, gl.FLOAT, 0)
   gl.bindTexture(gl.TEXTURE_2D, null)
   gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null)
 }
 
-function createSlot(gl: WebGL2RenderingContext, n: number, fan: WebGLBuffer, data: Float32Array | null): GpuSlot {
-  const padded = 2 * texRows(n) * GPU_LIMITS.texWidth
+function createSlot(
+  gl: WebGL2RenderingContext,
+  n: number,
+  fan: WebGLBuffer,
+  data: Float32Array<ArrayBuffer> | null,
+): GpuSlot {
+  const padded = paddedFloats(n)
   let positions: WebGLBuffer
   if (data) {
-    const full = new Float32Array(padded)
-    full.set(data)
+    // Below one row there is no padding: the points go up as they are.
+    let full = data
+    if (data.length !== padded) {
+      full = new Float32Array(padded)
+      full.set(data)
+    }
     positions = buffer(gl, gl.ARRAY_BUFFER, full, gl.STATIC_DRAW)
   } else positions = buffer(gl, gl.ARRAY_BUFFER, padded * 4, gl.DYNAMIC_COPY)
   const texture = positionsTexture(gl, n)
@@ -542,7 +587,7 @@ export function uploadPlan(
       gl.vertexAttribPointer(ATTRIB.path0 + k, 4, gl.FLOAT, false, PATH_STRIDE * 4, 16 * k)
     }
     gl.bindVertexArray(null)
-    const positions = buffer(gl, gl.ARRAY_BUFFER, 2 * texRows(count) * GPU_LIMITS.texWidth * 4, gl.DYNAMIC_COPY)
+    const positions = buffer(gl, gl.ARRAY_BUFFER, paddedFloats(count) * 4, gl.DYNAMIC_COPY)
     paths = { rows: rowsBuffer, array, count, positions, texture: positionsTexture(gl, count) }
     bytes += prow.byteLength + slotBytes(count)
   }

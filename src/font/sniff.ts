@@ -17,6 +17,6 @@ export function sniffFontFormat(bytes: Uint8Array): FontFormat {
   if (tag === 'ttcf') return 'ttc'
   throw new FontLoadError(
     'unsupported-format',
-    'This is not a recognized font file. Supported formats: .ttf, .otf, .woff, .woff2, .ttc, .otc.',
+    'This is not a recognized font file. Supported formats: .ttf, .otf, .woff, .woff2, .ttc, .otc, and .svg artwork.',
   )
 }

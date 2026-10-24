@@ -795,6 +795,15 @@ export function sameLetters(a: LetterSlots, b: LetterSlots): boolean {
   return true
 }
 
+/** Whether `shaped` sets the glyphs `slots` were made for, in the same order (the same text set otherwise). */
+export function setsSlots(shaped: ShapedSpecimen, slots: LetterSlots): boolean {
+  let j = 0
+  for (const line of shaped.lines) {
+    for (const glyph of line.glyphs) if (j >= slots.count || slots.index[j++] !== glyph.index) return false
+  }
+  return j === slots.count
+}
+
 /** The frame when it was assigned for these letters (sameLetters: a restyled text keeps it), else null. */
 export function lettersOn(frame: LetterFrame | null | undefined, slots: LetterSlots): LetterFrame | null {
   return frame && sameLetters(frame.slots, slots) ? frame : null

@@ -106,7 +106,14 @@ interface Slot {
   /** When the worker last sent anything (or started). */
   lastHeard: number
   /** The glyph (and its font, settings and lane) the worker said it started, while nothing has been heard since. */
-  current: { requestId: number; fontId: string | undefined; key: string; index: number; at: number; lane: Lane } | null
+  current: {
+    requestId: number
+    fontId: string
+    key: string
+    index: number
+    at: number
+    lane: Exclude<Lane, 'plan'>
+  } | null
   /** The font was sent again after the worker said it did not have it (once per font). */
   resentFont: boolean
   /** Out of the pool until the next font: it could not start. */
@@ -352,7 +359,8 @@ export class GeometryClient {
 
   /**
    * Polygons for an export: resolves once every one of these glyphs has a result under these settings,
-   * asking the workers for those still missing (never computing on the page). Rejects when `signal` aborts.
+   * asking the workers for those still missing (never computing on the page). Rejects when `signal` aborts, and with
+   * an AbortError when another font is asked for first.
    */
   ensure(
     font: LoadedFont,
@@ -363,6 +371,7 @@ export class GeometryClient {
   ): Promise<PolygonLookup> {
     return new Promise((resolve, reject) => {
       const missing = () => indices.filter((i) => !this.has(key, i))
+      let started = false
       const check = () => {
         if (signal?.aborted) {
           end(() => reject(signal.reason))
@@ -370,6 +379,14 @@ export class GeometryClient {
           if (this.inFlight?.origin === 'export') this.cancel()
           return
         }
+        // The export starts on its font; once another font is asked for, asking again would switch the whole client
+        // back (dropping every result and the ahead window), so it gives up instead.
+        if (!started) this.useFont(font)
+        else if (this.fontId !== font.id) {
+          end(() => reject(new DOMException('The font changed before its outlines were ready', 'AbortError')))
+          return
+        }
+        started = true
         if (this.inFlight === null && missing().length)
           this.ask(font, [{ params, key, indices: missing() }], false, 'export')
         // Done, or nothing left to wait for (glyphs that cannot be computed now have failed).
@@ -989,16 +1006,9 @@ export class GeometryClient {
     const now = performance.now()
     slot.lastHeard = now
     if (message.type === 'glyph') {
-      const ahead = slot.ahead?.id === message.requestId
-      const fontId = ahead ? (this.fontId ?? undefined) : this.requests.get(message.requestId)?.fontId
-      slot.current = {
-        requestId: message.requestId,
-        fontId,
-        key: message.key,
-        index: message.index,
-        at: now,
-        lane: ahead ? 'ahead' : 'canvas',
-      }
+      // The worker names the lane and font: a glyph of a superseded ahead request is still an ahead glyph.
+      const { requestId, lane, fontId, key, index } = message
+      slot.current = { requestId, fontId, key, index, at: now, lane }
       return
     }
     if (message.type !== 'font-error') slot.current = null
