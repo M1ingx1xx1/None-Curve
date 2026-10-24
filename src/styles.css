@@ -1291,8 +1291,9 @@ input[type='range']:disabled {
   display: none;
 }
 
-/* ---- Slider with a number box (Typography) ---- */
+/* ---- Sliders with a number box (SliderField) ---- */
 
+/* The row layout (Typography): the slider, its number box, and the unit in a column of its own. */
 .slider-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -1323,7 +1324,8 @@ input.number-field {
   margin: 0;
 }
 
-/* A slider's number box in its head, where the readout was (SliderNumber): readout-sized, its unit after it. */
+/* The head layout (every other slider): the number box in the field's head, where the readout was
+   (SliderNumber, also a knob's typed value): readout-sized, its unit after it. */
 .slider-number {
   display: inline-flex;
   align-items: baseline;

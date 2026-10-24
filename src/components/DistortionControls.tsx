@@ -3,12 +3,11 @@ import { DISTORTION_LIMITS, type DistortionStats } from '../geometry/distortion'
 import type { DistortionParams } from '../geometry/types'
 import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
 import LiveSeed from './LiveSeed'
+import NumberField from './NumberField'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface DistortionControlsProps {
@@ -34,8 +33,6 @@ function DistortionControls({
   const on = params.amount > 0
   const wavelength = Math.round(1000 / params.frequency)
   const introHint = useHint()
-  const frequencyHint = useHint()
-  const biasHint = useHint()
   const seedHint = useHint()
   // The statistics come from the letters as shown, so while Sound moves the seed on they belong to its live seed.
   const shownSeed = useLiveSeed('distortion.seed') ?? params.seed
@@ -56,96 +53,37 @@ function DistortionControls({
           and off locked angles. Distortion changes detail and can hurt legibility.
         </HintText>
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="distortion-amount">Noise amplitude</label>
+        <SliderField
+          id="distortion-amount"
+          target="distortion.amount"
+          label="Noise amplitude"
+          value={params.amount}
+          unit="u"
+          valueText={on ? `${params.amount} font units` : 'Off'}
+          onChange={(amount) => update({ amount })}
+        />
 
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['distortion.amount']}
-              value={params.amount}
-              unit="u"
-              label="Noise amplitude"
-              onCommit={(amount) => update({ amount })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="distortion-amount"
-              type="range"
-              {...SLIDER_RANGES['distortion.amount']}
-              value={params.amount}
-              aria-valuetext={on ? `${params.amount} font units` : 'Off'}
-              onChange={(e) => update({ amount: Number(e.target.value) })}
-            />
-            <LiveMarker target="distortion.amount" />
-          </span>
-        </div>
+        <SliderField
+          id="distortion-frequency"
+          target="distortion.frequency"
+          label="Noise frequency"
+          value={params.frequency}
+          valueText={`${params.frequency} per 1000 font units`}
+          hint={`Noise features per 1000 font units of outline length (one bump about every ${wavelength} u). Measured along the outline, so it does not depend on zoom or vertex count. Higher values give a rougher edge.`}
+          onChange={(frequency) => update({ frequency })}
+        />
 
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="distortion-frequency">Noise frequency</label>
-              <HintButton hint={frequencyHint} topic="Noise frequency" />
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['distortion.frequency']}
-              value={params.frequency}
-              label="Noise frequency"
-              onCommit={(frequency) => update({ frequency })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="distortion-frequency"
-              type="range"
-              {...SLIDER_RANGES['distortion.frequency']}
-              value={params.frequency}
-              aria-valuetext={`${params.frequency} per 1000 font units`}
-              aria-describedby={frequencyHint.id}
-              onChange={(e) => update({ frequency: Number(e.target.value) })}
-            />
-            <LiveMarker target="distortion.frequency" />
-          </span>
-          <HintText hint={frequencyHint}>
-            Noise features per 1000 font units of outline length (one bump about every {wavelength} u). Measured along
-            the outline, so it does not depend on zoom or vertex count. Higher values give a rougher edge.
-          </HintText>
-        </div>
-
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="distortion-bias">Normal bias</label>
-              <HintButton hint={biasHint} topic="Normal bias" />
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['distortion.normalBias']}
-              value={params.normalBias}
-              scale={100}
-              unit="%"
-              label="Normal bias"
-              onCommit={(normalBias) => update({ normalBias })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="distortion-bias"
-              type="range"
-              {...SLIDER_RANGES['distortion.normalBias']}
-              value={params.normalBias}
-              aria-valuetext={`${Math.round(params.normalBias * 100)} percent across the outline`}
-              aria-describedby={biasHint.id}
-              onChange={(e) => update({ normalBias: Number(e.target.value) })}
-            />
-            <LiveMarker target="distortion.normalBias" />
-          </span>
-          <HintText hint={biasHint}>
-            0% slides vertices along the outline (tangent); 100% pushes them in and out across it (normal). Values in
-            between mix both.
-          </HintText>
-        </div>
+        <SliderField
+          id="distortion-bias"
+          target="distortion.normalBias"
+          label="Normal bias"
+          value={params.normalBias}
+          scale={100}
+          unit="%"
+          valueText={`${Math.round(params.normalBias * 100)} percent across the outline`}
+          hint="0% slides vertices along the outline (tangent); 100% pushes them in and out across it (normal). Values in between mix both."
+          onChange={(normalBias) => update({ normalBias })}
+        />
 
         <div className="field">
           <span className="field-title">
@@ -153,18 +91,15 @@ function DistortionControls({
             <HintButton hint={seedHint} topic="Seed" />
           </span>
           <div className="seed-row">
-            <input
+            <NumberField
               id="distortion-seed"
-              type="number"
+              plain
               min={0}
               max={DISTORTION_LIMITS.maxSeed}
               step={1}
               value={params.seed}
               aria-describedby={seedHint.id}
-              onChange={(e) => {
-                const value = Math.trunc(Number(e.target.value))
-                if (Number.isFinite(value)) update({ seed: Math.min(DISTORTION_LIMITS.maxSeed, Math.max(0, value)) })
-              }}
+              onCommit={(seed) => update({ seed })}
             />
             <LiveSeed target="distortion.seed" />
             <button type="button" className="button-small" onClick={() => update({ seed: (params.seed + 1) % (DISTORTION_LIMITS.maxSeed + 1) })}>

@@ -2,11 +2,9 @@ import { memo, type Dispatch } from 'react'
 import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geometry/constraints'
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
-import { SLIDER_RANGES } from '../state/sliderScales'
 import { HintButton, HintText, useHint } from './Hint'
 import Icon from './Icon'
-import LiveMarker from './LiveMarker'
-import SliderNumber from './SliderNumber'
+import SliderField from './SliderField'
 import { sameControlProps } from './sameControlProps'
 
 interface GridControlsProps {
@@ -81,34 +79,16 @@ function GridControls({ params, stats, unitsPerEm, pending, disabled, dispatch }
           <input id="grid-snap" type="checkbox" checked={params.snap} onChange={(e) => update({ snap: e.target.checked })} />
           <label htmlFor="grid-snap">Snap to grid</label>
         </div>
-        <div className="field">
-          <div className="field-head">
-            <span className="field-title">
-              <label htmlFor="grid-size">Grid size</label>
-
-            </span>
-            <SliderNumber
-              {...SLIDER_RANGES['grid.size']}
-              value={params.size}
-              unit="u"
-              label="Grid size"
-              disabled={!params.snap}
-              onCommit={(size) => update({ size })}
-            />
-          </div>
-          <span className="live-slider">
-            <input
-              id="grid-size"
-              type="range"
-              {...SLIDER_RANGES['grid.size']}
-              value={params.size}
-              disabled={!params.snap}
-              aria-valuetext={params.size > 0 ? `${params.size} font units` : 'Off'}
-              onChange={(e) => update({ size: Number(e.target.value) })}
-            />
-            <LiveMarker target="grid.size" />
-          </span>
-        </div>
+        <SliderField
+          id="grid-size"
+          target="grid.size"
+          label="Grid size"
+          value={params.size}
+          unit="u"
+          valueText={params.size > 0 ? `${params.size} font units` : 'Off'}
+          disabled={!params.snap}
+          onChange={(size) => update({ size })}
+        />
         {stats?.snapApplied && (
           <p className="field-hint">
             Largest move {stats.snapMaxShift.toFixed(2)} u · {stats.snapMerged} merged{' '}
