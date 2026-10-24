@@ -46,15 +46,17 @@ function plannedLimitMs(options: RecordOptions, sound: SoundState): number | nul
 }
 
 /**
- * Sound will not move the letters in the video: Drive letters is off, Strength is 0%, or no mapping has a
- * Depth. While Sound drives the letters it never is. (Whether a mapping's target acts is known only once the
+ * Sound will not move the letters in the video: Drive letters is off, or Strength is 0% or no mapping has a Depth
+ * while Return to plain is off (on, each beat moves the letters whatever the mappings). While Sound drives the letters it never is. (Whether a mapping's target acts is known only once the
  * sound runs, so that case is left out rather than shown for a frame on every Play.)
  */
 export function useStillVideo(): boolean {
   const { mappings, response, drive } = useMappingState()
   const driving = useLiveDriving()
   if (driving) return false
-  return !drive || response.strength === 0 || !mappings.some((mapping) => mapping.enabled && mapping.depth !== 0)
+  if (!drive) return true
+  if (response.plain === 1) return false
+  return response.strength === 0 || !mappings.some((mapping) => mapping.enabled && mapping.depth !== 0)
 }
 
 /**
