@@ -1099,6 +1099,10 @@ export class GeometryClient {
         : KEPT_KEYS
       while (kept.size > max) kept.delete(kept.keys().next().value!)
     }
+    // A lean result never replaces the same glyph's full one: under the same key it is the same shape, and the full one
+    // keeps the statistics the panels show (another asker, an export or the preview, did not ask for them).
+    const before = results.get(index)
+    if ('lean' in entry && before && 'geometry' in before && !('lean' in before)) entry = before
     results.set(index, entry)
     if ('geometry' in entry) this.keys.set(entry.geometry.polygon, key)
     if (standsIn) this.latest.set(index, entry)

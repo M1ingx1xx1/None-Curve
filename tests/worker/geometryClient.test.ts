@@ -445,6 +445,28 @@ describe('geometry client', () => {
     expect(worker().computes).toBe(2)
   })
 
+  it('keeps a glyph full when a lean result for it arrives later (an export, the preview)', () => {
+    const f = font('f')
+    client.compute(f, BASE, 'a', [1])
+    const first = worker().lastRequest
+    worker().reply({
+      type: 'results',
+      requestId: first.requestId,
+      fontId: 'f',
+      key: 'a',
+      results: [{ index: 1, packed: packed(1) }],
+    })
+    worker().reply({ type: 'done', requestId: first.requestId })
+    worker().reply({
+      type: 'results',
+      requestId: first.requestId,
+      fontId: 'f',
+      key: 'a',
+      results: [{ index: 1, packed: packGeometry(geometry(1), false).packed }],
+    })
+    expect(client.lookup('a', 1)?.entry).toEqual({ geometry: geometry(1) })
+  })
+
   it('a result of a request it does not remember does not stand in for the glyph', () => {
     client.compute(font('f'), BASE, 'a', [5])
     worker().reply({
