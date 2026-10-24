@@ -2378,25 +2378,56 @@ input.number-field {
   row-gap: 6px;
 }
 
-/* Return to plain: its own panel, so it stands out in the Transport; the edge takes the accent while it is on. */
+/* Return to plain: one line in its own strip, so it stands out in the Transport: the large switch and its name on
+   the left, Hold on the right, all on one centre line. The strip takes the accent while it is on. */
 .sound-plain {
-  padding: 8px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: var(--surface);
-  transition: border-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .sound-plain-on {
-  border-color: var(--primary);
+  border-color: var(--primary-edge);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
 }
 
-.sound-plain .field-title {
+.sound-plain .sound-row {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: 4px;
+}
+
+.sound-plain .field-toggle {
+  display: flex;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.sound-plain .field-title label {
   font-weight: 600;
+  white-space: nowrap;
 }
 
+/* Hold as one line: its name, the small dial, the value. */
 .sound-plain .knob {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  width: auto;
   margin-left: auto;
+}
+
+.sound-plain .knob-label {
+  order: -1;
+  font-size: 0.78rem;
+}
+
+.sound-plain .knob-value {
+  font-size: 0.78rem;
 }
 
 .sound-drive,

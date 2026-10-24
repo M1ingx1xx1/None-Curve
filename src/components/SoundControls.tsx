@@ -301,7 +301,7 @@ function SoundBox({ legend, className, children }: { legend: string; className?:
  * Return to plain, a large switch in its own panel, and its Hold knob: the letters rest on their plain shapes (every
  * Experimental effect off) and each beat shows the effects switched on in the Experimental tab for Hold.
  */
-function PlainField({ response, hint, holdHint }: { response: ResponseSettings; hint: HintState; holdHint: HintState }) {
+function PlainField({ response, hint }: { response: ResponseSettings; hint: HintState }) {
   const on = response.plain === 1
   const { min, max, step } = RESPONSE_LIMITS.holdMs
   return (
@@ -336,16 +336,15 @@ function PlainField({ response, hint, holdHint }: { response: ResponseSettings; 
           format={(v) => `${v} ms`}
           valueText={`${response.holdMs} milliseconds`}
           unit="ms"
-          hint={holdHint}
+          describedBy={hint.id}
           onChange={(next) => mappingStore.setResponse({ holdMs: next })}
         />
       </div>
       <HintText hint={hint}>
         The letters rest on their plain shapes, every Experimental effect off, and each beat brings back the effects you
-        switched on in the Experimental tab, then they return. Your mappings still act on top. Glide smooths the way there
-        and back.
+        switched on in the Experimental tab, then they return. Hold sets how long each beat shows them. Your mappings still
+        act on top. Glide smooths the way there and back.
       </HintText>
-      <HintText hint={holdHint}>How long each beat shows the effects before the letters return to plain.</HintText>
     </div>
   )
 }
@@ -370,7 +369,6 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
   const micHint = useHint()
   const driveHint = useHint()
   const plainHint = useHint()
-  const holdHint = useHint()
   const freezeHint = useHint()
   const presetHint = useHint()
   const reducedId = useId()
@@ -458,7 +456,7 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
         </HintText>
       </div>
 
-      <PlainField response={response} hint={plainHint} holdHint={holdHint} />
+      <PlainField response={response} hint={plainHint} />
 
       {state.source === 'file' && (
         <div className="field">
