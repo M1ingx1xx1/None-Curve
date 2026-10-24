@@ -50,7 +50,7 @@ import type { Action } from '../state/editorState'
 import { UNDO_KEYS, undoHistory, useHistoryState } from '../state/history'
 import type { EditorParams } from '../state/types'
 import BufferedBar from './BufferedBar'
-import { HintButton, HintText, useHint } from './Hint'
+import { HintButton, HintText, useHint, type HintState } from './Hint'
 import Icon from './Icon'
 import Knob from './Knob'
 import { cancelMapDrag, clearMark, pressMeter, setDropHandler, startPick, targetName, useMarked, type DropOutcome } from './mapDrag'
@@ -297,6 +297,59 @@ function SoundBox({ legend, className, children }: { legend: string; className?:
   )
 }
 
+/**
+ * Return to plain, a large switch in its own panel, and its Hold knob: the letters rest on their plain shapes (every
+ * Experimental effect off) and each beat shows the effects switched on in the Experimental tab for Hold.
+ */
+function PlainField({ response, hint, holdHint }: { response: ResponseSettings; hint: HintState; holdHint: HintState }) {
+  const on = response.plain === 1
+  const { min, max, step } = RESPONSE_LIMITS.holdMs
+  return (
+    <div className={on ? 'field sound-plain sound-plain-on' : 'field sound-plain'}>
+      <div className="sound-row">
+        <div className="field-toggle">
+          <span className="switch switch-large">
+            <input
+              id="sound-plain"
+              type="checkbox"
+              role="switch"
+              checked={on}
+              aria-describedby={hint.id}
+              onChange={(e) => mappingStore.setResponse({ plain: e.target.checked ? 1 : 0 })}
+            />
+            <span className="switch-track" aria-hidden="true" />
+          </span>
+          <span className="field-title">
+            <label htmlFor="sound-plain">Return to plain</label>
+            <HintButton hint={hint} topic="Return to plain" />
+          </span>
+        </div>
+        <Knob
+          label="Hold"
+          name="Return to plain hold"
+          size="small"
+          value={response.holdMs}
+          min={min}
+          max={max}
+          step={step}
+          defaultValue={DEFAULT_RESPONSE.holdMs}
+          format={(v) => `${v} ms`}
+          valueText={`${response.holdMs} milliseconds`}
+          unit="ms"
+          hint={holdHint}
+          onChange={(next) => mappingStore.setResponse({ holdMs: next })}
+        />
+      </div>
+      <HintText hint={hint}>
+        The letters rest on their plain shapes, every Experimental effect off, and each beat brings back the effects you
+        switched on in the Experimental tab, then they return. Your mappings still act on top. Glide smooths the way there
+        and back.
+      </HintText>
+      <HintText hint={holdHint}>How long each beat shows the effects before the letters return to plain.</HintText>
+    </div>
+  )
+}
+
 interface TransportGroupProps {
   engine: SoundEngine
   state: SoundState
@@ -316,6 +369,8 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
   const status = useLiveStatus()
   const micHint = useHint()
   const driveHint = useHint()
+  const plainHint = useHint()
+  const holdHint = useHint()
   const freezeHint = useHint()
   const presetHint = useHint()
   const reducedId = useId()
@@ -402,6 +457,8 @@ function TransportGroup({ engine, state, dispatch, presetNotice, onPresetChosen,
           own values; a marker on each driven slider shows the live value.
         </HintText>
       </div>
+
+      <PlainField response={response} hint={plainHint} holdHint={holdHint} />
 
       {state.source === 'file' && (
         <div className="field">
@@ -963,7 +1020,7 @@ const percent = (value: number) => Math.round(value * 100)
  * Each response value's knob: its label under the knob, its full name (when longer) and ⓘ explanation, and its unit:
  * percent on the knob for a fraction in the store (scale 100), or milliseconds as they are (Glide).
  */
-const RESPONSE_FIELDS: Record<keyof ResponseSettings, { label: string; name?: string; hint: string; unit?: 'ms' }> = {
+const RESPONSE_FIELDS: Record<Exclude<keyof ResponseSettings, 'plain' | 'holdMs'>, { label: string; name?: string; hint: string; unit?: 'ms' }> = {
   strength: {
     label: 'Strength',
     hint:
@@ -1003,7 +1060,7 @@ const RESPONSE_FIELDS: Record<keyof ResponseSettings, { label: string; name?: st
   },
 }
 
-const RESPONSE_KEYS = Object.keys(RESPONSE_FIELDS) as (keyof ResponseSettings)[]
+const RESPONSE_KEYS = Object.keys(RESPONSE_FIELDS) as (keyof typeof RESPONSE_FIELDS)[]
 
 /**
  * How the letters answer the sound: the response values over every mapping (the mapping store), five knobs in a
@@ -1028,7 +1085,8 @@ function ResponseGroup({ engine, settings }: { engine: SoundEngine; settings: Fe
     undoHistory.transaction(() => {
       undoHistory.record(null)
       engine.setSettings(DEFAULT_FEATURE_SETTINGS)
-      mappingStore.setResponse(DEFAULT_RESPONSE)
+      // Return to plain and its Hold, in the Transport, stay as they are.
+      mappingStore.setResponse(Object.fromEntries(RESPONSE_KEYS.map((key) => [key, DEFAULT_RESPONSE[key]])))
     })
 
   return (

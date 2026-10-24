@@ -64,7 +64,19 @@ import {
   type LetterSlots,
   type LevelSet,
 } from './letters'
-import { lookChanges, lookKey, modulate, targetById, type DrivenParams, type LookChanges, type Mapping, type Modulated, type ParamPatch } from './mapping'
+import {
+  lookChanges,
+  lookKey,
+  modulate,
+  PLAIN_SWITCHES,
+  plainPulse,
+  targetById,
+  type DrivenParams,
+  type LookChanges,
+  type Mapping,
+  type Modulated,
+  type ParamPatch,
+} from './mapping'
 import { mappingStore } from './mappingStore'
 import { NO_SHAPING, ShapingTracker, type ShapedFrame } from './shaping'
 import type { AdoptedState, CommitTiming } from './timelineTypes'
@@ -528,6 +540,8 @@ export class LiveScheduler {
   private readonly flash: FlashLimiter
   private readonly jumpTracker: JumpTracker
   private readonly shapingTracker = new ShapingTracker()
+  /** The mappings with Return to plain's beat pulse (plainPulse) when it is on: what shapingTracker shapes. */
+  private shapedMappings: readonly Mapping[] = []
 
   private base: DrivenParams | null = null
   /** The sliders' geometry key (paramsKey), and their whole frame key: with their look (lookKey). */
@@ -649,8 +663,11 @@ export class LiveScheduler {
    */
   setMappings(mappings: readonly Mapping[], drive: boolean, response: ResponseSettings = NEUTRAL_RESPONSE) {
     this.mappings = mappings
-    // Hits on the beat (Trigger, Toggle) reach every letter at once, not by Thorn turns.
-    this.turns.setPulsed(pulsedTargets(mappings))
+    // Return to plain's beat pulse is shaped with the rows.
+    const pulse = plainPulse(response)
+    this.shapedMappings = pulse ? [...mappings, pulse] : mappings
+    // Hits on the beat (Trigger, Toggle, Return to plain) reach every letter at once, not by Thorn turns.
+    this.turns.setPulsed(pulsedTargets(mappings, pulse ? PLAIN_SWITCHES.map((spec) => spec.id) : []))
     this.drive = drive
     const r = this.response
     if (response.contrast !== r.contrast || response.pitchReactive !== r.pitchReactive) {
@@ -685,7 +702,7 @@ export class LiveScheduler {
     if (this.following) return
     // Shaping and jumps are counted only while Sound can drive; stop() forgets them.
     if (this.base && this.canDrive()) {
-      this.shaped = this.shapingTracker.advance(frame, this.mappings)
+      this.shaped = this.shapingTracker.advance(frame, this.shapedMappings)
       this.jumps = this.jumpTracker.advance(frame, this.mappings, this.base, this.response.strength, this.shaped)
     }
     this.update()

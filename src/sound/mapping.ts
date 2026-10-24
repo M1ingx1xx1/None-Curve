@@ -965,6 +965,29 @@ export function switchFires(mapping: Mapping, shaped: number): boolean {
 /** Whether a mapping acts at all: on, with a finite Depth other than 0. */
 const drives = (mapping: Mapping) => mapping.enabled && mapping.depth !== 0 && Number.isFinite(mapping.depth)
 
+/** The id of Return to plain's beat pulse among the shaped values (no mapping row has it: theirs are m1, m2 and so on). */
+export const PLAIN_PULSE_ID = 'plain'
+
+/** The Experimental effects' Use switches: Return to plain turns those switched on off between beats. */
+export const PLAIN_SWITCHES: readonly TargetSpec[] = TARGETS.filter((spec) => /^experimental\.\w+\.enabled$/.test(spec.id))
+
+/**
+ * Return to plain's beat pulse, shaped as a hidden Trigger row on Beat with Smooth set to Hold (ShapingTracker), or null
+ * while it is off. Its target only has to exist: modulate reads the pulse by PLAIN_PULSE_ID and never drives it.
+ */
+export function plainPulse(response: ResponseSettings): Mapping | null {
+  if (response.plain !== 1) return null
+  return {
+    id: PLAIN_PULSE_ID,
+    enabled: true,
+    feature: 'beat',
+    target: PLAIN_SWITCHES[0].id,
+    depth: 1,
+    mode: 'trigger',
+    smoothMs: response.holdMs,
+  }
+}
+
 /**
  * The switches of `fired` (whether each fires) applied to `base`: each acting one flipped from its checkbox's setting
  * while it fires. Which switches act is checked on the switched settings, so a switch that needs another (Burst needs
@@ -1021,6 +1044,9 @@ export function whileSwitchesFire(params: DrivenParams, mappings: readonly Mappi
  * `positions` (0 off, 1 on). Switches go first: the other targets act or not on the switched settings (a mapping on
  * Ripple's Amount acts while a mapping turns Ripple on).
  *
+ * With Return to plain on (`response.plain`), every Experimental effect switched on in `base` is a driven switch too:
+ * turned off except while its beat pulse (PLAIN_PULSE_ID in `shaped`, plainPulse) lasts.
+ *
  * `response` applies the Response group: Melody tracking adds RESPONSE_LIMITS.melodyBoost × melody × the Melody
  * pulse to each slider mapping's feature (capped at 1; not Pan, not a Melody row, only in Follow mode), and Strength
  * multiplies each target's sum before it is clamped. Neutral (the default) gives exactly the same values as without it
@@ -1051,6 +1077,14 @@ export function modulate(
     if (spec?.kind !== 'switch') continue
     const fires = switchFires(mapping, shaped.get(mapping.id) ?? shapeStateless(mapping, frame))
     ;(fired ??= new Map()).set(spec, (fired.get(spec) ?? false) || fires)
+  }
+  // Return to plain: between beats each effect switched on is turned off; on a beat (its pulse lasts Hold) it shows.
+  // Driven either way, so the flash limit sees both edges.
+  if (response.plain === 1) {
+    const resting = !((shaped.get(PLAIN_PULSE_ID) ?? 0) > 0)
+    for (const spec of PLAIN_SWITCHES) {
+      if (spec.get(base) === 1) (fired ??= new Map()).set(spec, (fired.get(spec) ?? false) || resting)
+    }
   }
   let flips: Map<TargetSpec, boolean> | null = null
   if (fired) {

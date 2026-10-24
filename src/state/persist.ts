@@ -310,7 +310,7 @@ function readMappings(saved: unknown): Mapping[] {
   return mappings
 }
 
-/** Range and step of each saved Sound setting: the Response group's sliders. */
+/** Range and step of each saved Sound setting: the Response group's sliders, Return to plain (0 or 1) and its Hold. */
 const SOUND_RANGES: { [K in keyof SoundSettings]: { min: number; max: number; step: number } } = {
   sensitivity: { min: SOUND_LIMITS.minSensitivity, max: SOUND_LIMITS.maxSensitivity, step: SOUND_LIMITS.sensitivityStep },
   releaseMs: { min: SOUND_LIMITS.minReleaseMs, max: SOUND_LIMITS.maxReleaseMs, step: SOUND_LIMITS.releaseStepMs },
@@ -319,6 +319,8 @@ const SOUND_RANGES: { [K in keyof SoundSettings]: { min: number; max: number; st
   pitchReactive: RESPONSE_LIMITS.pitchReactive,
   melody: RESPONSE_LIMITS.melody,
   glideMs: RESPONSE_LIMITS.glideMs,
+  plain: RESPONSE_LIMITS.plain,
+  holdMs: RESPONSE_LIMITS.holdMs,
 }
 
 /** The saved Sound settings: each a finite number, clamped to its slider and rounded to its step; otherwise the default. */

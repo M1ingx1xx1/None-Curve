@@ -488,8 +488,9 @@ export function withThornState(params: GeometryParams, state: ThornState): Geome
  * drives: hits on the beat, which every letter takes at once (ThornTurns.setPulsed), so each one shows on every letter
  * together and the letters return to the sliders' own values between hits. Seeds keep their turns.
  */
-export function pulsedTargets(mappings: readonly Mapping[]): readonly number[] {
+export function pulsedTargets(mappings: readonly Mapping[], also: readonly string[] = []): readonly number[] {
   const ids = new Set(mappings.filter((m) => m.enabled && (m.mode === 'trigger' || m.mode === 'toggle')).map((m) => m.target))
+  for (const id of also) ids.add(id)
   const out: number[] = []
   STATE_TARGETS.forEach((spec, i) => {
     if (ids.has(spec.id) && spec.kind !== 'jump') out.push(i)

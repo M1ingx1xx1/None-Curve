@@ -77,7 +77,7 @@ function changedSession(): Session {
       { id: 'm2', enabled: false, feature: 'beat', target: 'experimental.seed', depth: 0.25 },
       { id: 'm3', enabled: true, feature: 'melody', target: 'distortion.amount', depth: -0.4 },
     ],
-    sound: { sensitivity: -6, releaseMs: 400, strength: 2.5, contrast: 0.6, pitchReactive: 1.25, melody: 0.15, glideMs: 320 },
+    sound: { sensitivity: -6, releaseMs: 400, strength: 2.5, contrast: 0.6, pitchReactive: 1.25, melody: 0.15, glideMs: 320, plain: 1, holdMs: 350 },
     font: { kind: 'google', family: 'Roboto', weight: 400, italic: false, subset: 'latin' },
     glyph: { family: 'Roboto', style: 'Regular', index: 37, unicode: 0x41 },
   }
@@ -142,13 +142,18 @@ describe('saved session', () => {
       contrast: 0.46,
       pitchReactive: 0.33,
       melody: 1.97,
-      // Saved before Glide existed: its default.
+      // Saved before Glide and Return to plain existed: their defaults.
       glideMs: DEFAULT_SOUND_SETTINGS.glideMs,
+      plain: 0,
+      holdMs: DEFAULT_SOUND_SETTINGS.holdMs,
     })
+    // Return to plain: 0 or 1; its Hold 50–1000 ms in steps of 10.
+    expect(read({ plain: 3, holdMs: 1234 })).toMatchObject({ plain: 1, holdMs: 1000 })
+    expect(read({ plain: 0.2, holdMs: 147 })).toMatchObject({ plain: 0, holdMs: 150 })
     // Glide: 0–1000 ms in steps of 10.
     expect([1234, 147, -5, 0].map((glideMs) => read({ glideMs })?.glideMs)).toEqual([1000, 150, 0, 0])
     // Values saved on the coarser steps are still on the finer ones, so they come back as they were.
-    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95, glideMs: 150 }
+    const coarse = { sensitivity: -3, releaseMs: 240, strength: 1.25, contrast: 0.46, pitchReactive: 0.35, melody: 1.95, glideMs: 150, plain: 0, holdMs: 200 }
     expect(read(coarse)).toEqual(coarse)
     // Saved as JSON, the values come back exactly.
     const storage = new MemoryStorage()

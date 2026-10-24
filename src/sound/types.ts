@@ -294,6 +294,14 @@ export interface ResponseSettings {
    * limit, the markers and Freeze are the same at any value. 0 is neutral (each shape at once).
    */
   glideMs: number
+  /**
+   * Return to plain, 0 (off) or 1 (on): the letters rest on their plain shapes, every Experimental effect off, and each
+   * beat brings back the effects switched on in the Experimental tab for `holdMs` (mapping.ts, plainPulse). 0 is
+   * neutral.
+   */
+  plain: number
+  /** How long each beat shows the effects while Return to plain is on, 50–1000 ms. */
+  holdMs: number
 }
 
 export const RESPONSE_LIMITS = {
@@ -302,11 +310,21 @@ export const RESPONSE_LIMITS = {
   pitchReactive: { min: 0, max: 2, step: 0.01 },
   melody: { min: 0, max: 2, step: 0.01 },
   glideMs: { min: 0, max: 1000, step: 10 },
+  plain: { min: 0, max: 1, step: 1 },
+  holdMs: { min: 50, max: 1000, step: 10 },
   /** Melody tracking 1 adds this × Melody to a slider mapping's feature (capped at 1). */
   melodyBoost: 0.5,
 } as const
 
-export const NEUTRAL_RESPONSE: ResponseSettings = { strength: 1, contrast: 0, pitchReactive: 0, melody: 0, glideMs: 0 }
+export const NEUTRAL_RESPONSE: ResponseSettings = {
+  strength: 1,
+  contrast: 0,
+  pitchReactive: 0,
+  melody: 0,
+  glideMs: 0,
+  plain: 0,
+  holdMs: 200,
+}
 
 /**
  * The Response group's defaults: neutral, with Glide at 150 ms, about five live frames at their fastest, so the letters
@@ -325,7 +343,10 @@ export const DEFAULT_RESPONSE: ResponseSettings = { ...NEUTRAL_RESPONSE, glideMs
  */
 export const THORN_TURNS = { groups: 5, gapMs: 250 } as const
 
-/** Everything the Response group sets: the engine's Sensitivity and Release, and the five response values. Saved and undone. */
+/**
+ * Everything the Response group sets (the engine's Sensitivity and Release, and the five response values) and Return
+ * to plain with its Hold, in the Transport. Saved and undone.
+ */
 export type SoundSettings = FeatureSettings & ResponseSettings
 
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = { ...DEFAULT_FEATURE_SETTINGS, ...DEFAULT_RESPONSE }
@@ -337,7 +358,7 @@ export function snapToStep(value: number, step: number): number {
   return Math.round(value * inverse) / inverse
 }
 
-const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody', 'glideMs'] as const
+const RESPONSE_KEYS = ['strength', 'contrast', 'pitchReactive', 'melody', 'glideMs', 'plain', 'holdMs'] as const
 
 /**
  * `current` with `patch` applied: each patched value clamped to RESPONSE_LIMITS and snapped to its step; one that is
