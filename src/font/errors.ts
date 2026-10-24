@@ -10,6 +10,8 @@ export type FontErrorKind =
   // Both
   | 'parse'
   | 'no-glyphs'
+  // SVG artwork
+  | 'svg'
 
 export class FontLoadError extends Error {
   readonly kind: FontErrorKind
@@ -30,6 +32,7 @@ export const errorKindLabel: Record<FontErrorKind, string> = {
   download: 'Font download failed',
   parse: 'Font parsing failed',
   'no-glyphs': 'No usable glyphs',
+  svg: 'SVG could not be used',
 }
 
 export function toFontLoadError(error: unknown, fallback: FontErrorKind): FontLoadError {

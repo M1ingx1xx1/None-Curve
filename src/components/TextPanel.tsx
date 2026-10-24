@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type Ref } from 'react'
-import type { LoadedFont } from '../font/model'
+import { isArtwork, type LoadedFont } from '../font/model'
 import type { TextCase } from '../specimen/artboard'
 import { SAMPLES } from '../specimen/samples'
 import { SPECIMEN_MAX_CHARS, type SpecimenScene } from '../specimen/scene'
@@ -55,8 +55,11 @@ export default function TextPanel({
     if (loaded) setLastSample(loaded.label)
   }, [loaded])
 
+  // An SVG artwork shows on its own: the text is kept, but not set, until a font is open again.
+  const artwork = isArtwork(font)
   const notes: string[] = []
-  if (scene) {
+  if (artwork) notes.push('an SVG artwork shows on its own; your text returns with a font')
+  else if (scene) {
     notes.push(`${scene.glyphCount} glyphs in ${scene.lines.length} line${scene.lines.length === 1 ? '' : 's'}`)
     notes.push(scene.kerning ? 'kerning from the font applied' : 'this font has no kerning data')
     if (scene.failedGlyphs)
@@ -91,6 +94,7 @@ export default function TextPanel({
           <select
             id={`${id}-sample`}
             value={loaded?.label ?? EDITED}
+            disabled={artwork}
             title="Sample text"
             onChange={(e) => {
               const sample = SAMPLES.find((s) => s.label === e.target.value)
@@ -106,7 +110,7 @@ export default function TextPanel({
               </option>
             ))}
           </select>
-          <button type="button" className="button-small" disabled={!text} onClick={() => onTextReplace('')}>
+          <button type="button" className="button-small" disabled={!text || artwork} onClick={() => onTextReplace('')}>
             <Icon name="close" />
             Clear
           </button>
@@ -121,6 +125,7 @@ export default function TextPanel({
         onFocus={onInputFocus}
         className="text-input"
         value={text}
+        disabled={artwork}
         spellCheck={false}
         // The most that is saved, so nothing typed is cut silently when the session or a config is written.
         maxLength={MAX_SAVED_TEXT}
@@ -133,7 +138,7 @@ export default function TextPanel({
           {length} / {SPECIMEN_MAX_CHARS} characters
           {font ? ` · ${notes.join(' · ')}` : ' · load a font to preview'}
         </p>
-        {scene && scene.missingCharacters.length > 0 && (
+        {!artwork && scene && scene.missingCharacters.length > 0 && (
           <p className="font-warning">
             Not in this font (dashed boxes on the canvas): {scene.missingCharacters.join(' ')}
           </p>

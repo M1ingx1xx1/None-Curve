@@ -3,8 +3,19 @@
 
 import type { GlyphRef, SourceGlyph } from '../geometry/types'
 
-/** 'ttc' and 'otc' are font collections (TrueType or CFF faces); one face of them is open. */
-export type FontFormat = 'ttf' | 'otf' | 'woff' | 'woff2' | 'ttc' | 'otc'
+/**
+ * 'ttc' and 'otc' are font collections (TrueType or CFF faces); one face of them is open. 'svg' is an imported SVG,
+ * read as a font of one glyph, the artwork (svgFont.ts).
+ */
+export type FontFormat = 'ttf' | 'otf' | 'woff' | 'woff2' | 'ttc' | 'otc' | 'svg'
+
+/** The character an SVG artwork is mapped to (a private use code point); the canvas text is this one character. */
+export const ARTWORK_CODE_POINT = 0xe000
+
+/** Whether the font is an imported SVG artwork rather than a font. */
+export function isArtwork(font: LoadedFont | null): boolean {
+  return font?.format === 'svg'
+}
 
 export type FontSource =
   | {

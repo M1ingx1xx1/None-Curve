@@ -31,7 +31,7 @@ import {
 import { pngSize, svgToPng } from '../export/png'
 import { getRecorder, useRecording } from '../export/recorder'
 import { OUTLINE_STROKE_PX, specimenToSvg, type SvgLook } from '../export/svg'
-import { formatCodePoint, glyphLabel, type LoadedFont } from '../font/model'
+import { formatCodePoint, glyphLabel, isArtwork, type LoadedFont } from '../font/model'
 import { describePipeline } from '../geometry/describe'
 import type { GeometryParams, GlyphRef } from '../geometry/types'
 import { useLiveStatus } from '../sound/live'
@@ -292,8 +292,9 @@ export default function ExportBody(props: ExportBodyProps) {
   } = kept
   // While Sound drives the letters the canvas shows live shapes, but exports use the sliders (SOUND_PLAN §9).
   const { driving: soundLive } = useLiveStatus()
-  // Without a font only the config can be saved.
-  const format: Format = font ? chosen : 'config'
+  // Without a font only the config can be saved. An SVG artwork is no font, so it has no font file export.
+  const artwork = isArtwork(font)
+  const format: Format = !font ? 'config' : artwork && chosen === 'otf' ? 'svg' : chosen
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
   // Results that arrive while the dialog is open refine the estimate.
@@ -526,25 +527,27 @@ export default function ExportBody(props: ExportBodyProps) {
 
       <fieldset className="export-formats">
         <legend>Format</legend>
-        {formats.map((f, i) => (
-          <label key={f.value} className="export-format">
-            <input
-              ref={i === 0 ? firstRef : undefined}
-              type="radio"
-              name="export-format"
-              value={f.value}
-              checked={format === f.value}
-              onChange={() => {
-                setFormat(f.value)
-                setStatus({ kind: 'idle' })
-              }}
-            />
-            <span>
-              <strong>{f.label}</strong>
-              <span className="field-hint">{f.hint}</span>
-            </span>
-          </label>
-        ))}
+        {formats
+          .filter((f) => !(artwork && f.value === 'otf'))
+          .map((f, i) => (
+            <label key={f.value} className="export-format">
+              <input
+                ref={i === 0 ? firstRef : undefined}
+                type="radio"
+                name="export-format"
+                value={f.value}
+                checked={format === f.value}
+                onChange={() => {
+                  setFormat(f.value)
+                  setStatus({ kind: 'idle' })
+                }}
+              />
+              <span>
+                <strong>{f.label}</strong>
+                <span className="field-hint">{f.hint}</span>
+              </span>
+            </label>
+          ))}
       </fieldset>
 
       {pending && format !== 'video' && format !== 'config' && (
