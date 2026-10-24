@@ -130,8 +130,69 @@ function flattenSource(source: SourceGlyph): Point[][] {
 
 const pointsOf = (contours: readonly PolygonContour[]) => contours.map((c) => c.points)
 
+const polygonBoxes = new WeakMap<readonly PolygonContour[], Box>()
+const sourceBoxes = new WeakMap<SourceGlyph, Box>()
+
+function grow(box: Box, p: Point) {
+  if (p.x < box[0]) box[0] = p.x
+  if (p.y < box[1]) box[1] = p.y
+  if (p.x > box[2]) box[2] = p.x
+  if (p.y > box[3]) box[3] = p.y
+}
+
+/** The box of the contours' points. */
+function polygonBox(contours: readonly PolygonContour[]): Box {
+  let box = polygonBoxes.get(contours)
+  if (box) return box
+  box = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const { points } of contours) for (const p of points) grow(box, p)
+  polygonBoxes.set(contours, box)
+  return box
+}
+
+/** The box of the source outline's points and controls: its curves, handles and markers' centres stay inside it. */
+function sourceBox(source: SourceGlyph): Box {
+  let box = sourceBoxes.get(source)
+  if (box) return box
+  box = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const contour of source.contours) {
+    grow(box, contour.start)
+    for (const seg of contour.segments) {
+      if (seg.type === 'quad') grow(box, seg.control)
+      else if (seg.type === 'cubic') {
+        grow(box, seg.control1)
+        grow(box, seg.control2)
+      }
+      grow(box, seg.to)
+    }
+  }
+  sourceBoxes.set(source, box)
+  return box
+}
+
+const near = (b: Box, x: number, y: number, r: number) =>
+  x >= b[0] - r && x <= b[2] + r && y >= b[1] - r && y <= b[3] + r
+
+/**
+ * Whether (x, y) in the glyph's own units comes near enough to what it draws that hitsLayers could hit it: within
+ * `reach` (hitScene's) of the polygon's box, or within the stroke band or a marker of the source outline's box. A cheap
+ * rejection: hitsLayers is never true where this is false.
+ */
+export function nearLayers(
+  polygon: readonly PolygonContour[] | null,
+  source: SourceGlyph,
+  x: number,
+  y: number,
+  o: HitOptions,
+  reach: number,
+): boolean {
+  if (polygon && (o.outline !== 'source' || o.showVertices) && near(polygonBox(polygon), x, y, reach)) return true
+  if (o.outline === 'flattened' && !o.showSkeleton) return false
+  return near(sourceBox(source), x, y, Math.max(STROKE_HIT_PX * o.u, o.markerRadius))
+}
+
 /** Whether a drawn glyph's layers (not its box) cover (x, y) in its own font units (y up). */
-function hitsLayers(
+export function hitsLayers(
   polygon: readonly PolygonContour[] | null,
   source: SourceGlyph,
   x: number,
@@ -241,11 +302,12 @@ export function hitScene(
       const polygon = morph ? morphNear(morph, gx, gy, reach) : g.polygon
       const thorned = polygon?.clickOutline
       if (thorned) {
-        if (windingAt(pointsOf(thorned), gx, gy) !== 0)
+        if (near(polygonBox(thorned), gx, gy, 0) && windingAt(pointsOf(thorned), gx, gy) !== 0)
           return { kind: 'glyph', index: g.index, text: g.text, occurrence }
         continue
       }
-      if (source && hitsLayers(polygon?.contours ?? null, source, gx, gy, o))
+      const contours = polygon?.contours ?? null
+      if (source && nearLayers(contours, source, gx, gy, o, reach) && hitsLayers(contours, source, gx, gy, o))
         return { kind: 'glyph', index: g.index, text: g.text, occurrence }
     }
   }
