@@ -7,7 +7,6 @@ import {
   freeFromLayout,
   layoutArtboard,
   TEXT_ANCHORS,
-  TYPOGRAPHY_LIMITS,
   type ArtboardParams,
   type TextAlign,
   type TextAnchor,
@@ -70,13 +69,11 @@ export default function TypographyControls({ params, artboard, font, scene, load
       <div className="group-body">
 
         <SliderField
+          layout="row"
           id="type-size"
           target="typography.size"
           label="Size"
           value={params.size}
-          min={TYPOGRAPHY_LIMITS.minSize}
-          max={TYPOGRAPHY_LIMITS.maxSize}
-          step={1}
           unit="px"
           valueText={`${params.size} pixels`}
           onChange={(size) => update({ size })}
@@ -100,39 +97,33 @@ export default function TypographyControls({ params, artboard, font, scene, load
           </button>
         </div>
         <SliderField
+          layout="row"
           id="type-tracking"
           target="typography.tracking"
           label="Tracking"
           value={params.tracking}
-          min={TYPOGRAPHY_LIMITS.minTracking}
-          max={TYPOGRAPHY_LIMITS.maxTracking}
-          step={1}
           unit="/1000 em"
           valueText={`${params.tracking} thousandths of an em`}
           onChange={(tracking) => update({ tracking })}
         />
 
         <SliderField
+          layout="row"
           id="type-leading"
           target="typography.lineHeight"
           label="Line height"
           value={params.lineHeight}
-          min={TYPOGRAPHY_LIMITS.minLineHeight}
-          max={TYPOGRAPHY_LIMITS.maxLineHeight}
-          step={0.01}
           unit="×"
           valueText={`${params.lineHeight} times the font's line spacing`}
           onChange={(lineHeight) => update({ lineHeight })}
         />
 
         <SliderField
+          layout="row"
           id="type-slant"
           target="typography.slant"
           label="Slant"
           value={params.slant}
-          min={-TYPOGRAPHY_LIMITS.maxSlant}
-          max={TYPOGRAPHY_LIMITS.maxSlant}
-          step={1}
           unit="°"
           valueText={`${params.slant} degrees`}
           onChange={(slant) => update({ slant })}
