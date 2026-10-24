@@ -22,7 +22,7 @@ import { probeOn, reportPrecompute, type PrecomputeProbe } from '../render/probe
 import { getAheadGeometry, type AheadCommit, type AheadGeometry } from '../state/aheadTypes'
 import { geometryClient, shownGlyphs } from '../state/geometryClient'
 import { bufferStore, type BufferSnapshot } from './bufferStore'
-import { getSoundEngine } from './engine'
+import { getSoundEngine, subscribeStateKeys } from './engine'
 import { FeatureTimeline } from './featureTimeline'
 import { DECIMATION_LEVELS, LineageBook, selectCommits, stepsOf } from './lineage'
 import { edgesFit, FLASH_LIMITS } from './flash'
@@ -944,7 +944,8 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', sync)
   let loading = 0
   const off = [
-    engine.subscribeState(sync),
+    // Only what sync reads: not the position, which changes about 4 times a second while a file plays.
+    subscribeStateKeys(engine, ['source', 'playing'], sync),
     engine.subscribeTimelineEvents((event) => {
       const token = ++loading
       failed = false

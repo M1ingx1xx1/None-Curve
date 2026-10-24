@@ -4,8 +4,7 @@
 // (src/sound/featureTimeline.ts) over a fake worker running that core keeps what arrives for the current generation.
 
 import { describe, expect, it } from 'vitest'
-import { analyserFftSize } from '../../src/sound/engine'
-import { FeatureExtractor } from '../../src/sound/features'
+import { analyserFftSize, FeatureExtractor } from '../../src/sound/features'
 import { FeatureTimeline, type FeatureWorkerLike } from '../../src/sound/featureTimeline'
 import { CHUNK_FRAMES, FeatureWorkerCore, type FeatureWorkerRequest, type FeatureWorkerResponse } from '../../src/sound/featureWorkerCore'
 import { gridFrameCount, highpassInPlace, measureFrames } from '../../src/sound/offline'

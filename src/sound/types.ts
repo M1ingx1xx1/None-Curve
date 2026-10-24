@@ -174,7 +174,10 @@ export const SOUND_LIMITS = {
  * feature a mapping can follow, under the same name (mapping.ts).
  */
 export interface FeatureFrame {
-  /** When the frame was measured (ms, performance.now()). */
+  /**
+   * When the frame was measured (ms, performance.now()); for a playing file, when it is heard: measured plus the output
+   * latency (FrameDelay in engine.ts).
+   */
   time: number
   /** Unsmoothed short-time RMS level in dBFS (-Infinity for digital silence), before Sensitivity. */
   levelDb: number

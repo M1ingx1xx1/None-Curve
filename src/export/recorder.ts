@@ -15,7 +15,7 @@
 // fakes and nothing touches the DOM; the page's single controller and its hooks are at the bottom.
 
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
-import { getSoundEngine } from '../sound/engine'
+import { getSoundEngine, subscribeStateKeys } from '../sound/engine'
 import { liveLatencyMs } from '../sound/live'
 import type { SoundSource, SoundState } from '../sound/types'
 import { downloadFile } from './download'
@@ -36,6 +36,12 @@ import {
   type VideoFps,
   type VideoMime,
 } from './videoFormat'
+
+/**
+ * The sound's state a take and the Record button's blocker read (sourceChanged): a change of only the position, about
+ * 4 times a second while a file plays, does not check the blocker (MediaRecorder.isTypeSupported, once per format).
+ */
+const SOURCE_KEYS: readonly (keyof SoundState)[] = ['busy', 'source', 'fileName', 'playing', 'listening']
 
 export type RecordPhase = 'idle' | 'starting' | 'recording' | 'stopping'
 export type StopReason = 'user' | 'length' | 'cap' | 'source' | 'hidden' | 'size' | 'font' | 'error'
@@ -222,7 +228,7 @@ export class RecordingController {
     this.deps = deps
     this.state = { phase: 'idle', options: DEFAULT_RECORD_OPTIONS, take: null, elapsedMs: 0, message: null, support: this.readSupport() }
     this.blocked = this.blocker()
-    deps.engine.subscribeState(() => this.sourceChanged())
+    subscribeStateKeys(deps.engine, SOURCE_KEYS, () => this.sourceChanged())
     deps.onVisibilityChange(() => {
       if (this.take && this.deps.hidden()) this.stop('hidden')
     })

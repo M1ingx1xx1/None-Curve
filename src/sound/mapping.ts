@@ -32,8 +32,6 @@ const clamp01 = (x: number) => (x > 0 ? (x < 1 ? x : 1) : 0)
 
 /** The features a mapping can follow: numeric fields of FeatureFrame. */
 export type FeatureId = 'level' | 'swell' | 'bass' | 'mids' | 'treble' | 'brightness' | 'pitch' | 'melody' | 'beat' | 'activity' | 'pan'
-/** The old name, kept so existing imports keep working. */
-export type ContinuousFeature = FeatureId
 
 export type FeatureGroup = 'Loudness' | 'Bands' | 'Tone' | 'Rhythm' | 'Stereo'
 
@@ -63,9 +61,6 @@ export const FEATURES: readonly FeatureSpec[] = [
   { id: 'activity', label: 'Activity', group: 'Rhythm' },
   { id: 'pan', label: 'Pan', group: 'Stereo', bipolar: true },
 ]
-
-/** Kept for existing imports: the same list. */
-export const CONTINUOUS_FEATURES = FEATURES
 
 const featuresById = new Map<string, FeatureSpec>(FEATURES.map((f) => [f.id, f]))
 

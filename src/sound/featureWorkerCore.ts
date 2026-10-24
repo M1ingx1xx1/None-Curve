@@ -8,8 +8,7 @@
 // before the seek with a fresh extractor and cuts the segment it lands in short there. The newest priority segment
 // runs first, then the others in the order they were made. A new generation (new settings) drops every segment.
 
-import { analyserFftSize } from './engine'
-import { FeatureExtractor } from './features'
+import { analyserFftSize, FeatureExtractor } from './features'
 import { gridFrameCount, highpassInPlace, measureFrames, type AnalyserGrid } from './offline'
 import { FEATURE_STRIDE, packFrame, PRECOMPUTE_LIMITS } from './timelineTypes'
 import type { FeatureSettings } from './types'

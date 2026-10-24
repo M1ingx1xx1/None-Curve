@@ -5,8 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { renderTestTrack, TEST_TRACK_SAMPLE_RATE } from '../../scripts/test-track'
-import { analyserFftSize } from '../../src/sound/engine'
-import { FeatureExtractor } from '../../src/sound/features'
+import { analyserFftSize, FeatureExtractor } from '../../src/sound/features'
 import { gridFrameCount, highpassCoefficients, highpassInPlace, measureFrames, type MeasuredChannels } from '../../src/sound/offline'
 import { DEFAULT_FEATURE_SETTINGS, SOUND_LIMITS, type FeatureFrame } from '../../src/sound/types'
 import { analyse, bursts, glide, mix, noise, reseed, SR, type ProbedFrame, type Rig } from '../helpers/audio'

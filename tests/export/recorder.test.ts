@@ -252,6 +252,7 @@ function rig(options: RigOptions = {}) {
   let hidden = false
   let visibilityChanged: (() => void) | null = null
   const supported = options.supported ?? CHROME
+  let typeChecks = 0
   const deps: RecorderDeps = {
     now: () => now,
     setTimer: (run, ms) => later(ms, run),
@@ -260,7 +261,10 @@ function rig(options: RigOptions = {}) {
       if (i >= 0) timers.splice(i, 1)
     },
     canRecord: () => options.canRecord !== false,
-    isTypeSupported: (mime) => supported.has(mime),
+    isTypeSupported: (mime) => {
+      typeChecks++
+      return supported.has(mime)
+    },
     createRecorder: (tracks, recorderOptions) => {
       const mime = recorderOptions.mimeType ?? ''
       tried.push(mime)
@@ -307,6 +311,10 @@ function rig(options: RigOptions = {}) {
     setContext,
     get sound() {
       return sound
+    },
+    /** MediaRecorder.isTypeSupported calls so far. */
+    get typeChecks() {
+      return typeChecks
     },
     get state() {
       return controller.getState()
@@ -912,6 +920,20 @@ describe('recorder', () => {
     failed.advance(1000)
     expect(failed.video.frames).toBe(atFail)
     expect(failed.timers).toBe(0)
+  })
+
+  it('checks the Record button only when the sound starts, stops or changes source, not when it only moves on', () => {
+    const r = rig()
+    const before = r.typeChecks
+    for (let position = 1; position <= 5; position++) r.setSound({ playing: true, position })
+    const playing = r.typeChecks
+    // The first change (Play) is checked; the position ticks after it are not.
+    for (let position = 6; position <= 20; position++) r.setSound({ position })
+    expect(r.typeChecks).toBe(playing)
+    expect(playing).toBeGreaterThan(before)
+    r.setSound({ playing: false, fileName: null })
+    expect(r.typeChecks).toBeGreaterThan(playing)
+    expect(r.controller.blocker()).toBe('Choose an audio file first.')
   })
 
   it('scales the bitrate with the frame rate', async () => {
