@@ -30,6 +30,10 @@ export type FeatureWorkerRequest =
   | { type: 'settings'; generation: number; settings: FeatureSettings; fromMs: number }
   /** Forget the file. */
   | { type: 'drop' }
+  /** Stop measuring (the microphone is the source); the samples and what is measured stay. */
+  | { type: 'pause' }
+  /** Measure on after a pause. */
+  | { type: 'resume' }
 
 export type FeatureWorkerResponse =
   /** Grid frames start..start+count−1, FEATURE_STRIDE values each (timelineTypes packFrame). */
@@ -56,6 +60,7 @@ export class FeatureWorkerCore {
   private channels: { left: Float32Array; right: Float32Array | null } | null = null
   private settings: FeatureSettings | null = null
   private frames = 0
+  private paused = false
   /** Every segment, by start. */
   private segments: Segment[] = []
   /** Unfinished segments, the one to measure first at the front. */
@@ -69,9 +74,15 @@ export class FeatureWorkerCore {
       this.channels = null
       this.segments = []
       this.order = []
+      this.paused = false
+      return
+    }
+    if (message.type === 'pause' || message.type === 'resume') {
+      this.paused = message.type === 'pause'
       return
     }
     if (message.type === 'load') {
+      this.paused = false
       this.sampleRate = message.sampleRate
       // The engine measures the sound after its 20 Hz high-pass, each channel on its own (a BiquadFilterNode).
       highpassInPlace(message.left, message.sampleRate)
@@ -90,7 +101,7 @@ export class FeatureWorkerCore {
   step(): boolean {
     const segment = this.order[0]
     const channels = this.channels
-    if (!segment || !channels || !this.settings) return false
+    if (this.paused || !segment || !channels || !this.settings) return false
     const from = segment.next
     const to = Math.min(segment.end, from + CHUNK_FRAMES)
     try {

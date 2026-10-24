@@ -7,8 +7,13 @@ import type { FeatureFrame } from './types'
 export const PRECOMPUTE_LIMITS = {
   /** Feature frames per media second. */
   gridHz: 60,
-  /** Longer files stay on the live path (PCM memory). */
+  /** Longer files stay on the live path (PCM memory); checked before decoding, where only the duration is known. */
   maxSeconds: 360,
+  /**
+   * Larger files stay on the live path too: the bytes the worker keeps (length × the first two channels × 4), which is
+   * maxSeconds at 48 kHz stereo, so a 96 or 192 kHz file does not take 4 times the memory.
+   */
+  maxBytes: 360 * 48_000 * 2 * 4,
   /** The parameter plan is made first this far past the playhead (each frame); the rest of the file in the background. */
   planAheadMs: 3000,
   /** The feature worker's priority segments (featureWorkerCore.ts seek) start this far before the point asked for. */

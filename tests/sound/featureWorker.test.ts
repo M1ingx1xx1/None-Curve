@@ -213,6 +213,37 @@ describe('feature timeline', () => {
     expect(mid.onset).toBe(a.onset)
   })
 
+  it('pauses measuring and resumes it, keeping what was measured', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS)
+    timeline.pause()
+    worker.pump()
+    expect(timeline.isLoaded()).toBe(true)
+    expect(timeline.covered(0)).toBe(false)
+    timeline.resume()
+    worker.pump()
+    expect(timeline.covered(SECONDS * 1000 - 10)).toBe(true)
+  })
+
+  it('keeps a file whose samples would pass the byte cap on the live path, before copying them', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    // 360 s at 96 kHz stereo: twice the cap.
+    const big = async () =>
+      ({
+        duration: 360,
+        length: 360 * 96_000,
+        sampleRate: 96_000,
+        numberOfChannels: 2,
+        getChannelData: () => {
+          throw new Error('copied')
+        },
+      }) as unknown as AudioBuffer
+    expect(await timeline.load(blob, big, DEFAULT_FEATURE_SETTINGS)).toBe(false)
+    expect(timeline.isLoaded()).toBe(false)
+  })
+
   it('measures again with new settings, and drops frames of the old generation', async () => {
     const worker = fakeWorker()
     const timeline = new FeatureTimeline(() => worker)

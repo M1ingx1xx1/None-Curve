@@ -1,7 +1,7 @@
 // The precomputed feature timeline of the file loaded in the Sound tab (page side). It decodes the file at the audio
 // context's rate, hands the samples to the feature worker (features.worker.ts), and keeps the packed frames it posts:
-// the planner (planner.ts) reads them by grid index. Files longer than PRECOMPUTE_LIMITS.maxSeconds are not decoded
-// (the samples would take too much memory) and stay on the live path. The whole file is measured in order from its
+// the planner (planner.ts) reads them by grid index. Files longer than PRECOMPUTE_LIMITS.maxSeconds are not decoded, and
+// files whose samples would pass PRECOMPUTE_LIMITS.maxBytes are not kept (too much memory): both stay on the live path. The whole file is measured in order from its
 // start (the plan is made from 0 too, planner.ts); new Sensitivity or Release settings start a new generation, and
 // every frame is measured again from the start.
 
@@ -54,6 +54,8 @@ export class FeatureTimeline implements FeatureSource {
       return false
     }
     if (token !== this.token || !(buffer.duration <= PRECOMPUTE_LIMITS.maxSeconds) || buffer.length === 0) return false
+    // The memory the worker will keep, worked out before anything is copied.
+    if (buffer.length * Math.min(buffer.numberOfChannels, 2) * 4 > PRECOMPUTE_LIMITS.maxBytes) return false
     // Copies: the worker takes them over, and the AudioBuffer goes. More than two channels: the first two (the engine
     // mixes such files down by the speaker rules; precompute measures their front pair).
     const left = buffer.getChannelData(0).slice()
@@ -73,12 +75,22 @@ export class FeatureTimeline implements FeatureSource {
     return true
   }
 
-  /** Forgets the file (a new one, the microphone, or precompute off). */
+  /** Forgets the file (a new one, a failure, or precompute off). */
   clear() {
     this.token++
     this.reset()
     this.worker?.postMessage({ type: 'drop' })
     this.notify()
+  }
+
+  /** Stops measuring, keeping the samples and the frames (the microphone is the source). */
+  pause() {
+    this.worker?.postMessage({ type: 'pause' })
+  }
+
+  /** Measures on after a pause. */
+  resume() {
+    this.worker?.postMessage({ type: 'resume' })
   }
 
   /** Stops the worker for good. */
