@@ -409,11 +409,14 @@ function pickList(): string[] {
   return [...TARGETS, ...axisTargets()].map((t) => t.id)
 }
 
-/** The tab (a [data-map-tab] button) that shows a target's control, if it is not on view. */
+/** The tab (a [data-map-tab] button) that shows a target's control, if it is not on view (or its panel is folded). */
 function openTabFor(spec: TargetSpec | undefined) {
   if (!spec) return
   const tab = document.querySelector<HTMLElement>(`[data-map-tab="${spec.tab}"]`)
-  if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click()
+  if (!tab) return
+  const panelId = tab.getAttribute('aria-controls')
+  const panel = panelId ? document.getElementById(panelId) : null
+  if (tab.getAttribute('aria-selected') !== 'true' || (panel !== null && !visible(panel))) tab.click()
 }
 
 /** The tab that shows `el` (the tab whose panel holds it), if any. */

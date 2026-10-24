@@ -82,7 +82,7 @@ export class FeatureWorkerCore {
       return
     }
     if (message.type === 'load') {
-      this.paused = false
+      // A pause holds through a load still decoding when the microphone took over; only 'resume' or 'drop' ends it.
       this.sampleRate = message.sampleRate
       // The engine measures the sound after its 20 Hz high-pass, each channel on its own (a BiquadFilterNode).
       highpassInPlace(message.left, message.sampleRate)

@@ -64,8 +64,8 @@ interface TextDragOptions {
 
 /**
  * The canvas's pointer and keys, shared by the SVG view (SpecimenView) and the canvas renderers' (GlyphSurface): pan and
- * zoom (usePanZoom), Shift+← / Shift+→ (and Enter) to select a letter, Escape to clear the selection, and Free position's text drag. A drag that starts on the text moves
- * it; anywhere else it pans. While dragging, only the moving group's transform (and `onOffset`) changes, so nothing
+ * zoom (usePanZoom), Shift+← / Shift+→ (and Enter) to select a letter, Escape to clear the selection, and Free
+ * position's text drag. A drag that starts on the text moves it; anywhere else it pans. While dragging, only the moving group's transform (and `onOffset`) changes, so nothing
  * re-renders however long the text; the move is committed once, on release, and the offset is cleared when that
  * position arrives back as a new layout, or at once when the move changed nothing.
  */

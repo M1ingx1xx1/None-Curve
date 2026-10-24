@@ -34,6 +34,8 @@ export class FeatureTimeline implements FeatureSource {
   /** Bumped by every load and clear, so a decode overtaken by a newer one is dropped. */
   private token = 0
   private settings: FeatureSettings | null = null
+  /** Paused (the microphone is the source): a load still decoding then starts paused too. */
+  private paused = false
   /** Frames measured contiguously from the start. */
   private contiguous = 0
   private readonly listeners = new Set<() => void>()
@@ -71,6 +73,7 @@ export class FeatureTimeline implements FeatureSource {
       { type: 'load', generation: this.generation, sampleRate: buffer.sampleRate, left, right, settings, fromMs },
       transfer,
     )
+    if (this.paused) worker.postMessage({ type: 'pause' })
     this.notify()
     return true
   }
@@ -85,11 +88,13 @@ export class FeatureTimeline implements FeatureSource {
 
   /** Stops measuring, keeping the samples and the frames (the microphone is the source). */
   pause() {
+    this.paused = true
     this.worker?.postMessage({ type: 'pause' })
   }
 
   /** Measures on after a pause. */
   resume() {
+    this.paused = false
     this.worker?.postMessage({ type: 'resume' })
   }
 

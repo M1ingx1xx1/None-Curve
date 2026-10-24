@@ -1034,6 +1034,7 @@ export function connectDirector(scheduler: DirectorScheduler, commit: (commit: L
       }
       // Measured from the start, in order: the plan is made from the start too.
       held = event.file
+      timeline.resume()
       timeline.load(event.file, event.decode, engine.getState().settings, 0).then(
         () => {
           if (token === loading) sync()

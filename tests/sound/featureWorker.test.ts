@@ -226,6 +226,22 @@ describe('feature timeline', () => {
     expect(timeline.covered(SECONDS * 1000 - 10)).toBe(true)
   })
 
+  it('stays paused through a load that was still decoding when the pause came', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    // The microphone is chosen while the file is still decoding.
+    const slow = async () => {
+      timeline.pause()
+      return decoded(SECONDS)()
+    }
+    await timeline.load(blob, slow, DEFAULT_FEATURE_SETTINGS)
+    worker.pump()
+    expect(timeline.covered(0)).toBe(false)
+    timeline.resume()
+    worker.pump()
+    expect(timeline.covered(SECONDS * 1000 - 10)).toBe(true)
+  })
+
   it('keeps a file whose samples would pass the byte cap on the live path, before copying them', async () => {
     const worker = fakeWorker()
     const timeline = new FeatureTimeline(() => worker)

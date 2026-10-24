@@ -55,6 +55,8 @@ interface GlyphSurfaceProps {
 const GRID_INSIDE_ZOOM = 2
 /** Point markers are drawn only when an em is at least this many pixels (SpecimenView's MARKER_MIN_PX_PER_EM). */
 const MARKER_MIN_PX_PER_EM = 48
+/** A resting pointer's hover is tested again at most this often while the view or the letters move (ms). */
+const HOVER_AGAIN_MS = 100
 
 /** Same metric guides and text block: the underlay need not render again. */
 function sameGuides(a: SpecimenScene, b: SpecimenScene): boolean {
@@ -301,18 +303,22 @@ export default function GlyphSurface({
     },
     selection: { font, selected: selectedGlyph, onSelect: onSelectGlyph },
   })
-  // The hit test again where the pointer rests, once per animation frame at most (a wheel zoom, a pan, a glide).
+  // The hit test again where the pointer rests (a wheel zoom, a pan, a glide), at most every HOVER_AGAIN_MS: Sound
+  // glides every frame, and a hit test per frame would cost as much as drawing.
+  const hoverLast = useRef(-Infinity)
   hoverAgain.current = () => {
     if (hoverFrame.current !== null || !resting.current) return
-    hoverFrame.current = requestAnimationFrame(() => {
+    const wait = Math.max(0, hoverLast.current + HOVER_AGAIN_MS - performance.now())
+    hoverFrame.current = window.setTimeout(() => {
       hoverFrame.current = null
+      hoverLast.current = performance.now()
       const at = resting.current
       if (at) showHover(hitAt(at.x, at.y))
-    })
+    }, wait)
   }
   useEffect(
     () => () => {
-      if (hoverFrame.current !== null) cancelAnimationFrame(hoverFrame.current)
+      if (hoverFrame.current !== null) clearTimeout(hoverFrame.current)
     },
     [],
   )
