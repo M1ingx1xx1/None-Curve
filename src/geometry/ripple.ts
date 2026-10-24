@@ -32,37 +32,10 @@
 // wavelength (shortestWavelength) the rings keep that spacing and the waves fade out instead, in proportion, so the
 // slider runs down to nothing without ever packing the rings closer together.
 
-import { clamp } from './primitives'
+import { RIPPLE_LIMITS, ripplePetals, rippleWavelength, rippleWaves } from './limits'
+import { clamp, finite } from './primitives'
 import type { Point, PolygonGlyph, RippleParams } from './types'
 import type { Warp } from './warp'
-
-export const RIPPLE_LIMITS = {
-  /** Wavelengths, as fractions of the em: rings fall half a wavelength apart. 0 stills the waves (see the header). */
-  minWavelength: 0,
-  maxWavelength: 2,
-  /** The shortest ring spacing's wavelength: shorter wavelengths keep it and fade the waves out. */
-  shortestWavelength: 0.08,
-  minSides: 3,
-  maxSides: 12,
-  /** Centre, as a fraction of the glyph's ink box; it may lie outside the letter. */
-  minCenter: -0.5,
-  maxCenter: 1.5,
-  /** Above 1 (the safe range), rings pass each other and fold. */
-  maxAmount: 4,
-  /**
-   * Largest ring movement at 100% Amount, as a fraction of the ring spacing (half a wavelength). Rings
-   * stay apart below 0.5; at 0.45 neighbouring rings come within 10% of the spacing of each other.
-   * Closer still, strokes between them get thinner than a font unit and no longer survive rounding
-   * for font export.
-   */
-  maxMove: 0.45,
-  /**
-   * Petal depth at 100%: the tips reach out 90% further, the notches keep 10% of their distance. Above
-   * 100% the tips keep growing while the notches stay at 10%.
-   */
-  maxPetal: 0.9,
-  maxPetals: 3,
-} as const
 
 /**
  * When petals are on, the rays along each side from one corner to the next: the tip, a shoulder, the
@@ -75,35 +48,6 @@ export interface Box {
   minY: number
   maxX: number
   maxY: number
-}
-
-export function rippleIsOn(params: RippleParams): boolean {
-  return params.enabled && ((params.amount > 0 && wavesOf(params) > 0) || petalsOf(params) > 0)
-}
-
-/** True when Ripple goes beyond its safe range, so the letter folds onto itself (Petals never folds). */
-export function rippleFolds(params: RippleParams): boolean {
-  return rippleIsOn(params) && params.amount * wavesOf(params) > 1
-}
-
-/** The wavelength (× the em), from 0 (no waves) up. */
-function wavelengthOf(params: RippleParams): number {
-  return clamp(finite(params.wavelength, 0.3), RIPPLE_LIMITS.minWavelength, RIPPLE_LIMITS.maxWavelength)
-}
-
-/** How much of the waves is left: 1 from the shortest wavelength up, falling to 0 at wavelength 0. */
-function wavesOf(params: RippleParams): number {
-  return Math.min(wavelengthOf(params) / RIPPLE_LIMITS.shortestWavelength, 1)
-}
-
-/** The wavelength Ripple's rings use (× the em) and how much of the waves is left there (0–1; 0: no rings). */
-export function rippleRings(params: RippleParams): { wavelength: number; waves: number } {
-  return { wavelength: Math.max(wavelengthOf(params), RIPPLE_LIMITS.shortestWavelength), waves: wavesOf(params) }
-}
-
-/** The Petals setting (0 when missing, as in settings saved before it existed). */
-function petalsOf(params: RippleParams): number {
-  return clamp(finite(params.petals, 0), 0, RIPPLE_LIMITS.maxPetals)
 }
 
 /** The bounding box of every contour, or null for a glyph without outlines. */
@@ -125,9 +69,9 @@ export function inkBox(polygon: PolygonGlyph): Box | null {
 
 /** The Ripple warp for a glyph with this ink box, at `scale` × its strength. */
 export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, scale = 1): Warp {
-  const spacing = (Math.max(wavelengthOf(params), RIPPLE_LIMITS.shortestWavelength) * unitsPerEm) / 2
+  const spacing = (Math.max(rippleWavelength(params), RIPPLE_LIMITS.shortestWavelength) * unitsPerEm) / 2
   const sides = Math.round(clamp(finite(params.sides, 8), RIPPLE_LIMITS.minSides, RIPPLE_LIMITS.maxSides))
-  const amplitude = clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) * wavesOf(params) * RIPPLE_LIMITS.maxMove * spacing * scale
+  const amplitude = clamp(finite(params.amount, 0), 0, RIPPLE_LIMITS.maxAmount) * rippleWaves(params) * RIPPLE_LIMITS.maxMove * spacing * scale
   const fade = clamp(finite(params.fade, 0), 0, 1)
   // Older saved settings have no Reverse; off runs exactly the expressions it always did.
   const reverse = params.reverse === true
@@ -144,11 +88,11 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   const tanHalf = Math.tan(half)
   // Wavelength 0: no waves, so no rings either. Only the rays' scaling (Petals) is left, linear in each slice, as
   // beyond the last ring: the whole letter is then "beyond the rings", and its edges are creased only at the rays.
-  const last = wavesOf(params) === 0 ? 0 : Math.ceil(reach / spacing) + 1
+  const last = rippleWaves(params) === 0 ? 0 : Math.ceil(reach / spacing) + 1
   // Ray j points at angle first + j × 2·half; wedge j lies between rays j and j + 1. With this first
   // angle, one wedge is centred straight down, so the polygons sit on a flat side.
   const first = -Math.PI / 2 + half
-  const depth = petalsOf(params) * RIPPLE_LIMITS.maxPetal * scale
+  const depth = ripplePetals(params) * RIPPLE_LIMITS.maxPetal * scale
   // Without petals each wedge is one slice; with them, one slice per step of the profile, cut by rays
   // through points evenly spaced along the side. Slice i lies between x = slope[i] × s and slope[i + 1] × s.
   const slices = depth > 0 ? PETAL_PROFILE.length : 1
@@ -316,8 +260,4 @@ function barycentric(s: number, x: number, t1: Corner, t2: Corner, t3: Corner): 
   const w2 = ((s - t1[0]) * (t3[1] - t1[1]) - (t3[0] - t1[0]) * (x - t1[1])) / area
   const w3 = ((t2[0] - t1[0]) * (x - t1[1]) - (s - t1[0]) * (t2[1] - t1[1])) / area
   return [1 - w2 - w3, w2, w3]
-}
-
-function finite(v: number, fallback: number): number {
-  return Number.isFinite(v) ? v : fallback
 }

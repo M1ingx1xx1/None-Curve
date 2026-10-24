@@ -1,5 +1,6 @@
 import { memo, useState, type Dispatch } from 'react'
-import { RANDOM_ANCHOR_LIMITS, type RandomAnchorStats } from '../geometry/randomAnchors'
+import { RANDOM_ANCHOR_LIMITS } from '../geometry/limits'
+import { type RandomAnchorStats } from '../geometry/randomAnchors'
 import type { RandomAnchorParams } from '../geometry/types'
 import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'

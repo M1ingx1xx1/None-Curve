@@ -5,11 +5,10 @@
 // the app; written a moment after each change. A config file (Export → Config, Import → Config file) holds
 // the same session, marked as this app's, and is read back the same way.
 
-import { ANGLE_STEPS } from '../geometry/constraints'
 import type { BreakRule } from '../geometry/curveRuns'
+import { ANGLE_STEPS, THORN_LIMITS } from '../geometry/limits'
 import type { FlattenMode } from '../geometry/types'
 import type { SquaringScope } from '../geometry/squaring'
-import { THORN_LIMITS } from '../geometry/thorn'
 import type { GoogleFontRequest } from '../font/google'
 import type { LoadedFont } from '../font/model'
 import { clampShaping, featureById, shapingChanges, targetById, type FeatureId, type Mapping } from '../sound/mapping'

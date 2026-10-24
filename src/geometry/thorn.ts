@@ -61,52 +61,11 @@
 import type { GlyphBudget } from './budget'
 import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { clamp, distanceToSegment, lerp, signedArea } from './primitives'
+import { BURST_REACH, THORN_FALLBACK, THORN_LIMITS, thornFlutes, thornIsOn } from './limits'
+import { clamp, distanceToSegment, finite, lerp, signedArea } from './primitives'
 import { inkBox, type Box } from './ripple'
 import type { Point, PolygonGlyph, ThornParams } from './types'
 import { applyWarp, breakRuns, WARP_LIMITS, type CreaseMarks, type Warp, type WarpStats } from './warp'
-
-/** A canvas's diagonal over the text size: the diagonal in em, to 0.01 em. */
-const diagonalEm = (width: number, height: number, size: number) => Math.round((Math.hypot(width, height) / size) * 100) / 100
-
-export const THORN_LIMITS = {
-  /** Anchors that jump; 0: none, and Thorn leaves the letter as it is. */
-  minCount: 0,
-  maxCount: 12,
-  /**
-   * The canvas diagonal in em that Reach is a share of when the app gives none (ThornParams.canvasEm): the default
-   * canvas, 1200 × 800 px, at the default 48 px text (about 30 em).
-   */
-  defaultCanvasEm: diagonalEm(1200, 800, 48),
-  /**
-   * The longest jump in em, whatever the canvas (small text on a large canvas spans over 1000 em): a safety cap that
-   * keeps every merge within its exact grid (see OVERLAP_LIMITS.maxCoordinate).
-   */
-  maxReachEm: 256,
-  /** Each anchor jumps at least this share of Reach (the rest is random, up to all of it). */
-  minShare: 0.35,
-  /** The narrowest base (Width 0), as a share of how far a base may reach: the root's inner ring, or the anchor's shorter edge. */
-  minWidth: 0.02,
-  /** The root's radius at Root 100%, as a share of the em (Root 0: no root, the thorns are only added on). */
-  maxRoot: 0.6,
-  /** Flute width range, as a share of the em; 0 clears the glass (see the header). */
-  minFlute: 0,
-  maxFlute: 0.3,
-  /** The narrowest strip: narrower flute widths keep it and fade Refraction out. */
-  finestFlute: 0.04,
-  /** Spikes per letter in Burst; 0: none, and Thorn leaves the letter as it is. */
-  minSpikes: 0,
-  maxSpikes: 80,
-} as const
-
-/**
- * In Burst, the longest spike is this share of Reach's length (a share of the canvas diagonal, as for thorns): a burst
- * rings each letter, so at the default Reach (10%, about 3 em on the default canvas) its longest spikes reach about 0.9 em.
- */
-export const BURST_REACH = 0.3
-
-/** Used where older saved settings lack the newer sliders (Refraction: off, Burst: off). */
-export const THORN_FALLBACK = { root: 0.5, flute: 0.1, spikes: 40, dent: 0.8 } as const
 
 /** The shape of a root (see the header). */
 const ROOT = {
@@ -181,31 +140,9 @@ const CHANNEL = {
 } as const
 const UINT = 0x1_0000_0000
 
-/** The strip width Thorn's glass uses (× the em) and how much of Refraction is left there (0–1; 0: no glass). */
-export function thornFlutes(params: ThornParams): { flute: number; fade: number } {
-  const width = clamp(finite(params.flute, THORN_FALLBACK.flute), THORN_LIMITS.minFlute, THORN_LIMITS.maxFlute)
-  return { flute: Math.max(width, THORN_LIMITS.finestFlute), fade: Math.min(width / THORN_LIMITS.finestFlute, 1) }
-}
-
-export function thornIsOn(params: ThornParams | undefined): params is ThornParams {
-  if (!params || !params.enabled || !(finite(params.canvasReach, 0) > 0)) return false
-  // Older saved settings have no Burst and no spikes (THORN_FALLBACK.spikes).
-  return params.burst === true ? finite(params.spikes, THORN_FALLBACK.spikes) >= 1 : finite(params.count, 0) >= 1
-}
-
 /** True when Thorn is on in Burst (see the header): spikes all round the letter instead of a few picked thorns. */
 export function thornBursts(params: ThornParams | undefined): params is ThornParams {
   return thornIsOn(params) && params.burst === true
-}
-
-/**
- * The canvas diagonal in em (ThornParams.canvasEm): the artboard's diagonal over the text size, both in px, to 0.01 em.
- * The default canvas's (THORN_LIMITS.defaultCanvasEm) for sizes that are not finite and positive.
- */
-export function canvasDiagonalEm(width: number, height: number, size: number): number {
-  if (![width, height, size].every((v) => Number.isFinite(v) && v > 0)) return THORN_LIMITS.defaultCanvasEm
-  const em = diagonalEm(width, height, size)
-  return Number.isFinite(em) && em > 0 ? em : THORN_LIMITS.defaultCanvasEm
 }
 
 /** One of Thorn's picks: an anchor of the reference outline, which way its thorn grows, and its seeded turn, length and lean. */
@@ -1681,10 +1618,6 @@ function outwardNormal(points: readonly Point[], index: number, side: number): P
 function unit(x: number, y: number): Point | null {
   const length = Math.hypot(x, y)
   return length > 0 && Number.isFinite(length) ? { x: x / length, y: y / length } : null
-}
-
-function finite(value: number | undefined, fallback: number): number {
-  return Number.isFinite(value) ? (value as number) : fallback
 }
 
 function positive(value: number | undefined, fallback: number): number {

@@ -1,7 +1,7 @@
 import type { FontErrorKind } from '../font/errors'
 import { pickDefaultGlyph, type LoadedFont } from '../font/model'
+import { canvasDiagonalEm } from '../geometry/limits'
 import { DEFAULT_ARTBOARD, DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../specimen/artboard'
-import { canvasDiagonalEm } from '../geometry/thorn'
 import type { ExperimentalParams, GlyphRef } from '../geometry/types'
 import type { AppState, EditorParams, ExportMeta, ImportOrigin, SettingsParams, ViewToggles } from './types'
 

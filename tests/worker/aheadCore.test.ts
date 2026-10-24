@@ -4,8 +4,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { AheadCore } from '../../src/geometry/aheadCore'
-import { glyphGeometry, isCached, paramsKey } from '../../src/geometry/cache'
+import { glyphGeometry, isCached } from '../../src/geometry/cache'
 import { packedBytes, packGeometry } from '../../src/geometry/packed'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import { loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { burst } from '../helpers/planCases'

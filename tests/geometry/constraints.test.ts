@@ -2,7 +2,8 @@
 // size and the angle step, degenerate contours, and what a contour that cannot be constrained keeps.
 
 import { describe, expect, it } from 'vitest'
-import { ANGLE_STEPS, applyConstraints, nearestAllowedAngle, snapValue } from '../../src/geometry/constraints'
+import { applyConstraints, nearestAllowedAngle, snapValue } from '../../src/geometry/constraints'
+import { ANGLE_STEPS } from '../../src/geometry/limits'
 import type { GridParams, Point } from '../../src/geometry/types'
 import { contoursOf, outlineCrossings, polygonOf, rect, signedArea2, type Contours } from '../helpers/outline'
 

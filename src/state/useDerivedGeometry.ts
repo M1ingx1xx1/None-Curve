@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { LoadedFont } from '../font/model'
-import { paramsKey } from '../geometry/cache'
+import { paramsKey } from '../geometry/paramsKey'
 import type { DerivedGeometry, GeometryParams, GlyphRef, SourceGlyph } from '../geometry/types'
 import { NO_SLOTS, letterSlots, lettersOn, levelKeyAt, type LetterSlots } from '../sound/letters'
 import type { LiveView } from '../sound/live'

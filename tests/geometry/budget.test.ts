@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { quantizePolygon } from '../../src/export/quantize'
-import { EXPERIMENTAL_LIMITS } from '../../src/geometry/experimental'
+import { EXPERIMENTAL_LIMITS } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { DerivedGeometry, GeometryParams } from '../../src/geometry/types'
 import { modulate, targetById, type Mapping } from '../../src/sound/mapping'

@@ -5,8 +5,9 @@
 // ends, is checked with the other configurations in tests/helpers/invariants.ts.
 
 import { describe, expect, it } from 'vitest'
+import { RIPPLE_LIMITS } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import { RIPPLE_LIMITS, rippleWarp, type Box } from '../../src/geometry/ripple'
+import { rippleWarp, type Box } from '../../src/geometry/ripple'
 import { applyThorn, ThornAnchors } from '../../src/geometry/thorn'
 import type { ExperimentalParams, GeometryParams, Point, RippleParams } from '../../src/geometry/types'
 import { describePipeline } from '../../src/geometry/describe'

@@ -1,5 +1,6 @@
 import { memo, type Dispatch } from 'react'
-import { DISTORTION_LIMITS, type DistortionStats } from '../geometry/distortion'
+import { type DistortionStats } from '../geometry/distortion'
+import { DISTORTION_LIMITS } from '../geometry/limits'
 import type { DistortionParams } from '../geometry/types'
 import { useLiveSeed } from '../sound/live'
 import type { Action } from '../state/editorState'

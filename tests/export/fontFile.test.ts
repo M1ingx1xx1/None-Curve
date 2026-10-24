@@ -5,8 +5,9 @@
 
 import type { Font } from 'fontkit'
 import { describe, expect, it } from 'vitest'
-import { FONT_BOX_LIMITS, glyphFontBox } from '../../src/export/fitGlyph'
-import { buildFontFile, planFontExport, type FontExportResult, type KnownGlyph } from '../../src/export/fontFile'
+import { glyphFontBox } from '../../src/export/fitGlyph'
+import { buildFontFile } from '../../src/export/fontFile'
+import { FONT_BOX_LIMITS, planFontExport, type FontExportResult, type KnownGlyph } from '../../src/export/fontPlan'
 import { signedArea } from '../../src/geometry/primitives'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, Point, PolygonGlyph } from '../../src/geometry/types'

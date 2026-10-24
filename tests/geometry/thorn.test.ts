@@ -4,8 +4,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { flattenGlyph } from '../../src/geometry/flatten'
+import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import { applyThorn, canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
+import { applyThorn } from '../../src/geometry/thorn'
 import type { GeometryParams, Point, PolygonGlyph, ThornParams } from '../../src/geometry/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { boundsOf, contoursOf, sameContours, winding } from '../helpers/outline'

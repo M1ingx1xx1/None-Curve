@@ -8,7 +8,7 @@
 // Thorn off nothing changes: the scheduler's frames are pinned to those of develop before Thorn turns (f4483b5).
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { FrameJob, GeometryParams } from '../../src/geometry/types'
 import {
   isThornTarget,

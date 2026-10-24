@@ -10,8 +10,9 @@ export default defineConfig(({ command, isPreview }) => ({
   build: {
     rolldownOptions: {
       output: {
-        // React in a chunk of its own: it keeps the app chunk under the 500 kB warning and stays cached
-        // across deploys that change only the app.
+        // React in a chunk of its own, which stays cached across deploys that change only the app. The app's own chunks
+        // stay under the 500 kB warning because the geometry runs only in the workers and code needed on demand loads on
+        // first use (BEST_PRACTICE, "Geometry and the workers"): a warning means such code reached the page.
         codeSplitting: {
           groups: [{ name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ }],
         },

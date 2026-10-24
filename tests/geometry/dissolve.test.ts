@@ -5,8 +5,8 @@
 // facet length, no run of gentle turns along short edges bends like an arc, and small specks have few corners.
 
 import { describe, expect, it } from 'vitest'
-import { applyDissolve, DISSOLVE_LIMITS, dissolveIsOn } from '../../src/geometry/dissolve'
-import { EXPERIMENTAL_LIMITS } from '../../src/geometry/experimental'
+import { applyDissolve } from '../../src/geometry/dissolve'
+import { DISSOLVE_LIMITS, dissolveIsOn, EXPERIMENTAL_LIMITS } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { DerivedGeometry, DissolveParams, GeometryParams, Point } from '../../src/geometry/types'
 import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'

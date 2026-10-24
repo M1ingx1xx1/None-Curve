@@ -4,7 +4,7 @@
 // Config) holds the same session, marked as the app's: it round-trips, is migrated, and anything else is refused.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
+import { canvasDiagonalEm, THORN_LIMITS, thornIsOn } from '../../src/geometry/limits'
 import { DEFAULT_SOUND_SETTINGS, SOUND_LIMITS } from '../../src/sound/types'
 import { initialState } from '../../src/state/editorState'
 import {

@@ -1,5 +1,6 @@
 import { memo, type Dispatch } from 'react'
-import { ANGLE_STEPS, type ConstraintStats, type FallbackReason } from '../geometry/constraints'
+import { type ConstraintStats, type FallbackReason } from '../geometry/constraints'
+import { ANGLE_STEPS } from '../geometry/limits'
 import type { GridParams } from '../geometry/types'
 import type { Action } from '../state/editorState'
 import { HintButton, HintText, useHint } from './Hint'

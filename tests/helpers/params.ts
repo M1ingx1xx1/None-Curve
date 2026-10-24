@@ -1,10 +1,7 @@
 // Parameter sets the geometry tests run: the app's defaults, each Experimental effect on its own, all six, and the
 // strongest settings the sliders reach (SLIDER_RANGES), on plain, dense and heavy Geometry.
 
-import { CRUMPLE_LIMITS } from '../../src/geometry/crumple'
-import { RIPPLE_LIMITS } from '../../src/geometry/ripple'
-import { SLIPSTREAM_LIMITS } from '../../src/geometry/slipstream'
-import { THORN_LIMITS } from '../../src/geometry/thorn'
+import { CRUMPLE_LIMITS, RIPPLE_LIMITS, SLIPSTREAM_LIMITS, THORN_LIMITS } from '../../src/geometry/limits'
 import type { ExperimentalParams, GeometryParams } from '../../src/geometry/types'
 import { initialState } from '../../src/state/editorState'
 import { SLIDER_RANGES, type SliderId } from '../../src/state/sliderScales'

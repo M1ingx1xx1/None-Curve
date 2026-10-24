@@ -4,10 +4,9 @@
 import { simplifyClosed } from './anchors'
 import { ContourLayout, relate } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findSelfCrossings, lazy, ringBox } from './crossings'
+import { ANGLE_STEPS } from './limits'
 import { distanceToSegment, signedArea } from './primitives'
 import type { GridParams, Point, PolygonContour, PolygonGlyph } from './types'
-
-export const ANGLE_STEPS = [90, 45, 30, 15] as const
 
 /** Edges shorter than this after angle lock (font units) make the contour fall back. */
 const MIN_EDGE = 0.5

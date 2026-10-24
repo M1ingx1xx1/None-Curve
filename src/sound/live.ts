@@ -34,7 +34,7 @@
 // next measured frame as before.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type Dispatch } from 'react'
-import { paramsKey } from '../geometry/cache'
+import { paramsKey } from '../geometry/paramsKey'
 import type { FrameJob, GeometryParams } from '../geometry/types'
 import { withThornCanvasEm, type Action } from '../state/editorState'
 import { RUNTIME_FLAGS } from '../state/flags'

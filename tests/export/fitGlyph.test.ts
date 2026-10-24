@@ -2,7 +2,8 @@
 // cut off flat at its edge, with straight edges only; outlines inside it are left exactly as they are.
 
 import { describe, expect, it } from 'vitest'
-import { FONT_BOX_LIMITS, fitToFontBox, glyphFontBox, type FontBox } from '../../src/export/fitGlyph'
+import { fitToFontBox, glyphFontBox, type FontBox } from '../../src/export/fitGlyph'
+import { FONT_BOX_LIMITS } from '../../src/export/fontPlan'
 import { signedArea } from '../../src/geometry/primitives'
 import type { Point, PolygonGlyph } from '../../src/geometry/types'
 

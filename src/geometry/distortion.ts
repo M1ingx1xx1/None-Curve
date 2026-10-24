@@ -12,33 +12,9 @@
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findRingCrossings, findSelfCrossings, lazy } from './crossings'
-import { clamp, signedArea } from './primitives'
+import { DISTORTION_LIMITS } from './limits'
+import { clamp, finite, signedArea } from './primitives'
 import type { DistortionParams, Point, PolygonContour, PolygonGlyph } from './types'
-
-export const DISTORTION_LIMITS = {
-  maxAmount: 200,
-  minFrequency: 0.5,
-  maxFrequency: 50,
-  /** Largest seed the Seed field takes. */
-  maxSeed: 999_999,
-  /**
-   * The two ends of an edge may move toward each other along the edge by at most this fraction of its
-   * length, so no edge can collapse or reverse. Movement across the edge is not limited: it only turns
-   * the edge, and limiting it would weaken the distortion the denser the outline (neighbouring vertices
-   * of a dense outline are close, so any difference in their movement is large next to their edge).
-   */
-  edgeFraction: 0.5,
-  /** Passes of the edge protection; each pass only shortens displacements. */
-  protectionPasses: 4,
-  /**
-   * Where a distorted contour crosses itself or another contour (dense outlines at inner corners, thin
-   * strokes), the amplitude is halved around the crossing, smoothly over one amplitude of outline on
-   * each side, up to this many times; the rest of the contour keeps the full amplitude.
-   */
-  localRepairs: 12,
-  /** Amplitude scales tried for the whole contour, in order, when local repairs are not enough. */
-  retryScales: [0.5, 0.25, 0.125, 0.0625] as const,
-} as const
 
 /** Few anchors: which vertices may move, how many do, and how far. */
 export const SPARSE_LIMITS = {
@@ -479,8 +455,4 @@ function periodicNoise(t: number, cells: number, seed: number, contour: number, 
 
 function dist(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y)
-}
-
-function finite(v: number, fallback: number): number {
-  return Number.isFinite(v) ? v : fallback
 }

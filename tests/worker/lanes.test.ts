@@ -3,8 +3,8 @@
 // older between items.
 
 import { describe, expect, it, vi } from 'vitest'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { AheadItem, WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
-import { paramsKey } from '../../src/geometry/cache'
 import { unpackGeometry } from '../../src/geometry/packed'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import { createGeometryWorker } from '../../src/geometry/workerCore'

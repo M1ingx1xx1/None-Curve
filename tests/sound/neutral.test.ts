@@ -18,7 +18,8 @@
 // silicon Mac. Their pin was taken from 4a54e5d on both, which agree to 10 digits.
 
 import { describe, expect, it } from 'vitest'
-import { glyphGeometry, paramsKey } from '../../src/geometry/cache'
+import { glyphGeometry } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import { specimenPaths, specimenToSvg } from '../../src/export/svg'
 import { LiveScheduler, type LiveCommit, type LiveDeps } from '../../src/sound/live'

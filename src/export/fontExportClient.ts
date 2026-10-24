@@ -1,11 +1,12 @@
 // The page's side of a font export: builds the font in a worker of its own (fontExport.worker.ts), one
 // per build, which Cancel terminates at once, and so does a long silence (EXPORT_SILENCE_MS). Where a
 // worker cannot start, the build runs on the page instead, yielding between glyphs (one slow glyph still
-// holds the page up while it is computed).
+// holds the page up while it is computed). The build code (fontFile.ts and the whole geometry pipeline) is
+// loaded on the page only then.
 
 import type { LoadedFont } from '../font/model'
 import type { GeometryParams } from '../geometry/types'
-import { buildFontFile, type FontExportPlan, type FontExportResult, type FontExportStage, type FontNaming, type KnownGlyph } from './fontFile'
+import type { FontExportPlan, FontExportResult, FontExportStage, FontNaming, KnownGlyph } from './fontPlan'
 import { packGlyphs, type FontExportRequest, type FontExportResponse } from './protocol'
 
 /**
@@ -90,6 +91,8 @@ export function runFontExport(job: FontExportJob, signal: AbortSignal): Promise<
   })
 }
 
-function buildOnPage(job: FontExportJob, signal: AbortSignal): Promise<FontExportResult> {
+async function buildOnPage(job: FontExportJob, signal: AbortSignal): Promise<FontExportResult> {
+  const { buildFontFile } = await import('./fontFile')
+  signal.throwIfAborted()
   return buildFontFile(job.font, job.plan, job.params, job.key, job.naming, signal, job.onProgress, { known: (index) => job.known.get(index) })
 }

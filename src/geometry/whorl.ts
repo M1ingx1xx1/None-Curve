@@ -22,32 +22,11 @@
 // triangles flip, the letter folds onto itself, and the overlaps are merged into one outline (see
 // overlaps.ts).
 
-import { clamp } from './primitives'
+import { WHORL_LIMITS } from './limits'
+import { clamp, finite } from './primitives'
 import type { Box } from './ripple'
 import type { PolygonGlyph, WhorlMotion, WhorlParams, Point } from './types'
 import type { Warp } from './warp'
-
-export const WHORL_LIMITS = {
-  minRings: 2,
-  maxRings: 12,
-  minSides: 3,
-  maxSides: 12,
-  /** -4 to 4: above 1 either way (the safe range), the letter folds. */
-  maxAmount: 4,
-  /** At 100%, the share of the largest step between rings that keeps every triangle the same way round. */
-  safety: 0.9,
-  /** The swirl reaches at least this far from the centre (× the em), so flat glyphs such as a hyphen still turn. */
-  minRadius: 0.05,
-} as const
-
-export function whorlIsOn(params: WhorlParams | undefined): boolean {
-  return !!params && params.enabled && finite(params.amount, 0) !== 0
-}
-
-/** True when Whorl goes beyond its safe range, so the letter folds onto itself. */
-export function whorlFolds(params: WhorlParams | undefined): boolean {
-  return whorlIsOn(params) && Math.abs(params!.amount) > 1
-}
 
 /**
  * What Glide needs to turn the letter's anchors the way Whorl turns them (PolygonGlyph.motion): its centre, Sides,
@@ -453,8 +432,4 @@ function barycentric(s: number, x: number, t1: Corner, t2: Corner, t3: Corner): 
   const w2 = ((s - t1[0]) * (t3[1] - t1[1]) - (t3[0] - t1[0]) * (x - t1[1])) / area
   const w3 = ((t2[0] - t1[0]) * (x - t1[1]) - (s - t1[0]) * (t2[1] - t1[1])) / area
   return [1 - w2 - w3, w2, w3]
-}
-
-function finite(v: number, fallback: number): number {
-  return Number.isFinite(v) ? v : fallback
 }

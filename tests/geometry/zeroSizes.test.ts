@@ -4,12 +4,9 @@
 // stays there and its part fades out in proportion; the pipeline stays valid all the way down.
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { CRUMPLE_LIMITS, crumpleFolds, crumpleIsOn } from '../../src/geometry/crumple'
 import { describePipeline } from '../../src/geometry/describe'
+import { CRUMPLE_LIMITS, crumpleFolds, crumpleIsOn, RIPPLE_LIMITS, rippleFolds, rippleIsOn, SLIPSTREAM_LIMITS, slipstreamFolds, slipstreamIsOn, THORN_LIMITS, thornIsOn } from '../../src/geometry/limits'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import { RIPPLE_LIMITS, rippleFolds, rippleIsOn } from '../../src/geometry/ripple'
-import { SLIPSTREAM_LIMITS, slipstreamFolds, slipstreamIsOn } from '../../src/geometry/slipstream'
-import { THORN_LIMITS, thornIsOn } from '../../src/geometry/thorn'
 import type { GeometryParams } from '../../src/geometry/types'
 import type { LoadedFont } from '../../src/font/model'
 import { SLIDER_RANGES } from '../../src/state/sliderScales'

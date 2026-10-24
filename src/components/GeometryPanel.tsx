@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent } from 'react'
 import { formatCodePoint } from '../font/model'
-import { canvasDiagonalEm, THORN_LIMITS } from '../geometry/thorn'
+import { canvasDiagonalEm, THORN_LIMITS } from '../geometry/limits'
 import type { GlyphRef } from '../geometry/types'
 import { useLiveDriving } from '../sound/live'
 import type { Action } from '../state/editorState'

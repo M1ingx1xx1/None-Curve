@@ -7,7 +7,7 @@
 // the text with its notes, within the limit.
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import { edgesFit, FLASH_LIMITS, FlashBudget } from '../../src/sound/flash'
 import { JumpTracker } from '../../src/sound/jumps'

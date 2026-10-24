@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { AheadCore, type StepRecord } from '../../src/geometry/aheadCore'
-import { paramsKey } from '../../src/geometry/cache'
 import { packGeometry } from '../../src/geometry/packed'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { AheadItem } from '../../src/geometry/protocol'
 import type { GeometryParams, PolygonGlyph } from '../../src/geometry/types'

@@ -7,13 +7,7 @@
 import { signedArea } from '../geometry/primitives'
 import { mergeOverlaps } from '../geometry/overlaps'
 import type { Point, PolygonContour, PolygonGlyph } from '../geometry/types'
-
-export const FONT_BOX_LIMITS = {
-  /** Every coordinate in the file lies within ±this. */
-  maxCoordinate: 32767,
-  /** The most a glyph spans along either axis: one unit under the longest step, so whole-unit edges keep every step storable. */
-  span: 32766,
-} as const
+import { FONT_BOX_LIMITS } from './fontPlan'
 
 /** A window in font units, in glyph space (y up). */
 export interface FontBox {

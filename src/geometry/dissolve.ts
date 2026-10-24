@@ -27,18 +27,9 @@
 
 import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { clamp, signedArea } from './primitives'
+import { DISSOLVE_LIMITS, dissolveIsOn } from './limits'
+import { clamp, finite, signedArea } from './primitives'
 import type { DissolveParams, Point, PolygonContour, PolygonGlyph } from './types'
-
-export const DISSOLVE_LIMITS = {
-  /** Grain: one noise period as a share of the stroke width. */
-  minGrain: 0.15,
-  maxGrain: 1,
-  /** How far the ragged edge reaches past the outline, in half-strokes. */
-  maxSpread: 1.5,
-  /** Grid nodes per glyph at most: a larger glyph (one with long thorns) is sampled on a coarser grid. */
-  maxNodes: 1_000_000,
-} as const
 
 /** The grid and the facets, by the noise period (see the header). */
 const GRID = {
@@ -124,10 +115,6 @@ const CHANNEL = {
   speck: 0x0db,
   speckFine: 0x0dc,
 } as const
-
-export function dissolveIsOn(params: DissolveParams | undefined): params is DissolveParams {
-  return !!params && params.enabled
-}
 
 /**
  * The glyph dissolved (see the header). `maxVertices`: the glyph's vertex budget (budget.ts). Contours come out
@@ -1199,7 +1186,3 @@ function foldsBack(ax: number, ay: number, bx: number, by: number, cx: number, c
 }
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
-
-function finite(v: number | undefined, fallback: number): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
-}

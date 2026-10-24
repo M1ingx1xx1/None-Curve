@@ -4,7 +4,8 @@
 // back to a level threshold); and without any of these targets, modulate's output is exactly what it was.
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { glyphGeometry, paramsKey } from '../../src/geometry/cache'
+import { glyphGeometry } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY } from '../../src/specimen/artboard'
 import { hexToLch, isNeutralColor, lchToHex } from '../../src/specimen/color'
 import {

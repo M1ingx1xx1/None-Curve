@@ -4,7 +4,7 @@
 // letter frame handed to the canvas, and the letters of shaped text in the order placePolygons numbers them.
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import {
   assignLevels,

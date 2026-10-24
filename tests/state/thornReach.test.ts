@@ -3,8 +3,8 @@
 // with Thorn off the text size and canvas never change the geometry, and the derived value never lands in the state.
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
-import { canvasDiagonalEm, THORN_LIMITS } from '../../src/geometry/thorn'
+import { canvasDiagonalEm, THORN_LIMITS } from '../../src/geometry/limits'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { GeometryParams } from '../../src/geometry/types'
 import { describePipeline } from '../../src/geometry/describe'
 import { initialState, thornCanvasEm, withThornCanvasEm } from '../../src/state/editorState'

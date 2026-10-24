@@ -5,7 +5,7 @@
 // contrast, letters show up to three levels from one request per frame, and Freeze writes the shared values.
 
 import { describe, expect, it } from 'vitest'
-import { paramsKey } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import type { FrameJob, GeometryParams } from '../../src/geometry/types'
 import { assignLevels, letterLevels, SHARED, type LetterSlots } from '../../src/sound/letters'
 import { LIVE_LIMITS, LiveScheduler, type LiveCommit, type LiveDeps } from '../../src/sound/live'

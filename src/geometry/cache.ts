@@ -4,6 +4,7 @@
 // does not push the results of normal editing out of the main one.
 
 import type { LoadedFont } from '../font/model'
+import { paramsKey } from './paramsKey'
 import { deriveGeometry } from './pipeline'
 import type { DerivedGeometry, GeometryParams } from './types'
 
@@ -57,15 +58,6 @@ export function cachedGeometry(font: LoadedFont, index: number, key: string): De
 
 const caches = new WeakMap<LoadedFont, FontCache>()
 const liveCaches = new WeakMap<LoadedFont, FontCache>()
-
-/**
- * Stable key for a parameter set; JSON of a plain object with a fixed key order. Axis values (`variation`) join it
- * only when there are any, so every key without them is what it always was.
- */
-export function paramsKey(params: GeometryParams): string {
-  const groups = [params.flatten, params.random, params.squaring, params.anchors, params.grid, params.distortion, params.experimental]
-  return JSON.stringify(params.variation ? [...groups, params.variation] : groups)
-}
 
 /**
  * Returns the derived geometry for one glyph, computing it once per (font, glyph, parameters).

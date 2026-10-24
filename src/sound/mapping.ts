@@ -15,10 +15,7 @@
 // the outlines and the shaping); and switches, the Experimental tab's checkboxes ("Use …", Burst, Reverse), which
 // flip on Trigger and Toggle (see modulate).
 
-import { DISTORTION_LIMITS } from '../geometry/distortion'
-import { EXPERIMENTAL_LIMITS } from '../geometry/experimental'
-import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
-import { THORN_FALLBACK } from '../geometry/thorn'
+import { DISTORTION_LIMITS, EXPERIMENTAL_LIMITS, RANDOM_ANCHOR_LIMITS, THORN_FALLBACK } from '../geometry/limits'
 import type { ExperimentalParams, FlattenMode, GeometryParams } from '../geometry/types'
 import type { LoadedFont, VariationAxis } from '../font/model'
 import { DEFAULT_PALETTE, DEFAULT_TYPOGRAPHY, type PaletteParams, type TypographyParams } from '../specimen/artboard'

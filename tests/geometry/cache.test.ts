@@ -2,7 +2,8 @@
 // letter (the motion Glide reads) included, so a budget that holds two glyphs by their outlines alone holds one.
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { glyphGeometry, isCached, paramsKey, shareCacheLimits } from '../../src/geometry/cache'
+import { glyphGeometry, isCached, shareCacheLimits } from '../../src/geometry/cache'
+import { paramsKey } from '../../src/geometry/paramsKey'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import { loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { whorl } from '../helpers/planCases'

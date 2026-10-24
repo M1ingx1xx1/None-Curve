@@ -13,26 +13,16 @@
 // cross, so it needs no merge of its own and keeps within the budget by itself (dissolve.ts).
 
 import { GlyphBudget, type BudgetStats } from './budget'
-import { crumpleFolds, crumpleIsOn, crumpleWarp } from './crumple'
-import { applyDissolve, dissolveIsOn, emptyDissolveStats, type DissolveStats } from './dissolve'
+import { crumpleWarp } from './crumple'
+import { applyDissolve, emptyDissolveStats, type DissolveStats } from './dissolve'
+import { crumpleIsOn, dissolveIsOn, EXPERIMENTAL_LIMITS, experimentalFolds, rippleIsOn, slipstreamIsOn, thornIsOn, whorlIsOn } from './limits'
 import { emptyOverlapStats, type OverlapStats } from './overlaps'
-import { inkBox, rippleFolds, rippleIsOn, rippleWarp, type Box } from './ripple'
-import { emptySlipstreamStats, slipstreamFolds, slipstreamIsOn, slipstreamMerges, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
-import { applyThorn, emptyThornStats, ThornAnchors, thornBursts, thornIsOn, withoutSpecks, type ThornStats } from './thorn'
+import { inkBox, rippleWarp, type Box } from './ripple'
+import { emptySlipstreamStats, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
+import { applyThorn, emptyThornStats, ThornAnchors, thornBursts, withoutSpecks, type ThornStats } from './thorn'
 import type { ExperimentalParams, Point, PolygonGlyph } from './types'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type Warp, type WarpStats } from './warp'
-import { whorlFolds, whorlIsOn, whorlMotion, whorlWarp } from './whorl'
-
-export const EXPERIMENTAL_LIMITS = {
-  maxSeed: 999_999,
-  /**
-   * The vertex budget (see budget.ts), on top of the vertices the glyph brings in, so dense Geometry is never cut: at
-   * most this many vertices more after any effect, and this many grid points (vertices and crossings) more in a merge.
-   * No single effect reaches them, even at the ends of its sliders; only several dense ones together do.
-   */
-  maxAddedVertices: 6000,
-  maxMergePoints: 30_000,
-} as const
+import { whorlMotion, whorlWarp } from './whorl'
 
 export interface ExperimentalStats {
   crumple: WarpStats
@@ -45,16 +35,6 @@ export interface ExperimentalStats {
   folds: OverlapStats
   /** Whether the glyph was simplified to stay within its vertex budget. */
   budget: BudgetStats
-}
-
-/** True when the outlines are merged: Thorn is on, so a thorn may cross the letter, or Slipstream cuts the letters. */
-export function experimentalMerges(params: ExperimentalParams): boolean {
-  return experimentalFolds(params) || thornIsOn(params.thorn) || slipstreamMerges(params.slipstream)
-}
-
-/** True when any effect goes beyond its safe range, so the letters fold onto themselves. */
-export function experimentalFolds(params: ExperimentalParams): boolean {
-  return crumpleFolds(params.crumple) || rippleFolds(params.ripple) || whorlFolds(params.whorl) || slipstreamFolds(params.slipstream)
 }
 
 /**

@@ -1,12 +1,6 @@
 import { reachPercent, reachReadout } from '../state/sliderScales'
-import { crumpleIsOn, crumpleLattice } from './crumple'
-import { dissolveIsOn } from './dissolve'
-import { experimentalFolds } from './experimental'
-import { rippleIsOn, rippleRings } from './ripple'
-import { slipstreamBands, slipstreamIsOn } from './slipstream'
-import { BURST_REACH, THORN_FALLBACK, THORN_LIMITS, thornFlutes, thornIsOn } from './thorn'
+import { BURST_REACH, crumpleIsOn, crumpleLattice, dissolveIsOn, experimentalFolds, rippleIsOn, rippleRings, slipstreamBands, slipstreamIsOn, THORN_FALLBACK, THORN_LIMITS, thornFlutes, thornIsOn, whorlIsOn } from './limits'
 import type { GeometryParams } from './types'
-import { whorlIsOn } from './whorl'
 
 /** Human-readable list of the active pipeline steps, in pipeline order. */
 export function describePipeline(params: GeometryParams): string[] {

@@ -3,14 +3,7 @@
 // can produce and the two cannot drift apart. Keyed by each slider's Sound target id ("group.key",
 // "experimental.effect.key"). Pure: no React, no DOM.
 
-import { CRUMPLE_LIMITS } from '../geometry/crumple'
-import { DISSOLVE_LIMITS } from '../geometry/dissolve'
-import { DISTORTION_LIMITS } from '../geometry/distortion'
-import { RANDOM_ANCHOR_LIMITS } from '../geometry/randomAnchors'
-import { RIPPLE_LIMITS } from '../geometry/ripple'
-import { SLIPSTREAM_LIMITS } from '../geometry/slipstream'
-import { THORN_LIMITS } from '../geometry/thorn'
-import { WHORL_LIMITS } from '../geometry/whorl'
+import { CRUMPLE_LIMITS, DISSOLVE_LIMITS, DISTORTION_LIMITS, RANDOM_ANCHOR_LIMITS, RIPPLE_LIMITS, SLIPSTREAM_LIMITS, THORN_LIMITS, WHORL_LIMITS } from '../geometry/limits'
 import { TYPOGRAPHY_LIMITS } from '../specimen/artboard'
 
 export interface SliderRange {

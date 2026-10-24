@@ -11,7 +11,7 @@
 // compact (planStore.ts); past the plan's byte budget, those far from the playhead are thinned, and a thinned stretch
 // the playhead comes back to is planned again from the start (the same commits: the plan is deterministic).
 
-import { paramsKey } from '../geometry/cache'
+import { paramsKey } from '../geometry/paramsKey'
 import type { FrameJob } from '../geometry/types'
 import { SHARED } from './letters'
 import { LiveScheduler, PLANNER_CLOCK_OFFSET, type LiveCommit, type LiveInputs } from './live'

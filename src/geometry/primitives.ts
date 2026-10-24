@@ -7,6 +7,11 @@ export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
 }
 
+/** `v` when it is a finite number, else `fallback` (a setting missing from older saved settings, or not a number). */
+export function finite(v: number | undefined, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
+}
+
 /** The point a fraction `t` of the way from `a` to `b`. */
 export function lerp(a: Point, b: Point, t: number): Point {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
