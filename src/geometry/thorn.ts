@@ -59,8 +59,9 @@
 // Refraction still applies after. The spikes cross the letter and each other; the merge at the end cleans them up.
 
 import type { GlyphBudget } from './budget'
+import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { signedArea } from './flatten'
+import { clamp, distanceToSegment, lerp, signedArea } from './primitives'
 import { inkBox, type Box } from './ripple'
 import type { Point, PolygonGlyph, ThornParams } from './types'
 import { applyWarp, breakRuns, WARP_LIMITS, type CreaseMarks, type Warp, type WarpStats } from './warp'
@@ -1310,7 +1311,7 @@ function corners(chain: readonly Point[], tolerance: readonly number[]): number[
     let best = -1
     let bestDistance = 0
     for (let i = from + 1; i < to; i++) {
-      const distance = segmentDistance(chain[i], chain[from], chain[to])
+      const distance = distanceToSegment(chain[i], chain[from], chain[to])
       if (distance > tolerance[i] && distance > bestDistance) {
         best = i
         bestDistance = distance
@@ -1335,15 +1336,6 @@ function turnAt(points: readonly Point[], j: number): number {
   const vy = c.y - b.y
   if ((ux === 0 && uy === 0) || (vx === 0 && vy === 0)) return 0
   return (Math.abs(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)) * 180) / Math.PI
-}
-
-/** The distance from `p` to the segment a–b. */
-function segmentDistance(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSq = dx * dx + dy * dy
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
 }
 
 // ---- Roots ----
@@ -1580,10 +1572,6 @@ function fluteWarp(strength: number, width: number, seed: number, letter: { minX
 
 // ---- Helpers ----
 
-function lerp(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-}
-
 /** The index of the vertex nearest to `p` (of those `allowed`), if one lies within `within`; otherwise -1. */
 function nearest(points: readonly Point[], p: Point, within: number, allowed?: (index: number) => boolean): number {
   let best = -1
@@ -1633,7 +1621,7 @@ function outsideTest(contours: readonly (readonly Point[])[], clearance = 0): (c
     for (let i = 0; i < contours.length; i++) {
       const box = boxes[i]
       if (i === contour || !box || !near(box, p, clearance)) continue
-      if (contains(contours[i], p)) depth++
+      if (insideRing(p, contours[i])) depth++
       else if (clearance > 0 && crosses(contour, i) && distanceToOutline(contours[i], p) < clearance) return false
     }
     return depth % 2 === 0
@@ -1651,7 +1639,7 @@ function partlyInside(points: readonly Point[], other: readonly Point[], box: Bo
   let outside = false
   for (let i = 0; i < points.length; i += step) {
     const p = points[i]
-    if (p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY && contains(other, p)) inside = true
+    if (p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY && insideRing(p, other)) inside = true
     else outside = true
     if (inside && outside) return true
   }
@@ -1662,26 +1650,9 @@ function partlyInside(points: readonly Point[], other: readonly Point[], box: Bo
 function distanceToOutline(points: readonly Point[], p: Point): number {
   let best = Infinity
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[j]
-    const b = points[i]
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    const lengthSq = dx * dx + dy * dy
-    const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq))
-    best = Math.min(best, Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t)))
+    best = Math.min(best, distanceToSegment(p, points[j], points[i]))
   }
   return best
-}
-
-/** Even-odd point-in-polygon test. */
-function contains(points: readonly Point[], p: Point): boolean {
-  let inside = false
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[i]
-    const b = points[j]
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
-  return inside
 }
 
 /**
@@ -1718,8 +1689,4 @@ function finite(value: number | undefined, fallback: number): number {
 
 function positive(value: number | undefined, fallback: number): number {
   return Number.isFinite(value) && (value as number) > 0 ? (value as number) : fallback
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }

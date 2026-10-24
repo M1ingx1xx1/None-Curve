@@ -22,6 +22,7 @@
 // together than the finest facet does.
 
 import { hashInts } from './distortion'
+import { clamp } from './primitives'
 import type { CrumpleParams, Point } from './types'
 import type { Warp } from './warp'
 
@@ -161,10 +162,6 @@ function latticeLines(start: number, delta: number, out: number[]) {
     const t = (k - start) / delta
     if (t > 0 && t < 1) out.push(t)
   }
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
 }
 
 function finite(v: number, fallback: number): number {

@@ -11,7 +11,7 @@
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, lazy } from './crossings'
-import { signedArea } from './flatten'
+import { signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 
 export type SquaringScope = 'round' | 'all'

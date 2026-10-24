@@ -27,7 +27,7 @@
 
 import { insideRing } from './crossings'
 import { hashInts } from './distortion'
-import { signedArea } from './flatten'
+import { clamp, signedArea } from './primitives'
 import type { DissolveParams, Point, PolygonContour, PolygonGlyph } from './types'
 
 export const DISSOLVE_LIMITS = {
@@ -1199,10 +1199,6 @@ function foldsBack(ax: number, ay: number, bx: number, by: number, cx: number, c
 }
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v))
-}
 
 function finite(v: number | undefined, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback

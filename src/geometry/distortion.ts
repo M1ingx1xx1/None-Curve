@@ -12,7 +12,7 @@
 
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findRingCrossings, findSelfCrossings, lazy } from './crossings'
-import { signedArea } from './flatten'
+import { clamp, signedArea } from './primitives'
 import type { DistortionParams, Point, PolygonContour, PolygonGlyph } from './types'
 
 export const DISTORTION_LIMITS = {
@@ -479,10 +479,6 @@ function periodicNoise(t: number, cells: number, seed: number, contour: number, 
 
 function dist(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y)
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, v))
 }
 
 function finite(v: number, fallback: number): number {

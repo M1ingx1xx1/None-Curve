@@ -19,7 +19,7 @@
 
 import { relate } from './contourLayout'
 import { findRingCrossings, findSelfCrossings, insideRing, RingIndex, ringBox, SegmentSweep } from './crossings'
-import { signedArea } from './flatten'
+import { distanceToSegment, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { curveLikeRuns, WARP_LIMITS } from './warp'
 
@@ -104,16 +104,49 @@ export function mergeOverlaps(
 function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHot: number): { polygon: PolygonGlyph; stats: OverlapStats } | null {
   const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
   const stats: OverlapStats = { ...emptyOverlapStats(), applied: true, contoursIn: polygon.contours.length }
+  const nothing = () => ({ polygon: { ...polygon, contours: [] }, stats: { ...stats, contoursOut: 0 } })
 
-  // ---- 1. Segments on the grid ----
+  const segments = gridSegments(polygon, scale)
+  if (!segments) return null
+  if (segments.ax.length === 0) return nothing()
+  const hot = hotPixels(segments, maxHot)
+  if (!hot) return { polygon, stats: { ...emptyOverlapStats(), contoursIn: polygon.contours.length, tooComplex: true } }
+  stats.crossings = hot.crossings
+  const graph = planarGraph(routeSegments(segments, hot), hot)
+  if (!graph) return nothing()
+  const faces = faceWindings(graph, hot)
+  if (!faces) return null
+  const loops = traceLoops(polygon, rule, scale, segments, hot, graph, faces, stats)
+
+  const exact = exactContours(loops, OVERLAP_LIMITS.minArea / 2 / (scale * scale), 1 / scale, WARP_LIMITS.shortEdge * unitsPerEm)
+  const contours: PolygonContour[] = exact.map((points) => ({ points, clockwise: signedArea(points) < 0 }))
+  stats.contoursOut = contours.length
+  return { polygon: { ...polygon, contours }, stats }
+}
+
+/** The input's segments on the grid (step 1), segment by segment in parallel arrays. */
+interface GridSegments {
+  ax: number[]
+  ay: number[]
+  bx: number[]
+  by: number[]
+  /** Each segment's ends as the input has them (font units), for drawing the result there again (step 7). */
+  starts: Point[]
+  ends: Point[]
+  /** Each segment's contour, the input vertex it starts at, and the contour's next segment. */
+  segmentContour: number[]
+  segmentStart: number[]
+  following: number[]
+}
+
+/** ---- 1. Segments on the grid ---- Null when a coordinate lies beyond the grid. */
+function gridSegments(polygon: PolygonGlyph, scale: number): GridSegments | null {
   const ax: number[] = []
   const ay: number[] = []
   const bx: number[] = []
   const by: number[] = []
-  /** Each segment's ends as the input has them (font units), for drawing the result there again (step 7). */
   const starts: Point[] = []
   const ends: Point[] = []
-  /** Each segment's contour, the input vertex it starts at, and the contour's next segment. */
   const segmentContour: number[] = []
   const segmentStart: number[] = []
   const following: number[] = []
@@ -141,10 +174,24 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     }
     if (ax.length > first) following[ax.length - 1] = first
   }
-  const count = ax.length
-  if (count === 0) return { polygon: { ...polygon, contours: [] }, stats: { ...stats, contoursOut: 0 } }
+  return { ax, ay, bx, by, starts, ends, segmentContour, segmentStart, following }
+}
 
-  // ---- 2. Hot pixels: every vertex and every crossing, rounded to the grid ----
+/** The grid points the merge routes through (step 2). */
+interface HotPixels {
+  hx: number[]
+  hy: number[]
+  /** The hot pixels at each segment's ends. */
+  startPixel: Int32Array
+  endPixel: Int32Array
+  /** Places where outlines crossed. */
+  crossings: number
+}
+
+/** ---- 2. Hot pixels: every vertex and every crossing, rounded to the grid ---- Null beyond `maxHot` of them. */
+function hotPixels(segments: GridSegments, maxHot: number): HotPixels | null {
+  const { ax, ay, bx, by } = segments
+  const count = ax.length
   const hot = new Map<number, number>()
   const hx: number[] = []
   const hy: number[] = []
@@ -159,15 +206,13 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     }
     return id
   }
-  /** The hot pixels at each segment's ends. */
   const startPixel = new Int32Array(count)
   const endPixel = new Int32Array(count)
   for (let s = 0; s < count; s++) {
     startPixel[s] = addHot(ax[s], ay[s])
     endPixel[s] = addHot(bx[s], by[s])
   }
-  const tooComplex = () => ({ polygon, stats: { ...emptyOverlapStats(), contoursIn: polygon.contours.length, tooComplex: true } })
-  if (hx.length > maxHot) return tooComplex()
+  if (hx.length > maxHot) return null
   // Crossings: only proper ones add points (a touch happens at a vertex, which is already hot).
   const sweep = new SegmentSweep({ ax, ay, bx, by })
   const { order, u0, u1, v0, v1 } = sweep
@@ -186,9 +231,10 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
       const d4 = cross(ax[t], ay[t], bx[t], by[t], bx[s], by[s])
       if (d3 === 0 || d4 === 0 || d3 > 0 === d4 > 0) continue
       pairs.push(s, t)
-      if (hx.length + pairs.length / 2 > maxHot) return tooComplex()
+      if (hx.length + pairs.length / 2 > maxHot) return null
     }
   }
+  let crossings = 0
   // In the order a sweep along x finds them, which numbers the grid points (and so orders the result) as ever.
   for (const k of sweep.inXOrder(Array.from({ length: pairs.length / 2 }, (_, k) => k), pairs)) {
     const s = pairs[2 * k]
@@ -202,14 +248,25 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     // not pass (see `passes`), and they would not be joined there; so it is rounded exactly.
     if (nearHalf(x) || nearHalf(y)) addHot(...roundExactly(ax[t], ay[t], bx[t], by[t], d1, d1 - d2))
     else addHot(Math.round(x), Math.round(y))
-    stats.crossings++
+    crossings++
   }
+  return { hx, hy, startPixel, endPixel, crossings }
+}
 
-  // ---- 3. Route every segment through the hot pixels whose cells it passes ----
-  const pixels = new PixelIndex(hx, hy)
+/** Grid edges between hot pixels (step 3), keyed `lo * hx.length + hi` by their two ends. */
+interface GridEdges {
   /** Net number of times the outlines run along each grid edge, from its lower to its higher end. */
-  const net = new Map<number, number>()
+  net: Map<number, number>
   /** The segment each grid edge comes from (-1 when several run along it). */
+  owner: Map<number, number>
+}
+
+/** ---- 3. Route every segment through the hot pixels whose cells it passes ---- */
+function routeSegments(segments: GridSegments, { hx, hy }: HotPixels): GridEdges {
+  const { ax, ay, bx, by } = segments
+  const count = ax.length
+  const pixels = new PixelIndex(hx, hy)
+  const net = new Map<number, number>()
   const owner = new Map<number, number>()
   const stamp = new Int32Array(hx.length).fill(-1)
   for (let s = 0; s < count; s++) {
@@ -234,10 +291,34 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
       if (before !== s) owner.set(key, before === undefined ? s : -1)
     }
   }
+  return { net, owner }
+}
 
-  // ---- 4. Planar graph: half-edges sorted around each vertex ----
-  // Half-edge 2e runs from edge e's lower end to its higher end, 2e + 1 back; `wind` is how much the
-  // winding number rises from its right side to its left.
+/**
+ * The planar graph (step 4). Half-edge 2e runs from edge e's lower end to its higher end, 2e + 1 back; `wind` is how
+ * much the winding number rises from its right side to its left.
+ */
+interface PlanarGraph {
+  from: number[]
+  to: number[]
+  wind: number[]
+  /** The segment each half-edge comes from (-1 when several run along it). */
+  segment: number[]
+  /** Each vertex's outgoing half-edges, sorted by angle; `position` is each half-edge's place in its list. */
+  outgoing: number[][]
+  position: Int32Array
+}
+
+const twin = (h: number) => h ^ 1
+
+/** The next half-edge around the face on h's left: at h's end, the first one clockwise from h's twin. */
+function nextHalf({ to, outgoing, position }: PlanarGraph, h: number): number {
+  const list = outgoing[to[h]]
+  return list[(position[twin(h)] - 1 + list.length) % list.length]
+}
+
+/** ---- 4. Planar graph: half-edges sorted around each vertex ---- Null when no grid edge is left. */
+function planarGraph({ net, owner }: GridEdges, { hx, hy }: HotPixels): PlanarGraph | null {
   const from: number[] = []
   const to: number[] = []
   const wind: number[] = []
@@ -253,8 +334,7 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     segment.push(s, s)
   }
   const halves = from.length
-  if (halves === 0) return { polygon: { ...polygon, contours: [] }, stats: { ...stats, contoursOut: 0 } }
-  const twin = (h: number) => h ^ 1
+  if (halves === 0) return null
   const outgoing: number[][] = hx.map(() => [])
   for (let h = 0; h < halves; h++) outgoing[from[h]].push(h)
   const position = new Int32Array(halves)
@@ -262,20 +342,26 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     list.sort((g, h) => compareAngle(hx[to[g]] - hx[from[g]], hy[to[g]] - hy[from[g]], hx[to[h]] - hx[from[h]], hy[to[h]] - hy[from[h]]))
     list.forEach((h, k) => (position[h] = k))
   }
-  /** The next half-edge around the face on h's left: at h's end, the first one clockwise from h's twin. */
-  const next = (h: number) => {
-    const list = outgoing[to[h]]
-    return list[(position[twin(h)] - 1 + list.length) % list.length]
-  }
+  return { from, to, wind, segment, outgoing, position }
+}
 
-  // ---- 5. Faces and their winding numbers ----
+/** The faces of the planar graph (step 5): each half-edge's face, and each face's winding number. */
+interface Faces {
+  face: Int32Array
+  faceWinding: (number | undefined)[]
+}
+
+/** ---- 5. Faces and their winding numbers ---- Null when two ways round give a face different winding numbers. */
+function faceWindings(graph: PlanarGraph, { hx, hy }: HotPixels): Faces | null {
+  const { from, to, wind, outgoing } = graph
+  const halves = from.length
   const face = new Int32Array(halves).fill(-1)
   const faceEdges: number[][] = []
   for (let h = 0; h < halves; h++) {
     if (face[h] >= 0) continue
     const id = faceEdges.length
     const edges: number[] = []
-    for (let g = h, guard = 0; face[g] < 0 && guard <= halves; g = next(g), guard++) {
+    for (let g = h, guard = 0; face[g] < 0 && guard <= halves; g = nextHalf(graph, g), guard++) {
       face[g] = id
       edges.push(g)
     }
@@ -378,8 +464,28 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     }
     return w
   }
+  return { face, faceWinding }
+}
 
-  // ---- 6. Contours: half-edges with ink on the left and none on the right ----
+/**
+ * ---- 6. Contours: half-edges with ink on the left and none on the right ----
+ * Contours too small or too thin to show are left out (counted in stats.removed).
+ */
+function traceLoops(
+  polygon: PolygonGlyph,
+  rule: FillRule,
+  scale: number,
+  segments: GridSegments,
+  { hx, hy, startPixel, endPixel }: HotPixels,
+  graph: PlanarGraph,
+  { face, faceWinding }: Faces,
+  stats: OverlapStats,
+): Loop[] {
+  const unitsPerEm = polygon.metrics.unitsPerEm > 0 ? polygon.metrics.unitsPerEm : 1000
+  const { starts, ends, segmentContour, segmentStart, following } = segments
+  const { from, segment } = graph
+  const halves = from.length
+  const next = (h: number) => nextHalf(graph, h)
   const ink = rule === 'positive' ? (f: number) => (faceWinding[f] ?? 0) > 0 : (f: number) => (faceWinding[f] ?? 0) !== 0
   const kept = new Uint8Array(halves)
   for (let h = 0; h < halves; h++) if (ink(face[h]) && !ink(face[twin(h)])) kept[h] = 1
@@ -409,6 +515,7 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     const corners = loop.map((g, k) => corner(loop[(k - 1 + loop.length) % loop.length], g))
     loops.push({ grid: points.map((p) => ({ x: p.x / scale, y: p.y / scale })), corners })
   }
+  return loops
 
   /**
    * The vertex where half-edge `into` ends and `out` starts. Where both edges come from input segments that end
@@ -448,14 +555,9 @@ function mergeOnGrid(polygon: PolygonGlyph, rule: FillRule, scale: number, maxHo
     }
     return out
   }
-
-  const exact = exactContours(loops, OVERLAP_LIMITS.minArea / 2 / (scale * scale), 1 / scale, WARP_LIMITS.shortEdge * unitsPerEm)
-  const contours: PolygonContour[] = exact.map((points) => ({ points, clockwise: signedArea(points) < 0 }))
-  stats.contoursOut = contours.length
-  return { polygon: { ...polygon, contours }, stats }
 }
 
-/** A vertex of a merged contour (font units). See `corner` in mergeOverlaps. */
+/** A vertex of a merged contour (font units). See `corner` in traceLoops. */
 interface Corner {
   grid: Point
   /** Where it lies exactly (more than one point where a few input vertices share its grid cell), or none when that is not clear. */
@@ -845,14 +947,6 @@ function dropStraight(points: Point[]): Point[] {
   return out
 }
 
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const length2 = dx * dx + dy * dy
-  const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0
-  return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
-}
-
 /**
  * True when a disk of `radius` fits in what the ring encloses, tried `radius` in from the middle of each edge: a
  * sliver has no such room, while a letter whose long thin thorns make it narrow on average has it in its body.
@@ -868,6 +962,8 @@ function hasRoom(points: readonly Point[], radius: number): boolean {
     const a = points[i]
     const b = points[(i + 1) % n]
     const length = Math.hypot(b.x - a.x, b.y - a.y)
+    // A zero-length edge has no inward direction (it would divide by zero); the edges beside it are tried instead.
+    if (length === 0) continue
     const centre = { x: (a.x + b.x) / 2 - (inward * (b.y - a.y)) / length, y: (a.y + b.y) / 2 + (inward * (b.x - a.x)) / length }
     let clear = true
     for (let j = 0; j < n && clear; j++) if (j !== i) clear = distanceToSegment(centre, points[j], points[(j + 1) % n]) >= clearance

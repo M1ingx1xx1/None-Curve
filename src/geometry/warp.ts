@@ -15,7 +15,7 @@
 
 import { ContourLayout } from './contourLayout'
 import { findRingCrossings, findSelfCrossings } from './crossings'
-import { signedArea } from './flatten'
+import { distanceToSegment, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 
 export interface Warp {
@@ -489,14 +489,6 @@ export function breakRuns(contour: PolygonContour, removable: readonly boolean[]
     kept = kept.filter((_, k) => !drop.has(k))
   }
   return points === contour.points ? contour : { points, clockwise: signedArea(points) < 0 }
-}
-
-function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const length2 = dx * dx + dy * dy
-  const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0
-  return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
 }
 
 /** How far the path a → b → c turns at b, in degrees: positive to the left, negative to the right. */
