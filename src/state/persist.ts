@@ -510,13 +510,14 @@ export function clearRestoring(storage: Storage | null = browserStorage()): void
 
 /**
  * Saves `read()` SAVE_DELAY_MS after the last schedule(), or at once on flush() (the page is hidden or closing).
- * `onFailure` hears of the first save the browser refuses (storage full or blocked), once, so the app can say so.
+ * `onStatus(false)` hears when saving starts to fail (storage full or blocked) and `onStatus(true)` when it works again,
+ * once per change, so the app can say so and stop saying so.
  */
 export function createSessionSaver(
   read: () => Session,
   storage?: Storage | null,
   delay: number = SAVE_DELAY_MS,
-  onFailure?: () => void,
+  onStatus?: (saved: boolean) => void,
 ) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let failed = false
@@ -524,9 +525,10 @@ export function createSessionSaver(
     if (timer === null) return
     clearTimeout(timer)
     timer = null
-    if (saveSession(read(), storage) || failed) return
-    failed = true
-    onFailure?.()
+    const saved = saveSession(read(), storage)
+    if (saved === !failed) return
+    failed = !saved
+    onStatus?.(saved)
   }
   const schedule = () => {
     if (timer !== null) clearTimeout(timer)

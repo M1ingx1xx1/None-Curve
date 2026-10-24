@@ -3,6 +3,7 @@ import type { LoadedFont } from '../font/model'
 import type { TextCase } from '../specimen/artboard'
 import { SAMPLES } from '../specimen/samples'
 import { SPECIMEN_MAX_CHARS, type SpecimenScene } from '../specimen/scene'
+import { MAX_SAVED_TEXT } from '../state/persist'
 import Icon from './Icon'
 
 interface TextPanelProps {
@@ -121,6 +122,8 @@ export default function TextPanel({
         className="text-input"
         value={text}
         spellCheck={false}
+        // The most that is saved, so nothing typed is cut silently when the session or a config is written.
+        maxLength={MAX_SAVED_TEXT}
         placeholder="Type the text to preview. Enter starts a new line."
         aria-describedby={`${id}-notes`}
         onChange={(e) => onTextChange(e.target.value)}

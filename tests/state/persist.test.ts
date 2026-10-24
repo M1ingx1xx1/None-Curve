@@ -624,19 +624,29 @@ describe('saved session', () => {
     expect(read).toHaveBeenCalledTimes(2)
   })
 
-  it('tells of the first save the browser refuses, once', () => {
+  it('tells when saving starts to fail and when it works again, once each', () => {
     const storage = new MemoryStorage()
-    const onFailure = vi.fn()
-    const saver = createSessionSaver(changedSession, storage as unknown as Storage, 500, onFailure)
+    const onStatus = vi.fn()
+    const saver = createSessionSaver(changedSession, storage as unknown as Storage, 500, onStatus)
     saver.schedule()
     saver.flush()
-    expect(onFailure).not.toHaveBeenCalled()
+    expect(onStatus).not.toHaveBeenCalled()
     storage.full = true
     for (let k = 0; k < 3; k++) {
       saver.schedule()
       saver.flush()
     }
-    expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(onStatus.mock.calls).toEqual([[false]])
+    storage.full = false
+    for (let k = 0; k < 2; k++) {
+      saver.schedule()
+      saver.flush()
+    }
+    expect(onStatus.mock.calls).toEqual([[false], [true]])
+    storage.full = true
+    saver.schedule()
+    saver.flush()
+    expect(onStatus.mock.calls).toEqual([[false], [true], [false]])
   })
 })
 
