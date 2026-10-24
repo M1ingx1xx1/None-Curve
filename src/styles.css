@@ -6,6 +6,10 @@
   --canvas: light-dark(#fbfbfa, #121211);
   --text: light-dark(#111110, #f2f1ed);
   --muted: light-dark(#5f5e5a, #a8a7a1);
+  /* Secondary text that informs (hints, units, labels): at least 4.5:1 on --bg, --surface and --canvas in both themes
+     (light 4.6 to 5.1, dark 4.9 to 5.2). */
+  --subtle: light-dark(#6f6e69, #868580);
+  /* Disabled and inactive states, and decorative strokes: fainter than any text that informs. */
   --faint: light-dark(#9a9994, #6e6d68);
   --border: light-dark(#d6d5d0, #2e2d2a);
   --border-strong: light-dark(#111110, #f2f1ed);
@@ -441,7 +445,7 @@ input[type='range']:disabled {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--faint);
+  color: var(--subtle);
   font-size: 0.95rem;
   font-weight: 400;
   line-height: 1;
@@ -537,13 +541,13 @@ input[type='range']:disabled {
 }
 
 .unit {
-  color: var(--faint);
+  color: var(--subtle);
   margin-left: 2px;
 }
 
 .field-hint {
   font-size: 0.78rem;
-  color: var(--faint);
+  color: var(--subtle);
 }
 
 .field-toggle {
@@ -1555,7 +1559,7 @@ input.number-field {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: right;
-  color: var(--faint);
+  color: var(--subtle);
 }
 
 /* Reset all settings, then light / dark interface: the last items of the status bar (bottom right), close
@@ -1803,7 +1807,7 @@ input.number-field {
 
 .font-facts dt {
   font-size: 0.7rem;
-  color: var(--faint);
+  color: var(--subtle);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -1898,7 +1902,7 @@ input.number-field {
 .glyph-cell-label {
   font-family: var(--mono);
   font-size: 0.6rem;
-  color: var(--faint);
+  color: var(--subtle);
 }
 
 /* ---- Glyph view ---- */
@@ -2092,7 +2096,7 @@ input.number-field {
 
 .flatten-stats dt {
   font-size: 0.7rem;
-  color: var(--faint);
+  color: var(--subtle);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2121,7 +2125,7 @@ input.number-field {
 
 .pipeline-step dt {
   font-size: 0.7rem;
-  color: var(--faint);
+  color: var(--subtle);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2737,7 +2741,7 @@ input.number-field {
   font-family: var(--mono);
   font-size: 0.62rem;
   line-height: 1;
-  color: var(--faint);
+  color: var(--subtle);
 }
 
 .led-label[data-shown] {
@@ -2818,7 +2822,7 @@ input.number-field {
 
 .mapping-arrow {
   flex: none;
-  color: var(--faint);
+  color: var(--subtle);
 }
 
 /* On the narrowest panel the arrow makes room for the target. */
@@ -3288,7 +3292,7 @@ input.number-field {
 
 .gf-category {
   font-size: 0.72rem;
-  color: var(--faint);
+  color: var(--subtle);
 }
 
 .gf-styles {

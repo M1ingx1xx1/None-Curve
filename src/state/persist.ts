@@ -485,14 +485,20 @@ export function clearRestoring(storage: Storage | null = browserStorage()): void
   }
 }
 
-/** Saves `read()` SAVE_DELAY_MS after the last schedule(), or at once on flush() (the page is hidden or closing). */
-export function createSessionSaver(read: () => Session, storage?: Storage | null, delay: number = SAVE_DELAY_MS) {
+/**
+ * Saves `read()` SAVE_DELAY_MS after the last schedule(), or at once on flush() (the page is hidden or closing).
+ * `onFailure` hears of the first save the browser refuses (storage full or blocked), once, so the app can say so.
+ */
+export function createSessionSaver(read: () => Session, storage?: Storage | null, delay: number = SAVE_DELAY_MS, onFailure?: () => void) {
   let timer: ReturnType<typeof setTimeout> | null = null
+  let failed = false
   const flush = () => {
     if (timer === null) return
     clearTimeout(timer)
     timer = null
-    saveSession(read(), storage)
+    if (saveSession(read(), storage) || failed) return
+    failed = true
+    onFailure?.()
   }
   const schedule = () => {
     if (timer !== null) clearTimeout(timer)

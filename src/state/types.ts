@@ -13,13 +13,9 @@ export type LoadStatus =
   | { kind: 'ready' }
   | { kind: 'error'; origin: ImportOrigin; errorKind: FontErrorKind; message: string }
 
-export type ExportFormat = 'svg' | 'otf'
-
 export interface ExportMeta {
-  format: ExportFormat
   /** Decimal places kept in SVG coordinates. */
   precision: number
-  lastExport: { fileName: string; at: string } | null
 }
 
 export interface DocumentState {
@@ -35,13 +31,21 @@ export interface DocumentState {
 /** Which outline the canvas draws: original curves, the flattened polygon, or both overlaid. */
 export type OutlineView = 'source' | 'flattened' | 'compare'
 
-export interface ViewParams {
+/** The canvas view's outline and layer buttons: saved between visits, but not undone. */
+export interface ViewToggles {
   outline: OutlineView
   showFill: boolean
   showSkeleton: boolean
   /** Generated polygon vertices. */
   showVertices: boolean
   showMetrics: boolean
+}
+
+/**
+ * Where the canvas looks: neither undone nor saved. Kept outside the editor state (state/canvasView.ts), so a drag
+ * or a wheel turn re-renders the canvas alone.
+ */
+export interface PanZoom {
   /** 1 = glyph fitted to the viewport. */
   zoom: number
   /** Pan offset in font units. */
@@ -49,8 +53,11 @@ export interface ViewParams {
   panY: number
 }
 
+/** The whole canvas view, as the canvas renderers draw it. */
+export type ViewParams = ViewToggles & PanZoom
+
 export interface EditorParams extends GeometryParams {
-  view: ViewParams
+  view: ViewToggles
   /** How the text is set on the artboard; not part of the glyph geometry or the font export. */
   typography: TypographyParams
   palette: PaletteParams
@@ -58,13 +65,10 @@ export interface EditorParams extends GeometryParams {
 }
 
 /**
- * The settings: every parameter group except the canvas view (outline, layers, zoom and pan). Undo
- * restores them; they are also saved between visits.
+ * The settings: every parameter group except the canvas view (outline and layers). Undo restores them; they are
+ * also saved between visits.
  */
 export type SettingsParams = Omit<EditorParams, 'view'>
-
-/** The canvas view's outline and layer buttons: saved between visits, but not undone. */
-export type ViewToggles = Pick<ViewParams, 'outline' | 'showFill' | 'showSkeleton' | 'showVertices' | 'showMetrics'>
 
 export interface AppState {
   document: DocumentState
