@@ -3,7 +3,7 @@
 // the audio delay, the frame rates, the file name (and safeFileName under it), and the clock.
 
 import { describe, expect, it } from 'vitest'
-import { safeFileName } from '../../src/export/download'
+import { exportFileName, safeFileName } from '../../src/export/download'
 import {
   DEFAULT_VIDEO_FPS,
   VIDEO_FPS,
@@ -182,6 +182,20 @@ describe('video bitrate, delay, name and clock', () => {
     const long = safeFileName(['x'.repeat(200)], 'mp4')
     expect(long).toBe(`${'x'.repeat(80)}.mp4`)
     for (const name of [long, safeFileName(['A B', 'c.d', 'e_f'], 'webm')]) expect(name).toMatch(/^[A-Za-z0-9._-]+$/)
+  })
+
+  it('names an export as typed, in any script, made safe, with its own extension (exportFileName)', () => {
+    const parts = ['Roboto', 'Regular', 'text']
+    expect(exportFileName('', parts, 'svg')).toBe('Roboto-Regular-text.svg')
+    expect(exportFileName('  ', parts, 'svg')).toBe('Roboto-Regular-text.svg')
+    expect(exportFileName('\u6d77\u62a5 Crème', parts, 'svg')).toBe('\u6d77\u62a5 Crème.svg')
+    expect(exportFileName('logo.SVG', parts, 'svg')).toBe('logo.svg')
+    expect(exportFileName('logo.png', parts, 'svg')).toBe('logo.svg')
+    expect(exportFileName('logo.v2', parts, 'svg')).toBe('logo.v2.svg')
+    expect(exportFileName('../a/b\\c:d*e?f"g<h>i|j\u0007', parts, 'otf')).toBe('-a-b-c-d-e-f-g-h-i-j-.otf')
+    expect(exportFileName('...', parts, 'json')).toBe('Roboto-Regular-text.json')
+    expect(exportFileName('😀'.repeat(200), parts, 'png')).toBe(`${'😀'.repeat(120)}.png`)
+    expect(videoFileName('Roboto', 'Regular', true, 'webm', 'take')).toBe('take.webm')
   })
 
   it('shows minutes and seconds', () => {

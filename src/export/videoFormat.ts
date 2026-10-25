@@ -1,7 +1,7 @@
 // Video recording's choices and limits: the container and codec strings to try, the frame size and
 // bitrate, the audio delay, the file name and the clock. Pure: the browser's checks come in as functions.
 
-import { safeFileName } from './download'
+import { exportFileName } from './download'
 
 export type VideoFormat = 'mp4' | 'webm'
 
@@ -168,9 +168,15 @@ export function recordDelayMs(latencyMs: number | null, fps?: number): number {
   )
 }
 
-/** "Family-Style-video.mp4", or "-video-preview" with the preview's look. */
-export function videoFileName(family: string, style: string, previewLook: boolean, format: VideoFormat): string {
-  return safeFileName([family, style, previewLook ? 'video-preview' : 'video'], format)
+/** The name the user typed (exportFileName), else "Family-Style-video.mp4", or "-video-preview" with the preview's look. */
+export function videoFileName(
+  family: string,
+  style: string,
+  previewLook: boolean,
+  format: VideoFormat,
+  name = '',
+): string {
+  return exportFileName(name, [family, style, previewLook ? 'video-preview' : 'video'], format)
 }
 
 /** Minutes and seconds, "0:12" or "1:05" (whole seconds, rounded down). */

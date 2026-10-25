@@ -790,6 +790,8 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button (a microphone video is saved when its take ends).
 
+**File name**, under the formats, names the file you save. Leave it empty and the app picks a name from the font (shown greyed out in the box, for example `Roboto-Regular-text`). The ending (`.svg`, `.png`, `.otf`, `.mp4` or `.webm`, `.json`) is added for you and shown beside the box, so one name works for every format: type `poster` and you get `poster.svg`, `poster.png` and so on. Any language works; characters a computer can't use in a file name, such as `/` or `:`, become `-`. The name stays while the page is open. A video recorded from the Sound tab's **Record** box uses the name the app picks.
+
 SVG, PNG, and font exports always use your slider settings and seeds. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see. A video is different: it shows the letters as they move with the sound (see [As a video](#as-a-video)).
 
 ### As an image (SVG or PNG)

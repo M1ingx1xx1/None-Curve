@@ -3484,6 +3484,27 @@ input.number-field {
   padding: 6px 10px;
 }
 
+.export-file-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-file-name input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.export-file-name span {
+  color: var(--muted);
+}
+
 .export-summary {
   font-size: 0.85rem;
   color: var(--muted);

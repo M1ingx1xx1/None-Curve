@@ -10,6 +10,21 @@ export function safeFileName(parts: string[], extension: string): string {
   return `${base || 'none-curve'}.${extension}`
 }
 
+/**
+ * The file name the user typed, in any script: one name serves every format, so an export's extension they typed is
+ * replaced by `extension`. Characters file systems refuse (and control characters) become "-", outer dots and spaces
+ * go, at most 120 characters. An empty name falls back to the generated one, `safeFileName(parts, extension)`.
+ */
+export function exportFileName(name: string, parts: string[], extension: string): string {
+  const cleaned = name
+    .replace(/[\\/:*?"<>|]|\p{Cc}/gu, '-')
+    .trim()
+    .replace(/\.(svg|png|otf|json|mp4|webm)$/i, '')
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+  const base = [...cleaned].slice(0, 120).join('').trim()
+  return base ? `${base}.${extension}` : safeFileName(parts, extension)
+}
+
 /** Starts a browser download for data the user explicitly asked to export. */
 export function downloadFile(data: BlobPart, fileName: string, type: string): void {
   const url = URL.createObjectURL(new Blob([data], { type }))
