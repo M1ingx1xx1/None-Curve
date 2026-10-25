@@ -18,6 +18,8 @@ export interface PackedGlyph {
   contours: PackedContours
   /** The click outline (Thorn): packed apart, 'same' when it is the outline itself, null when there is none. */
   click: PackedContours | 'same' | null
+  /** The outline from before the effects' merge (glideOutline, for Glide): packed apart, or null. */
+  glide: PackedContours | null
   /** The layout hull (Thorn) as x, y pairs, or null. */
   hull: Float64Array | null
   /** The letter as Whorl received it (its motion's `outline`, the whole letter): packed apart, or null. */
@@ -76,6 +78,7 @@ const buffersOf = (packed: PackedContours) =>
 function transferOf(packed: PackedGlyph): ArrayBuffer[] {
   const transfer = buffersOf(packed.contours)
   if (packed.click && packed.click !== 'same') transfer.push(...buffersOf(packed.click))
+  if (packed.glide) transfer.push(...buffersOf(packed.glide))
   if (packed.hull) transfer.push(packed.hull.buffer as ArrayBuffer)
   if (packed.outline) transfer.push(...buffersOf(packed.outline))
   return transfer
@@ -97,6 +100,7 @@ export function packGeometry(
       : polygon.clickOutline === polygon.contours
         ? 'same'
         : packContours(polygon.clickOutline)
+  const glide = polygon.glideOutline ? packContours(polygon.glideOutline) : null
   let hull: Float64Array | null = null
   if (polygon.layoutHull) {
     hull = new Float64Array(2 * polygon.layoutHull.length)
@@ -117,7 +121,16 @@ export function packGeometry(
       rest.motion = { ...polygon.motion, whorl: kept }
     } else rest.motion = polygon.motion
   }
-  const packed: PackedGlyph = { contours, click, hull, outline, rest, vertexCount, stats: withStats ? stats : null }
+  const packed: PackedGlyph = {
+    contours,
+    click,
+    glide,
+    hull,
+    outline,
+    rest,
+    vertexCount,
+    stats: withStats ? stats : null,
+  }
   return { packed, transfer: transferOf(packed) }
 }
 
@@ -130,9 +143,10 @@ export function clonePacked(packed: PackedGlyph): { packed: PackedGlyph; transfe
   })
   const contours = copy(packed.contours)
   const click = packed.click && packed.click !== 'same' ? copy(packed.click) : packed.click
+  const glide = packed.glide ? copy(packed.glide) : null
   const hull = packed.hull ? packed.hull.slice() : null
   const outline = packed.outline ? copy(packed.outline) : null
-  const copied: PackedGlyph = { ...packed, contours, click, hull, outline }
+  const copied: PackedGlyph = { ...packed, contours, click, glide, hull, outline }
   return { packed: copied, transfer: transferOf(copied) }
 }
 
@@ -148,6 +162,7 @@ export function unpackGeometry(packed: PackedGlyph): WorkerGeometry | LeanGeomet
   }
   if (packed.click) polygon.clickOutline = packed.click === 'same' ? contours : unpackContours(packed.click)
   if ('motion' in packed.rest) polygon.motion = withOutline(packed.rest.motion, packed.outline)
+  if (packed.glide) polygon.glideOutline = unpackContours(packed.glide)
   const { vertexCount, stats } = packed
   return stats ? { polygon, vertexCount, ...stats } : { polygon, vertexCount }
 }
@@ -164,10 +179,11 @@ export function unpackEntry(packed: PackedGlyph): UnpackedEntry {
   return packed.stats ? { geometry: geometry as WorkerGeometry } : { geometry, lean: true }
 }
 
-/** Points the glyph holds (its outline, click outline and Whorl's outline), for the stores' statistics and budgets. */
+/** Points the glyph holds (its outline, click, glide and Whorl's outlines), for the stores' statistics and budgets. */
 export function packedPoints(packed: PackedGlyph): number {
   const click = packed.click && packed.click !== 'same' ? packed.click.xy.length / 2 : 0
-  return packed.contours.xy.length / 2 + click + (packed.outline ? packed.outline.xy.length / 2 : 0)
+  const glide = packed.glide ? packed.glide.xy.length / 2 : 0
+  return packed.contours.xy.length / 2 + click + glide + (packed.outline ? packed.outline.xy.length / 2 : 0)
 }
 
 /** Bytes the packed glyph takes (estimate): its typed arrays, plus its statistics and small objects. */
@@ -178,6 +194,7 @@ export function packedBytes(packed: PackedGlyph): number {
   return (
     arrays(packed.contours) +
     click +
+    (packed.glide ? arrays(packed.glide) : 0) +
     (packed.hull?.byteLength ?? 0) +
     outline +
     (packed.stats ? STATS_BYTES : 0) +
