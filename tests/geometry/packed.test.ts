@@ -30,7 +30,8 @@ describe('packed glyphs', async () => {
           geometry.polygon.contours.reduce((n, c) => n + c.points.length, 0) +
             (geometry.polygon.clickOutline && geometry.polygon.clickOutline !== geometry.polygon.contours
               ? geometry.polygon.clickOutline.reduce((n, c) => n + c.points.length, 0)
-              : 0),
+              : 0) +
+            (geometry.polygon.glideOutline?.reduce((n, c) => n + c.points.length, 0) ?? 0),
         )
       }
     }

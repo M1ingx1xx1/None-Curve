@@ -29,7 +29,7 @@ import { emptyOverlapStats, type OverlapStats } from './overlaps'
 import { inkBox, rippleWarp, type Box } from './ripple'
 import { emptySlipstreamStats, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
 import { applyThorn, emptyThornStats, ThornAnchors, thornBursts, withoutSpecks, type ThornStats } from './thorn'
-import type { ExperimentalParams, Point, PolygonGlyph } from './types'
+import type { ExperimentalParams, Point, PolygonContour, PolygonGlyph } from './types'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type Warp, type WarpStats } from './warp'
 import { whorlMotion, whorlWarp } from './whorl'
 
@@ -185,8 +185,11 @@ export function applyExperimental(
     ))
     if (budget.reductions > reductions) tangled = true
   }
+  let glideOutline: PolygonContour[] | null = null
   if ((tangled || stats.thorn.applied) && result !== unmergeable) {
+    const unmerged = result.contours
     const merged = budget.merge(result)
+    if (merged.stats.applied && !dissolveIsOn(params.dissolve)) glideOutline = unmerged
     result = merged.polygon
     // After Slipstream's cut merge, count both merges' crossings and removed contours, and either's trouble.
     stats.folds = streamMerged
@@ -229,7 +232,8 @@ export function applyExperimental(
       !dissolveIsOn(params.dissolve)
     if (last) motion.whorl.last = true
   }
-  return { polygon: layout || motion ? { ...result, ...layout, ...(motion ? { motion } : {}) } : result, stats }
+  const extras = { ...layout, ...(motion ? { motion } : {}), ...(glideOutline ? { glideOutline } : {}) }
+  return { polygon: layout || motion || glideOutline ? { ...result, ...extras } : result, stats }
 }
 
 /**
