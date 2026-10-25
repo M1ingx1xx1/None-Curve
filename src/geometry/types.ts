@@ -318,6 +318,13 @@ export interface PolygonGlyph {
    */
   clickOutline?: PolygonContour[]
   /**
+   * When the Experimental effects merged crossing outlines at the end (Thorn's spikes, folds): the contours just before
+   * that merge, which fill the same by the nonzero rule. Glide pairs anchors on them (specimen/morph.ts), so a spike
+   * grows out of the piece it belongs to and the pockets where spikes cross never have to grow as holes. Display only;
+   * missing without such a merge, or when Dissolve redrew the letter after it.
+   */
+  glideOutline?: PolygonContour[]
+  /**
    * How the letter's anchors travel when the shape changes on screen (Glide, specimen/glide.ts): what an effect that
    * moves anchors along a path of its own tells the canvas. Display only: never part of the outline, the exports or a
    * hash. Missing while no such effect is on.

@@ -10,13 +10,13 @@ import { planCases, planHash, SAMPLES } from '../helpers/planCases'
  * What each case's plan drew before plans were built from data (planHash of the closures planMorph made then): plans
  * built from data must draw the very same anchors, bit for bit. Recorded on arm64 with Node 23: Whorl and the mesh go
  * through Math.sin and Math.cos, whose last bits differ between platforms (and so, near a threshold, an anchor count),
- * so on other machines those cases check their kind and anchor count only. 'burst goes on' was recorded again when
- * outlines whose contours cross began to be paired merged (NOCUR-93): it starts from an in-between whose spikes cross.
+ * so on other machines those cases check their kind and anchor count only. The Burst cases were recorded again when Glide
+ * began to pair the outline from before the effects' merge (PolygonGlyph.glideOutline, NOCUR-93).
  */
 const BEFORE: Record<string, string> = {
-  'burst H/a/g 0': 'straight:516:cb7c7a92',
-  'burst H/a/g 1': 'straight:500:87fd5c3e',
-  'burst H/a/g 6': 'straight:491:9c6a8688',
+  'burst H/a/g 0': 'straight:486:de9dccb8',
+  'burst H/a/g 1': 'straight:489:925079b9',
+  'burst H/a/g 6': 'straight:491:80f06d1e',
   'whorl one ring': 'whorl:416:9d7fa74d',
   'whorl rings': 'whorl:228:89c2122a',
   'whorl two rings': 'whorl:279:9100c2ac',
@@ -26,7 +26,7 @@ const BEFORE: Record<string, string> = {
   'mesh off': 'whorl-mesh:144:9d4a2e65',
   'dissolve STIX': 'straight:1749:a82a8761',
   'whorl STIX': 'whorl:265:9966bd99',
-  'burst goes on': 'straight:593:c492ba2b',
+  'burst goes on': 'straight:559:a2106525',
   'mesh goes on': 'whorl-mesh:90:e9449a17',
   'grow and shrink': 'straight:12:3c6d7d38',
   'still and moved': 'straight:8:aa9a8255',
