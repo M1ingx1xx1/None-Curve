@@ -5,6 +5,11 @@
 // Pairing happens where both outlines are most alike: for an effect that knows its own move (Whorl, which turns each
 // ring), with that move undone on both sides (Trajectory.straighten); otherwise as they are.
 //
+// Outlines whose contours cross are paired as the outline of what they fill (overlaps.ts), except on Whorl's path. Many fonts draw a letter as
+// overlapping pieces, so a counter is a gap between pieces, not a hole; an effect that merges the letter (Burst) gives
+// it a real hole, which would find no partner and grow from its centre while the pieces sank, filling the counter on
+// the way. Only the pairing uses the merged outline: the glide still starts and ends on the glyphs themselves.
+//
 // Contours: each contour of the old outline is paired with one of the new, of the same direction (outlines with
 // outlines, holes with holes), the closest pairs first: by the distance between their centres for their size, and how
 // alike their areas are. With many contours (Dissolve's islands), each is weighed only against its few nearest. A
@@ -29,6 +34,8 @@
 // within MORPH_LIMITS.settleShare of an em of the shape without them (settleInBetween), so a long run of quick changes
 // does not pile up anchors.
 
+import { findRingCrossings, findSelfCrossings, ringBox } from '../geometry/crossings'
+import { mergeOverlaps } from '../geometry/overlaps'
 import type { GlyphMotion, Point, PolygonContour, PolygonGlyph } from '../geometry/types'
 import { PLAN_DATA_VERSION, type PlanData, type TrackData } from './planData'
 import { meshGlideFrom, planWhorlMesh, preparedFor, type MeshGlide, type MeshPose, type Prepared } from './whorlGlide'
@@ -539,6 +546,40 @@ function pairContours(a: Ring[], b: Ring[]): [number, number][] {
   return pairs
 }
 
+/** Each glyph's outline for pairing (pairingOutline), so a glyph is checked and merged once however often it glides. */
+const pairingOutlines = new WeakMap<PolygonGlyph, PolygonGlyph>()
+
+/**
+ * The outline a glyph's anchors are paired on: the glyph itself, or, where its contours cross (pieces drawn overlapping,
+ * or a contour looping over itself), the outline of what it fills (see the top of the file). A glyph too complex to
+ * merge within MORPH_LIMITS.maxPoints is paired as it is.
+ */
+function pairingOutline(glyph: PolygonGlyph): PolygonGlyph {
+  let outline = pairingOutlines.get(glyph)
+  if (!outline) {
+    outline = crosses(glyph.contours)
+      ? mergeOverlaps(glyph, 'nonzero', { maxHot: MORPH_LIMITS.maxPoints }).polygon
+      : glyph
+    pairingOutlines.set(glyph, outline)
+  }
+  return outline
+}
+
+/** True when a contour crosses itself or another (contours whose boxes lie apart are not compared). */
+function crosses(contours: readonly PolygonContour[]): boolean {
+  for (const c of contours) if (findSelfCrossings(c.points, 0).length > 0) return true
+  const boxes = contours.map((c) => ringBox(c.points))
+  for (let i = 0; i < contours.length; i++) {
+    for (let j = i + 1; j < contours.length; j++) {
+      const p = boxes[i]
+      const q = boxes[j]
+      if (p.minX > q.maxX || q.minX > p.maxX || p.minY > q.maxY || q.minY > p.maxY) continue
+      if (findRingCrossings(contours[i].points, contours[j].points, 0).length > 0) return true
+    }
+  }
+  return false
+}
+
 /** The same outline wound the other way round. */
 function reversed(c: PolygonContour): PolygonContour {
   return { points: c.points.slice().reverse(), clockwise: !c.clockwise }
@@ -648,12 +689,16 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
     }
   }
   const trajectory = chooseTrajectory(from.motion, to.motion, models)
-  const a = from.contours.map(ringOf)
-  let b = to.contours.map(ringOf)
+  // Whorl pairs its own folded rings in its unturned space, so they stay as they are. A contour of a merged `to` is
+  // never one of `to`'s own, so it goes as a track of its anchors, not 'still'.
+  const merge = !trajectory.straighten
+  const toOutline = merge ? pairingOutline(to) : to
+  const a = (merge ? pairingOutline(from) : from).contours.map(ringOf)
+  let b = toOutline.contours.map(ringOf)
   // The new outline wound the old one's way, so every in-between contour winds one way (see the top of the file).
   const winds = windsClockwise(a)
   const windsTo = windsClockwise(b)
-  if (winds !== null && windsTo !== null && winds !== windsTo) b = to.contours.map((c) => ringOf(reversed(c)))
+  if (winds !== null && windsTo !== null && winds !== windsTo) b = toOutline.contours.map((c) => ringOf(reversed(c)))
   // The contours in the space their anchors are paired in (Whorl's turns undone), or the contours themselves; each
   // keeps its own winding.
   const { straighten } = trajectory
