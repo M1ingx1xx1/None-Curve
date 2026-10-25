@@ -10,7 +10,8 @@ import { planCases, planHash, SAMPLES } from '../helpers/planCases'
  * What each case's plan drew before plans were built from data (planHash of the closures planMorph made then): plans
  * built from data must draw the very same anchors, bit for bit. Recorded on arm64 with Node 23: Whorl and the mesh go
  * through Math.sin and Math.cos, whose last bits differ between platforms (and so, near a threshold, an anchor count),
- * so on other machines those cases check their kind and anchor count only.
+ * so on other machines those cases check their kind and anchor count only. 'burst goes on' was recorded again when
+ * outlines whose contours cross began to be paired merged (NOCUR-93): it starts from an in-between whose spikes cross.
  */
 const BEFORE: Record<string, string> = {
   'burst H/a/g 0': 'straight:516:cb7c7a92',
@@ -25,7 +26,7 @@ const BEFORE: Record<string, string> = {
   'mesh off': 'whorl-mesh:144:9d4a2e65',
   'dissolve STIX': 'straight:1749:a82a8761',
   'whorl STIX': 'whorl:265:9966bd99',
-  'burst goes on': 'straight:585:80ce812e',
+  'burst goes on': 'straight:593:c492ba2b',
   'mesh goes on': 'whorl-mesh:90:e9449a17',
   'grow and shrink': 'straight:12:3c6d7d38',
   'still and moved': 'straight:8:aa9a8255',
