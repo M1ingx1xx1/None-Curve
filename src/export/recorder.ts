@@ -176,6 +176,8 @@ interface Take {
   spec: TakeSpec
   options: RecordOptions
   context: RecordingContext
+  /** The file name the user typed, or '' (videoFileName). */
+  name: string
   source: SoundSource
   /** Whole file: the take runs from the file's start to its end. */
   wholeFile: boolean
@@ -320,9 +322,10 @@ export class RecordingController {
   /**
    * Starts a take. Synchronous, so the sound starts inside the click: a paused file plays (Whole file from
    * its start, with Loop off for the take) and the microphone starts listening. Recording begins once the
-   * sound runs and the recording canvas has drawn its first frame.
+   * sound runs and the recording canvas has drawn its first frame. `name` is the file name the user typed ('' for
+   * the generated one).
    */
-  start(): void {
+  start(name = ''): void {
     if (this.state.phase !== 'idle') return
     const blocked = this.blocker()
     const context = this.context
@@ -354,6 +357,7 @@ export class RecordingController {
       spec,
       options,
       context,
+      name,
       source: sound.source,
       wholeFile,
       startedSource: false,
@@ -666,7 +670,13 @@ export class RecordingController {
     this.disarm('start', 'length', 'cap', 'tick', 'frame', 'drain', 'stop')
     const mime = take.mime ?? take.spec.mimes[0]
     const type = mime.mimeType.split(';')[0]
-    const fileName = videoFileName(take.context.family, take.context.style, take.options.previewLook, mime.format)
+    const fileName = videoFileName(
+      take.context.family,
+      take.context.style,
+      take.options.previewLook,
+      mime.format,
+      take.name,
+    )
     const blob = new Blob(take.chunks, { type })
     take.chunks = []
     let saved = false

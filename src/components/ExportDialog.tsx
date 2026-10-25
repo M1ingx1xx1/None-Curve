@@ -22,6 +22,8 @@ function ExportDialog(props: ExportDialogProps) {
   const [glyphSet, setGlyphSet] = useState<GlyphSet>('specimen')
   const [naming, setNaming] = useState<FontNaming>({ familyName: '', styleName: '' })
   const [built, setBuilt] = useState<BuiltFont | null>(null)
+  // Empty: each export's generated name.
+  const [fileName, setFileName] = useState('')
   const kept: Kept = {
     chosen,
     setFormat,
@@ -33,6 +35,8 @@ function ExportDialog(props: ExportDialogProps) {
     setNaming,
     built,
     setBuilt,
+    fileName,
+    setFileName,
   }
 
   // After the body's own effects: the first radio is in the document when it is focused.

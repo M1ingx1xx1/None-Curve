@@ -456,6 +456,18 @@ describe('recorder', () => {
     expect(r.state.message?.text).toBe('Saved Roboto-Regular-video.mp4: 0:10, 1200 × 800 px.')
   })
 
+  it('saves the take under the name typed in the Export dialog (here in Chinese)', async () => {
+    const r = rig()
+    r.controller.start('\u6d77\u62a5 01')
+    r.controller.canvasReady(r.canvas, true, r.touch)
+    r.draw()
+    await settle()
+    r.advance(1_000)
+    r.controller.stop()
+    r.finish()
+    expect(r.saves[0].fileName).toBe('\u6d77\u62a5 01.mp4')
+  })
+
   it('also starts when the sound runs first and the canvas draws later', async () => {
     const r = rig({ sound: playing })
     r.controller.start()
