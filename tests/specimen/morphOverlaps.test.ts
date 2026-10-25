@@ -1,14 +1,14 @@
-// Glide between a letter drawn as overlapping pieces and an outline with real holes (NOCUR-93). Many fonts (Roboto here,
-// Space Grotesk in the app) draw A, R or D as pieces whose counter is a gap between them, not a hole; Burst merges the
-// letter, so its counters are real holes. Paired as they were, those holes grew from their centres while the pieces
-// sank, and the counter filled on the way. Paired as the outlines of what they fill, the counter stays open.
+// Glide into Burst and back keeps blank ground blank (NOCUR-93). Many fonts (Roboto here, Space Grotesk in the app) draw
+// A, R or e as overlapping pieces whose counter is a gap between them, not a hole, and Burst's spikes cross one another;
+// the merged outline turns both into holes, which had no partner, grew from their centres and filled the counter or the
+// pocket between crossing spikes on the way. Glide now pairs the outline from before that merge (glideOutline).
 
 import { describe, expect, it } from 'vitest'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { Point, PolygonGlyph } from '../../src/geometry/types'
 import { morphAt, planFromData, planMorph } from '../../src/specimen/morph'
 import { loadFixture, sampleGlyphs } from '../helpers/fonts'
-import { contoursOf, outlineCrossings, polygonOf, rect, winding } from '../helpers/outline'
+import { contoursOf, winding } from '../helpers/outline'
 import { GEOMETRY, on, paramsWith } from '../helpers/params'
 
 const PROGRESS = [0.1, 0.25, 0.5, 0.75, 0.9]
@@ -53,62 +53,57 @@ function blankGround(from: PolygonGlyph, to: PolygonGlyph, margin: number): Poin
   return ground
 }
 
-describe('Glide from overlapping pieces to an outline with holes', () => {
-  // A square frame drawn as four overlapping bars, its counter the gap between them...
-  const pieces = polygonOf([
-    rect(0, 0, 300, 1000),
-    rect(700, 0, 1000, 1000),
-    rect(0, 0, 1000, 300),
-    rect(0, 700, 1000, 1000),
-  ])
-  // ...and the frame as one outline with a hole, a little bolder.
-  const merged = polygonOf([rect(-20, -20, 1020, 1020), rect(320, 680, 680, 320)])
-  const counter: Point[] = []
-  for (let x = 340; x <= 660; x += 40) for (let y = 340; y <= 660; y += 40) counter.push({ x, y })
-
-  it('keeps the counter open all the way, both ways', () => {
-    expect(outlineCrossings(contoursOf(pieces)).cross).toBeGreaterThan(0)
-    for (const [from, to] of [
-      [pieces, merged],
-      [merged, pieces],
-    ]) {
-      const plan = planMorph(from, to)!
-      expect(plan).not.toBeNull()
-      for (const p of PROGRESS) expect(inked(morphAt(plan, p), counter), `at ${p}`).toBe(0)
-    }
-  })
-
-  it('still starts and ends on the glyphs themselves, and runs the same from its data', () => {
-    const plan = planMorph(pieces, merged)!
-    expect(morphAt(plan, 0)).toBe(pieces)
-    expect(morphAt(plan, 1)).toBe(merged)
-    const fresh = planFromData(plan.data!, pieces, merged)
-    for (const p of PROGRESS) expect(morphAt(fresh, p).contours).toEqual(morphAt(plan, p).contours)
-  })
-})
-
-describe('Glide from a font drawn in pieces to Burst', async () => {
+describe('Glide into Burst and back', async () => {
   const font = await loadFixture('Roboto')
   const burst = (canvasReach: number) =>
     paramsWith(GEOMETRY.plain, on('thorn', { burst: true, spikes: 40, dent: 0.8, canvasReach }))
+  const glyphs = sampleGlyphs(font, 'AReaD').map(({ char, index }) => {
+    const source = font.getGlyph(index)
+    return {
+      char,
+      plain: deriveGeometry(source, burst(0)).polygon,
+      spiked: (r: number) => deriveGeometry(source, burst(r)).polygon,
+    }
+  })
+
+  it('keeps the outline from before the merge, which fills the same', () => {
+    for (const { char, spiked } of glyphs) {
+      const glyph = spiked(0.15)
+      expect(glyph.glideOutline, char).toBeDefined()
+      const unmerged = glyph.glideOutline!.map((c) => c.points)
+      const ground = blankGround(glyph, glyph, 0.02 * glyph.metrics.unitsPerEm)
+      const ink = ground.filter((p) => winding(unmerged, p) !== 0).length
+      expect(ink, char).toBe(0)
+    }
+  })
 
   it('keeps ground that is blank at both ends blank on the way, both ways', () => {
-    for (const { char, index } of sampleGlyphs(font, 'ARD')) {
-      const source = font.getGlyph(index)
-      const plain = deriveGeometry(source, burst(0)).polygon
-      const spiked = deriveGeometry(source, burst(0.05)).polygon
-      // The fixture draws these letters in crossing pieces, and Burst merges them.
-      expect(outlineCrossings(contoursOf(plain)).cross, char).toBeGreaterThan(0)
-      expect(outlineCrossings(contoursOf(spiked)).cross, char).toBe(0)
-      const ground = blankGround(plain, spiked, 0.02 * plain.metrics.unitsPerEm)
-      expect(ground.length, char).toBeGreaterThan(50)
-      for (const [from, to] of [
-        [plain, spiked],
-        [spiked, plain],
-      ]) {
-        const plan = planMorph(from, to)!
-        for (const p of PROGRESS) expect(inked(morphAt(plan, p), ground), `${char} at ${p}`).toBeLessThan(0.02)
+    for (const { char, plain, spiked } of glyphs) {
+      for (const reach of [0.05, 0.15]) {
+        const to = spiked(reach)
+        const ground = blankGround(plain, to, 0.02 * plain.metrics.unitsPerEm)
+        expect(ground.length, char).toBeGreaterThan(50)
+        for (const [a, b] of [
+          [plain, to],
+          [to, plain],
+        ]) {
+          const plan = planMorph(a, b)!
+          for (const p of PROGRESS)
+            expect(inked(morphAt(plan, p), ground), `${char} reach ${reach} at ${p}`).toBeLessThan(0.02)
+        }
       }
+    }
+  })
+
+  it('still starts and ends on the glyphs themselves, runs the same from its data, and goes on from its own anchors', () => {
+    for (const { plain, spiked } of glyphs) {
+      const to = spiked(0.15)
+      const plan = planMorph(plain, to)!
+      expect(morphAt(plan, 0)).toBe(plain)
+      expect(morphAt(plan, 1)).toBe(to)
+      const fresh = planFromData(plan.data!, plain, to)
+      for (const p of PROGRESS) expect(morphAt(fresh, p).contours).toEqual(morphAt(plan, p).contours)
+      expect(morphAt(plan, 0.5).glideOutline).toBeUndefined()
     }
   })
 })
