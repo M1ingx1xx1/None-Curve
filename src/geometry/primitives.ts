@@ -26,6 +26,23 @@ export function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t))
 }
 
+/** The distance between two points. */
+export function distance(a: Point, b: Point): number {
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+/** Twice the signed area of the triangle a, b, c; positive when c is left of a→b (y up). */
+export function cross(a: Point, b: Point, c: Point): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+}
+
+/** The length of a closed ring's outline. */
+export function perimeter(points: readonly Point[]): number {
+  let total = 0
+  for (let i = 0; i < points.length; i++) total += distance(points[i], points[(i + 1) % points.length])
+  return total
+}
+
 /** Shoelace area; positive for counter-clockwise contours in y-up font space. */
 export function signedArea(points: readonly Point[]): number {
   let area = 0

@@ -4,6 +4,7 @@
 // (or along whichever direction suits them, see SegmentSweep) and compares only pairs whose boxes
 // overlap, and stops as soon as the answer is known.
 
+import { cross } from './primitives'
 import type { Point } from './types'
 
 export interface Crossing {
@@ -446,10 +447,6 @@ export function lazy<T>(compute: () => T): () => T {
     }
     return value
   }
-}
-
-function cross(a: Point, b: Point, c: Point): number {
-  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }
 
 function orient(a: Point, b: Point, c: Point): number {

@@ -10,7 +10,7 @@
 // linearly between the original and the rectangle.
 
 import { ContourLayout } from './contourLayout'
-import { addsCrossings, countSelfCrossings, lazy } from './crossings'
+import { addsCrossings, countSelfCrossings, lazy, ringBox } from './crossings'
 import { signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 
@@ -119,16 +119,7 @@ interface Box {
 }
 
 function boundingBox(points: readonly Point[]): Box | null {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const p of points) {
-    minX = Math.min(minX, p.x)
-    minY = Math.min(minY, p.y)
-    maxX = Math.max(maxX, p.x)
-    maxY = Math.max(maxY, p.y)
-  }
+  const { minX, minY, maxX, maxY } = ringBox(points)
   const hx = (maxX - minX) / 2
   const hy = (maxY - minY) / 2
   if (!(hx > 1e-6 && hy > 1e-6)) return null
