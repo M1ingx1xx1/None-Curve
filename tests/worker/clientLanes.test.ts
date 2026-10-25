@@ -147,13 +147,13 @@ describe('geometry client lanes', () => {
     expect(answers).toEqual([data])
   })
 
-  it('restarts a worker silent in the ahead lane, blames its ahead glyph, and ends its plans with null', async () => {
+  it('restarts a worker silent in the ahead lane, blames its ahead glyph, and ends its plans as dropped', async () => {
     pool(1)
     const first = workers[0]
-    const answers: (PlanData | null)[] = []
+    const answers: [PlanData | null, boolean | undefined][] = []
     const ended: boolean[] = []
     client.setAheadListener({ results: () => {}, plans: () => {}, ended: (stopped) => ended.push(stopped) })
-    client.requestPlan(shape(1), shape(2), (d) => answers.push(d))
+    client.requestPlan(shape(1), shape(2), (d, dropped) => answers.push([d, dropped]))
     client.sendAhead('f', 1, 0, 0, [glyphs(1, 'k', [7, 8])])
     first.startsGlyph(aheadOf(first)!.requestId, 'k', 7)
     await vi.advanceTimersByTimeAsync(4_000)
@@ -165,7 +165,7 @@ describe('geometry client lanes', () => {
     expect(client.lookup('k', 8)).toBeNull()
     // Blamed in the ahead lane: the canvas store did not get it.
     expect(client.lookup('base', 7)).toBeNull()
-    expect(answers).toEqual([null])
+    expect(answers).toEqual([[null, true]])
     expect(ended).toEqual([true])
     expect(client.isComputing()).toBe(false)
   })

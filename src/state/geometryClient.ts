@@ -235,7 +235,10 @@ export class GeometryClient {
   private workerBytes = new Map<Slot, number>()
   private aheadListener: AheadListener | null = null
   /** Plan requests on their way, by id. */
-  private planRequests = new Map<number, { slot: Slot; sentAt: number; done: (data: PlanData | null) => void }>()
+  private planRequests = new Map<
+    number,
+    { slot: Slot; sentAt: number; done: (data: PlanData | null, dropped?: boolean) => void }
+  >()
   /** The key each polygon held here was computed under (Glide matches a chained plan's `from` by it). */
   private keys = new WeakMap<PolygonGlyph, string>()
   /** Ahead requests from this id on are for the current font (older answers are dropped). */
@@ -527,10 +530,14 @@ export class GeometryClient {
 
   /**
    * Asks a worker to plan a glide (the plan lane): `from` and `to` by value with their side tables. `done` gets the
-   * plan's data (null: change at once; also when its worker was restarted). Returns a cancel, after which `done` is
-   * never called; null when no worker can take it (nothing sent).
+   * plan's data (null: change at once), or `dropped` when its worker was restarted before answering. Returns a cancel,
+   * after which `done` is never called; null when no worker can take it (nothing sent).
    */
-  requestPlan(from: EncodedGlyph, to: EncodedGlyph, done: (data: PlanData | null) => void): (() => void) | null {
+  requestPlan(
+    from: EncodedGlyph,
+    to: EncodedGlyph,
+    done: (data: PlanData | null, dropped?: boolean) => void,
+  ): (() => void) | null {
     const font = this.font
     if (font) this.startWorkers()
     const slots = this.slots.filter((slot) => slot.worker)
@@ -566,7 +573,7 @@ export class GeometryClient {
     slot.plans.clear()
     if (!hadAhead && !dropped.length) return
     queueMicrotask(() => {
-      for (const pending of dropped) pending?.done(null)
+      for (const pending of dropped) pending?.done(null, true)
       if (hadAhead) this.aheadListener?.ended(true)
     })
   }
