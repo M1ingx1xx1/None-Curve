@@ -17,9 +17,9 @@
 //   still quick to draw and export.
 
 import { rdpChain } from './anchors'
-import { countSelfCrossings, lazy } from './crossings'
+import { countSelfCrossings, lazy, ringBox } from './crossings'
 import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
-import { signedArea } from './primitives'
+import { perimeter, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { breakRuns, WARP_LIMITS } from './warp'
 
@@ -242,25 +242,11 @@ function simplifyRing(points: Point[], tolerance: number): Point[] {
 }
 
 function width(points: readonly Point[]): number {
-  let perimeter = 0
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i]
-    const b = points[(i + 1) % points.length]
-    perimeter += Math.hypot(b.x - a.x, b.y - a.y)
-  }
-  return perimeter > 0 ? (2 * Math.abs(signedArea(points))) / perimeter : 0
+  const length = perimeter(points)
+  return length > 0 ? (2 * Math.abs(signedArea(points))) / length : 0
 }
 
 function extent(points: readonly Point[]): number {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const p of points) {
-    minX = Math.min(minX, p.x)
-    maxX = Math.max(maxX, p.x)
-    minY = Math.min(minY, p.y)
-    maxY = Math.max(maxY, p.y)
-  }
-  return Math.max(maxX - minX, maxY - minY)
+  const box = ringBox(points)
+  return Math.max(box.maxX - box.minX, box.maxY - box.minY)
 }

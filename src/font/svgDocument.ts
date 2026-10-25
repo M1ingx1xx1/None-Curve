@@ -38,6 +38,10 @@ export class SvgError extends Error {}
 
 /** Elements read; a file with more is too large to rebuild. */
 export const MAX_SVG_ELEMENTS = 100_000
+/** Most curve and line segments in the artwork; more would make one glyph too slow to rebuild and animate. */
+export const MAX_SVG_SEGMENTS = 30_000
+/** Elements drawn, counting each one a <use> repeats; nested <use> can repeat a small file's elements without end. */
+const MAX_SVG_DRAWN = 1_000_000
 
 interface XmlElement {
   name: string
@@ -170,19 +174,49 @@ interface Rule {
   declarations: Declarations
 }
 
+/** Style rules read; every drawn element is matched against each one. */
+const MAX_STYLE_RULES = 1_000
+
+/** The top-level `selectors { declarations }` blocks of a style sheet, read in one pass; comments and @-rules are dropped. */
+function cssBlocks(text: string): [selectors: string, body: string][] {
+  let css = ''
+  for (let i = 0; i < text.length;) {
+    const open = text.indexOf('/*', i)
+    if (open < 0) {
+      css += text.slice(i)
+      break
+    }
+    css += text.slice(i, open)
+    const close = text.indexOf('*/', open + 2)
+    if (close < 0) break
+    i = close + 2
+  }
+  const blocks: [string, string][] = []
+  for (let i = 0; i < css.length;) {
+    const open = css.indexOf('{', i)
+    if (open < 0) break
+    let depth = 1
+    let close = open + 1
+    for (; close < css.length && depth; close++) depth += css[close] === '{' ? 1 : css[close] === '}' ? -1 : 0
+    if (depth) break
+    // A ";" before the block ends a statement @-rule such as @import.
+    const selectors = css.slice(i, open).split(';').pop()!.replace(/}/g, '').trim()
+    if (!selectors.startsWith('@')) blocks.push([selectors, css.slice(open + 1, close - 1)])
+    i = close
+  }
+  return blocks
+}
+
 /** Rules of <style> elements whose selectors are simple (tag, #id, .class, combined, or *); the rest are ignored. */
 function readStyleSheets(root: XmlElement): Rule[] {
   const rules: Rule[] = []
   const visit = (element: XmlElement) => {
     if (localName(element.name) === 'style') {
-      const css = element.text
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/@[^{;]*(?:;|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})/g, '')
-      for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      for (const [selectors, body] of cssBlocks(element.text)) {
         const declarations: Declarations = {}
-        readDeclarations(match[2], declarations)
+        readDeclarations(body, declarations)
         if (!Object.keys(declarations).length) continue
-        for (const raw of match[1].split(',')) {
+        for (const raw of selectors.split(',')) {
           const selector = raw.trim()
           const simple = /^(\*|[a-zA-Z][\w-]*)?((?:[#.][\w-]+)*)$/.exec(selector)
           if (!selector || !simple) continue
@@ -191,6 +225,10 @@ function readStyleSheets(root: XmlElement): Rule[] {
           const ids = parts.filter((p) => p[0] === '#').map((p) => p.slice(1))
           if (ids.length > 1) continue
           const classes = parts.filter((p) => p[0] === '.').map((p) => p.slice(1))
+          if (rules.length >= MAX_STYLE_RULES)
+            throw new SvgError(
+              `The SVG has more than ${MAX_STYLE_RULES.toLocaleString('en-US')} style rules, too many to rebuild.`,
+            )
           rules.push({
             tag,
             id: ids[0] ?? null,
@@ -286,8 +324,12 @@ export function readSvg(source: string): SvgDocument {
 
   const doc: SvgDocument = { frame, shapes: [], strokedOnly: 0, texts: 0 }
   const using = new Set<XmlElement>()
+  let drawn = 0
+  let segments = 0
 
   const walk = (element: XmlElement, matrix: Matrix, inherited: Paint, isRoot: boolean) => {
+    if (++drawn > MAX_SVG_DRAWN)
+      throw new SvgError('The SVG’s <use> references repeat its shapes too many times to rebuild.')
     const name = localName(element.name)
     if (name === null || NOT_DRAWN.has(name)) return
     if (TEXT.has(name)) {
@@ -391,8 +433,15 @@ export function readSvg(source: string): SvgDocument {
       paint.fill !== 'transparent' &&
       !(parseFloat(paint.fillOpacity) === 0) &&
       contours.length > 0
-    if (filled) doc.shapes.push({ contours: transformContours(contours, m), rule: paint.fillRule })
-    else if (paint.stroke !== 'none') doc.strokedOnly++
+    if (filled) {
+      segments += contours.reduce((n, c) => n + c.segments.length, 0)
+      if (segments > MAX_SVG_SEGMENTS)
+        throw new SvgError(
+          `This SVG has more than ${MAX_SVG_SEGMENTS.toLocaleString('en-US')} segments, too many to rebuild. ` +
+            'Simplify it in your design app first.',
+        )
+      doc.shapes.push({ contours: transformContours(contours, m), rule: paint.fillRule })
+    } else if (paint.stroke !== 'none') doc.strokedOnly++
   }
 
   walk(

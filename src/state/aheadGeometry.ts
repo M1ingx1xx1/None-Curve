@@ -334,12 +334,14 @@ export class PageAhead implements AheadGeometry, PlanSource {
 
   request(job: PlanRequest, done: (plan: MorphPlan | null) => void): () => void {
     const { from, to } = job
-    const cancel = this.client().requestPlan(encodeGlyph(from), encodeGlyph(to), (data) =>
-      done(data ? decodePlan(data, from, to) : null),
+    const here = () => planMorph(settleInBetween(from, to), to)
+    // A plan dropped with its worker is not "change at once": it is paired here, as one no worker can take.
+    const cancel = this.client().requestPlan(encodeGlyph(from), encodeGlyph(to), (data, dropped) =>
+      done(dropped ? here() : data ? decodePlan(data, from, to) : null),
     )
     if (cancel) return cancel
     // No worker can take it: paired here, as without worker plans.
-    done(planMorph(settleInBetween(from, to), to))
+    done(here())
     return () => {}
   }
 

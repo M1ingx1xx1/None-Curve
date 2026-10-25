@@ -28,7 +28,7 @@
 import { insideRing, rayCrosses } from './crossings'
 import { hashInts } from './distortion'
 import { DISSOLVE_LIMITS, dissolveIsOn } from './limits'
-import { clamp, finite, signedArea } from './primitives'
+import { clamp, finite, perimeter, signedArea } from './primitives'
 import type { DissolveParams, Point, PolygonContour, PolygonGlyph } from './types'
 
 /** The grid and the facets, by the noise period (see the header). */
@@ -205,7 +205,7 @@ function inkField(
   const width = box.maxX - box.minX
   const height = box.maxY - box.minY
   const winding = new WindingIndex(contours)
-  const step = Math.max(upm / 60, perimeter(contours) / 4000)
+  const step = Math.max(upm / 60, contours.reduce((n, c) => n + perimeter(c), 0) / 4000)
   const outline = visibleOutline(contours, winding, step, upm / 4000)
 
   // The half stroke (the largest distance from the outline inside the ink), on a coarse grid; it sizes the rest.
@@ -627,7 +627,7 @@ function facetLoops(loops: readonly Point[][], facet: number, cell: number): Poi
   const minWidth = Math.max(FACET.width * facet, FACET.floorWidth)
   const small = faceted.map((loop) => {
     const area = Math.abs(signedArea(loop))
-    return loop.length < 3 || area < minArea || (2 * area) / perimeter([loop]) < minWidth
+    return loop.length < 3 || area < minArea || (2 * area) / perimeter(loop) < minWidth
   })
   return withoutInside(faceted, small)
 }
@@ -1271,14 +1271,6 @@ function bounds(contours: readonly (readonly Point[])[]): Box | null {
     }
   }
   return Number.isFinite(minX) && Number.isFinite(minY) ? { minX, minY, maxX, maxY } : null
-}
-
-function perimeter(contours: readonly (readonly Point[])[]): number {
-  let total = 0
-  for (const c of contours)
-    for (let i = 0; i < c.length; i++)
-      total += Math.hypot(c[(i + 1) % c.length].x - c[i].x, c[(i + 1) % c.length].y - c[i].y)
-  return total
 }
 
 const countVertices = (loops: readonly Point[][]) => loops.reduce((n, loop) => n + loop.length, 0)

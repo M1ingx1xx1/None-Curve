@@ -7,6 +7,7 @@
 
 import type { BreakRule } from '../geometry/curveRuns'
 import { ANGLE_STEPS, THORN_LIMITS } from '../geometry/limits'
+import { clamp } from '../geometry/primitives'
 import type { FlattenMode } from '../geometry/types'
 import type { SquaringScope } from '../geometry/squaring'
 import type { GoogleFontRequest } from '../font/google'
@@ -253,8 +254,6 @@ const CHOICES: Record<string, readonly number[]> = {
   'grid.angleStep': ANGLE_STEPS,
   'artboard.scale': ARTBOARD_LIMITS.scales,
 }
-
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
 /** A saved leaf as the setting at `path` accepts it, or undefined (the default is used). */
 function readLeaf(path: string, value: unknown, fallback: unknown): unknown {

@@ -108,7 +108,18 @@ export interface RenderJob {
   wait?: (ms: number) => Promise<void>
 }
 
-const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+/** A 0 ms pause posts a message instead: a background tab slows timers to one a second or less, not messages. */
+function pause(ms: number): Promise<void> {
+  if (ms > 0) return new Promise((resolve) => setTimeout(resolve, ms))
+  const { port1, port2 } = new MessageChannel()
+  return new Promise((resolve) => {
+    port1.onmessage = () => {
+      port1.close()
+      resolve()
+    }
+    port2.postMessage(null)
+  })
+}
 
 /** Renders every frame of `job.range` into its sink (see the top of the file). Rejects with the signal's reason. */
 export async function renderFrames(job: RenderJob): Promise<void> {

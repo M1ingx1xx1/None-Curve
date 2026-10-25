@@ -27,5 +27,9 @@ describe('Enter in the Google Fonts search', () => {
   it('selects nothing for empty text or an unusable URL', () => {
     expect(choose('')).toBeNull()
     expect(choose('https://example.com/Arvo')).toBeNull()
+    expect(parseFontInput('https://fonts.google.com/specimen/100%')).toEqual({
+      ok: false,
+      error: 'The URL does not contain a valid family name.',
+    })
   })
 })

@@ -11,6 +11,8 @@ import { weightedDistance, type AheadCommit, type AheadWindow } from '../../src/
 import { AheadStore } from '../../src/state/aheadStore'
 import { AHEAD_PAGE_LIMITS, PageAhead } from '../../src/state/aheadGeometry'
 import type { AheadListener, GeometryClient } from '../../src/state/geometryClient'
+import { deriveGeometry } from '../../src/geometry/pipeline'
+import { loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { BASE } from '../helpers/params'
 
 /** A client with one worker and a real ahead store; records what is sent. Results arrive by `arrive`. */
@@ -247,5 +249,22 @@ describe('the page ahead window', () => {
     expect(sent).toHaveLength(3)
     ahead.setPlayhead(500 + AHEAD_PAGE_LIMITS.leaseKeepMs, 10)
     expect(sent).toHaveLength(4)
+  })
+})
+
+describe('plans asked of the workers', async () => {
+  const font = await loadFixture('Roboto')
+  const [o, d] = sampleGlyphs(font, 'OD').map(({ index }) => deriveGeometry(font.getGlyph(index), BASE).polygon)
+  const answering = (data: null, dropped?: boolean) =>
+    ({
+      requestPlan: (_from: unknown, _to: unknown, done: typeof answering) => (done(data, dropped), () => {}),
+    }) as unknown as GeometryClient
+
+  it('pairs a plan its restarted worker dropped here, and keeps a worker\'s "change at once"', () => {
+    const plans: unknown[] = []
+    new PageAhead(() => answering(null, true)).request({ from: o, to: d }, (plan) => plans.push(plan))
+    new PageAhead(() => answering(null)).request({ from: o, to: d }, (plan) => plans.push(plan))
+    expect(plans[0]).not.toBeNull()
+    expect(plans[1]).toBeNull()
   })
 })

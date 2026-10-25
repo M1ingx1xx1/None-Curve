@@ -10,7 +10,7 @@ import { addsCrossings, countSelfCrossings, lazy } from './crossings'
 import { hashInts } from './distortion'
 import { evaluate, type FlattenResult } from './flatten'
 import { RANDOM_ANCHOR_LIMITS } from './limits'
-import { clamp, finite, signedArea } from './primitives'
+import { clamp, distance, finite, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph, RandomAnchorParams, SourceContour, SourceGlyph } from './types'
 
 export interface RandomAnchorStats {
@@ -145,9 +145,9 @@ function drawContour(table: ArcTable, s: Settings, random: () => number): { poin
   for (const position of positions) {
     const p = pointAt(table, ((position % table.total) + table.total) % table.total)
     const last = points[points.length - 1]
-    if (!last || dist(last, p) >= RANDOM_ANCHOR_LIMITS.minGap) points.push(p)
+    if (!last || distance(last, p) >= RANDOM_ANCHOR_LIMITS.minGap) points.push(p)
   }
-  while (points.length > 1 && dist(points[0], points[points.length - 1]) < RANDOM_ANCHOR_LIMITS.minGap) points.pop()
+  while (points.length > 1 && distance(points[0], points[points.length - 1]) < RANDOM_ANCHOR_LIMITS.minGap) points.pop()
   return { points, corners: corners.length }
 }
 
@@ -207,7 +207,7 @@ function buildTable(contour: SourceContour): ArcTable | null {
     pieces.push(piece)
   }
   // Close the contour with a straight line when the last point is not the start.
-  if (dist(prev, contour.start) > 0) pieces.push([prev, contour.start])
+  if (distance(prev, contour.start) > 0) pieces.push([prev, contour.start])
   if (pieces.length === 0) return null
 
   const table: ArcTable = { pieces, s: [], piece: [], t: [], pieceStart: [], total: 0 }
@@ -219,14 +219,14 @@ function buildTable(contour: SourceContour): ArcTable | null {
     for (let k = 0; k < steps; k++) {
       const t = k / steps
       const p = evaluate(piece, t)
-      length += dist(last, p)
+      length += distance(last, p)
       last = p
       table.s.push(length)
       table.piece.push(index)
       table.t.push(t)
     }
     const end = piece[piece.length - 1]
-    length += dist(last, end)
+    length += distance(last, end)
     // Final sample of the piece at t = 1, so interpolation inside the piece covers its whole length.
     table.s.push(length)
     table.piece.push(index)
@@ -278,8 +278,4 @@ function mulberry32(seed: number): () => number {
 function unit(a: Point, b: Point): Point | null {
   const l = Math.hypot(b.x - a.x, b.y - a.y)
   return l < 1e-9 ? null : { x: (b.x - a.x) / l, y: (b.y - a.y) / l }
-}
-
-function dist(a: Point, b: Point): number {
-  return Math.hypot(b.x - a.x, b.y - a.y)
 }

@@ -13,7 +13,7 @@
 import { ContourLayout } from './contourLayout'
 import { addsCrossings, countSelfCrossings, findRingCrossings, findSelfCrossings, lazy } from './crossings'
 import { DISTORTION_LIMITS } from './limits'
-import { clamp, finite, signedArea } from './primitives'
+import { clamp, distance, finite, signedArea } from './primitives'
 import type { DistortionParams, Point, PolygonContour, PolygonGlyph } from './types'
 
 /** Few anchors: which vertices may move, how many do, and how far. */
@@ -152,8 +152,8 @@ function distortContour(
 
   // Arc length at each vertex, measured from the start vertex; the closing edge counts too.
   const arc: number[] = [0]
-  for (let i = 1; i < n; i++) arc.push(arc[i - 1] + dist(points[i - 1], points[i]))
-  const total = arc[n - 1] + dist(points[n - 1], points[0])
+  for (let i = 1; i < n; i++) arc.push(arc[i - 1] + distance(points[i - 1], points[i]))
+  const total = arc[n - 1] + distance(points[n - 1], points[0])
 
   // A whole number of noise cells around the loop makes the noise periodic, so there is no seam
   // where the contour closes. Frequency is in noise features per 1000 font units of outline.
@@ -284,7 +284,7 @@ function pickMovers(polygon: PolygonGlyph, seed: number): number[][] {
     }
     points.forEach((p, index) => {
       const q = points[(index + 1) % n]
-      if (dist(p, q) >= longEdge) offer(contour, index + 0.5, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
+      if (distance(p, q) >= longEdge) offer(contour, index + 0.5, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
     })
   })
   candidates.sort((a, b) => a.rank - b.rank || a.contour - b.contour || a.at - b.at)
@@ -398,7 +398,7 @@ function findDamage(
   layout: ContourLayout,
 ): number[] | 'all' | null {
   const n = after.length
-  for (let i = 0; i < n; i++) if (dist(after[i], after[(i + 1) % n]) < 1e-6) return 'all'
+  for (let i = 0; i < n; i++) if (distance(after[i], after[(i + 1) % n]) < 1e-6) return 'all'
   const a0 = signedArea(before)
   const a1 = signedArea(after)
   if (Math.abs(a1) < 1e-6 || Math.sign(a1) !== Math.sign(a0)) return 'all'
@@ -419,8 +419,8 @@ function findDamage(
 function soften(points: readonly Point[], weights: Float64Array, vertices: readonly number[], radius: number) {
   const n = points.length
   const arc = new Float64Array(n)
-  for (let i = 1; i < n; i++) arc[i] = arc[i - 1] + dist(points[i - 1], points[i])
-  const total = arc[n - 1] + dist(points[n - 1], points[0])
+  for (let i = 1; i < n; i++) arc[i] = arc[i - 1] + distance(points[i - 1], points[i])
+  const total = arc[n - 1] + distance(points[n - 1], points[0])
   const marks = [...new Set(vertices)].map((v) => arc[v]).sort((a, b) => a - b)
   for (let i = 0; i < n; i++) {
     // Distance along the closed outline to the nearest marked vertex: the marks on either side of
@@ -477,10 +477,4 @@ function periodicNoise(t: number, cells: number, seed: number, contour: number, 
   const b = lattice((((i + 1) % cells) + cells) % cells, seed, contour, channel)
   const u = f * f * f * (f * (f * 6 - 15) + 10) // quintic fade
   return a + (b - a) * u
-}
-
-// ---- Helpers ----
-
-function dist(a: Point, b: Point): number {
-  return Math.hypot(b.x - a.x, b.y - a.y)
 }
