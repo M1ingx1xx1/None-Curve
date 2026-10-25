@@ -153,7 +153,7 @@ After choosing a font, set:
 
 - **Weight** — how bold it is (400 is regular, 700 is bold). This works for every font, including "variable" fonts that keep all their weights in one file.
 - **Italic** — if the font has an italic version.
-- **Character subset** — Google splits fonts by language (for example `latin`, `latin-ext`, `cyrillic`). Only one subset is loaded at a time, so letters from other languages may be missing.
+- **Character subset** — Google splits fonts by language (for example `latin`, `latin-ext`, `cyrillic`). **All** (the default) loads every language the font has, so all its letters are there. Pick one subset for a smaller download. Very large fonts, such as Chinese or Japanese ones, are also cut into numbered parts (`[0]`, `[1]`, …); **All** does not include those, so pick a numbered part to get those characters.
 
 Click **Load font**. Once it has downloaded, the font name appears in the tools area. The next time you open the app, the same font is downloaded again by itself.
 
@@ -186,6 +186,7 @@ If a new font fails to load, the previous font stays on screen.
 - To add a symbol you cannot type easily, click it in the **Glyphs** tab (bottom left). It goes in where your cursor is in the text box (or at the end, if you have not clicked into the box yet). If you selected some text, the symbol replaces it.
 - If you make the Glyphs list narrow, it shows only the characters, without their codes, so more fit in. Make it wider to see the codes again (or hover over a character).
 - The **search box** above the Glyphs list finds characters by the character itself (`A`), its code (`U+0041`), or part of its name (`arrow`, `dieresis`).
+- The list shows 400 characters at first. When the font has more, **Show more** below the list adds the next 400.
 
 ---
 
@@ -790,6 +791,8 @@ Set Curve flattening to **Adaptive** with a small **Tolerance**, and turn off Sq
 
 Click **Export…** in the top-right corner. Nothing is downloaded until you press a download button (a microphone video is saved when its take ends).
 
+**File name**, under the formats, names the file you save. Leave it empty and the app picks a name from the font (shown greyed out in the box, for example `Roboto-Regular-text`). The ending (`.svg`, `.png`, `.otf`, `.mp4` or `.webm`, `.json`) is added for you and shown beside the box, so one name works for every format: type `poster` and you get `poster.svg`, `poster.png` and so on. Any language works; characters a computer can't use in a file name, such as `/` or `:`, become `-`. The name stays while the page is open. A video recorded from the Sound tab's **Record** box uses the name the app picks.
+
 SVG, PNG, and font exports always use your slider settings and seeds. If the **Sound** tab is moving the letters, press **Freeze** first to export the moment you see. A video is different: it shows the letters as they move with the sound (see [As a video](#as-a-video)).
 
 ### As an image (SVG or PNG)
@@ -893,7 +896,7 @@ It goes where the text cursor last was. Click in the text box where you want it,
 That setting would have made part of a letter collapse, cross over itself, or run into another part of the letter (such as its hole), so the app kept the last good version for that part. Try a gentler value.
 
 **A letter shows as a dashed red box.**
-The font does not contain that character, or (for Google Fonts) it is in another character subset. Load a different subset or font.
+The font does not contain that character, or (for Google Fonts) it is in a subset you did not load. Load the font again with **Character subset** set to **All**, or pick another font.
 
 **Will my results change if I reload the page?**
 No. Your text, settings, Sound mappings, and the seven sound knobs are kept in this browser and come back when the page opens again, and the same settings and seed always give the same result. A Google font is downloaded again by itself; a font from your computer has to be imported again. See [Coming back later](#coming-back-later). To keep a result for sure, export it.

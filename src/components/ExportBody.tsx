@@ -12,7 +12,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react'
-import { downloadFile, safeFileName } from '../export/download'
+import { downloadFile, exportFileName, safeFileName } from '../export/download'
 import { runFontExport } from '../export/fontExportClient'
 import {
   FONT_BOX_LIMITS,
@@ -83,7 +83,7 @@ type Status =
   | { kind: 'cancelled' }
   | { kind: 'error'; message: string }
 
-export type BuiltFont = { result: FontExportResult; key: string; fileName: string }
+export type BuiltFont = { result: FontExportResult; key: string }
 
 /** What the dialog keeps from one opening to the next: the format, the export options, the font's new name and the last build. */
 export interface Kept {
@@ -97,6 +97,9 @@ export interface Kept {
   setNaming: (naming: FontNaming) => void
   built: BuiltFont | null
   setBuilt: Dispatch<SetStateAction<BuiltFont | null>>
+  /** The file name typed for every export ('' for each one's generated name). */
+  fileName: string
+  setFileName: (name: string) => void
 }
 
 interface ExportBodyProps extends Omit<ExportDialogProps, 'open'> {
@@ -293,6 +296,8 @@ export default function ExportBody(props: ExportBodyProps) {
     setNaming,
     built,
     setBuilt,
+    fileName: typedName,
+    setFileName,
   } = kept
   // While Sound drives the letters the canvas shows live shapes, but exports use the sliders (SOUND_PLAN §9).
   const { driving: soundLive } = useLiveStatus()
@@ -301,6 +306,7 @@ export default function ExportBody(props: ExportBodyProps) {
   const format: Format = !font ? 'config' : artwork && chosen === 'otf' ? 'svg' : chosen
   // The microphone has no file to render: its video is recorded live (VideoExport); a file's is rendered (VideoRender).
   const micVideo = useSteadySoundState().source === 'microphone'
+  const { options: recordOptions } = useRecording()
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
   // Results that arrive while the dialog is open refine the estimate.
@@ -354,6 +360,42 @@ export default function ExportBody(props: ExportBodyProps) {
       : 'main view'
   }${fill ? '' : ', outlines only'}`
 
+  const imageParts = () => (font ? [font.familyName, font.styleName, usePreviewLook ? 'preview' : 'text'] : [])
+  const configParts = (config: ReturnType<typeof readConfig>) => [
+    'none-curve',
+    font?.familyName ?? (config.font?.kind === 'google' ? config.font.family : ''),
+    'config',
+  ]
+  // The generated name and extension of the chosen format, shown in the File name field.
+  const [generatedParts, extension] =
+    format === 'svg' || format === 'png'
+      ? [imageParts(), format]
+      : format === 'otf'
+        ? [[naming.familyName, naming.styleName], 'otf']
+        : format === 'video'
+          ? [
+              [font?.familyName ?? '', font?.styleName ?? '', recordOptions.previewLook ? 'video-preview' : 'video'],
+              recordOptions.format,
+            ]
+          : [configParts(readConfig()), 'json']
+  const generated = safeFileName(generatedParts, extension).slice(0, -extension.length - 1)
+  const fileField = (
+    <div className="field">
+      <label htmlFor="export-file-name">File name</label>
+      <div className="export-file-name">
+        <input
+          id="export-file-name"
+          type="text"
+          spellCheck={false}
+          value={typedName}
+          placeholder={generated}
+          onChange={(e) => setFileName(e.target.value)}
+        />
+        <span>.{extension}</span>
+      </div>
+    </div>
+  )
+
   const exportImage = async () => {
     if (!font) return
     const forPng = format === 'png'
@@ -385,9 +427,9 @@ export default function ExportBody(props: ExportBodyProps) {
         { fontName, subject, pipeline },
         look(layout.unitsPerPx),
       )
-      const parts = [font.familyName, font.styleName, usePreviewLook ? 'preview' : 'text']
+      const parts = imageParts()
       if (!forPng) {
-        const fileName = safeFileName(parts, 'svg')
+        const fileName = exportFileName(typedName, parts, 'svg')
         downloadFile(svg.svg, fileName, 'image/svg+xml')
         setStatus({
           kind: 'done',
@@ -398,7 +440,7 @@ export default function ExportBody(props: ExportBodyProps) {
       setStatus({ kind: 'working', message: 'Drawing the PNG…' })
       const png = await svgToPng(svg.svg, size.width, size.height, pngWidth)
       controller.signal.throwIfAborted()
-      const fileName = safeFileName(parts, 'png')
+      const fileName = exportFileName(typedName, parts, 'png')
       downloadFile(png, fileName, 'image/png')
       setStatus({ kind: 'done', message: `Saved ${fileName}: ${pngWidth} × ${pngHeight} px, ${lookName}.` })
     } catch (error) {
@@ -441,7 +483,7 @@ export default function ExportBody(props: ExportBodyProps) {
         throw new Error('The browser’s font engine rejected the generated file, so it is not offered for download.')
       }
       if (controller.signal.aborted) return
-      setBuilt({ result, key: buildKey, fileName: safeFileName([naming.familyName, naming.styleName], 'otf') })
+      setBuilt({ result, key: buildKey })
       setStatus({ kind: 'idle' })
     } catch (error) {
       if (controller.signal.aborted) {
@@ -456,16 +498,16 @@ export default function ExportBody(props: ExportBodyProps) {
 
   const exportConfig = () => {
     const config = readConfig()
-    const family = font?.familyName ?? (config.font?.kind === 'google' ? config.font.family : '')
-    const fileName = safeFileName(['none-curve', family, 'config'], 'json')
+    const fileName = exportFileName(typedName, configParts(config), 'json')
     downloadFile(serializeConfig(config), fileName, 'application/json')
     setStatus({ kind: 'done', message: `Saved ${fileName}.` })
   }
 
+  const fontFileName = exportFileName(typedName, [naming.familyName, naming.styleName], 'otf')
   const downloadFont = () => {
     if (!currentBuild) return
-    downloadFile(currentBuild.result.bytes, currentBuild.fileName, 'font/otf')
-    setStatus({ kind: 'done', message: `Saved ${currentBuild.fileName}.` })
+    downloadFile(currentBuild.result.bytes, fontFileName, 'font/otf')
+    setStatus({ kind: 'done', message: `Saved ${fontFileName}.` })
   }
 
   const counts: Record<GlyphSet, string> = {
@@ -514,6 +556,7 @@ export default function ExportBody(props: ExportBodyProps) {
       <p className="gf-intro">
         Load a font to export SVG, PNG, a font file or a video. The config can be saved without one.
       </p>
+      {fileField}
       {configSection}
       {statusLine}
     </>
@@ -555,6 +598,7 @@ export default function ExportBody(props: ExportBodyProps) {
             </label>
           ))}
       </fieldset>
+      {fileField}
 
       {pending && format !== 'video' && format !== 'config' && (
         <p className="font-warning">Parameters are still updating; export waits for the latest result.</p>
@@ -762,9 +806,8 @@ export default function ExportBody(props: ExportBodyProps) {
           {currentBuild && (
             <div className="export-result" role="status">
               <p>
-                Verified {currentBuild.fileName}: {currentBuild.result.glyphCount} glyphs,{' '}
-                {currentBuild.result.characterCount} characters, {currentBuild.result.contourCount} contours. Reopened
-                with fontkit (mappings, advances,
+                Verified {fontFileName}: {currentBuild.result.glyphCount} glyphs, {currentBuild.result.characterCount}{' '}
+                characters, {currentBuild.result.contourCount} contours. Reopened with fontkit (mappings, advances,
                 {currentBuild.result.kerning ? ' kerning,' : ''} line spacing, every contour point and direction) and
                 accepted by the browser’s font engine.
               </p>
@@ -811,6 +854,7 @@ export default function ExportBody(props: ExportBodyProps) {
           fill={fill}
           params={params}
           paramsKey={paramsKey}
+          fileName={typedName}
         />
       )}
 
@@ -822,7 +866,7 @@ export default function ExportBody(props: ExportBodyProps) {
           onRecord={() => {
             // In the same click: the dialog closes and the take starts the sound (play() needs the click).
             onClose()
-            getRecorder().start()
+            getRecorder().start(typedName)
           }}
         />
       )}

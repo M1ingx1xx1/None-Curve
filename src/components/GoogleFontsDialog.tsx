@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { errorKindLabel, isAbortError, toFontLoadError, type FontLoadError } from '../font/errors'
 import {
+  ALL_SUBSETS,
   curatedFamilies,
   defaultSubset,
   defaultWeight,
   fetchGoogleFamily,
+  namedSubsets,
   type GoogleFamilyInfo,
   type GoogleFontRequest,
 } from '../font/google'
@@ -44,7 +46,7 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
   const [familyState, setFamilyState] = useState<FamilyState>({ kind: 'idle' })
   const [italic, setItalic] = useState(false)
   const [weight, setWeight] = useState(400)
-  const [subset, setSubset] = useState('latin')
+  const [subset, setSubset] = useState(ALL_SUBSETS)
   /** What a pasted URL or typed name asked for; null when a curated family was clicked. */
   const [requested, setRequested] = useState<ParsedFontRequest | null>(null)
   /** Explains when the requested style could not be loaded as asked. */
@@ -319,13 +321,17 @@ export default function GoogleFontsDialog({ open, onClose, onLoad }: GoogleFonts
                 <div className="field">
                   <label htmlFor="gf-subset">Character subset</label>
                   <select id="gf-subset" value={subset} onChange={(e) => setSubset(e.target.value)}>
+                    {namedSubsets(info).length > 0 && <option value={ALL_SUBSETS}>All</option>}
                     {info.subsets.map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
                     ))}
                   </select>
-                  <p className="field-hint">Google serves each subset as a separate file; one subset is loaded.</p>
+                  <p className="field-hint">
+                    Google serves each subset as a separate file. All loads every named one as one font (not the
+                    numbered slices of large fonts).
+                  </p>
                 </div>
               </>
             )}

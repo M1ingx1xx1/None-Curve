@@ -26,6 +26,8 @@ export interface VideoRenderProps {
   /** The sliders' geometry parameters and their key. */
   params: GeometryParams
   paramsKey: string
+  /** The file name the user typed, or '' for the generated one. */
+  fileName: string
 }
 
 type Status =
@@ -107,7 +109,8 @@ export default function VideoRender(props: VideoRenderProps) {
         audio: options.audio,
         previewLook: options.previewLook ? { look: props.previewLook, scale: props.previewScale } : null,
         fill: props.fill,
-        fileName: (format) => videoFileName(font.familyName, font.styleName, options.previewLook, format),
+        fileName: (format) =>
+          videoFileName(font.familyName, font.styleName, options.previewLook, format, props.fileName),
         signal: controller.signal,
         onProgress: (done) => setStatus({ kind: 'working', done }),
       })

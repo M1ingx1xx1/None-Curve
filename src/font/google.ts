@@ -17,6 +17,7 @@
 import { FontLoadError, isAbortError } from './errors'
 import type { LoadedFont } from './model'
 import { parseFont } from './parse'
+import { bundleSubsets } from './subsets'
 
 export interface CuratedFamily {
   family: string
@@ -159,8 +160,17 @@ function summarize(family: string, faces: GoogleFace[]): GoogleFamilyInfo {
   }
 }
 
+/** The subset value that loads every named subset as one font (subsets.ts). */
+export const ALL_SUBSETS = 'all'
+
+/** Subsets Google names (latin, cyrillic, …); not the numbered slices it cuts large CJK fonts into ("[12]"). */
+export function namedSubsets(info: Pick<GoogleFamilyInfo, 'subsets'>): string[] {
+  return info.subsets.filter((s) => !/^\[\d+\]$/.test(s))
+}
+
+/** Every named subset when there are any (the whole font), else the first slice. */
 export function defaultSubset(info: GoogleFamilyInfo): string {
-  return info.subsets.includes('latin') ? 'latin' : info.subsets[0]
+  return namedSubsets(info).length ? ALL_SUBSETS : info.subsets[0]
 }
 
 export function defaultWeight(weights: number[]): number {
@@ -182,39 +192,32 @@ async function fetchStaticFace(request: GoogleFontRequest, signal: AbortSignal):
   }
 }
 
-/** Downloads the font binary for one face and parses it into the shared font model. */
+/**
+ * Downloads the font binary for one face (or, with "all", one file per named subset, bundled) and parses it into the
+ * shared font model.
+ */
 export async function loadGoogleFont(request: GoogleFontRequest, signal: AbortSignal): Promise<LoadedFont> {
   const info = await fetchGoogleFamily(request.family, signal)
   const style: FontStyle = request.italic ? 'italic' : 'normal'
-  const matches = (f: GoogleFace) => f.style === style && f.weight === request.weight && f.subset === request.subset
-  let face = info.faces.find(matches)
-  if (face && info.variable) face = (await fetchStaticFace(request, signal)).find(matches) ?? face
-  if (!face) {
+  const wanted = request.subset === ALL_SUBSETS ? namedSubsets(info) : [request.subset]
+  const matches = (f: GoogleFace) => f.style === style && f.weight === request.weight && wanted.includes(f.subset)
+  let faces = info.faces.filter(matches)
+  if (faces.length && info.variable) {
+    const statics = (await fetchStaticFace(request, signal)).filter(matches)
+    faces = faces.map((face) => statics.find((s) => s.subset === face.subset) ?? face)
+  }
+  if (!faces.length) {
     throw new FontLoadError(
       'api',
       `${request.family} has no ${style} ${request.weight} face in the "${request.subset}" subset.`,
     )
   }
+  // The main subset first: its names and metrics are the font's.
+  faces.sort((a, b) => Number(b.subset === 'latin') - Number(a.subset === 'latin'))
 
-  let response: Response
-  try {
-    response = await fetch(face.url, { signal })
-  } catch (error) {
-    if (isAbortError(error)) throw error
-    throw new FontLoadError('download', 'Could not download the font file from fonts.gstatic.com.')
-  }
-  if (!response.ok) {
-    throw new FontLoadError('download', `fonts.gstatic.com returned HTTP ${response.status} for the font file.`)
-  }
-
-  let bytes: Uint8Array
-  try {
-    bytes = new Uint8Array(await response.arrayBuffer())
-  } catch (error) {
-    if (isAbortError(error)) throw error
-    throw new FontLoadError('download', 'The font download was interrupted.')
-  }
+  const files = await Promise.all(faces.map((face) => download(face.url, signal)))
   signal.throwIfAborted()
+  const bytes = files.length === 1 ? files[0] : bundleSubsets(files)
 
   return parseFont(
     bytes,
@@ -224,10 +227,29 @@ export async function loadGoogleFont(request: GoogleFontRequest, signal: AbortSi
       weight: request.weight,
       italic: request.italic,
       subset: request.subset,
-      version: /\/(v\d+)\//.exec(face.url)?.[1] ?? null,
-      fileUrl: face.url,
+      version: /\/(v\d+)\//.exec(faces[0].url)?.[1] ?? null,
+      fileUrl: faces[0].url,
       byteSize: bytes.byteLength,
     },
     signal,
   )
+}
+
+async function download(url: string, signal: AbortSignal): Promise<Uint8Array> {
+  let response: Response
+  try {
+    response = await fetch(url, { signal })
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    throw new FontLoadError('download', 'Could not download the font file from fonts.gstatic.com.')
+  }
+  if (!response.ok) {
+    throw new FontLoadError('download', `fonts.gstatic.com returned HTTP ${response.status} for the font file.`)
+  }
+  try {
+    return new Uint8Array(await response.arrayBuffer())
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    throw new FontLoadError('download', 'The font download was interrupted.')
+  }
 }

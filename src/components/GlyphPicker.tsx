@@ -9,7 +9,8 @@ interface GlyphPickerProps {
   onInsert: (glyph: GlyphRef, text: string) => void
 }
 
-const MAX_RESULTS = 400
+/** Cells shown at first, and added by each Show more (a font can map tens of thousands of characters). */
+const PAGE = 400
 
 /** Control characters (U+0000, carriage return, …) that some fonts map but that are not text to insert. */
 const CONTROL = /\p{Cc}/u
@@ -77,6 +78,7 @@ const GlyphCell = memo(function GlyphCell({
 function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
+  const [limit, setLimit] = useState(PAGE)
   const deferredQuery = useDeferredValue(query)
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -86,7 +88,7 @@ function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
   )
   const parsed = useMemo(() => parseGlyphQuery(deferredQuery), [deferredQuery])
   const results = useMemo(() => filterGlyphs(source, parsed), [source, parsed])
-  const shown = results.slice(0, MAX_RESULTS)
+  const shown = results.slice(0, limit)
   const focusIndex = Math.min(active, Math.max(0, shown.length - 1))
 
   const onGridKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -136,12 +138,13 @@ function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
         onChange={(e) => {
           setQuery(e.target.value)
           setActive(0)
+          setLimit(PAGE)
         }}
         aria-describedby="glyph-search-count"
       />
       <p id="glyph-search-count" className="field-hint">
-        {results.length > MAX_RESULTS
-          ? `Showing ${MAX_RESULTS} of ${results.length}. Refine the search to see more.`
+        {results.length > shown.length
+          ? `Showing ${shown.length} of ${results.length}.`
           : `${results.length} ${results.length === 1 ? 'character' : 'characters'}`}
       </p>
 
@@ -167,6 +170,11 @@ function GlyphPicker({ font, onInsert }: GlyphPickerProps) {
             />
           ))}
         </div>
+      )}
+      {!emptyMessage && results.length > shown.length && (
+        <button type="button" className="button-small glyph-more" onClick={() => setLimit(limit + PAGE)}>
+          Show more
+        </button>
       )}
     </section>
   )

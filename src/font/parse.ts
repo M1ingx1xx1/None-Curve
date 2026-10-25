@@ -17,6 +17,7 @@ import type {
   VariationAxis,
 } from './model'
 import { sniffFontFormat } from './sniff'
+import { composeSubsets, unbundleSubsets } from './subsets'
 import { looksLikeSvg, parseSvgFont } from './svgFont'
 import { woff2ToTrueType } from './woff2'
 
@@ -25,6 +26,13 @@ let loadId = 0
 export async function parseFont(bytes: Uint8Array, source: FontSource, signal: AbortSignal): Promise<LoadedFont> {
   // An SVG file is an artwork of one glyph (svgFont.ts); the geometry worker reads it the same way.
   if (looksLikeSvg(bytes)) return parseSvgFont(bytes, source)
+  // A Google font in every subset (subsets.ts): each file parsed as usual, then made one font.
+  const subsets = unbundleSubsets(bytes)
+  if (subsets) {
+    const parts: LoadedFont[] = []
+    for (const file of subsets) parts.push(await parseFont(file, source, signal))
+    return composeSubsets(parts, bytes, `font-${++loadId}`)
+  }
   let format = sniffFontFormat(bytes)
   const fontkit = await import('fontkit')
   signal.throwIfAborted()
