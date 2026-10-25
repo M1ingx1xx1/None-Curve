@@ -4,6 +4,8 @@
 // Everything is filled by the nonzero rule downstream, so each shape's contours are turned to fill the same that way:
 // an even-odd shape by how deep each contour is nested, a nonzero one so that its ink winds positively.
 
+import { insideRing, ringBox } from '../geometry/crossings'
+import { signedArea } from '../geometry/primitives'
 import type { GlyphRef, Point, SourceContour, SourceGlyph, SourceSegment } from '../geometry/types'
 import { FontLoadError } from './errors'
 import { ARTWORK_CODE_POINT, type FontInfo, type FontMetrics, type FontSource, type LoadedFont } from './model'
@@ -174,23 +176,6 @@ function sample({ start, segments }: SourceContour): Point[] {
   return points
 }
 
-function signedArea(points: Point[]): number {
-  let area = 0
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++)
-    area += (points[j].x - points[i].x) * (points[j].y + points[i].y)
-  return area / 2
-}
-
-function contains(points: Point[], p: Point): boolean {
-  let inside = false
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[i]
-    const b = points[j]
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
-  return inside
-}
-
 /** The same outline drawn the other way round (closed explicitly, so the reversed contour ends where it starts). */
 export function reverseContour({ start, segments }: SourceContour): SourceContour {
   const last = segments[segments.length - 1]?.to ?? start
@@ -219,9 +204,16 @@ export function orient(contours: SourceContour[], rule: SvgShape['rule']): Sourc
     const total = areas.reduce((a, b) => a + b, 0)
     return total < 0 ? contours.map(reverseContour) : contours
   }
+  const boxes = polygons.map(ringBox)
   return contours.map((contour, i) => {
     let depth = 0
-    for (let j = 0; j < contours.length; j++) if (j !== i && contains(polygons[j], polygons[i][0])) depth++
+    const p = polygons[i][0]
+    for (let j = 0; j < contours.length; j++) {
+      if (j === i) continue
+      const box = boxes[j]
+      if (p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY && insideRing(p, polygons[j]))
+        depth++
+    }
     const wanted = depth % 2 === 0 ? 1 : -1
     return Math.sign(areas[i]) === -wanted ? reverseContour(contour) : contour
   })

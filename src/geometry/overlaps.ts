@@ -19,7 +19,7 @@
 
 import { relate } from './contourLayout'
 import { findRingCrossings, findSelfCrossings, insideRing, RingIndex, ringBox, SegmentSweep } from './crossings'
-import { distanceToSegment, signedArea } from './primitives'
+import { distanceToSegment, perimeter, signedArea } from './primitives'
 import type { Point, PolygonContour, PolygonGlyph } from './types'
 import { curveLikeRuns, WARP_LIMITS } from './warp'
 
@@ -1024,14 +1024,4 @@ function hasRoom(points: readonly Point[], radius: number): boolean {
     if (clear && insideRing(centre, points)) return true
   }
   return false
-}
-
-function perimeter(points: readonly Point[]): number {
-  let total = 0
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i]
-    const b = points[(i + 1) % points.length]
-    total += Math.hypot(b.x - a.x, b.y - a.y)
-  }
-  return total
 }

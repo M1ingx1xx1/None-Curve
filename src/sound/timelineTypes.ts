@@ -90,13 +90,6 @@ type NumericField = Exclude<FeatureField, 'onset' | 'silent'>
 const PACKS_EVERY_FIELD: [Exclude<keyof FeatureFrame, 'time' | FeatureField>] extends [never] ? true : never = true
 void PACKS_EVERY_FIELD
 
-/** A run of frames on the grid: frame k is at media ms (start + k)·1000/gridHz; values row-major, Float64. */
-export interface FeatureColumns {
-  start: number
-  count: number
-  values: Float64Array
-}
-
 /** Writes `frame` into row `row` of `into` (FEATURE_STRIDE values); -Infinity (digital silence) is kept as is. */
 export function packFrame(frame: FeatureFrame, into: Float64Array, row: number): void {
   const at = row * FEATURE_STRIDE

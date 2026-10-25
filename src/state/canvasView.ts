@@ -35,8 +35,6 @@ export function createPanZoomStore() {
   }
 }
 
-export type PanZoomStore = ReturnType<typeof createPanZoomStore>
-
 /** The result canvas's zoom and pan. */
 export const panZoomStore = createPanZoomStore()
 

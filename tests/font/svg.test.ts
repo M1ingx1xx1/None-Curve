@@ -221,6 +221,13 @@ describe('the artwork as a font of one glyph', () => {
     expect(Math.min(...ends(bare.contours[0]).map((p) => p.y))).toBeCloseTo(0)
   })
 
+  it('nests thousands of even-odd subpaths quickly, testing only those whose boxes hold the point', () => {
+    const d = Array.from({ length: 7000 }, (_, i) => `M${(i % 100) * 3} ${Math.floor(i / 100) * 3}h2v2h-2z`).join('')
+    const started = performance.now()
+    svgFont(`<path fill-rule="evenodd" d="${d}"/>`, 'viewBox="0 0 300 210"')
+    expect(performance.now() - started).toBeLessThan(600)
+  })
+
   it('turns even-odd holes against their outlines, and a nonzero shape so its ink winds positively', () => {
     const ring = svgFont('<path fill-rule="evenodd" d="M0 0H100V100H0Z M25 25H75V75H25Z"/>').getGlyph(1)
     expect(Math.sign(area(ring.contours[0]))).toBe(1)

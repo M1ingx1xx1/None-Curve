@@ -377,6 +377,3 @@ export interface DerivedGeometry {
   distortion: DistortionStats
   experimental: ExperimentalStats
 }
-
-/** Geometry pipeline entry point: source curves + params → canonical polygon. See pipeline.ts. */
-export type GeometryPipeline = (source: SourceGlyph, params: GeometryParams) => DerivedGeometry

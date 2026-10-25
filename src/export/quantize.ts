@@ -1,7 +1,7 @@
 import { simplifyClosed } from '../geometry/anchors'
 import { ContourLayout } from '../geometry/contourLayout'
 import { findRingCrossings, findSelfCrossings, ringBox, type Crossing } from '../geometry/crossings'
-import { distanceToSegment, signedArea } from '../geometry/primitives'
+import { cross, distanceToSegment, signedArea } from '../geometry/primitives'
 import type { Point, PolygonGlyph } from '../geometry/types'
 
 export class ExportError extends Error {
@@ -375,8 +375,4 @@ function addedCrossings(
 ): Crossing[] {
   if (!found.length) return found
   return found.filter((c) => (allowNearTouch ? !original.explains(c.at) : !original.hasCrossingNear(c.at)))
-}
-
-function cross(a: Point, b: Point, c: Point): number {
-  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }
