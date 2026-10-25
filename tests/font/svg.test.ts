@@ -223,9 +223,17 @@ describe('the artwork as a font of one glyph', () => {
 
   it('nests thousands of even-odd subpaths quickly, testing only those whose boxes hold the point', () => {
     const d = Array.from({ length: 7000 }, (_, i) => `M${(i % 100) * 3} ${Math.floor(i / 100) * 3}h2v2h-2z`).join('')
-    const started = performance.now()
-    svgFont(`<path fill-rule="evenodd" d="${d}"/>`, 'viewBox="0 0 300 210"')
-    expect(performance.now() - started).toBeLessThan(600)
+    // Timed against the same path under nonzero (no nesting test), so a slow machine slows both: about 6 times as
+    // long with the box test, 23 times without.
+    const time = (rule: string) => {
+      const started = performance.now()
+      svgFont(`<path fill-rule="${rule}" d="${d}"/>`, 'viewBox="0 0 300 210"')
+      return performance.now() - started
+    }
+    time('nonzero')
+    const nonzero = Math.min(time('nonzero'), time('nonzero'))
+    const evenodd = Math.min(time('evenodd'), time('evenodd'))
+    expect(evenodd).toBeLessThan(12 * nonzero + 100)
   })
 
   it('turns even-odd holes against their outlines, and a nonzero shape so its ink winds positively', () => {
