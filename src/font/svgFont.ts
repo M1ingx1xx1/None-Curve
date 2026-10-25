@@ -11,8 +11,6 @@ import { readSvg, SvgError, type SvgShape } from './svgDocument'
 
 /** Largest SVG file read. */
 export const MAX_SVG_BYTES = 10 * 1024 * 1024
-/** Most curve and line segments in the artwork; more would make one glyph too slow to rebuild and animate. */
-export const MAX_SVG_SEGMENTS = 30_000
 /** The artwork's frame height, in font units. */
 export const ARTWORK_HEIGHT = 1000
 
@@ -50,12 +48,6 @@ export function parseSvgFont(bytes: Uint8Array, source: FontSource): LoadedFont 
       throw fail('This SVG only has text. Convert the text to outlines in your design app and import it again.')
     throw fail('This SVG has no filled shapes (paths, rectangles, circles, ellipses or polygons) to rebuild.')
   }
-  const segments = doc.shapes.reduce((n, s) => n + s.contours.reduce((m, c) => m + c.segments.length, 0), 0)
-  if (segments > MAX_SVG_SEGMENTS)
-    throw fail(
-      `This SVG has ${segments.toLocaleString('en-US')} segments; up to ${MAX_SVG_SEGMENTS.toLocaleString('en-US')} ` +
-        'can be rebuilt. Simplify it in your design app first.',
-    )
 
   const bounds = boundsOf(doc.shapes.flatMap((s) => s.contours))
   const frame = doc.frame ?? (bounds.height > 0 ? bounds : null)

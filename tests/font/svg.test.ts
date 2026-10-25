@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest'
 import { FontLoadError } from '../../src/font/errors'
 import { ARTWORK_CODE_POINT, isArtwork, type FontSource } from '../../src/font/model'
 import { parseFont } from '../../src/font/parse'
-import { readSvg } from '../../src/font/svgDocument'
-import { looksLikeSvg, MAX_SVG_SEGMENTS, parseSvgFont, reverseContour } from '../../src/font/svgFont'
+import { MAX_SVG_SEGMENTS, readSvg } from '../../src/font/svgDocument'
+import { looksLikeSvg, parseSvgFont, reverseContour } from '../../src/font/svgFont'
 import { apply, arcToCubics, parsePathData, parseTransform } from '../../src/font/svgPath'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { Point, SourceContour } from '../../src/geometry/types'
@@ -148,6 +148,13 @@ describe('reading an SVG document', () => {
     expect(doc.shapes[1].contours[0].segments.some((s) => s.type === 'cubic')).toBe(true)
   })
 
+  it('skips comments and @-rules in a style sheet, and reads the rules after them', () => {
+    const doc = readSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <style>/* .a { fill: none } */ @import url(x.css); @media print { .a { fill: none } } .b { fill: none }</style>
+      <rect class="a" width="1" height="1"/><rect class="b" width="1" height="1"/></svg>`)
+    expect(doc.shapes).toHaveLength(1)
+  })
+
   it('fills by presentation attributes, style rules and style attributes, and inherits fill and fill-rule', () => {
     const doc = readSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">
       <style><![CDATA[ .hole { fill-rule: evenodd } #gone, .off { display: none } path.thin { fill: none; stroke: #000 } ]]></style>
@@ -269,6 +276,28 @@ describe('SVG files that cannot be used', () => {
     expect(failure(() => parseSvgFont(big, SOURCE)).message).toMatch(/larger than 10 MB/)
     const d = 'M0 0' + 'l1 0'.repeat(MAX_SVG_SEGMENTS + 1)
     expect(failure(() => svgFont(`<path d="${d}"/>`)).message).toMatch(/segments/)
+  })
+
+  it('stops nested <use> that repeats a small file without end, before drawing it all', () => {
+    // Eight levels, each using the one below ten times: 10^8 rectangles from under a kilobyte.
+    const levels = Array.from({ length: 8 }, (_, i) => {
+      const uses = Array.from({ length: 10 }, () => `<use href="#l${i}"/>`).join('')
+      return `<g id="l${i + 1}">${uses}</g>`
+    })
+    const body = `<defs><rect id="l0" width="1" height="1"/>${levels.join('')}</defs><use href="#l8"/>`
+    const started = performance.now()
+    expect(failure(() => svgFont(body)).message).toMatch(/segments|too many times/)
+    expect(performance.now() - started).toBeLessThan(2000)
+    const empty = `<defs><g id="l0"/>${levels.join('')}</defs><use href="#l8"/><rect width="1" height="1"/>`
+    expect(failure(() => svgFont(empty)).message).toMatch(/too many times/)
+  })
+
+  it('reads a long style sheet with no rules in linear time, and refuses too many rules', () => {
+    const started = performance.now()
+    readSvg(`<svg><style>${'a'.repeat(200_000)}${'@x'.repeat(50_000)}${'/*'.repeat(50_000)}</style></svg>`)
+    expect(performance.now() - started).toBeLessThan(500)
+    const rules = Array.from({ length: 1001 }, (_, i) => `.c${i} { fill: none }`).join('')
+    expect(failure(() => svgFont(`<style>${rules}</style><rect width="1" height="1"/>`)).message).toMatch(/style rules/)
   })
 })
 

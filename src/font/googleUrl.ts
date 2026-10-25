@@ -68,7 +68,12 @@ export function parseFontInput(input: string): ParseResult {
   if (host === 'fonts.google.com') {
     const specimen = /^\/specimen\/([^/]+)\/?$/.exec(url.pathname)
     if (specimen) {
-      const family = cleanFamily(decodeURIComponent(specimen[1]))
+      let family = ''
+      try {
+        family = cleanFamily(decodeURIComponent(specimen[1]))
+      } catch {
+        // A stray "%" is not an escape; decodeURIComponent throws URIError on it.
+      }
       if (!validFamily(family)) return { ok: false, error: `The URL does not contain a valid family name.` }
       const ignored = [...url.searchParams.keys()]
       return {
