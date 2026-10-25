@@ -1,4 +1,5 @@
 import { errorKindLabel } from '../font/errors'
+import { ALL_SUBSETS } from '../font/google'
 import type { LoadedFont } from '../font/model'
 import type { LoadStatus } from '../state/types'
 import Icon from './Icon'
@@ -24,7 +25,8 @@ function sourceLine(font: LoadedFont): string {
   if (source.kind === 'local') return `Local file · ${source.fileName} · ${formatBytes(source.byteSize)}`
   const style = `${source.weight}${source.italic ? ' italic' : ''}`
   const version = source.version ? ` · ${source.version}` : ''
-  return `Google Fonts · ${style} · ${source.subset} subset${version} · ${formatBytes(source.byteSize)}`
+  const subset = source.subset === ALL_SUBSETS ? 'all subsets' : `${source.subset} subset`
+  return `Google Fonts · ${style} · ${subset}${version} · ${formatBytes(source.byteSize)}`
 }
 
 /** The style name, or a menu of the faces when the font comes from a collection. */

@@ -2016,6 +2016,10 @@ input.number-field {
   padding: 2px;
 }
 
+.glyph-more {
+  align-self: flex-start;
+}
+
 .glyph-cell {
   flex-direction: column;
   gap: 0;
