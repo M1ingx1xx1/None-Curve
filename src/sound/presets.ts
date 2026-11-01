@@ -58,6 +58,12 @@ const effect = <E extends EffectKey>(key: E, patch: Partial<ExperimentalParams[E
   patch: { [key]: { ...DEFAULTS.experimental[key], ...patch } } as Partial<ExperimentalParams>,
 })
 
+/**
+ * The Gate on the presets' continuous rows (Level, Bass, Treble, Activity): below it they hold still, so the letters
+ * rest between sounds and the beats stand out against the stillness; above it they still reach the full Depth.
+ */
+export const QUIET_GATE = 0.25
+
 // Most presets keep to the Geometry tab and its default sliders, so the letters stay readable while
 // quiet; at most one Experimental effect each. Depth is a share of the slider's travel; on a seed it is Rate.
 export const PRESETS: readonly Preset[] = [
@@ -69,7 +75,7 @@ export const PRESETS: readonly Preset[] = [
     // Only a few seeded anchors move: no control sets this, only this preset. A tiny amplitude, so the Seed row acts while it is quiet.
     start: [set('distortion', { sparse: true, amount: 2, normalBias: 0.9 })],
     mappings: [
-      map('level', 'distortion.amount', 0.9),
+      map('level', 'distortion.amount', 0.9, { gate: QUIET_GATE }),
       map('beat', 'distortion.amount', 0.3),
       map('beat', 'distortion.seed', 1),
     ],
@@ -81,8 +87,8 @@ export const PRESETS: readonly Preset[] = [
       'Anchors are placed afresh on every other beat: close and even while it is quiet, fewer and further from even as it gets louder.',
     start: [set('random', { enabled: true, density: 10, randomness: 0.05 })],
     mappings: [
-      map('level', 'random.randomness', 0.9),
-      map('level', 'random.density', -0.09),
+      map('level', 'random.randomness', 0.9, { gate: QUIET_GATE }),
+      map('level', 'random.density', -0.09, { gate: QUIET_GATE }),
       map('beat', 'random.seed', 0.5),
     ],
   },
@@ -91,7 +97,10 @@ export const PRESETS: readonly Preset[] = [
     name: 'Pixel',
     description: 'The letters snap to a grid that the bass makes coarser; hiss and cymbals drop anchors.',
     start: [set('grid', { snap: true })],
-    mappings: [map('bass', 'grid.size', 0.7), map('treble', 'anchors.simplify', 0.4)],
+    mappings: [
+      map('bass', 'grid.size', 0.7, { gate: QUIET_GATE }),
+      map('treble', 'anchors.simplify', 0.4, { gate: QUIET_GATE }),
+    ],
   },
   {
     id: 'low-poly',
@@ -114,7 +123,10 @@ export const PRESETS: readonly Preset[] = [
     description: 'Hiss and cymbals make the outlines tremble; brighter sound makes the tremor finer.',
     // A tiny amplitude, so the Noise frequency row acts while it is quiet.
     start: [set('distortion', { amount: 2, frequency: 20 })],
-    mappings: [map('treble', 'distortion.amount', 0.6), map('brightness', 'distortion.frequency', 0.3)],
+    mappings: [
+      map('treble', 'distortion.amount', 0.6, { gate: QUIET_GATE }),
+      map('brightness', 'distortion.frequency', 0.3),
+    ],
   },
   {
     id: 'facet',
@@ -134,7 +146,10 @@ export const PRESETS: readonly Preset[] = [
     description: 'Ripples run through the letters and swell on each beat; the bass bends them into petals.',
     start: [effect('ripple', { enabled: true, amount: 0.3 })],
     // Petals change a letter's shape fast: 10% once the bass is up (20% is hard to read).
-    mappings: [map('beat', 'experimental.ripple.amount', 0.1), map('bass', 'experimental.ripple.petals', 0.05)],
+    mappings: [
+      map('beat', 'experimental.ripple.amount', 0.1),
+      map('bass', 'experimental.ripple.petals', 0.05, { gate: QUIET_GATE }),
+    ],
   },
   {
     id: 'flare',
@@ -146,7 +161,7 @@ export const PRESETS: readonly Preset[] = [
     mappings: [
       map('beat', 'experimental.seed', 1),
       // Half the cubic Reach slider at full level: an eighth of the canvas diagonal (about 4 em on the default canvas).
-      map('level', 'experimental.thorn.canvasReach', 0.5),
+      map('level', 'experimental.thorn.canvasReach', 0.5, { gate: QUIET_GATE }),
       // 1.65 anchors at full beat: 15% of the old 1–12 travel, kept now that Anchors runs from 0 (11/12 of 15%).
       map('beat', 'experimental.thorn.count', 0.1375),
     ],
@@ -159,9 +174,9 @@ export const PRESETS: readonly Preset[] = [
     // Nothing streams while it is quiet. No stretch: it pushes letters into their neighbours.
     start: [effect('slipstream', { enabled: true, strength: 0, slip: 0, cuts: 0, trails: 0 })],
     mappings: [
-      map('level', 'experimental.slipstream.slip', 0.5),
+      map('level', 'experimental.slipstream.slip', 0.5, { gate: QUIET_GATE }),
       map('beat', 'experimental.slipstream.cuts', 0.4),
-      map('activity', 'experimental.slipstream.trails', 0.35),
+      map('activity', 'experimental.slipstream.trails', 0.35, { gate: QUIET_GATE }),
     ],
   },
 ]
