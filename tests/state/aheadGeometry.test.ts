@@ -115,6 +115,20 @@ describe('the page ahead window', () => {
     expect(order.length).toBe(commits.filter((c) => c.mediaMs >= 10_000 - PRECOMPUTE_LIMITS.windowBehindMs).length)
   })
 
+  it('sends a lease cut short again, but not one that ended without its results (a worker that threw)', () => {
+    const { client, sent, listener } = fakeClient()
+    const ahead = new PageAhead(() => client)
+    ahead.want(windowOf(commitsOf(), 10_000))
+    expect(sent).toHaveLength(1)
+    // Ended as done: the same items would throw again, so the same lease is not sent again, however often.
+    for (let k = 0; k < 10; k++) listener().ended(false)
+    expect(sent).toHaveLength(1)
+    // Cut short (a restarted worker): sent again as it was.
+    listener().ended(true)
+    expect(sent).toHaveLength(2)
+    expect(sent[1]).toEqual(sent[0])
+  })
+
   it('asks for a glyph many commits use once, and finds commits ready once their glyphs are held', () => {
     const { client, sent, arrive } = fakeClient()
     const ahead = new PageAhead(() => client)

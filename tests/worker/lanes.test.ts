@@ -3,6 +3,7 @@
 // older between items.
 
 import { describe, expect, it, vi } from 'vitest'
+import { AheadCore } from '../../src/geometry/aheadCore'
 import { paramsKey } from '../../src/geometry/paramsKey'
 import type { AheadItem, WorkerRequest, WorkerResponse } from '../../src/geometry/protocol'
 import { unpackGeometry } from '../../src/geometry/packed'
@@ -188,5 +189,21 @@ describe('worker lanes', async () => {
     await w.until(doneOf(8))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(w.sent.some((m) => m.type === 'plan-result')).toBe(false)
+  })
+
+  it('an ahead request that throws ends as done, not stopped, so the page does not send it again as it was', async () => {
+    const step = vi.spyOn(AheadCore.prototype, 'step').mockImplementation(() => {
+      throw new Error('broken step')
+    })
+    try {
+      const w = worker()
+      w.send(font)
+      const key = paramsKey(heavy)
+      w.send(ahead(10, [{ kind: 'step', seq: 1, mediaMs: 0, lineage: 1, parent: -1, index: glyphs[0], key }]))
+      await w.until(doneOf(10))
+      expect(w.sent[w.index(doneOf(10))]).toEqual({ type: 'ahead-done', requestId: 10 })
+    } finally {
+      step.mockRestore()
+    }
   })
 })

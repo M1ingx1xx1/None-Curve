@@ -16,6 +16,8 @@ export interface FeatureWorkerLike {
   postMessage(message: FeatureWorkerRequest, transfer?: Transferable[]): void
   terminate(): void
   onmessage: ((event: MessageEvent<FeatureWorkerResponse>) => void) | null
+  onerror?: ((event: ErrorEvent) => void) | null
+  onmessageerror?: ((event: MessageEvent) => void) | null
 }
 
 /** Decodes a file's bytes at the context's rate (BaseAudioContext.decodeAudioData). */
@@ -38,6 +40,8 @@ export class FeatureTimeline implements FeatureSource {
   private paused = false
   /** Frames measured contiguously from the start. */
   private contiguous = 0
+  /** Why measuring failed (the worker did not load or broke), or null; cleared by the next load or clear. */
+  private failure: string | null = null
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly createWorker: () => FeatureWorkerLike = startFeatureWorker) {}
@@ -110,6 +114,11 @@ export class FeatureTimeline implements FeatureSource {
     return this.frames > 0
   }
 
+  /** Why measuring the loaded file failed, or null while it goes on (or none is loaded). */
+  failed(): string | null {
+    return this.failure
+  }
+
   /** Sensitivity or Release changed: a new generation, measured again from `fromMs` (the start, by default). */
   setSettings(settings: FeatureSettings, fromMs = 0) {
     const s = this.settings
@@ -118,6 +127,8 @@ export class FeatureTimeline implements FeatureSource {
     this.generation++
     this.have.fill(0)
     this.contiguous = 0
+    // A worker that is still there measures afresh; one that is gone stays failed until the next load.
+    if (this.worker) this.failure = null
     this.worker?.postMessage({ type: 'settings', generation: this.generation, settings, fromMs })
     this.notify()
   }
@@ -189,6 +200,7 @@ export class FeatureTimeline implements FeatureSource {
     this.have = new Uint8Array(0)
     this.settings = null
     this.contiguous = 0
+    this.failure = null
     this.generation++
   }
 
@@ -196,6 +208,12 @@ export class FeatureTimeline implements FeatureSource {
     if (this.worker) return this.worker
     const worker = this.createWorker()
     worker.onmessage = (event) => this.receive(event.data)
+    // Its script did not load (e.g. a tab opened before an update) or it broke: nothing more will come from it.
+    worker.onerror = (event) => {
+      event.preventDefault()
+      this.fail(event.message || 'the worker stopped')
+    }
+    worker.onmessageerror = () => this.fail('a message could not be read')
     this.worker = worker
     return worker
   }
@@ -204,6 +222,8 @@ export class FeatureTimeline implements FeatureSource {
     if (message.generation !== this.generation) return
     if (message.type === 'error') {
       console.error('Sound: measuring the file ahead failed', message.message)
+      this.failure = message.message
+      this.notify()
       return
     }
     if (message.type !== 'columns') return
@@ -212,6 +232,15 @@ export class FeatureTimeline implements FeatureSource {
     this.values.set(values, start * FEATURE_STRIDE)
     this.have.fill(1, start, start + count)
     while (this.contiguous < this.frames && this.have[this.contiguous] === 1) this.contiguous++
+    this.notify()
+  }
+
+  /** The worker is gone: the next load starts a new one. */
+  private fail(reason: string) {
+    console.error('Sound: the feature worker failed', reason)
+    this.worker?.terminate()
+    this.worker = null
+    if (this.frames) this.failure = reason
     this.notify()
   }
 
