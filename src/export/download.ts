@@ -5,23 +5,28 @@ export function safeFileName(parts: string[], extension: string): string {
     .normalize('NFKD')
     .replace(/[^A-Za-z0-9._-]+/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^[-.]+|[-.]+$/g, '')
     .slice(0, 80)
+    .replace(/^[-.]+|[-.]+$/g, '')
   return `${base || 'none-curve'}.${extension}`
 }
 
 /**
  * The file name the user typed, in any script: one name serves every format, so an export's extension they typed is
- * replaced by `extension`. Characters file systems refuse (and control characters) become "-", outer dots and spaces
- * go, at most 120 characters. An empty name falls back to the generated one, `safeFileName(parts, extension)`.
+ * replaced by `extension`. Characters file systems refuse (and control characters) become "-", bidi controls (which
+ * show a name in another order than its letters) go, and so do outer dots and spaces; at most 120 characters. An
+ * empty name falls back to the generated one, `safeFileName(parts, extension)`.
  */
 export function exportFileName(name: string, parts: string[], extension: string): string {
   const cleaned = name
     .replace(/[\\/:*?"<>|]|\p{Cc}/gu, '-')
-    .trim()
+    .replace(/\p{Bidi_Control}/gu, '')
+    .replace(/[\s.]+$/, '')
     .replace(/\.(svg|png|otf|json|mp4|webm)$/i, '')
     .replace(/^[\s.]+|[\s.]+$/g, '')
-  const base = [...cleaned].slice(0, 120).join('').trim()
+  const base = [...cleaned]
+    .slice(0, 120)
+    .join('')
+    .replace(/[\s.]+$/, '')
   return base ? `${base}.${extension}` : safeFileName(parts, extension)
 }
 

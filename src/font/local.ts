@@ -1,6 +1,5 @@
 import { FontLoadError } from './errors'
 import type { LoadedFont } from './model'
-import { parseFont } from './parse'
 
 export const LOCAL_FONT_ACCEPT =
   '.ttf,.otf,.woff,.woff2,.ttc,.otc,.svg,font/ttf,font/otf,font/woff,font/woff2,font/collection,image/svg+xml'
@@ -22,5 +21,7 @@ export async function loadLocalFont(file: File, signal: AbortSignal): Promise<Lo
   }
   signal.throwIfAborted()
 
+  // Loaded on demand so the parser and its format readers stay out of the first page load.
+  const { parseFont } = await import('./parse')
   return parseFont(new Uint8Array(buffer), { kind: 'local', fileName: file.name, byteSize: file.size }, signal)
 }

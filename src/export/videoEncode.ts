@@ -72,8 +72,14 @@ async function chooseFormat(format: VideoFormat, width: number, height: number) 
 }
 
 /** The file's sound from `range`, decoded, or null when it cannot be. */
-async function audioSlice(file: Blob, range: RenderRange): Promise<AudioBuffer | null> {
-  const decoded = await new OfflineAudioContext(1, 1, AUDIO_RATE).decodeAudioData(await file.arrayBuffer())
+export async function audioSlice(file: Blob, range: RenderRange): Promise<AudioBuffer | null> {
+  let decoded: AudioBuffer
+  try {
+    decoded = await new OfflineAudioContext(1, 1, AUDIO_RATE).decodeAudioData(await file.arrayBuffer())
+  } catch {
+    // Played (the engine decoded it its own way) but not decodable here: the video goes without its sound.
+    return null
+  }
   const from = Math.floor((range.startMs / 1000) * decoded.sampleRate)
   const to = Math.min(decoded.length, Math.round((range.endMs / 1000) * decoded.sampleRate))
   if (to <= from) return null
@@ -155,6 +161,8 @@ export async function renderVideo(options: VideoRenderOptions): Promise<VideoRen
         planUntil: (ms) => {
           planner.focus(ms)
           if (planner.ensure(ms, RENDER_LIMITS.planSliceMs)) return 'ready'
+          const failure = source.timeline.failed()
+          if (failure) throw new Error(`The sound could not be measured (${failure}). Reload the page and try again.`)
           return source.timeline.covered(Math.min(ms, Math.max(0, planner.plannedUntil()) + 1000 / source.timeline.hz))
             ? 'more'
             : 'waiting'

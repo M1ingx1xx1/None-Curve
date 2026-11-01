@@ -25,8 +25,8 @@ import {
   type Shaping,
 } from '../../src/sound/mapping'
 import { mappingStore } from '../../src/sound/mappingStore'
-import { PRESETS } from '../../src/sound/presets'
-import { NO_SHAPING, ShapingTracker } from '../../src/sound/shaping'
+import { PRESETS, QUIET_GATE } from '../../src/sound/presets'
+import { NO_SHAPING, pulseShape, ShapingTracker } from '../../src/sound/shaping'
 import { NEUTRAL_RESPONSE, SILENT_FRAME, type FeatureFrame } from '../../src/sound/types'
 import { undoHistory, type Snapshot } from '../../src/state/history'
 import {
@@ -337,12 +337,15 @@ describe('Trigger', () => {
     }
   })
 
-  it('pushes a slider to the full Depth and lets it fall back in a straight line over Smooth', () => {
+  it('pushes a slider to the full Depth and lets it fall back over Smooth, fast at first', () => {
     const values = shaped(row({ mode: 'trigger', gate: 0.5, smoothMs: 300 }), bursts)
     const first = bursts.findIndex((f) => f.time > 200)
     expect(values[first]).toBe(1)
-    // 150 ms later: half way down; 300 ms later: back at 0.
-    expect(values[first + 9]).toBeCloseTo(0.5, 6)
+    // 100 ms later: down to a third; 150 ms later: under a fifth; 300 ms later: back at 0.
+    expect(values[first + 6]).toBeCloseTo(pulseShape(2 / 3), 6)
+    expect(values[first + 6]).toBeLessThan(0.34)
+    expect(values[first + 9]).toBeCloseTo(pulseShape(0.5), 6)
+    expect(values[first + 9]).toBeLessThan(0.2)
     expect(values[first + 18]).toBeCloseTo(0, 9)
     expect(values[first - 1]).toBe(0)
   })
@@ -527,9 +530,13 @@ describe('shaping kept', () => {
     expect(read).not.toHaveProperty('mode')
   })
 
-  it('can be written into a preset row, and every preset keeps the defaults', () => {
+  it('can be written into a preset row, and every preset keeps the defaults but a Gate on its quiet rows', () => {
     for (const preset of PRESETS)
-      for (const m of preset.mappings) expect(shapingOf(m), preset.id).toEqual(DEFAULT_SHAPING)
+      for (const m of preset.mappings) {
+        const { gate, ...rest } = shapingOf(m)
+        expect({ ...rest, gate: 0 }, preset.id).toEqual(DEFAULT_SHAPING)
+        expect([0, QUIET_GATE], `${preset.id} ${m.target}`).toContain(gate)
+      }
   })
 
   describe('in the store, with undo', () => {

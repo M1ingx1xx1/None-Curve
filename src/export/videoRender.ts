@@ -37,6 +37,8 @@ export const RENDER_LIMITS = {
   maxMs: VIDEO_LIMITS.maxMs,
   /** While the plan waits for features not measured yet, it looks again after this long (ms). */
   waitMs: 40,
+  /** Waiting this long (ms) for one frame's features, the render fails: the feature worker has gone silent. */
+  stallMs: 60_000,
   /** Page time (ms) the plan may take in one go before the renderer lets the page breathe. */
   planSliceMs: 30,
 } as const
@@ -133,7 +135,10 @@ export async function renderFrames(job: RenderJob): Promise<void> {
   for (let i = 0; i < count; i++) {
     signal?.throwIfAborted()
     const t = range.startMs + (i * 1000) / fps
+    let waited = 0
     for (let state = plan.planUntil(t); state !== 'ready'; state = plan.planUntil(t)) {
+      if (state === 'waiting' && (waited += RENDER_LIMITS.waitMs) > RENDER_LIMITS.stallMs)
+        throw new Error('The sound stopped being measured. Reload the page and try again.')
       // A slice that ran out lets the page breathe; features still being measured are waited for.
       await wait(state === 'more' ? 0 : RENDER_LIMITS.waitMs)
       signal?.throwIfAborted()

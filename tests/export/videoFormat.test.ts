@@ -181,6 +181,8 @@ describe('video bitrate, delay, name and clock', () => {
     expect(safeFileName(['a/b\\c:d*e?f"g<h>i|j'], 'otf')).toBe('a-b-c-d-e-f-g-h-i-j.otf')
     const long = safeFileName(['x'.repeat(200)], 'mp4')
     expect(long).toBe(`${'x'.repeat(80)}.mp4`)
+    // Cut at 80, then trimmed: no dash or dot is left at the end.
+    expect(safeFileName(['x'.repeat(79), 'y'], 'png')).toBe(`${'x'.repeat(79)}.png`)
     for (const name of [long, safeFileName(['A B', 'c.d', 'e_f'], 'webm')]) expect(name).toMatch(/^[A-Za-z0-9._-]+$/)
   })
 
@@ -192,6 +194,12 @@ describe('video bitrate, delay, name and clock', () => {
     expect(exportFileName('logo.SVG', parts, 'svg')).toBe('logo.svg')
     expect(exportFileName('logo.png', parts, 'svg')).toBe('logo.svg')
     expect(exportFileName('logo.v2', parts, 'svg')).toBe('logo.v2.svg')
+    expect(exportFileName('logo.svg.', parts, 'png')).toBe('logo.png')
+    expect(exportFileName('logo.svg . ', parts, 'png')).toBe('logo.png')
+    // Bidi controls go: "photo\u202Egnp.exe" would show as "photoexe.png".
+    expect(exportFileName('photo\u202Egnp.exe', parts, 'png')).toBe('photognp.exe.png')
+    expect(exportFileName('a\u2066b\u200Fc', parts, 'svg')).toBe('abc.svg')
+    expect(exportFileName(`${'x'.repeat(119)}.y`, parts, 'svg')).toBe(`${'x'.repeat(119)}.svg`)
     expect(exportFileName('../a/b\\c:d*e?f"g<h>i|j\u0007', parts, 'otf')).toBe('-a-b-c-d-e-f-g-h-i-j-.otf')
     expect(exportFileName('...', parts, 'json')).toBe('Roboto-Regular-text.json')
     expect(exportFileName('😀'.repeat(200), parts, 'png')).toBe(`${'😀'.repeat(120)}.png`)

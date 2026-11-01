@@ -820,7 +820,7 @@ function seedAfter(spec: TargetSpec, seed: number, jumps: number): number {
  * How a mapping answers its feature (shaping.ts):
  * - 'follow': continuously, as the feature moves (the default, and the only mode before shaping existed);
  * - 'trigger': one event each time the feature rises past the Gate. On a slider, a pulse to the full Depth that falls
- *   back in a straight line over Smooth (at least SHAPING_LIMITS.pulseMs); on a seed, one jump;
+ *   back over Smooth (at least SHAPING_LIMITS.pulseMs), fast at first and then tailing off; on a seed, one jump;
  * - 'toggle': each rise past the Gate flips the target between its slider value and slider value + Depth (eased
  *   over Smooth); on a seed, one jump per rise, as Trigger.
  */
@@ -873,6 +873,11 @@ export const SHAPING_LIMITS = {
   curveBase: 3,
   /** Trigger's pulse falls back over Smooth, but never faster than this (ms), so even Smooth 0 shows a pulse. */
   pulseMs: 80,
+  /**
+   * How fast Trigger's pulse drops (pulseShape, shaping.ts): e^−steepness of it would be left when the fall ends, so at
+   * 3 a third is left a third of the way through, and the rest is a tail.
+   */
+  pulseSteepness: 3,
   /**
    * Trigger and Toggle fire when the feature rises above the Gate, but never below minFire, and re-arm once it falls
    * rearm below that level, so noise around it fires once and the band stays open at Gate 0.

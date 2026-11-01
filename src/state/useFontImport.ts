@@ -3,7 +3,6 @@ import { isAbortError, toFontLoadError } from '../font/errors'
 import { loadGoogleFont, type GoogleFontRequest } from '../font/google'
 import { loadLocalFont } from '../font/local'
 import type { LoadedFont } from '../font/model'
-import { parseFont } from '../font/parse'
 import type { Action } from './editorState'
 import type { ImportOrigin } from './types'
 
@@ -79,7 +78,7 @@ export function useFontImport(dispatch: Dispatch<Action>) {
       void start({
         origin: 'local',
         label: `Opening ${label}`,
-        run: (signal) => parseFont(font.bytes, { ...source, face }, signal),
+        run: async (signal) => (await import('../font/parse')).parseFont(font.bytes, { ...source, face }, signal),
       })
     },
     [start],

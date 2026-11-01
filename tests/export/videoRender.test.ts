@@ -157,6 +157,24 @@ describe('rendering the frames', () => {
     expect(f.added).toHaveLength(2)
   })
 
+  it('fails when features stop coming, instead of waiting for ever', async () => {
+    const f = fakes([commitAt(1, 0)])
+    f.plan.planUntil = () => 'waiting'
+    let waits = 0
+    const run = renderFrames({
+      ...f,
+      range: { startMs: 0, endMs: 200 },
+      fps: 10,
+      glideMs: 0,
+      wait: async () => {
+        if (++waits > 10_000) throw new Error('still waiting')
+      },
+    })
+    await expect(run).rejects.toThrow('The sound stopped being measured')
+    expect(waits).toBe(RENDER_LIMITS.stallMs / RENDER_LIMITS.waitMs)
+    expect(f.added).toHaveLength(0)
+  })
+
   it('stops at a cancel, with the signal’s reason', async () => {
     const f = fakes([commitAt(1, 0)])
     const controller = new AbortController()

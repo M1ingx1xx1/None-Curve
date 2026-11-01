@@ -213,6 +213,38 @@ describe('feature timeline', () => {
     expect(mid.onset).toBe(a.onset)
   })
 
+  it('reports a worker that failed to load, and starts a new one for the next file', async () => {
+    const broken: FeatureWorkerLike = { onmessage: null, onerror: null, postMessage() {}, terminate() {} }
+    const workers = [broken, fakeWorker()]
+    let started = 0
+    const timeline = new FeatureTimeline(() => workers[started++])
+    let heard = 0
+    timeline.subscribe(() => heard++)
+    expect(await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS)).toBe(true)
+    expect(timeline.failed()).toBeNull()
+    // The hashed chunk is gone after a deploy: the worker's script 404s.
+    const before = heard
+    let prevented = false
+    broken.onerror!({ message: 'failed to load', preventDefault: () => (prevented = true) } as unknown as ErrorEvent)
+    expect(timeline.failed()).toBe('failed to load')
+    expect(prevented).toBe(true)
+    expect(heard).toBeGreaterThan(before)
+    // The next load starts afresh with a new worker.
+    expect(await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS)).toBe(true)
+    expect(timeline.failed()).toBeNull()
+    expect(started).toBe(2)
+  })
+
+  it('reports an error the worker posts for the current file', async () => {
+    const worker = fakeWorker()
+    const timeline = new FeatureTimeline(() => worker)
+    expect(await timeline.load(blob, decoded(SECONDS), DEFAULT_FEATURE_SETTINGS)).toBe(true)
+    worker.onmessage!({
+      data: { type: 'error', generation: timeline.currentGeneration(), message: 'out of memory' },
+    } as MessageEvent<FeatureWorkerResponse>)
+    expect(timeline.failed()).toBe('out of memory')
+  })
+
   it('pauses measuring and resumes it, keeping what was measured', async () => {
     const worker = fakeWorker()
     const timeline = new FeatureTimeline(() => worker)
