@@ -282,7 +282,9 @@ export function createGeometryWorker(
       run('canvas', compute(message), (error) => fail(message.requestId, error))
     } else if (message.type === 'ahead') {
       latest.ahead = message.requestId
-      run('ahead', ahead(message), () => post({ type: 'ahead-done', requestId: message.requestId, stopped: true }))
+      // An exception ends the request as done, not stopped: the page sends a stopped request again as it was, and the
+      // same items would throw again, round and round.
+      run('ahead', ahead(message), () => post({ type: 'ahead-done', requestId: message.requestId }))
     } else if (message.type === 'plan') {
       plans.add(message.requestId)
       run('plan', plan(message), () => post({ type: 'plan-result', requestId: message.requestId, data: null }))

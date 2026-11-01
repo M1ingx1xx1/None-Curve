@@ -54,8 +54,13 @@ export async function parseFont(bytes: Uint8Array, source: FontSource, signal: A
     }
     // Touch the required tables now so a damaged file fails here, not later in the canvas.
     void font.numGlyphs
-    void font.unitsPerEm
     void font.characterSet
+    // hhea (ascent, descent) and fvar (variationAxes, with each axis's name) are read below, outside this try.
+    void font.ascent
+    void font.descent
+    void font.variationAxes
+    const upm = font.unitsPerEm
+    if (!(Number.isFinite(upm) && upm > 0)) throw new Error(`unitsPerEm is ${upm}`)
   } catch (error) {
     if (error instanceof FontLoadError) throw error
     const detail = error instanceof Error ? error.message : String(error)
