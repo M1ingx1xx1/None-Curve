@@ -12,7 +12,7 @@ Working conventions for None-Curve. Follow these when changing the app or its do
 Check before committing (should print nothing):
 
 ```bash
-grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
+perl -CSD -ne 'print "$ARGV:$.: $_" if /[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]/; close ARGV if eof' $(git ls-files src index.html)
 ```
 
 ## Documentation language
@@ -45,11 +45,11 @@ Current pairs: `README.md` / `README.zh.md`, `docs/USER_GUIDE.md` / `docs/USER_G
 
 ## Branches, pull requests, and Jira
 
-- Work happens on a branch `feature/NOCUR-<number>-<short-name>` off `develop`, named after the Jira issue it does (NOCUR is the project's key), and is merged into `develop` by a pull request. `main` is the release branch: a pull request from `develop` into `main` releases, and every push to `main` deploys Pages.
-- `.github/workflows/jira.yml` (`scripts/jira-pr-sync.ts`) moves the issues a pull request names: to In Progress while it is open (when it opens, reopens, gets a push, or is edited), to Done when it merges. A pull request names an issue by its key in the branch name, the title, or the keys that start a line of the body beginning with `Jira:` (`Jira: NOCUR-57, NOCUR-58`). That line ends at its first word that is not a key, so `Jira: NOCUR-60 (split from NOCUR-41)` names NOCUR-60 only, and a key anywhere else in the body, such as a parent mentioned in passing, does not count.
+- Work happens on a branch `feature/HM-<number>-<short-name>` off `develop`, named after the Jira issue it does (HM is the project key, on hm-lab.atlassian.net), and is merged into `develop` by a pull request. `main` is the release branch: a pull request from `develop` into `main` releases, and every push to `main` deploys Pages.
+- `.github/workflows/jira.yml` (`scripts/jira-pr-sync.ts`) moves the issues a pull request names: to In Progress while it is open (when it opens, reopens, gets a push, or is edited), to Done when it merges. A pull request names an issue by its key in the branch name, the title, or the keys that start a line of the body beginning with `Jira:` (`Jira: HM-57, HM-58`). That line ends at its first word that is not a key, so `Jira: HM-60 (split from HM-41)` names HM-60 only, and a key anywhere else in the body, such as a parent mentioned in passing, does not count.
 - Issues only move forward. Opening moves only an issue still in To Do, so one already in In Progress, In Review, or Done stays where it is; merging moves any issue not yet done; a pull request closed without merging moves nothing. An issue is done when its pull request merges into `develop`, not when it is released; a release pull request names no issue and moves none.
 - Put the key in the branch name or the title when the pull request opens; one added later moves its issue at the next push or edit. GitHub runs no workflow for a pull request that conflicts with its base, so its issue moves once the conflict is resolved and pushed.
-- Issues move only through pull requests. By hand, update an issue's description, and after each release add its date and pull request to the release record, NOCUR-28.
+- Issues move only through pull requests. By hand, update an issue's description, and after each release add its date and pull request to the release record issue.
 - The workflow reads three repository secrets: `JIRA_BASE_URL` (`https://<site>.atlassian.net`), `JIRA_EMAIL`, and `JIRA_API_TOKEN`, an Atlassian API token of that account (the moves are recorded under its name). Without them it only warns, so the check never fails for want of them; GitHub gives no secrets to a pull request from a fork, so the issues of one are moved by hand. It first checks the account with Jira, because Jira answers a token that has expired or been revoked as if no one were signed in, and every issue would look unknown: the check fails instead, and the fix is a new token in `JIRA_API_TOKEN` and a re-run of the failed job. It also fails when Jira refuses a call or cannot be reached, or when `JIRA_BASE_URL` is not an `https` address, and warns for a key Jira does not know. The site's address is masked in the log.
 - The script reads the pull request from the event file, never from text placed in a shell command, so a title or body cannot run anything.
 
