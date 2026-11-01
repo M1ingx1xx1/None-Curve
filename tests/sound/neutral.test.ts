@@ -46,12 +46,14 @@ import { BASE } from '../helpers/params'
 // live values moved; with the old minimums put back in SLIDER_RANGES (0.08, 0.08, 0.06, 1, 0.04, 4) it gives 107bb3bd.
 // Pinned again when Flare's beat row on Anchors went from 0.15 to 0.1375, the same 1.65 anchors over the new 0–12
 // travel as 0.15 gave over 1–12; with 0.15 put back it gives f7f30c45.
+// Pinned again when the presets' continuous rows got a Gate (QUIET_GATE, presets.ts); with it at 0 they give
+// 7d8242b5 / abe13938 / 7813f93d / 43e22fd6.
 const PINNED = {
-  modulate: '7d8242b5',
-  scheduler: 'abe13938',
+  modulate: '7ea3ce65',
+  scheduler: '0feeda07',
   features: 'f797c3bc',
-  svg: '7813f93d',
-  paths: '43e22fd6',
+  svg: '792cf788',
+  paths: '50c513ab',
 } as const
 
 /** FNV-1a (32 bits) over UTF-16 code units; each part ends with a separator, so ['ab', 'c'] and ['a', 'bc'] differ. */

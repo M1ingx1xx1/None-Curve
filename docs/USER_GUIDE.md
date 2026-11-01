@@ -555,7 +555,7 @@ The readings come in five groups (the same groups as in a row's **Feature** list
 
 - **Mode** — three buttons:
   - **Follow** (the usual): the target moves along with the reading, all the time.
-  - **Trigger**: each time the reading climbs past **Gate**, the target jumps by the full Depth and then slides back, in the time set by **Smooth** (a quick blink when Smooth is 0). One jump per climb: the reading has to drop a little below Gate before it can trigger again, so a sound hovering at the Gate does not trigger over and over. Even with Gate at 0, the reading has to climb past 10 % to trigger and drop under 5 % to be ready again. With **Beat**, every hit triggers.
+  - **Trigger**: each time the reading climbs past **Gate**, the target jumps by the full Depth and then falls back, fast at first and then gently, in the time set by **Smooth** (a quick blink when Smooth is 0). One jump per climb: the reading has to drop a little below Gate before it can trigger again, so a sound hovering at the Gate does not trigger over and over. Even with Gate at 0, the reading has to climb past 10 % to trigger and drop under 5 % to be ready again. With **Beat**, every hit triggers.
   - **Toggle**: each climb past Gate flips the target — to its slider value plus Depth, then back to the slider value at the next climb, and so on. Smooth makes each flip glide instead of snap.
   - On a seed, Trigger and Toggle both move the seed on once per climb (Rate still applies: at 50 %, every other climb).
   - Changing a row's Mode or reading starts it afresh, as if it had just been added.
@@ -589,6 +589,7 @@ The readings come in five groups (the same groups as in a row's **Feature** list
 4. Press **Play** (or **Start listening**).
 
 - **Load starts the letters afresh.** It first puts every setting in the **Geometry** and **Experimental** tabs back to its starting value — your three seeds are kept — then sets the few sliders the preset starts from, and replaces your rows with the preset's. So a preset always looks the same, whatever you had set before. Your text, typography, colours, canvas, the sound source, and the seven sound knobs (**Sensitivity**, **Release**, and the four **Response** knobs) are not touched.
+- **Presets rest while it is quiet.** Their rows that follow loudness, bass, treble or how busy the sound is wait until the sound passes a quarter of the way up (their **Gate** is 25 %), so the letters hold still in quiet passages and the beats stand out.
 - **A note under Preset says what Load did,** for example "Loaded Bloom. Turned off Crumple. Other Geometry and Experimental settings back to defaults (seeds kept)." It names the effects it switched off, so you know what went. The note goes away when you load again or pick another preset.
 - Load does not ask first, but it is a single undo step: undo (⌘Z on a Mac, Ctrl+Z elsewhere) right after it to get your earlier settings and rows back. The note under **Preset** then goes away. Picking a target yourself, as described above, never puts anything back to its default: it only switches on what that target needs.
 - After loading, change, add, or remove rows, or move any slider, as usual. The **ⓘ** next to **Preset** lists the presets too.

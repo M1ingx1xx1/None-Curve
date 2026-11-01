@@ -1,6 +1,6 @@
 // Glide (Sound's Response group): while Sound moves the letters, each new shape is not shown at once but reached over
 // Glide's time, every anchor travelling from where it is on screen to its new place (morph.ts), along its effect's path
-// (trajectory.ts), eased out. Only what is drawn glides: the live frames, their geometry, the flash limit, the markers,
+// (trajectory.ts), eased out (easeOut). Only what is drawn glides: the live frames, their geometry, the flash limit, the markers,
 // the status and Freeze all keep to the shapes as computed. Pure and clock-free: the page's clock (useGlide) and a
 // test's give the same frames for the same times.
 //
@@ -51,13 +51,19 @@ export const GLIDE_LIMITS = {
   planBudgetMs: 6,
 } as const
 
-/** The easing of a glide: fast at first, settling into place (cubic ease-out). */
+/**
+ * The easing of a glide: most of the way at once, then a long settle into place (exponential ease-out, rescaled to end
+ * exactly at 1). A hit snaps and then holds still, and a glide that goes on from an in-between shape (a new shape on the
+ * way) still starts at full speed.
+ */
 export function easeOut(t: number): number {
   if (!(t > 0)) return 0
   if (t >= 1) return 1
-  const r = 1 - t
-  return 1 - r * r * r
+  return (1 - 2 ** (-GLIDE_EASE_STEEPNESS * t)) / (1 - 2 ** -GLIDE_EASE_STEEPNESS)
 }
+
+/** easeOut is 2^−steepness short of the end before its rescale: at 10, half the way in a tenth of the time. */
+const GLIDE_EASE_STEEPNESS = 10
 
 export interface GlideTarget {
   /** Glide's time (ms); 0 changes at once. */

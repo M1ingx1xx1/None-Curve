@@ -3,8 +3,8 @@
 //
 // Each frame, every enabled mapping's feature becomes one shaped value, in this order:
 // - Follow: the Gate, then Smooth (a one-pole smoothing with time constant Smooth), then the Curve;
-// - Trigger: a rise past the Gate starts a pulse at 1 that falls back to 0 in a straight line over Smooth (at least
-//   SHAPING_LIMITS.pulseMs), then the Curve;
+// - Trigger: a rise past the Gate starts a pulse at 1 that falls back to 0 over Smooth (at least SHAPING_LIMITS.pulseMs),
+//   fast at first and then tailing off (pulseShape), then the Curve;
 // - Toggle: a rise past the Gate flips a state between 0 and 1, eased by Smooth, then the Curve.
 // A rise is the feature going above its firing level (the Gate, but at least SHAPING_LIMITS.minFire) after it had fallen
 // SHAPING_LIMITS.rearm below that level; with Beat (an event feature), every hit is a rise. modulate() puts the shaped value in place of the feature value on a
@@ -34,6 +34,17 @@ export interface ShapedFrame {
   values: ReadonlyMap<string, number>
   /** Mapping ids whose feature rose past the Gate in this frame (every mode; Trigger and Toggle act on them). */
   rises: ReadonlySet<string>
+}
+
+/**
+ * Trigger's pulse at `remaining` (1 at the rise, 0 when the fall ends): an exponential fall, rescaled to run from 1 to
+ * exactly 0, so a hit snaps and then settles, like Beat's own pulse, and lasts as long as before (switchFires).
+ */
+export function pulseShape(remaining: number): number {
+  if (!(remaining > 0)) return 0
+  if (remaining >= 1) return 1
+  const floor = Math.exp(-SHAPING_LIMITS.pulseSteepness)
+  return (Math.exp(-SHAPING_LIMITS.pulseSteepness * (1 - remaining)) - floor) / (1 - floor)
 }
 
 export const NO_SHAPING: ShapedFrame = { values: new Map(), rises: new Set() }
@@ -105,8 +116,10 @@ export class ShapingTracker {
       let value: number
       if (shaping.mode === 'trigger') {
         const fall = Math.max(shaping.smoothMs, SHAPING_LIMITS.pulseMs)
+        // state.pulse is the share of the fall still to go (1 → 0 in a straight line); the value drops fast and then
+        // tails off (exponential, like Beat's own pulse), and still reaches 0 exactly when the fall ends.
         state.pulse = rose ? 1 : Math.max(0, state.pulse - dt / fall)
-        value = state.pulse
+        value = pulseShape(state.pulse)
       } else {
         if (shaping.mode === 'toggle' && rose) state.toggled = 1 - state.toggled
         const target = shaping.mode === 'toggle' ? state.toggled : gateValue(raw, shaping.gate)
