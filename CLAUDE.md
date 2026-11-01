@@ -71,7 +71,7 @@ When compacting, keep: the current task card, files changed and why, decisions t
 
 ## Rules
 
-- UI and all of `src/` are English only. After touching `src/` or `index.html`, this must print nothing: `grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html`
+- UI and all of `src/` are English only. After touching `src/` or `index.html`, this must print nothing: `perl -CSD -ne 'print "$ARGV:$.: $_" if /[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]/; close ARGV if eof' $(git ls-files src index.html)`
 - Docs come in pairs, `NAME.md` (English, default) and `NAME.zh.md` (Chinese); update both in the same change and never mix languages in one file. Details in `docs/BEST_PRACTICE.md`.
 - No visible captions beside self-explanatory icons; keep their aria names.
 - Git: branch `feature/NOCUR-<n>-<name>` off `develop`, open PRs into `develop`. `main` is the release branch; pushing it deploys Pages.

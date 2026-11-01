@@ -12,7 +12,7 @@ Working conventions for None-Curve. Follow these when changing the app or its do
 Check before committing (should print nothing):
 
 ```bash
-grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
+perl -CSD -ne 'print "$ARGV:$.: $_" if /[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]/; close ARGV if eof' $(git ls-files src index.html)
 ```
 
 ## Documentation language

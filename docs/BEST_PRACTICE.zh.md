@@ -12,7 +12,7 @@ None-Curve 的工作约定。修改应用或文档时请遵守。
 提交前运行（不应有任何输出）：
 
 ```bash
-grep -rnP '[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]' src index.html
+perl -CSD -ne 'print "$ARGV:$.: $_" if /[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]/; close ARGV if eof' $(git ls-files src index.html)
 ```
 
 ## 文档语言

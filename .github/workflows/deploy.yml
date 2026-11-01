@@ -1,6 +1,6 @@
 name: Deploy to GitHub Pages
 
-# 只从发布分支 main 部署；feature/develop 分支的 push 不会触发。
+# Deploys only from the release branch main; pushes to feature or develop branches do not trigger it.
 on:
   push:
     branches: [main]
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    # 手动运行时也只允许在 main 上构建发布产物。
+    # A manual run, too, builds the release only on main.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
