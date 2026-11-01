@@ -16,7 +16,6 @@
 
 import { FontLoadError, isAbortError } from './errors'
 import type { LoadedFont } from './model'
-import { parseFont } from './parse'
 import { bundleSubsets } from './subsets'
 
 export interface CuratedFamily {
@@ -219,6 +218,7 @@ export async function loadGoogleFont(request: GoogleFontRequest, signal: AbortSi
   signal.throwIfAborted()
   const bytes = files.length === 1 ? files[0] : bundleSubsets(files)
 
+  const { parseFont } = await import('./parse')
   return parseFont(
     bytes,
     {
