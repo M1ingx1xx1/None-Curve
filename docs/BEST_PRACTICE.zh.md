@@ -45,11 +45,11 @@ perl -CSD -ne 'print "$ARGV:$.: $_" if /[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]/; c
 
 ## 分支、Pull Request 与 Jira
 
-- 工作在从 `develop` 拉出的 `feature/NOCUR-<编号>-<简短名称>` 分支上进行，分支名带上所做的 Jira issue（NOCUR 是本项目的 key），通过 pull request 合并进 `develop`。`main` 是发布分支：从 `develop` 到 `main` 的 pull request 就是一次发布，每次推送 `main` 都会部署 Pages。
-- `.github/workflows/jira.yml`（`scripts/jira-pr-sync.ts`）会推进 pull request 提到的 issue：pull request 处于打开状态时（打开、重新打开、有新的推送或被编辑时）转为 In Progress，合并时转为 Done。pull request 通过分支名、标题，或正文中以 `Jira:` 开头的一行（`Jira: NOCUR-57, NOCUR-58`）开头的那些 key 提到 issue。这一行到第一个不是 key 的词为止，所以 `Jira: NOCUR-60 (split from NOCUR-41)` 只提到 NOCUR-60；正文其他地方出现的 key（例如顺带提到的父任务）不算。
+- 工作在从 `develop` 拉出的 `feature/HM-<编号>-<简短名称>` 分支上进行，分支名带上所做的 Jira issue（HM 是本项目的 key，站点为 hm-lab.atlassian.net），通过 pull request 合并进 `develop`。`main` 是发布分支：从 `develop` 到 `main` 的 pull request 就是一次发布，每次推送 `main` 都会部署 Pages。
+- `.github/workflows/jira.yml`（`scripts/jira-pr-sync.ts`）会推进 pull request 提到的 issue：pull request 处于打开状态时（打开、重新打开、有新的推送或被编辑时）转为 In Progress，合并时转为 Done。pull request 通过分支名、标题，或正文中以 `Jira:` 开头的一行（`Jira: HM-57, HM-58`）开头的那些 key 提到 issue。这一行到第一个不是 key 的词为止，所以 `Jira: HM-60 (split from HM-41)` 只提到 HM-60；正文其他地方出现的 key（例如顺带提到的父任务）不算。
 - issue 只往前走。打开时只推进还在 To Do 的 issue，已经在 In Progress、In Review 或 Done 的保持原样；合并时推进所有还没完成的 issue；关闭但未合并的 pull request 什么都不改。issue 在它的 pull request 合并进 `develop` 时就算完成，而不是发布时；发布用的 pull request 不提任何 issue，也不改动任何 issue。
 - 打开 pull request 时就把 key 写进分支名或标题；之后才加上的 key 会在下一次推送或编辑时推进对应的 issue。与目标分支有冲突的 pull request 不会触发任何 workflow，所以它的 issue 要等冲突解决并推送后才会推进。
-- issue 只通过 pull request 推进。手动只更新 issue 的描述；每次发布后，把发布日期和发布用的 pull request 记到发布记录 NOCUR-28 里。
+- issue 只通过 pull request 推进。手动只更新 issue 的描述；每次发布后，把发布日期和发布用的 pull request 记到发布记录 issue 里。
 - workflow 读取三个仓库 secret：`JIRA_BASE_URL`（`https://<站点>.atlassian.net`）、`JIRA_EMAIL`，以及该账号的 Atlassian API token `JIRA_API_TOKEN`（状态变更记在这个账号名下）。没有配置时只给警告，检查不会因此失败；GitHub 不会把 secret 交给来自 fork 的 pull request，所以这类 pull request 的 issue 要手动推进。脚本先向 Jira 核对账号：token 过期或被吊销时，Jira 会当作没有人登录，每个 issue 看起来都不存在；核对之后检查会直接失败，解决办法是把新的 token 填进 `JIRA_API_TOKEN`，再重跑失败的 job。Jira 拒绝请求或无法连接、`JIRA_BASE_URL` 不是 `https` 地址时，检查同样失败；Jira 不认识的 key 只给警告。日志中会隐去站点地址。
 - 脚本从事件文件读取 pull request，从不把文字放进 shell 命令，所以标题或正文无法执行任何东西。
 

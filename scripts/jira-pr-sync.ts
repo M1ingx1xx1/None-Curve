@@ -2,7 +2,7 @@
 // (when it opens, reopens, gets a push, or is edited), an issue still in To Do goes to In Progress; when it merges, an
 // issue not yet done goes to Done. Issues only move forward, so a pull request never pulls an issue back from In Review
 // or Done, and one closed without merging moves nothing.
-// A pull request names an issue by its key (NOCUR-57) in its branch name, its title, or the list of keys that starts a
+// A pull request names an issue by its key (HM-57) in its branch name, its title, or the list of keys that starts a
 // "Jira:" line of its body; keys anywhere else in the body (a parent mentioned in passing) do not count.
 // Run by the workflow: node --experimental-strip-types scripts/jira-pr-sync.ts. It reads the event GitHub saved at
 // GITHUB_EVENT_PATH, the repository secrets JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN, and JIRA_PROJECT (the
@@ -85,8 +85,8 @@ export function issueKeys(pr: PullRequestText, project: string): string[] {
   const key = new RegExp(`(?<![A-Za-z0-9])${project}-[1-9][0-9]*(?![0-9])`, 'gi')
   const whole = new RegExp(`^${project}-[1-9][0-9]*$`, 'i')
   const keys = [pr.branch, pr.title].flatMap((text) => text.match(key) ?? [])
-  // "Jira: NOCUR-1, NOCUR-2", also as a list item, in bold, or as links ("- **Jira:** [NOCUR-1](https://…)"): the keys
-  // that start the line, up to its first other word, so "Jira: NOCUR-60 (split from NOCUR-41)" names NOCUR-60 only.
+  // "Jira: HM-1, HM-2", also as a list item, in bold, or as links ("- **Jira:** [HM-1](https://…)"): the keys
+  // that start the line, up to its first other word, so "Jira: HM-60 (split from HM-41)" names HM-60 only.
   for (const line of pr.body.split(/\r?\n/)) {
     const label = /^[\s>*_-]*jira[\s*_]*:/i.exec(line)
     if (!label) continue
@@ -247,7 +247,7 @@ export async function run(
     lines.push(`Pull request ${action} (${pr.merged ? 'merged' : (pr.state ?? '?')}): nothing to move`)
     return done(0)
   }
-  const project = env.JIRA_PROJECT || 'NOCUR'
+  const project = env.JIRA_PROJECT || 'HM'
   const keys = issueKeys({ branch: pr.head?.ref ?? '', title: pr.title ?? '', body: pr.body ?? '' }, project)
   if (keys.length === 0) {
     lines.push(

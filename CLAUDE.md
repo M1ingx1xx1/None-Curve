@@ -74,5 +74,5 @@ When compacting, keep: the current task card, files changed and why, decisions t
 - UI and all of `src/` are English only. After touching `src/` or `index.html`, this must print nothing: `perl -CSD -ne 'print "$ARGV:$.: $_" if /[\x{3000}-\x{9fff}\x{ff00}-\x{ffef}]/; close ARGV if eof' $(git ls-files src index.html)`
 - Docs come in pairs, `NAME.md` (English, default) and `NAME.zh.md` (Chinese); update both in the same change and never mix languages in one file. Details in `docs/BEST_PRACTICE.md`.
 - No visible captions beside self-explanatory icons; keep their aria names.
-- Git: branch `feature/NOCUR-<n>-<name>` off `develop`, open PRs into `develop`. `main` is the release branch; pushing it deploys Pages.
-- Jira: with the issue key in the branch name or PR title, `.github/workflows/jira.yml` moves the issue (PR open → In Progress, merged → Done); by hand, only its description and the release record (NOCUR-28) are updated. Rules in `docs/BEST_PRACTICE.md` ("Branches, pull requests, and Jira").
+- Git: branch `feature/HM-<n>-<name>` off `develop`, open PRs into `develop`. `main` is the release branch; pushing it deploys Pages.
+- Jira: project HM on hm-lab.atlassian.net. With the issue key in the branch name or PR title, `.github/workflows/jira.yml` moves the issue (PR open → In Progress, merged → Done); by hand, only its description and the release record issue are updated. Rules in `docs/BEST_PRACTICE.md` ("Branches, pull requests, and Jira").
