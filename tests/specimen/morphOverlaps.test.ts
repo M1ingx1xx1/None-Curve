@@ -4,6 +4,7 @@
 // pocket between crossing spikes on the way. Glide now pairs the outline from before that merge (glideOutline).
 
 import { describe, expect, it } from 'vitest'
+import { glideOutlineOf } from '../../src/geometry/dissolveGlide'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, Point, PolygonGlyph } from '../../src/geometry/types'
 import { morphAt, planFromData, planMorph } from '../../src/specimen/morph'
@@ -147,6 +148,61 @@ describe.each(FIXTURE_FONTS)('Glide into Slipstream cuts and back: %s', async (f
       const ground = blankGround(cut, cut, 0.02 * cut.metrics.unitsPerEm)
       const unmerged = cut.glideOutline!.map((c) => c.points)
       expect(ground.filter((p) => winding(unmerged, p) !== 0).length, char).toBe(0)
+    }
+  })
+})
+
+// Dissolve breaks the letter's edge, so its counter is often no hole at all: the plain counter had no partner, shrank
+// into its centre and filled black on the way (up to 76% of the blank ground in STIX's o, 85% in Roboto's). Glide pairs
+// the outline Dissolve was given, with the ink it ate as holes and the ink it added as islands (glideOutlineOf), worked
+// out only when a glide is planned.
+describe.each(FIXTURE_FONTS)('Glide into Dissolve and back: %s', async (fontName) => {
+  const font = await loadFixture(fontName)
+  const glyphs = sampleGlyphs(font, 'oOe0a').map(({ char, index }) => {
+    const source = font.getGlyph(index)
+    return { char, glyph: (params: GeometryParams) => deriveGeometry(source, params).polygon }
+  })
+  // Its defaults, and everything at 0 but a fine Grain.
+  const settings = [{}, { amount: 0, grain: 0.15, spread: 0, specks: 0, curl: 0, facets: 0 }]
+  const dissolve = (patch: object) => paramsWith(GEOMETRY.plain, on('dissolve', patch))
+
+  it('keeps the counters blank on the way, both ways', () => {
+    for (const { char, glyph } of glyphs) {
+      const plain = glyph(paramsWith(GEOMETRY.plain, {}))
+      for (const patch of settings) {
+        const dissolved = glyph(dissolve(patch))
+        const ground = blankGround(plain, dissolved, 0.02 * plain.metrics.unitsPerEm)
+        for (const [from, to] of [
+          [plain, dissolved],
+          [dissolved, plain],
+        ]) {
+          const plan = planMorph(from, to)!
+          for (const p of PROGRESS) expect(inked(morphAt(plan, p), ground), `${char} at ${p}`).toBeLessThan(0.02)
+        }
+      }
+    }
+  })
+
+  it('pairs an outline that fills the same', () => {
+    for (const { char, glyph } of glyphs) {
+      for (const patch of settings) {
+        const dissolved = glyph(dissolve(patch))
+        const outline = glideOutlineOf(dissolved)
+        expect(outline, char).not.toBeNull()
+        const ground = blankGround(dissolved, dissolved, 0.02 * dissolved.metrics.unitsPerEm)
+        const unmerged = outline!.map((c) => c.points)
+        expect(ground.filter((p) => winding(unmerged, p) !== 0).length, char).toBe(0)
+      }
+    }
+  })
+
+  it('computes nothing for Glide until a glide is planned', () => {
+    for (const { char, glyph } of glyphs) {
+      const plain = glyph(paramsWith(GEOMETRY.plain, {}))
+      const dissolved = glyph(dissolve({}))
+      // The outline Dissolve was given, as it came: no holes or islands merged yet.
+      expect(dissolved.glideDissolved, char).toBe(true)
+      expect(dissolved.glideOutline, char).toEqual(plain.contours)
     }
   })
 })

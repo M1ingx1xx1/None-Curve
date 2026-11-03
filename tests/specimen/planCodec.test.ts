@@ -11,7 +11,8 @@ import { planCases, planHash, SAMPLES } from '../helpers/planCases'
  * built from data must draw the very same anchors, bit for bit. Recorded on arm64 with Node 23: Whorl and the mesh go
  * through Math.sin and Math.cos, whose last bits differ between platforms (and so, near a threshold, an anchor count),
  * so on other machines those cases check their kind and anchor count only. The Burst cases were recorded again when Glide
- * began to pair the outline from before the effects' merge (PolygonGlyph.glideOutline, NOCUR-93).
+ * began to pair the outline from before the effects' merge (PolygonGlyph.glideOutline, NOCUR-93), and Dissolve's when
+ * Glide began to pair the outline Dissolve was given.
  */
 const BEFORE: Record<string, string> = {
   'burst H/a/g 0': 'straight:486:de9dccb8',
@@ -24,7 +25,7 @@ const BEFORE: Record<string, string> = {
   'mesh on': 'whorl-mesh:90:35c89339',
   'mesh amount': 'whorl-mesh:90:507700de',
   'mesh off': 'whorl-mesh:144:9d4a2e65',
-  'dissolve STIX': 'straight:1749:a82a8761',
+  'dissolve STIX': 'straight:2333:69b04fa1',
   'whorl STIX': 'whorl:265:9966bd99',
   'burst goes on': 'straight:559:a2106525',
   'mesh goes on': 'whorl-mesh:90:e9449a17',

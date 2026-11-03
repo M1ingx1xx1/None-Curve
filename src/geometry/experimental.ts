@@ -189,6 +189,7 @@ export function applyExperimental(
     if (budget.reductions > reductions) tangled = true
   }
   let glideOutline: PolygonContour[] | null = null
+  let glideDissolved = false
   // Slipstream's cuts opened the letter where nothing after them changed it.
   if (slipstreamGlide?.polygon === result) glideOutline = slipstreamGlide.outline
   if ((tangled || stats.thorn.applied) && result !== unmergeable) {
@@ -219,6 +220,7 @@ export function applyExperimental(
     }
   }
   if (dissolveIsOn(params.dissolve)) {
+    const before = result
     ;({ polygon: result, stats: stats.dissolve } = applyDissolve(
       result,
       params.dissolve,
@@ -226,6 +228,11 @@ export function applyExperimental(
       unitsPerEm,
       budget.maxVertices,
     ))
+    // Glide adds the ink Dissolve ate and added when it pairs (geometry/dissolveGlide.ts), so editing and exports never pay for it.
+    if (stats.dissolve.applied) {
+      glideOutline = before.contours
+      glideDissolved = true
+    }
   }
   // Whorl's centre and settings ride along for Glide (display only; PolygonGlyph.motion).
   const motion = whorlBox ? { whorl: whorlMotion(params.whorl, whorlBox, unitsPerEm, beforeWhorl) } : null
@@ -237,7 +244,12 @@ export function applyExperimental(
       !dissolveIsOn(params.dissolve)
     if (last) motion.whorl.last = true
   }
-  const extras = { ...layout, ...(motion ? { motion } : {}), ...(glideOutline ? { glideOutline } : {}) }
+  const extras = {
+    ...layout,
+    ...(motion ? { motion } : {}),
+    ...(glideOutline ? { glideOutline } : {}),
+    ...(glideDissolved ? { glideDissolved: true as const } : {}),
+  }
   return { polygon: layout || motion || glideOutline ? { ...result, ...extras } : result, stats }
 }
 
