@@ -93,6 +93,7 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
     ...[box.minX, box.maxX].flatMap((x) => [box.minY, box.maxY].map((y) => Math.hypot(x - centre.x, y - centre.y))),
     spacing,
   )
+  if (sides < 3) return stripeWarp(sides, centre, spacing, amplitude, fade, reach, reverse)
   const half = Math.PI / sides
   const tanHalf = Math.tan(half)
   // Wavelength 0: no waves, so no rings either. Only the rays' scaling (Petals) is left, linear in each slice, as
@@ -267,6 +268,59 @@ export function rippleWarp(params: RippleParams, box: Box, unitsPerEm: number, s
   /** The diagonal of cell k in slice i at ring position s: from ring k on its first ray to ring k + 1 on its second. */
   function diagonal(k: number, i: number, s: number): number {
     return k * slope[i] + (s - k) * ((k + 1) * slope[i + 1] - k * slope[i])
+  }
+}
+
+/**
+ * Ripple with one or two sides: the rings are straight lines across the letter, level, one every half wavelength above
+ * and below the centre (a polygon of one or two sides, flattened). Each line moves up or down as a whole and points in
+ * between move linearly, so the letter is creased only along the lines. With one side every line is the same flat
+ * side facing down: the waves run one way, like a plane wave, and the odd lines move down. With two sides the lines
+ * above the centre face up and those below face down: the waves spread both ways from the centre line, mirrored. The
+ * centre line and the lines beyond the reach stay put; Petals needs corners and does nothing here.
+ */
+function stripeWarp(
+  sides: number,
+  centre: Point,
+  spacing: number,
+  amplitude: number,
+  fade: number,
+  reach: number,
+  reverse: boolean,
+): Warp {
+  const last = amplitude === 0 ? 0 : Math.ceil(reach / spacing) + 1
+  /** Line k (signed: positive below the centre) after moving, as a line index. */
+  const level = (k: number) => {
+    const n = Math.abs(k)
+    if (n === 0 || n >= last) return k
+    const size = (amplitude * Math.max(0, 1 - (fade * n * spacing) / reach)) / spacing
+    // Odd lines move out (down, or with two sides away from the centre line) and even lines in; reversed, the other way.
+    const out = (n % 2 === 1) !== reverse ? size : -size
+    return k + (sides === 2 && k < 0 ? -out : out)
+  }
+  /** Line position of p: how many spacings below the centre it lies. */
+  const along = (p: Point) => (centre.y - p.y) / spacing
+  return {
+    map(p) {
+      const s = along(p)
+      if (last === 0 || Math.abs(s) >= last) return p
+      const k = Math.floor(s)
+      const to = level(k) + (s - k) * (level(k + 1) - level(k))
+      return { x: p.x, y: centre.y - to * spacing }
+    },
+    creases(a, b) {
+      const sa = along(a)
+      const sb = along(b)
+      if (sa === sb) return []
+      const out: number[] = []
+      const lo = Math.max(Math.floor(Math.min(sa, sb)) + 1, 1 - last)
+      const hi = Math.min(Math.max(sa, sb), last - 1)
+      for (let k = lo; k <= hi; k++) {
+        const t = (k - sa) / (sb - sa)
+        if (t > 0 && t < 1) out.push(t)
+      }
+      return out.sort((p, q) => p - q)
+    },
   }
 }
 

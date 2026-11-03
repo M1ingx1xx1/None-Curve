@@ -58,6 +58,19 @@ export const CONFIGS: Config[] = [
     recheckEvery: 3,
     ...(['crumple', 'ripple', 'slipstream'].includes(effect) ? { addsCurves: true as const } : {}),
   })),
+  // Ripple with one or two sides: straight level lines instead of polygons, also folded. Curve runs as Ripple default.
+  {
+    name: 'ripple 1 side',
+    params: paramsWith(GEOMETRY.plain, on('ripple', { sides: 1 })),
+    recheckEvery: 3,
+    addsCurves: true,
+  },
+  {
+    name: 'ripple 2 sides, folded',
+    params: paramsWith(GEOMETRY.plain, on('ripple', { sides: 2, amount: 3 })),
+    recheckEvery: 3,
+    addsCurves: true,
+  },
   { name: 'all six default', params: paramsWith(GEOMETRY.plain, ALL_DEFAULT), recheckEvery: 3 },
   { name: 'all six default, dense Geometry', params: paramsWith(GEOMETRY.dense, ALL_DEFAULT), recheckEvery: 6 },
   { name: 'all six default, heavy Geometry', params: paramsWith(GEOMETRY.heavy, ALL_DEFAULT), recheckEvery: 6 },
