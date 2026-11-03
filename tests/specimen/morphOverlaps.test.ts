@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { deriveGeometry } from '../../src/geometry/pipeline'
-import type { Point, PolygonGlyph } from '../../src/geometry/types'
+import type { GeometryParams, Point, PolygonGlyph } from '../../src/geometry/types'
 import { morphAt, planFromData, planMorph } from '../../src/specimen/morph'
-import { loadFixture, sampleGlyphs } from '../helpers/fonts'
+import { FIXTURE_FONTS, loadFixture, sampleGlyphs } from '../helpers/fonts'
 import { contoursOf, winding } from '../helpers/outline'
 import { GEOMETRY, on, paramsWith } from '../helpers/params'
 
@@ -104,6 +104,49 @@ describe('Glide into Burst and back', async () => {
       const fresh = planFromData(plan.data!, plain, to)
       for (const p of PROGRESS) expect(morphAt(fresh, p).contours).toEqual(morphAt(plan, p).contours)
       expect(morphAt(plan, 0.5).glideOutline).toBeUndefined()
+    }
+  })
+})
+
+// Dissolve breaks the letter's edge, so its counter is often no hole at all: the plain counter had no partner, shrank
+// into its centre and filled black on the way (up to 76% of the blank ground in STIX's o, 85% in Roboto's). Glide pairs
+// the outline Dissolve was given, with the ink it ate as holes and the ink it added as islands (glideOutline).
+describe.each(FIXTURE_FONTS)('Glide into Dissolve and back: %s', async (fontName) => {
+  const font = await loadFixture(fontName)
+  const glyphs = sampleGlyphs(font, 'oOe0a').map(({ char, index }) => {
+    const source = font.getGlyph(index)
+    return { char, glyph: (params: GeometryParams) => deriveGeometry(source, params).polygon }
+  })
+  // Its defaults, and everything at 0 but a fine Grain.
+  const settings = [{}, { amount: 0, grain: 0.15, spread: 0, specks: 0, curl: 0, facets: 0 }]
+  const dissolve = (patch: object) => paramsWith(GEOMETRY.plain, on('dissolve', patch))
+
+  it('keeps the counters blank on the way, both ways', () => {
+    for (const { char, glyph } of glyphs) {
+      const plain = glyph(paramsWith(GEOMETRY.plain, {}))
+      for (const patch of settings) {
+        const dissolved = glyph(dissolve(patch))
+        const ground = blankGround(plain, dissolved, 0.02 * plain.metrics.unitsPerEm)
+        for (const [from, to] of [
+          [plain, dissolved],
+          [dissolved, plain],
+        ]) {
+          const plan = planMorph(from, to)!
+          for (const p of PROGRESS) expect(inked(morphAt(plan, p), ground), `${char} at ${p}`).toBeLessThan(0.02)
+        }
+      }
+    }
+  })
+
+  it('keeps an outline before Dissolve that fills the same', () => {
+    for (const { char, glyph } of glyphs) {
+      for (const patch of settings) {
+        const dissolved = glyph(dissolve(patch))
+        expect(dissolved.glideOutline, char).toBeDefined()
+        const ground = blankGround(dissolved, dissolved, 0.02 * dissolved.metrics.unitsPerEm)
+        const unmerged = dissolved.glideOutline!.map((c) => c.points)
+        expect(ground.filter((p) => winding(unmerged, p) !== 0).length, char).toBe(0)
+      }
     }
   })
 })

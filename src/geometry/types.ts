@@ -320,8 +320,9 @@ export interface PolygonGlyph {
   /**
    * When the Experimental effects merged crossing outlines at the end (Thorn's spikes, folds): the contours just before
    * that merge, which fill the same by the nonzero rule. Glide pairs anchors on them (specimen/morph.ts), so a spike
-   * grows out of the piece it belongs to and the pockets where spikes cross never have to grow as holes. Display only;
-   * missing without such a merge, or when Dissolve redrew the letter after it.
+   * grows out of the piece it belongs to and the pockets where spikes cross never have to grow as holes. After Dissolve:
+   * the outline it was given, with the ink it ate as holes and the ink it added as islands (experimental.ts
+   * dissolvedAsHoles), so the letter's counter pairs with the hole it was. Display only; missing without such a merge.
    */
   glideOutline?: PolygonContour[]
   /**
