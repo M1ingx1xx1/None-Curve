@@ -437,7 +437,7 @@ Rebuilds each letter as ink that has been photocopied too often: the strokes sta
 
 - **Use dissolve** — turns it on.
 - **Amount** — how much ink is eaten away (50 % to start with). At 0 % the letter stays nearly solid with a ragged edge; at 100 % only thin squiggles and rings are left.
-- **Grain** — how big the islands and rings are, as a share of the stroke width (40 % to start with, from 0 % to 100 %). Small grain gives fine, busy ink; large grain gives a few coarse blobs. At 0 % the grain is as fine as the letter can be drawn, a dust of tiny specks; below about 15 % it takes longer to work out.
+- **Grain** — how big the islands and rings are, as a share of the stroke width (40 % to start with, from 0 % to 100 %). Small grain gives fine, busy ink; large grain gives a few coarse blobs. Below 15 % the islands keep their size and only the speckle inside them gets finer, down to a dust of tiny specks at 5 % and below.
 - **Spread** — how far the ragged edge reaches past the original outline, in half-strokes (80 % to start with, up to 150 %). At 100 % it reaches half a stroke out.
 - **Specks** — how many loose specks lie just outside the strokes (40 % to start with). At 0 % there are none.
 - **Curl** — the shape of the ink (60 % to start with). At 0 % it clumps into plain blobs; towards 100 % it wanders into loops and rings.
