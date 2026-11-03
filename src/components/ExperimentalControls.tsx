@@ -334,8 +334,9 @@ function RippleGroup({ params, stats, pending, disabled, onChange }: GroupProps<
           target="experimental.ripple.sides"
           label="Sides"
           value={params.sides}
-          valueText={`${params.sides} sides`}
+          valueText={`${params.sides} ${params.sides === 1 ? 'side' : 'sides'}`}
           disabled={off}
+          hint="Shape of the rings: 3 gives triangles, 8 octagons. 1 and 2 give straight level lines: 1 sends the waves one way, 2 mirrors them up and down from the centre. Petals needs 3 or more."
           onChange={(sides) => update({ sides })}
         />
         <SliderField
@@ -1012,32 +1013,33 @@ function FoldStats({ stats, pending }: { stats: ExperimentalStats | null; pendin
 
 /** Largest move and creases added, plus warnings when an effect had to be weakened or left out. */
 function EffectStats({ stats, pending, effect }: { stats: WarpStats | null; pending: boolean; effect: string }) {
-  if (!stats?.applied) return null
+  // Always shown, at 0 while the effect moves nothing, so the panel does not jump as sound turns it on and off.
+  const moved = stats?.applied ? stats : null
   return (
     <>
       <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
         <div>
           <dt>Max move</dt>
           <dd>
-            {stats.maxShift.toFixed(1)}
+            {(moved?.maxShift ?? 0).toFixed(1)}
             <span className="unit">u</span>
           </dd>
         </div>
         <div>
           <dt>Creases</dt>
-          <dd>+{stats.addedVertices}</dd>
+          <dd>+{moved?.addedVertices ?? 0}</dd>
         </div>
       </dl>
-      {stats.reducedContours > 0 && (
+      {moved && moved.reducedContours > 0 && (
         <p className="font-warning">
-          {stats.reducedContours} {stats.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker {effect} to
+          {moved.reducedContours} {moved.reducedContours === 1 ? 'contour uses' : 'contours use'} a weaker {effect} to
           stay valid.
         </p>
       )}
-      {stats.fallbackContours > 0 && (
+      {moved && moved.fallbackContours > 0 && (
         <p className="font-warning">This glyph is left without {effect}: no strength kept it valid.</p>
       )}
-      {stats.tooComplex && <p className="font-warning">This glyph is left without {effect}: too complex.</p>}
+      {moved?.tooComplex && <p className="font-warning">This glyph is left without {effect}: too complex.</p>}
     </>
   )
 }

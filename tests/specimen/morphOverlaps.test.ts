@@ -109,6 +109,49 @@ describe('Glide into Burst and back', async () => {
   })
 })
 
+// Slipstream's cuts can open a counter (the o cut through, the e's eye cut into): the cut outline has no hole there, so
+// the counter had no partner, shrank into its centre and filled black on the way. Glide pairs the outline from before
+// the cuts, with the ink they took away as holes of their own (glideOutline).
+describe.each(FIXTURE_FONTS)('Glide into Slipstream cuts and back: %s', async (fontName) => {
+  const font = await loadFixture(fontName)
+  // Only the cuts: the bands neither stretch nor slide, so nothing moves across the counters on the way.
+  const cuts = (direction: number) =>
+    paramsWith(GEOMETRY.plain, on('slipstream', { direction, strength: 0, slip: 0, gustiness: 0, cuts: 8, trails: 0 }))
+  const glyphs = sampleGlyphs(font, 'oOe0a').map(({ char, index }) => {
+    const source = font.getGlyph(index)
+    return { char, glyph: (params: GeometryParams) => deriveGeometry(source, params).polygon }
+  })
+
+  it('keeps the counters blank on the way, both ways', () => {
+    for (const { char, glyph } of glyphs) {
+      const plain = glyph(paramsWith(GEOMETRY.plain, {}))
+      for (const [a, b] of [
+        [plain, glyph(cuts(0))],
+        [plain, glyph(cuts(180))],
+      ]) {
+        const ground = blankGround(a, b, 0.02 * plain.metrics.unitsPerEm)
+        for (const [from, to] of [
+          [a, b],
+          [b, a],
+        ]) {
+          const plan = planMorph(from, to)!
+          for (const p of PROGRESS) expect(inked(morphAt(plan, p), ground), `${char} at ${p}`).toBeLessThan(0.02)
+        }
+      }
+    }
+  })
+
+  it('keeps an outline before the cuts that fills the same', () => {
+    for (const { char, glyph } of glyphs) {
+      const cut = glyph(cuts(0))
+      expect(cut.glideOutline, char).toBeDefined()
+      const ground = blankGround(cut, cut, 0.02 * cut.metrics.unitsPerEm)
+      const unmerged = cut.glideOutline!.map((c) => c.points)
+      expect(ground.filter((p) => winding(unmerged, p) !== 0).length, char).toBe(0)
+    }
+  })
+})
+
 // Dissolve breaks the letter's edge, so its counter is often no hole at all: the plain counter had no partner, shrank
 // into its centre and filled black on the way (up to 76% of the blank ground in STIX's o, 85% in Roboto's). Glide pairs
 // the outline Dissolve was given, with the ink it ate as holes and the ink it added as islands (glideOutlineOf), worked
