@@ -42,7 +42,7 @@ import { mergeOverlaps, type FillRule, type OverlapStats } from './overlaps'
 import { SLIPSTREAM_LIMITS, slipstreamFade, slipstreamGust, wholeCount } from './limits'
 import { clamp, distanceToSegment, finite, lerp, signedArea } from './primitives'
 import type { Box } from './ripple'
-import type { Point, PolygonGlyph, SlipstreamParams } from './types'
+import type { Point, PolygonContour, PolygonGlyph, SlipstreamParams } from './types'
 import { emptyWarpStats, type Warp, type WarpStats } from './warp'
 
 /** How the slip is laid out, in bands one Gust size wide. */
@@ -304,12 +304,48 @@ export function slipstreamTrailsAndCuts(
   seed: number,
   unitsPerEm: number,
   budget?: GlyphBudget,
-): { polygon: PolygonGlyph; trails: number; cuts: number; merge: OverlapStats | null } {
+): {
+  polygon: PolygonGlyph
+  trails: number
+  cuts: number
+  merge: OverlapStats | null
+  glideOutline: PolygonContour[] | null
+} {
   const trailed = addTrails(polygon, params, seed, unitsPerEm)
   const merge = (glyph: PolygonGlyph, rule: FillRule) =>
     budget ? budget.merge(glyph, rule) : mergeOverlaps(glyph, rule)
   const cut = addCuts(trailed.polygon, params, seed, unitsPerEm, merge)
-  return { polygon: cut.polygon, trails: trailed.count, cuts: cut.count, merge: cut.merge }
+  return {
+    polygon: cut.polygon,
+    trails: trailed.count,
+    cuts: cut.count,
+    merge: cut.merge,
+    glideOutline: cut.glideOutline,
+  }
+}
+
+/**
+ * For Glide (PolygonGlyph.glideOutline): the outline before the cuts (`before`: as it came, not merged), with the ink
+ * they took away as holes of their own. A cut that opens a counter leaves the letter's own contours in place, so Glide
+ * pairs them with the contours they were, instead of shrinking the counter into its centre, which filled it black on
+ * the way. The holes wind against the letter's largest contour; they cancel ink the outline winds once, so this fills
+ * the same as `cut` except where the outline's own overlaps wind twice. Null when the ink taken away cannot be merged.
+ */
+function cutAsHoles(before: PolygonGlyph, clean: PolygonGlyph, cut: PolygonGlyph): PolygonContour[] | null {
+  const reversed = (c: PolygonContour): PolygonContour => ({
+    points: c.points.slice().reverse(),
+    clockwise: !c.clockwise,
+  })
+  // Positive where the ink was before the cuts and is not after them: what the cuts took away (counter-clockwise).
+  const taken = mergeOverlaps({ ...clean, contours: [...clean.contours, ...cut.contours.map(reversed)] }, 'positive')
+  if (!taken.stats.applied) return null
+  let largest = 0
+  for (const c of before.contours) {
+    const area = signedArea(c.points)
+    if (Math.abs(area) > Math.abs(largest)) largest = area
+  }
+  const holes = largest > 0 ? taken.polygon.contours.map(reversed) : taken.polygon.contours
+  return [...before.contours, ...holes]
 }
 
 interface Trail {
@@ -538,9 +574,9 @@ function addCuts(
   seed: number,
   unitsPerEm: number,
   merge: (glyph: PolygonGlyph, rule: FillRule) => { polygon: PolygonGlyph; stats: OverlapStats },
-): { polygon: PolygonGlyph; count: number; merge: OverlapStats | null } {
+): { polygon: PolygonGlyph; count: number; merge: OverlapStats | null; glideOutline: PolygonContour[] | null } {
   const wanted = wholeCount(params.cuts, SLIPSTREAM_LIMITS.maxCuts)
-  if (wanted === 0) return { polygon, count: 0, merge: null }
+  if (wanted === 0) return { polygon, count: 0, merge: null, glideOutline: null }
   // Redrawn by the nonzero rule: the ink winds once (outer contours counter-clockwise, holes clockwise).
   const clean = merge(polygon, 'nonzero')
   // Too complex to merge: the glyph as the budget simplified it for its last try (see GlyphBudget.merge).
@@ -549,6 +585,7 @@ function addCuts(
       polygon: clean.polygon,
       count: 0,
       merge: clean.stats.failed || clean.stats.tooComplex ? clean.stats : null,
+      glideOutline: null,
     }
   const { wx, wy } = streamOf(params)
   const glyph = clean.polygon.ref.index | 0
@@ -562,7 +599,7 @@ function addCuts(
       high = Math.max(high, v)
     }
   }
-  if (!(high > low)) return { polygon: clean.polygon, count: 0, merge: clean.stats }
+  if (!(high > low)) return { polygon: clean.polygon, count: 0, merge: clean.stats, glideOutline: null }
 
   const wedges: Point[][] = []
   for (let k = 0; k < wanted; k++) {
@@ -599,7 +636,7 @@ function addCuts(
       break
     }
   }
-  if (wedges.length === 0) return { polygon: clean.polygon, count: 0, merge: clean.stats }
+  if (wedges.length === 0) return { polygon: clean.polygon, count: 0, merge: clean.stats, glideOutline: null }
   const contoursWithCuts = [...clean.polygon.contours, ...wedges.map((points) => ({ points, clockwise: true }))]
   const cut = merge({ ...clean.polygon, contours: contoursWithCuts }, 'positive')
   // Without the cuts, the redrawn outline stays; why the cut merge did not apply goes along.
@@ -608,10 +645,12 @@ function addCuts(
       polygon: clean.polygon,
       count: 0,
       merge: { ...clean.stats, failed: cut.stats.failed, tooComplex: cut.stats.tooComplex },
+      glideOutline: null,
     }
   return {
     polygon: cut.polygon,
     count: wedges.length,
+    glideOutline: cutAsHoles(polygon, clean.polygon, cut.polygon),
     merge: {
       applied: true,
       crossings: clean.stats.crossings + cut.stats.crossings,

@@ -230,7 +230,7 @@ describe('saved session', () => {
       version: SESSION_VERSION,
       params: {
         experimental: {
-          dissolve: { enabled: true, amount: 3, grain: 0.01, spread: 'wide', specks: -1, curl: 0.25, facets: 0.7 },
+          dissolve: { enabled: true, amount: 3, grain: -0.5, spread: 'wide', specks: -1, curl: 0.25, facets: 0.7 },
         },
       },
     })!

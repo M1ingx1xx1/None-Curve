@@ -110,31 +110,30 @@ function DistortionControls({ params, stats, finalVertices, pending, disabled, d
           </HintText>
         </div>
 
-        {stats?.applied && (
-          <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+        {/* Always shown, at 0 while nothing moves, so the panel does not jump as sound turns Distortion on and off. */}
+        <dl className="flatten-stats" aria-live="polite" aria-busy={pending}>
+          <div>
+            <dt>Seed</dt>
+            <dd>{shownSeed}</dd>
+          </div>
+          <div>
+            <dt>Vertices</dt>
+            <dd>{finalVertices ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>Max move</dt>
+            <dd>
+              {(stats?.applied ? stats.maxShift : 0).toFixed(1)}
+              <span className="unit">u</span>
+            </dd>
+          </div>
+          {params.sparse && (
             <div>
-              <dt>Seed</dt>
-              <dd>{shownSeed}</dd>
+              <dt>Anchors moved</dt>
+              <dd>{stats?.applied ? stats.movedAnchors : 0}</dd>
             </div>
-            <div>
-              <dt>Vertices</dt>
-              <dd>{finalVertices ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Max move</dt>
-              <dd>
-                {stats.maxShift.toFixed(1)}
-                <span className="unit">u</span>
-              </dd>
-            </div>
-            {params.sparse && (
-              <div>
-                <dt>Anchors moved</dt>
-                <dd>{stats.movedAnchors}</dd>
-              </div>
-            )}
-          </dl>
-        )}
+          )}
+        </dl>
         {stats && stats.clampedVertices > 0 && (
           <p className="field-hint">
             {stats.clampedVertices} {stats.clampedVertices === 1 ? 'vertex moves' : 'vertices move'} less than the

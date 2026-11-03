@@ -1,7 +1,7 @@
 // Reset experimental (the Experimental tab's button): every effect off, every switch off, and every slider at 0, so the
 // tab starts from nothing. Angles (Crumple's Turn, Slipstream's Direction) and Whorl's signed Amount sit at 0 too; a
-// slider whose range starts above 0 (Ripple's and Whorl's Sides, Whorl's Rings, Dissolve's Grain: none of them has a
-// "nothing" at 0) goes to its minimum. Ripple's Center X/Y, a position whose neutral is the middle, go to the middle
+// slider whose range starts above 0 (Ripple's and Whorl's Sides, Whorl's Rings: none of them has a "nothing" at 0)
+// goes to its minimum. Ripple's Center X/Y, a position whose neutral is the middle, go to the middle
 // (CENTRED). The seed is kept, so a variant the user liked is not lost. Derived from the default settings' fields and
 // the sliders' ranges (sliderScales.ts), so a new effect or slider is cleared too, and sliderRange throws for a number
 // with no slider rather than leaving it out. Pure: no React, no DOM.
