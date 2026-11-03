@@ -62,8 +62,12 @@ export function easeOut(t: number): number {
   return (1 - 2 ** (-GLIDE_EASE_STEEPNESS * t)) / (1 - 2 ** -GLIDE_EASE_STEEPNESS)
 }
 
-/** easeOut is 2^−steepness short of the end before its rescale: at 10, half the way in a tenth of the time. */
-const GLIDE_EASE_STEEPNESS = 10
+/**
+ * easeOut is 2^−steepness short of the end before its rescale: at 4, half the way in under a quarter of the time. At
+ * 10, a 150 ms glide was 79% there in the first 30 fps frame, so a big change such as Dissolve switching on and off
+ * with Return to plain read as a cut; at 4 the frames show 49%, 76% and 90%.
+ */
+const GLIDE_EASE_STEEPNESS = 4
 
 export interface GlideTarget {
   /** Glide's time (ms); 0 changes at once. */

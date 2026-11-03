@@ -508,7 +508,7 @@ describe('Glide on Roboto', async () => {
     // The eased progress runs over the three legs evenly: a sixth in, the first leg (to the first keyframe); a half in,
     // the second; five sixths in, the third (to the new outline).
     // The time (ms) at which easeOut reaches q (its inverse).
-    const at = (q: number) => (1000 * -Math.log2(1 - q * (1 - 2 ** -10))) / 10
+    const at = (q: number) => (1000 * -Math.log2(1 - q * (1 - 2 ** -4))) / 4
     const h = 0 // "H"
     const legTo = [s1, s2, sb].map((scene) => glyphsOf(scene)[h].polygon)
     for (const [leg, q] of [0.5 / 3, 1.5 / 3, 2.5 / 3].entries()) {
