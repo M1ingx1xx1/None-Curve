@@ -223,7 +223,8 @@ function inkField(
 
   // How far ink may reach past the outline, in half-strokes: the ragged edge and the specks fade out before it.
   const reachS = 2.2 + 1.9 * p.spread
-  const period = p.grain * 2 * h
+  // Never finer than two of the finest cells: below that the noise only aliases, and Grain 0 would divide by zero.
+  const period = Math.max(p.grain * 2 * h, 2 * GRID.minCell * upm)
   let cell = Math.max(period / GRID.cellsPerPeriod, GRID.minCell * upm)
   const margin = (c: number) => reachS * h + 3 * c
   const nodes = (c: number) => ((width + 2 * margin(c)) / c + 3) * ((height + 2 * margin(c)) / c + 3)

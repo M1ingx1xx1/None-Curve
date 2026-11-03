@@ -1,5 +1,5 @@
 // Reset experimental (src/state/clearExperimental.ts): every Experimental field of the default settings is cleared,
-// switches to false and sliders to 0, or to their minimum where the range starts above 0 (Sides, Rings, Grain), except
+// switches to false and sliders to 0, or to their minimum where the range starts above 0 (Sides, Rings), except
 // Ripple's centre, which goes to the middle; the seed is kept, and the "already cleared" check matches. The cleared values are valid for the pipeline: each effect switched on at them, and with
 // its strength then raised, gives finite outlines that do not cross themselves.
 
@@ -55,7 +55,7 @@ describe('clearedExperimental', () => {
 
   it('clears to the documented values', () => {
     const { seed: _seed, ...cleared } = clearedExperimental(1)
-    // Literal values, so a change of any slider's range shows up here. Only Sides, Rings and Grain stop above 0; angles
+    // Literal values, so a change of any slider's range shows up here. Only Sides and Rings stop above 0; angles
     // (Turn, Direction) and Whorl's signed Amount sit at 0, Ripple's centre in the middle.
     expect(cleared).toEqual({
       crumple: { enabled: false, amount: 0, facet: 0, turn: 0 },
@@ -63,7 +63,7 @@ describe('clearedExperimental', () => {
         enabled: false,
         amount: 0,
         wavelength: 0,
-        sides: 3,
+        sides: 1,
         centerX: 0.5,
         centerY: 0.5,
         fade: 0,
@@ -89,14 +89,13 @@ describe('clearedExperimental', () => {
       dissolve: {
         enabled: false,
         amount: 0,
-        grain: SLIDER_RANGES['experimental.dissolve.grain'].min,
+        grain: 0,
         spread: 0,
         specks: 0,
         curl: 0,
         facets: 0,
       },
     })
-    expect(cleared.dissolve.grain).toBe(0.15)
   })
 
   it('gives a fresh object each time', () => {
