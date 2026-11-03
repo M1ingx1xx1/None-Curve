@@ -144,6 +144,8 @@ export function applyExperimental(
   let streamMerged = false
   // The outline Slipstream could not merge (it broke down or was too complex), so the final merge need not try it again.
   let unmergeable: PolygonGlyph | null = null
+  // The outline Slipstream's cuts left, with its glideOutline: kept while nothing later redraws it.
+  let slipstreamGlide: { polygon: PolygonGlyph; outline: PolygonContour[] } | null = null
   if (slipstreamBox) {
     const streamed = warp(slipstreamBox, (scale, box) =>
       slipstreamWarp(params.slipstream, seed, box ?? slipstreamBox, unitsPerEm, scale),
@@ -156,6 +158,7 @@ export function applyExperimental(
       // Trails, the redrawn outline, and the budget's simplification change the vertices: the crease marks no longer line up.
       marks = undefined
     }
+    if (marked.glideOutline) slipstreamGlide = { polygon: result, outline: marked.glideOutline }
     if (marked.merge) {
       stats.folds = marked.merge
       streamMerged = marked.merge.applied
@@ -186,6 +189,8 @@ export function applyExperimental(
     if (budget.reductions > reductions) tangled = true
   }
   let glideOutline: PolygonContour[] | null = null
+  // Slipstream's cuts opened the letter where nothing after them changed it.
+  if (slipstreamGlide?.polygon === result) glideOutline = slipstreamGlide.outline
   if ((tangled || stats.thorn.applied) && result !== unmergeable) {
     const unmerged = result.contours
     const merged = budget.merge(result)
