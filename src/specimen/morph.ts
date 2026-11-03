@@ -36,6 +36,7 @@
 // within MORPH_LIMITS.settleShare of an em of the shape without them (settleInBetween), so a long run of quick changes
 // does not pile up anchors.
 
+import { glideOutlineOf } from '../geometry/dissolveGlide'
 import type { GlyphMotion, Point, PolygonContour, PolygonGlyph } from '../geometry/types'
 import { PLAN_DATA_VERSION, type PlanData, type TrackData } from './planData'
 import { meshGlideFrom, planWhorlMesh, preparedFor, type MeshGlide, type MeshPose, type Prepared } from './whorlGlide'
@@ -658,8 +659,8 @@ export function planMorph(from: PolygonGlyph, to: PolygonGlyph, models?: readonl
   // Whorl pairs its folded rings in its unturned space, as merged. A contour of `to`'s glideOutline is never one of
   // `to`'s own, so it goes as a track of its anchors, not 'still'.
   const unmerged = !trajectory.straighten
-  const toOutline = (unmerged && to.glideOutline) || to.contours
-  const a = ((unmerged && from.glideOutline) || from.contours).map(ringOf)
+  const toOutline = (unmerged && glideOutlineOf(to)) || to.contours
+  const a = ((unmerged && glideOutlineOf(from)) || from.contours).map(ringOf)
   let b = toOutline.map(ringOf)
   // The new outline wound the old one's way, so every in-between contour winds one way (see the top of the file).
   const winds = windsClockwise(a)
@@ -915,6 +916,7 @@ export function morphAt(plan: MorphPlan, p: number): PolygonGlyph {
   const glyph: PolygonGlyph = { ...plan.to, contours }
   // Its own contours are what a glide that goes on from it pairs, not the new outline's.
   delete glyph.glideOutline
+  delete glyph.glideDissolved
   const motion = motionAt(plan.from.motion, plan.to.motion, p)
   if (motion) glyph.motion = motion
   else delete glyph.motion

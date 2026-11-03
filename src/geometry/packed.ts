@@ -24,8 +24,8 @@ export interface PackedGlyph {
   hull: Float64Array | null
   /** The letter as Whorl received it (its motion's `outline`, the whole letter): packed apart, or null. */
   outline: PackedContours | null
-  /** What is small or not made of points, kept as it is: the glyph's ref, metrics, layout box and motion (its outline apart). */
-  rest: Pick<WorkerGeometry['polygon'], 'ref' | 'metrics' | 'layoutBox' | 'motion'>
+  /** What is small or not made of points, kept as it is: the glyph's ref, metrics, layout box, motion (its outline apart) and glideDissolved. */
+  rest: Pick<WorkerGeometry['polygon'], 'ref' | 'metrics' | 'layoutBox' | 'motion' | 'glideDissolved'>
   vertexCount: number
   /** The pipeline's statistics (the panels read them for the selected glyph); null when they were left out. */
   stats: GlyphStats | null
@@ -111,6 +111,7 @@ export function packGeometry(
   }
   const rest: PackedGlyph['rest'] = { ref: polygon.ref, metrics: polygon.metrics }
   if ('layoutBox' in polygon) rest.layoutBox = polygon.layoutBox
+  if (polygon.glideDissolved) rest.glideDissolved = true
   let outline: PackedContours | null = null
   if ('motion' in polygon) {
     const whorl = polygon.motion?.whorl
@@ -163,6 +164,7 @@ export function unpackGeometry(packed: PackedGlyph): WorkerGeometry | LeanGeomet
   if (packed.click) polygon.clickOutline = packed.click === 'same' ? contours : unpackContours(packed.click)
   if ('motion' in packed.rest) polygon.motion = withOutline(packed.rest.motion, packed.outline)
   if (packed.glide) polygon.glideOutline = unpackContours(packed.glide)
+  if (packed.rest.glideDissolved) polygon.glideDissolved = true
   const { vertexCount, stats } = packed
   return stats ? { polygon, vertexCount, ...stats } : { polygon, vertexCount }
 }

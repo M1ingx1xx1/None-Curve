@@ -25,12 +25,11 @@ import {
   thornIsOn,
   whorlIsOn,
 } from './limits'
-import { emptyOverlapStats, mergeOverlaps, type OverlapStats } from './overlaps'
+import { emptyOverlapStats, type OverlapStats } from './overlaps'
 import { inkBox, rippleWarp, type Box } from './ripple'
 import { emptySlipstreamStats, slipstreamTrailsAndCuts, slipstreamWarp, type SlipstreamStats } from './slipstream'
 import { applyThorn, emptyThornStats, ThornAnchors, thornBursts, withoutSpecks, type ThornStats } from './thorn'
 import type { ExperimentalParams, Point, PolygonContour, PolygonGlyph } from './types'
-import { signedArea } from './primitives'
 import { applyWarp, emptyWarpStats, type CreaseMarks, type Warp, type WarpStats } from './warp'
 import { whorlMotion, whorlWarp } from './whorl'
 
@@ -187,6 +186,7 @@ export function applyExperimental(
     if (budget.reductions > reductions) tangled = true
   }
   let glideOutline: PolygonContour[] | null = null
+  let glideDissolved = false
   if ((tangled || stats.thorn.applied) && result !== unmergeable) {
     const unmerged = result.contours
     const merged = budget.merge(result)
@@ -223,7 +223,11 @@ export function applyExperimental(
       unitsPerEm,
       budget.maxVertices,
     ))
-    if (stats.dissolve.applied) glideOutline = dissolvedAsHoles(before, result)
+    // Glide adds the ink Dissolve ate and added when it pairs (geometry/dissolveGlide.ts), so editing and exports never pay for it.
+    if (stats.dissolve.applied) {
+      glideOutline = before.contours
+      glideDissolved = true
+    }
   }
   // Whorl's centre and settings ride along for Glide (display only; PolygonGlyph.motion).
   const motion = whorlBox ? { whorl: whorlMotion(params.whorl, whorlBox, unitsPerEm, beforeWhorl) } : null
@@ -235,7 +239,12 @@ export function applyExperimental(
       !dissolveIsOn(params.dissolve)
     if (last) motion.whorl.last = true
   }
-  const extras = { ...layout, ...(motion ? { motion } : {}), ...(glideOutline ? { glideOutline } : {}) }
+  const extras = {
+    ...layout,
+    ...(motion ? { motion } : {}),
+    ...(glideOutline ? { glideOutline } : {}),
+    ...(glideDissolved ? { glideDissolved } : {}),
+  }
   return { polygon: layout || motion || glideOutline ? { ...result, ...extras } : result, stats }
 }
 
@@ -243,45 +252,6 @@ export function applyExperimental(
  * The convex hull of every point of the outline, counterclockwise and without collinear points (monotone chain).
  * Slanting is linear, so the slanted letter reaches exactly as far as its hull (see PolygonGlyph.layoutHull).
  */
-/** The anchors of the outline before Dissolve and after it, at most, for dissolvedAsHoles (specimen/morph.ts maxPoints). */
-const DISSOLVE_GLIDE_MAX_POINTS = 12_000
-
-/**
- * For Glide (PolygonGlyph.glideOutline): the outline Dissolve was given (`before`, as it came), with the ink Dissolve ate
- * as holes of its own and the ink it added (specks, a ragged edge) as islands. Dissolve breaks a letter's edge, so its
- * counter is often no hole at all; Glide pairs the letter's own contours with the contours they were, instead of
- * shrinking the counter into its centre, which filled it black on the way. Holes wind against `before`'s largest
- * contour and islands with it, so this fills the same as `after` except where `before`'s own overlaps wind twice. Null
- * when either difference cannot be merged, or the outlines are too large to glide.
- */
-function dissolvedAsHoles(before: PolygonGlyph, after: PolygonGlyph): PolygonContour[] | null {
-  // Glide changes a glyph past MORPH_LIMITS.maxPoints anchors at once: no outline to pair, and no merges to pay for.
-  let points = 0
-  for (const c of before.contours) points += c.points.length
-  for (const c of after.contours) points += c.points.length
-  if (points > DISSOLVE_GLIDE_MAX_POINTS) return null
-  const reversed = (c: PolygonContour): PolygonContour => ({
-    points: c.points.slice().reverse(),
-    clockwise: !c.clockwise,
-  })
-  let largest = 0
-  for (const c of before.contours) {
-    const area = signedArea(c.points)
-    if (Math.abs(area) > Math.abs(largest)) largest = area
-  }
-  // `before` wound as Dissolve winds its ink (outer contours counter-clockwise), once or more where pieces overlap.
-  const ink = largest > 0 ? before.contours : before.contours.map(reversed)
-  // Positive where one has ink and the other has not.
-  const minus = (a: PolygonContour[], b: PolygonContour[]) =>
-    mergeOverlaps({ ...after, contours: [...a, ...b.map(reversed)] }, 'positive')
-  const eaten = minus(ink, after.contours)
-  const added = minus(after.contours, ink)
-  if (!eaten.stats.applied || !added.stats.applied) return null
-  const holes = largest > 0 ? eaten.polygon.contours.map(reversed) : eaten.polygon.contours
-  const islands = largest > 0 ? added.polygon.contours : added.polygon.contours.map(reversed)
-  return [...before.contours, ...holes, ...islands]
-}
-
 function convexHull(polygon: PolygonGlyph): Point[] {
   const points = polygon.contours
     .flatMap((c) => c.points.map(({ x, y }) => ({ x, y })))

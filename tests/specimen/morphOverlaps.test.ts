@@ -4,6 +4,7 @@
 // pocket between crossing spikes on the way. Glide now pairs the outline from before that merge (glideOutline).
 
 import { describe, expect, it } from 'vitest'
+import { glideOutlineOf } from '../../src/geometry/dissolveGlide'
 import { deriveGeometry } from '../../src/geometry/pipeline'
 import type { GeometryParams, Point, PolygonGlyph } from '../../src/geometry/types'
 import { morphAt, planFromData, planMorph } from '../../src/specimen/morph'
@@ -110,7 +111,8 @@ describe('Glide into Burst and back', async () => {
 
 // Dissolve breaks the letter's edge, so its counter is often no hole at all: the plain counter had no partner, shrank
 // into its centre and filled black on the way (up to 76% of the blank ground in STIX's o, 85% in Roboto's). Glide pairs
-// the outline Dissolve was given, with the ink it ate as holes and the ink it added as islands (glideOutline).
+// the outline Dissolve was given, with the ink it ate as holes and the ink it added as islands (glideOutlineOf), worked
+// out only when a glide is planned.
 describe.each(FIXTURE_FONTS)('Glide into Dissolve and back: %s', async (fontName) => {
   const font = await loadFixture(fontName)
   const glyphs = sampleGlyphs(font, 'oOe0a').map(({ char, index }) => {
@@ -138,15 +140,26 @@ describe.each(FIXTURE_FONTS)('Glide into Dissolve and back: %s', async (fontName
     }
   })
 
-  it('keeps an outline before Dissolve that fills the same', () => {
+  it('pairs an outline that fills the same', () => {
     for (const { char, glyph } of glyphs) {
       for (const patch of settings) {
         const dissolved = glyph(dissolve(patch))
-        expect(dissolved.glideOutline, char).toBeDefined()
+        const outline = glideOutlineOf(dissolved)
+        expect(outline, char).not.toBeNull()
         const ground = blankGround(dissolved, dissolved, 0.02 * dissolved.metrics.unitsPerEm)
-        const unmerged = dissolved.glideOutline!.map((c) => c.points)
+        const unmerged = outline!.map((c) => c.points)
         expect(ground.filter((p) => winding(unmerged, p) !== 0).length, char).toBe(0)
       }
+    }
+  })
+
+  it('computes nothing for Glide until a glide is planned', () => {
+    for (const { char, glyph } of glyphs) {
+      const plain = glyph(paramsWith(GEOMETRY.plain, {}))
+      const dissolved = glyph(dissolve({}))
+      // The outline Dissolve was given, as it came: no holes or islands merged yet.
+      expect(dissolved.glideDissolved, char).toBe(true)
+      expect(dissolved.glideOutline, char).toEqual(plain.contours)
     }
   })
 })
