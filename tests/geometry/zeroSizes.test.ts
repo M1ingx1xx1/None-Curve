@@ -45,6 +45,7 @@ describe('sliders that reach 0', () => {
       'experimental.thorn.count',
       'experimental.thorn.flute',
       'experimental.thorn.spikes',
+      'experimental.dissolve.grain',
     ] as const) {
       expect(SLIDER_RANGES[id].min, id).toBe(0)
     }
@@ -55,10 +56,10 @@ describe('sliders that reach 0', () => {
       THORN_LIMITS.finestFlute,
     ]).toEqual([0.08, 0.08, 0.06, 0.04])
     // No "nothing" at 0 for these: they keep their minimum.
-    expect(SLIDER_RANGES['experimental.ripple.sides'].min).toBe(3)
     expect(SLIDER_RANGES['experimental.whorl.rings'].min).toBe(2)
     expect(SLIDER_RANGES['experimental.whorl.sides'].min).toBe(3)
-    expect(SLIDER_RANGES['experimental.dissolve.grain'].min).toBe(0.15)
+    // Ripple's 1 and 2 sides are straight level lines (see tests/geometry/rippleStripes.test.ts).
+    expect(SLIDER_RANGES['experimental.ripple.sides'].min).toBe(1)
   })
 
   it('turn their part off at 0', () => {

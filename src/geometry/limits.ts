@@ -140,7 +140,8 @@ export const RIPPLE_LIMITS = {
   maxWavelength: 2,
   /** The shortest ring spacing's wavelength: shorter wavelengths keep it and fade the waves out. */
   shortestWavelength: 0.08,
-  minSides: 3,
+  /** One or two sides draw straight level lines instead of polygons (see ripple.ts). */
+  minSides: 1,
   maxSides: 12,
   /** Centre, as a fraction of the glyph's ink box; it may lie outside the letter. */
   minCenter: -0.5,
@@ -356,8 +357,8 @@ export function canvasDiagonalEm(width: number, height: number, size: number): n
 // Dissolve (dissolve.ts).
 
 export const DISSOLVE_LIMITS = {
-  /** Grain: one noise period as a share of the stroke width. */
-  minGrain: 0.15,
+  /** Grain: one noise period as a share of the stroke width. 0 is the finest the grid can draw (see dissolve.ts). */
+  minGrain: 0,
   maxGrain: 1,
   /** How far the ragged edge reaches past the outline, in half-strokes. */
   maxSpread: 1.5,

@@ -47,7 +47,7 @@ describe('Glide chains', async () => {
   }
   // A gap long enough to arrive (q ≥ 0.99), the same key again on the way (glides on to it), then again once arrived (unchanged).
   const gaps: Run = {
-    times: [0, 33, 66, 196, 229, 400, 433],
+    times: [0, 33, 66, 216, 249, 400, 433],
     params: [burst(1), burst(2), burst(3), burst(4), burst(4), burst(4), burst(5)],
   }
   const whorled: Run = { times: [0, 33, 66, 99], params: [whorl(0.3), whorl(0.6), thorny(0.9, 0.05), whorl(1.2)] }
@@ -130,7 +130,7 @@ describe('Glide chains', async () => {
       'computed unchanged',
       'computed',
     ])
-    const q = easeOut((196 - 66) / GLIDE)
+    const q = easeOut((216 - 66) / GLIDE)
     expect(q).toBeGreaterThanOrEqual(GLIDE_LIMITS.arrived)
     expect(records[2][0].from).toEqual({ kind: 'between', lineage: lineageOf(1, 0), seq: 1, q: easeOut(33 / GLIDE) })
     expect(records[3][0].from).toEqual({ kind: 'computed', key: paramsKey(gaps.params[2]) })

@@ -37,6 +37,11 @@ const GRID = {
   cellsPerPeriod: 6,
   /** The finest cell, as a share of the em. */
   minCell: 1 / 600,
+  /**
+   * Below this Grain the grid and the facets keep its size, so finer grain costs no more; only the noise gets finer,
+   * down to two cells per period (Grain 5%, and below that it stays).
+   */
+  finestGrid: 0.15,
   /** The coarse grid that measures the stroke: cells per em, and its nodes at most. */
   coarsePerEm: 120,
   coarseNodes: 200_000,
@@ -143,7 +148,7 @@ export function applyDissolve(
   if (!field) return { polygon, stats }
   stats.coarser = field.coarser
   const loops = marchingSquares(field.values, field.grid)
-  const period = p.grain * 2 * field.halfStroke
+  const period = Math.max(p.grain, GRID.finestGrid) * 2 * field.halfStroke
   const baseFacet = Math.max(period * (FACET.min + (FACET.max - FACET.min) * p.facets), FACET.floor)
   // Beyond the budget, the result is faceted again, more coarsely.
   let result = loops
@@ -223,8 +228,9 @@ function inkField(
 
   // How far ink may reach past the outline, in half-strokes: the ragged edge and the specks fade out before it.
   const reachS = 2.2 + 1.9 * p.spread
-  const period = p.grain * 2 * h
-  let cell = Math.max(period / GRID.cellsPerPeriod, GRID.minCell * upm)
+  let cell = Math.max((Math.max(p.grain, GRID.finestGrid) * 2 * h) / GRID.cellsPerPeriod, GRID.minCell * upm)
+  // Never finer than two cells: below that the noise only aliases, and Grain 0 would divide by zero.
+  const period = Math.max(p.grain * 2 * h, 2 * cell)
   const margin = (c: number) => reachS * h + 3 * c
   const nodes = (c: number) => ((width + 2 * margin(c)) / c + 3) * ((height + 2 * margin(c)) / c + 3)
   let coarser = false
